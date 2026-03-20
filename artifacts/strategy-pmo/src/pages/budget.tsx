@@ -8,6 +8,7 @@ import {
   useUpdateSpmoBudgetEntry,
   useDeleteSpmoBudgetEntry,
   useUpdateSpmoProject,
+  useUpdateSpmoInitiative,
   type CreateSpmoBudgetEntryRequest,
   type SpmoInitiativeWithProgress,
 } from "@workspace/api-client-react";
@@ -116,9 +117,11 @@ export default function Budget() {
   const updateMutation = useUpdateSpmoBudgetEntry();
   const deleteMutation = useDeleteSpmoBudgetEntry();
   const updateProject = useUpdateSpmoProject();
+  const updateInitiative = useUpdateSpmoInitiative();
 
   const invalidateBudget = () => qc.invalidateQueries({ queryKey: ["/api/spmo/budget"] });
   const invalidateProjects = () => qc.invalidateQueries({ queryKey: ["/api/spmo/projects"] });
+  const invalidateInitiatives = () => qc.invalidateQueries({ queryKey: ["/api/spmo/initiatives"] });
 
   function openCreate() {
     setEditId(null);
@@ -210,10 +213,18 @@ export default function Budget() {
   const projects = projectsData?.projects ?? [];
   const totalProjBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
 
+  const spentByInitiative: Map<number, number> = new Map();
+  projects.forEach((p) => {
+    const initId = (p as unknown as { initiativeId?: number }).initiativeId;
+    if (initId != null) {
+      spentByInitiative.set(initId, (spentByInitiative.get(initId) ?? 0) + (p.budgetSpent ?? 0));
+    }
+  });
+
   const vendorByProject: Map<number, string> = new Map(
-    (procurementData?.records ?? [])
-      .filter((r) => r.vendor)
-      .map((r) => [r.projectId, r.vendor as string])
+    (procurementData?.procurement ?? [])
+      .filter((r: { vendor?: string | null }) => r.vendor)
+      .map((r: { projectId: number; vendor?: string | null }) => [r.projectId, r.vendor as string])
   );
 
   return (
@@ -294,15 +305,15 @@ export default function Budget() {
         <Card noPadding className="overflow-hidden">
           <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center justify-between">
             <h3 className="font-bold text-sm">Initiatives Budget</h3>
-            <span className="text-xs text-muted-foreground">{initiatives.length} initiatives · Click cell to edit</span>
+            <span className="text-xs text-muted-foreground">{initiatives.length} initiatives · Click Alloc to edit</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-muted-foreground uppercase border-b border-border">
                 <tr>
                   <th className="px-5 py-3 font-semibold">Name</th>
-                  <th className="px-5 py-3 font-semibold text-right">Alloc (M SAR)</th>
-                  <th className="px-5 py-3 font-semibold text-right">Spent (M SAR)</th>
+                  <th className="px-5 py-3 font-semibold text-right">Alloc (SAR)</th>
+                  <th className="px-5 py-3 font-semibold text-right">Spent (SAR)</th>
                   <th className="px-5 py-3 font-semibold text-right">Weight</th>
                   <th className="px-5 py-3 font-semibold text-right">Progress</th>
                   <th className="px-5 py-3 font-semibold text-center">Health</th>
@@ -311,17 +322,24 @@ export default function Budget() {
               <tbody className="divide-y divide-border">
                 {(initiatives as SpmoInitiativeWithProgress[]).map((initiative) => {
                   const budget = (initiative as unknown as { budget?: number }).budget ?? 0;
-                  const budgetSpent = (initiative as unknown as { budgetSpent?: number }).budgetSpent ?? 0;
+                  const computedSpent = spentByInitiative.get(initiative.id) ?? 0;
                   const progress = initiative.progress ?? 0;
                   const health = initiativeHealth(progress);
                   return (
                     <tr key={initiative.id} className="hover:bg-secondary/20 transition-colors">
                       <td className="px-5 py-3 font-semibold">{initiative.name}</td>
                       <td className="px-5 py-3 text-right">
-                        <span className="font-mono text-sm">{budget > 0 ? (budget / 1_000_000).toFixed(1) + "M" : "—"}</span>
+                        <InlineNumberEdit
+                          value={budget}
+                          onSave={(v) => {
+                            updateInitiative.mutate({ id: initiative.id, data: { budget: v } }, {
+                              onSuccess: () => { toast({ title: "Allocation updated" }); invalidateInitiatives(); },
+                            });
+                          }}
+                        />
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <span className="font-mono text-sm text-destructive">{budgetSpent > 0 ? (budgetSpent / 1_000_000).toFixed(1) + "M" : "—"}</span>
+                        <span className="font-mono text-sm text-destructive">{computedSpent > 0 ? formatCurrency(computedSpent) : "—"}</span>
                       </td>
                       <td className="px-5 py-3 text-right">
                         <span className="font-mono text-sm">{initiative.weight}%</span>

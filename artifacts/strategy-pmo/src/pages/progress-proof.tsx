@@ -69,7 +69,7 @@ export default function ProgressProof() {
 
       {/* Evidence Stats Bar */}
       <Card className="py-4">
-        <div className="grid grid-cols-3 divide-x divide-border text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-border text-center">
           <div>
             <div className="text-2xl font-display font-bold text-success">{counts.approved}</div>
             <div className="text-xs text-muted-foreground font-medium mt-0.5">Approved</div>
@@ -81,6 +81,15 @@ export default function ProgressProof() {
           <div>
             <div className="text-2xl font-display font-bold text-muted-foreground">{counts.no_evidence}</div>
             <div className="text-xs text-muted-foreground font-medium mt-0.5">Missing Evidence</div>
+          </div>
+          <div>
+            <div className="text-2xl font-display font-bold text-primary">
+              {allItems.reduce((s, i) => s + (i.milestone.evidence?.length ?? 0), 0)}
+            </div>
+            <div className="text-xs text-muted-foreground font-medium mt-0.5">Total Files</div>
+            <div className="text-[10px] font-semibold text-muted-foreground/60 mt-0.5">
+              {counts.all > 0 ? Math.round((counts.approved / counts.all) * 100) : 0}% approval rate
+            </div>
           </div>
         </div>
       </Card>
@@ -183,9 +192,29 @@ function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
         <span className="text-foreground/80">{item.project?.name}</span>
       </div>
 
-      <div className="flex items-start justify-between gap-2 mb-4">
+      <div className="flex items-start justify-between gap-2 mb-2">
         <h3 className="font-bold text-base leading-snug">{item.milestone.name}</h3>
         <StatusBadge status={item.milestone.status} />
+      </div>
+
+      <div className="flex items-center gap-3 mb-4 text-xs text-muted-foreground flex-wrap">
+        {item.milestone.effortDays != null && (
+          <span className="font-medium">Effort: <span className="font-bold text-foreground">{item.milestone.effortDays}d</span></span>
+        )}
+        {(item.milestone as unknown as { weight?: number }).weight != null && (item.milestone as unknown as { weight?: number }).weight! > 0 && (
+          <span className="font-medium">Weight: <span className="font-bold text-foreground">{(item.milestone as unknown as { weight?: number }).weight}%</span></span>
+        )}
+        {item.milestone.status === "approved" && (item.milestone as unknown as { approvedByName?: string }).approvedByName && (
+          <span className="flex items-center gap-1 text-success font-semibold">
+            <CheckCircle2 className="w-3 h-3" />
+            Approved by {(item.milestone as unknown as { approvedByName?: string }).approvedByName}
+          </span>
+        )}
+        {item.milestone.status === "rejected" && (item.milestone as unknown as { rejectionReason?: string }).rejectionReason && (
+          <span className="text-destructive font-medium">
+            Rejected: {(item.milestone as unknown as { rejectionReason?: string }).rejectionReason}
+          </span>
+        )}
       </div>
 
       {/* Progress bar */}
@@ -244,7 +273,19 @@ function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
             }`}>
               {aiMutation.data.verdict}
             </span>
-            <span className="text-xs text-muted-foreground ml-auto font-semibold">Score: {aiMutation.data.overallScore}/100</span>
+            {/* Score circle (1-10 scale) */}
+            <div className="ml-auto flex items-center gap-1.5">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-display font-bold text-sm border-2 ${
+                aiMutation.data.overallScore >= 80
+                  ? "border-success text-success bg-success/10"
+                  : aiMutation.data.overallScore >= 50
+                  ? "border-warning text-warning bg-warning/10"
+                  : "border-destructive text-destructive bg-destructive/10"
+              }`}>
+                {Math.round(aiMutation.data.overallScore / 10)}
+              </div>
+              <span className="text-[10px] text-muted-foreground">/10</span>
+            </div>
           </div>
 
           {/* Sub-scores */}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   useListSpmoProjects,
+  useListSpmoInitiatives,
   useListSpmoProcurement,
   useCreateSpmoProcurement,
   useUpdateSpmoProcurement,
@@ -42,6 +43,7 @@ const emptyForm = (): ProcurementForm => ({
 
 export default function Procurement() {
   const { data: projectsData } = useListSpmoProjects();
+  const { data: initiativesData } = useListSpmoInitiatives();
   const { data: procurementData, isLoading } = useListSpmoProcurement();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -55,12 +57,20 @@ export default function Procurement() {
   const deleteMutation = useDeleteSpmoProcurement();
 
   const projects = projectsData?.projects ?? [];
+  const initiatives = initiativesData?.initiatives ?? [];
   const allRecords: SpmoProcurementRecord[] = procurementData?.procurement ?? [];
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/spmo/procurement"] });
 
   function getProjectName(id: number) {
     return projects.find((p) => p.id === id)?.name ?? `Project #${id}`;
+  }
+
+  function getInitiativeName(projectId: number): string | undefined {
+    const proj = projects.find((p) => p.id === projectId);
+    const initId = (proj as unknown as { initiativeId?: number })?.initiativeId;
+    if (!initId) return undefined;
+    return initiatives.find((i) => i.id === initId)?.name;
   }
 
   function openCreate() {
@@ -200,8 +210,8 @@ export default function Procurement() {
               {/* Cards */}
               <div className="flex flex-col gap-2 p-2 min-h-[120px]">
                 {stageRecords.length === 0 && (
-                  <div className="flex-1 flex items-center justify-center py-8 text-xs text-muted-foreground/50">
-                    Drop here
+                  <div className="flex-1 flex items-center justify-center py-8 text-xs text-muted-foreground/40 italic">
+                    No records in this stage
                   </div>
                 )}
                 {stageRecords.map((rec) => (
@@ -210,6 +220,7 @@ export default function Procurement() {
                     rec={rec}
                     stageColor={stage.color}
                     projectName={getProjectName(rec.projectId)}
+                    initiativeName={getInitiativeName(rec.projectId)}
                     stages={STAGES}
                     onEdit={() => openEdit(rec)}
                     onDelete={() => handleDelete(rec.id)}
@@ -326,11 +337,12 @@ export default function Procurement() {
 }
 
 function KanbanCard({
-  rec, stageColor, projectName, stages, onEdit, onDelete, onStageChange,
+  rec, stageColor, projectName, initiativeName, stages, onEdit, onDelete, onStageChange,
 }: {
   rec: SpmoProcurementRecord;
   stageColor: string;
   projectName: string;
+  initiativeName?: string;
   stages: typeof STAGES;
   onEdit: () => void;
   onDelete: () => void;
@@ -342,7 +354,7 @@ function KanbanCard({
       style={{ borderLeft: `3px solid ${stageColor}` }}
       onClick={onEdit}
     >
-      <div className="font-semibold text-sm leading-snug mb-1.5 pr-10 relative">
+      <div className="font-semibold text-sm leading-snug mb-1 pr-10 relative">
         {rec.title}
         <div
           className="absolute top-0 right-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -365,7 +377,16 @@ function KanbanCard({
         </div>
       </div>
 
-      <div className="text-xs text-muted-foreground truncate mb-2">{projectName}</div>
+      {/* Initiative → Project breadcrumb */}
+      <div className="text-[10px] text-muted-foreground truncate mb-1.5 flex items-center gap-1">
+        {initiativeName && (
+          <>
+            <span className="truncate">{initiativeName}</span>
+            <span>›</span>
+          </>
+        )}
+        <span className="font-medium text-foreground/70 truncate">{projectName}</span>
+      </div>
 
       {rec.vendor && (
         <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
@@ -374,7 +395,7 @@ function KanbanCard({
         </div>
       )}
       {rec.contractValue !== null && rec.contractValue !== undefined && rec.contractValue > 0 && (
-        <div className="flex items-center gap-1 text-xs font-semibold text-foreground mb-2">
+        <div className="flex items-center gap-1 text-xs font-semibold text-foreground mb-1.5">
           <DollarSign className="w-3 h-3 shrink-0" />
           {formatCurrency(rec.contractValue)}
         </div>

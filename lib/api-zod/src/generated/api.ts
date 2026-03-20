@@ -989,6 +989,8 @@ export const UpdateSpmoInitiativeBody = zod.object({
   targetDate: zod.date().optional(),
   weight: zod.number().optional(),
   status: zod.enum(["active", "on_hold", "completed", "cancelled"]).optional(),
+  budget: zod.number().min(0).optional(),
+  budgetSpent: zod.number().min(0).optional(),
 });
 
 export const UpdateSpmoInitiativeResponse = zod.object({

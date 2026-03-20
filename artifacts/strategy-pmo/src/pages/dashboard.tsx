@@ -37,6 +37,14 @@ export default function Dashboard() {
   const budgetUsed = budgetData?.utilizationPct ?? 0;
   const initiatives = initiativesData?.initiatives ?? [];
 
+  const totalAllocated = budgetData?.totalAllocated ?? 0;
+  const totalSpent = budgetData?.totalSpent ?? 0;
+  const initiativesOnTrack = initiatives.filter((i) => {
+    const prog = (i as unknown as { progress?: number }).progress ?? 0;
+    return prog >= 50 || i.status === "active";
+  }).length;
+  const projectsNeedAttention = data.pillarSummaries.reduce((s, p) => s + p.pendingApprovals, 0);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <PageHeader
@@ -71,7 +79,7 @@ export default function Dashboard() {
           icon={Target}
           label="Strategy Progress"
           value={`${Math.round(data.programmeProgress)}%`}
-          sub="Weighted cascade of pillars"
+          sub={`${data.approvedMilestones} of ${data.totalMilestones} milestones approved`}
           color="text-primary"
           bg="bg-primary/10"
         />
@@ -79,7 +87,7 @@ export default function Dashboard() {
           icon={Sparkles}
           label="Initiatives"
           value={String(data.pillarSummaries.reduce((s, p) => s + p.initiativeCount, 0))}
-          sub={`Across ${data.pillarSummaries.length} pillars`}
+          sub={`${initiativesOnTrack} on track`}
           color="text-violet-600"
           bg="bg-violet-100"
         />
@@ -87,7 +95,7 @@ export default function Dashboard() {
           icon={FolderOpen}
           label="Projects"
           value={String(totalProjects)}
-          sub={`${data.pendingApprovals} pending approval`}
+          sub={`${projectsNeedAttention} need attention`}
           color="text-success"
           bg="bg-success/10"
         />
@@ -95,7 +103,11 @@ export default function Dashboard() {
           icon={Wallet}
           label="Budget Used"
           value={`${budgetUsed.toFixed(1)}%`}
-          sub={budgetUsed > 90 ? "⚠ Over budget threshold" : "Of total allocation"}
+          sub={
+            totalAllocated > 0
+              ? `Spent ${(totalSpent / 1_000_000).toFixed(0)}M / ${(totalAllocated / 1_000_000).toFixed(0)}M SAR`
+              : budgetUsed > 90 ? "Over budget threshold" : "Of total allocation"
+          }
           color={budgetUsed > 90 ? "text-destructive" : "text-warning"}
           bg={budgetUsed > 90 ? "bg-destructive/10" : "bg-warning/10"}
         />
@@ -135,26 +147,38 @@ export default function Dashboard() {
                 />
               </div>
 
-              <div className="flex gap-5 text-sm">
-                <div>
-                  <span className="font-bold">{pillar.initiativeCount}</span>{" "}
-                  <span className="text-muted-foreground text-xs">initiatives</span>
-                </div>
-                <div>
-                  <span className="font-bold">{pillar.projectCount}</span>{" "}
-                  <span className="text-muted-foreground text-xs">projects</span>
-                </div>
-                <div>
-                  <span className="font-bold">{pillar.approvedMilestones}/{pillar.milestoneCount}</span>{" "}
-                  <span className="text-muted-foreground text-xs">approved</span>
-                </div>
-                {pillar.pendingApprovals > 0 && (
-                  <div>
-                    <span className="font-bold text-warning">{pillar.pendingApprovals}</span>{" "}
-                    <span className="text-muted-foreground text-xs">pending</span>
+              {/* Initiative tags */}
+              {(() => {
+                const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);
+                if (pillarInitiatives.length === 0) return (
+                  <div className="flex gap-4 text-sm">
+                    <span className="font-bold">{pillar.projectCount}</span>{" "}
+                    <span className="text-muted-foreground text-xs">projects</span>
+                    <span className="font-bold">{pillar.approvedMilestones}/{pillar.milestoneCount}</span>{" "}
+                    <span className="text-muted-foreground text-xs">approved</span>
                   </div>
-                )}
-              </div>
+                );
+                return (
+                  <div className="space-y-1">
+                    {pillarInitiatives.map((init) => {
+                      const prog = (init as unknown as { progress?: number }).progress ?? 0;
+                      const weight = (init as unknown as { weight?: number }).weight ?? 0;
+                      return (
+                        <div key={init.id} className="flex items-center gap-2 text-xs">
+                          <span className="truncate text-foreground/80 flex-1">{init.name}</span>
+                          <span className="font-bold shrink-0" style={{ color: pillar.color }}>{Math.round(prog)}%</span>
+                          {weight > 0 && <span className="text-muted-foreground shrink-0 text-[10px]">wt {weight}%</span>}
+                        </div>
+                      );
+                    })}
+                    {pillar.pendingApprovals > 0 && (
+                      <div className="text-[10px] font-semibold text-warning mt-1">
+                        {pillar.pendingApprovals} pending approval
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </Card>
           ))}
         </div>

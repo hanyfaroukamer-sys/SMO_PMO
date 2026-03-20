@@ -3161,6 +3161,14 @@ components:
         status:
           type: string
           enum: [active, on_hold, completed, cancelled]
+        budget:
+          type: number
+          minimum: 0
+          description: Allocated budget in base currency
+        budgetSpent:
+          type: number
+          minimum: 0
+          description: Actual spend to date
 
     CreateSpmoProjectRequest:
       type: object

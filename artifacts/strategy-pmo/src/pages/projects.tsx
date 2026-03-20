@@ -12,6 +12,9 @@ import {
   useDeleteSpmoMilestone,
   useSubmitSpmoMilestone,
   useAddSpmoEvidence,
+  useApproveSpmoMilestone,
+  useRejectSpmoMilestone,
+  useGetCurrentAuthUser,
   type SpmoProjectWithProgress,
   type CreateSpmoProjectRequest,
   type UpdateSpmoProjectRequest,
@@ -21,7 +24,7 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, CheckCircle2, Send, X, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -42,15 +45,28 @@ function EvidencePanel({
   milestone: SpmoMilestoneWithEvidence;
   onInvalidate: () => void;
 }) {
+  const { data: authData } = useGetCurrentAuthUser();
+  const user = authData?.user;
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [showRejectInput, setShowRejectInput] = useState(false);
   const addEvidence = useAddSpmoEvidence();
+  const approveMutation = useApproveSpmoMilestone();
+  const rejectMutation = useRejectSpmoMilestone();
 
   const evidence = (milestone.evidence ?? []) as SpmoEvidence[];
   const isApproved = milestone.status === "approved";
   const isRejected = milestone.status === "rejected";
   const isSubmitted = milestone.status === "submitted";
+  const canApproveReject = user?.role === "admin" || user?.role === "approver";
+  const m = milestone as unknown as {
+    approvedByName?: string | null;
+    approvedAt?: string | null;
+    rejectionReason?: string | null;
+    rejectedAt?: string | null;
+  };
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -93,17 +109,47 @@ function EvidencePanel({
     }
   }
 
+  function handleApprove() {
+    approveMutation.mutate({ id: milestone.id, data: {} }, {
+      onSuccess: () => { toast({ title: "Milestone approved" }); onInvalidate(); },
+      onError: () => toast({ variant: "destructive", title: "Approval failed" }),
+    });
+  }
+
+  function handleReject() {
+    if (!rejectReason.trim()) return;
+    rejectMutation.mutate({ id: milestone.id, data: { reason: rejectReason.trim() } }, {
+      onSuccess: () => {
+        toast({ title: "Milestone rejected" });
+        setShowRejectInput(false);
+        setRejectReason("");
+        onInvalidate();
+      },
+      onError: () => toast({ variant: "destructive", title: "Rejection failed" }),
+    });
+  }
+
   return (
     <div className="mx-4 mb-3 rounded-xl border border-border overflow-hidden">
       {/* Status banner */}
       {isApproved && (
         <div className="flex items-center gap-2 px-3 py-2 bg-success/10 border-b border-success/20 text-success text-xs font-bold">
-          <CheckCircle2 className="w-3.5 h-3.5" /> Milestone Approved — Evidence Locked
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          Approved{m.approvedByName ? ` by ${m.approvedByName}` : ""}
+          {m.approvedAt && (
+            <span className="font-normal text-success/60 ml-1">
+              · {format(new Date(m.approvedAt), "MMM d, yyyy")}
+            </span>
+          )}
         </div>
       )}
       {isRejected && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-destructive/10 border-b border-destructive/20 text-destructive text-xs font-bold">
-          <X className="w-3.5 h-3.5" /> Milestone Rejected — Upload corrected evidence and re-submit
+        <div className="flex items-start gap-2 px-3 py-2 bg-destructive/10 border-b border-destructive/20 text-destructive text-xs font-bold">
+          <X className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <div>
+            <div>Rejected — upload corrected evidence and re-submit</div>
+            {m.rejectionReason && <div className="font-normal text-destructive/70 mt-0.5">Reason: {m.rejectionReason}</div>}
+          </div>
         </div>
       )}
       {isSubmitted && (
@@ -149,7 +195,7 @@ function EvidencePanel({
 
       {/* Upload zone (only if not approved) */}
       {!isApproved && (
-        <div className="px-3 pb-3">
+        <div className="px-3 pb-2">
           <input ref={fileRef} type="file" className="hidden" onChange={handleFileUpload} />
           <button
             onClick={() => fileRef.current?.click()}
@@ -158,6 +204,67 @@ function EvidencePanel({
           >
             {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
             {uploading ? "Uploading…" : "Upload Evidence File"}
+          </button>
+        </div>
+      )}
+
+      {/* Approve / Reject controls (approver/admin only, on submitted milestones) */}
+      {canApproveReject && isSubmitted && (
+        <div className="px-3 pb-3 space-y-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowRejectInput(!showRejectInput)}
+              disabled={rejectMutation.isPending}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive text-xs font-semibold hover:bg-destructive hover:text-white transition-colors disabled:opacity-50"
+            >
+              <XCircle className="w-3.5 h-3.5" /> Reject
+            </button>
+            <button
+              onClick={handleApprove}
+              disabled={approveMutation.isPending || evidence.length === 0}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-success text-white text-xs font-semibold hover:bg-success/90 transition-colors disabled:opacity-50"
+              title={evidence.length === 0 ? "Evidence required" : "Approve milestone"}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+            </button>
+          </div>
+          {showRejectInput && (
+            <div className="flex gap-2">
+              <input
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Reason for rejection…"
+                className="flex-1 text-xs border border-border rounded-lg px-2 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <button
+                onClick={handleReject}
+                disabled={!rejectReason.trim() || rejectMutation.isPending}
+                className="px-3 py-1.5 rounded-lg bg-destructive text-white text-xs font-semibold disabled:opacity-50"
+              >
+                {rejectMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Send"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reset button for rejected milestones (approver/admin) */}
+      {canApproveReject && isRejected && (
+        <div className="px-3 pb-3">
+          <button
+            onClick={() => {
+              fetch(`/spmo/api/spmo/milestones/${milestone.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "in_progress" }),
+              }).then(() => {
+                toast({ title: "Milestone reset to In Progress" });
+                onInvalidate();
+              });
+            }}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Reset to In Progress
           </button>
         </div>
       )}
@@ -638,11 +745,16 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                         className="text-sm font-semibold"
                       />
                     )}
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <StatusBadge status={m.status} />
                       {m.dueDate && (
                         <span className="text-xs text-muted-foreground">
                           Due {format(new Date(m.dueDate), "MMM d")}
+                        </span>
+                      )}
+                      {(m.progress ?? 0) >= 100 && !hasEvidence && !isApproved && (
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-warning bg-warning/10 border border-warning/20 rounded px-1.5 py-0.5">
+                          <AlertCircle className="w-3 h-3" /> Evidence required to submit
                         </span>
                       )}
                     </div>

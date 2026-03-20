@@ -978,6 +978,10 @@ export interface UpdateSpmoInitiativeRequest {
   targetDate?: string;
   weight?: number;
   status?: UpdateSpmoInitiativeRequestStatus;
+  /** Allocated budget in base currency */
+  budget?: number;
+  /** Actual spend to date */
+  budgetSpent?: number;
 }
 
 export type CreateSpmoProjectRequestStatus =
