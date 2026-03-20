@@ -15,6 +15,7 @@ export interface CreateSpmoRiskRequest {
   /** @minLength 1 */
   title: string;
   description?: string;
+  category?: string;
   probability: CreateSpmoRiskRequestProbability;
   impact: CreateSpmoRiskRequestImpact;
   owner?: string;

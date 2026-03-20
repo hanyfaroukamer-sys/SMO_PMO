@@ -6,6 +6,8 @@ import {
   useDeleteSpmoRisk,
   useCreateSpmoMitigation,
   useUpdateSpmoMitigation,
+  useListSpmoProjects,
+  useListSpmoInitiatives,
   type CreateSpmoRiskRequest,
   type CreateSpmoMitigationRequest,
 } from "@workspace/api-client-react";
@@ -22,13 +24,20 @@ type ProbImpact = "low" | "medium" | "high" | "critical";
 const SCORE_MAP: Record<ProbImpact, number> = { low: 1, medium: 2, high: 3, critical: 4 };
 const LABEL_MAP: Record<ProbImpact, string> = { low: "Low", medium: "Medium", high: "High", critical: "Critical" };
 
+const RISK_CATEGORIES = [
+  "Technical", "Financial", "Operational", "Regulatory", "Strategic",
+  "Security", "Resource", "Schedule", "Vendor", "Other",
+];
+
 type RiskForm = {
   title: string;
   description: string;
+  category: string;
   probability: ProbImpact;
   impact: ProbImpact;
   status: string;
   owner: string;
+  projectId: string;
 };
 
 type MitigationForm = {
@@ -37,7 +46,8 @@ type MitigationForm = {
 };
 
 const emptyRisk = (): RiskForm => ({
-  title: "", description: "", probability: "medium", impact: "medium", status: "open", owner: "",
+  title: "", description: "", category: "", probability: "medium", impact: "medium",
+  status: "open", owner: "", projectId: "",
 });
 
 const emptyMitigation = (): MitigationForm => ({ description: "", status: "planned" });
@@ -64,12 +74,17 @@ function heatmapColor(count: number) {
 
 export default function Risks() {
   const { data, isLoading } = useListSpmoRisks();
+  const { data: projectsData } = useListSpmoProjects();
+  const { data: initiativesData } = useListSpmoInitiatives();
   const [riskModal, setRiskModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [riskForm, setRiskForm] = useState<RiskForm>(emptyRisk());
   const [expandedRisk, setExpandedRisk] = useState<number | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  const projects = projectsData?.projects ?? [];
+  const initiatives = initiativesData?.initiatives ?? [];
 
   const createMutation = useCreateSpmoRisk();
   const updateMutation = useUpdateSpmoRisk();
@@ -88,10 +103,12 @@ export default function Risks() {
     setRiskForm({
       title: risk.title,
       description: risk.description ?? "",
+      category: risk.category ?? "",
       probability: (risk.probability as ProbImpact) ?? "medium",
       impact: (risk.impact as ProbImpact) ?? "medium",
       status: risk.status,
       owner: risk.owner ?? "",
+      projectId: risk.projectId ? String(risk.projectId) : "",
     });
     setRiskModal(true);
   }
@@ -111,10 +128,12 @@ export default function Risks() {
     const payload = {
       title: riskForm.title,
       description: riskForm.description || undefined,
+      category: riskForm.category || undefined,
       probability: riskForm.probability,
       impact: riskForm.impact,
       status: riskForm.status as "open" | "mitigated" | "accepted" | "closed",
       owner: riskForm.owner || undefined,
+      projectId: riskForm.projectId ? parseInt(riskForm.projectId) : undefined,
     };
 
     if (editId !== null) {
@@ -146,6 +165,14 @@ export default function Risks() {
 
   const risks = data?.risks ?? [];
   const sorted = [...risks].sort((a, b) => b.riskScore - a.riskScore);
+
+  function getProjectContext(projectId: number | null): { projectName: string; initiativeName: string } | null {
+    if (!projectId) return null;
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return null;
+    const initiative = initiatives.find((i) => i.id === project.initiativeId);
+    return { projectName: project.name, initiativeName: initiative?.name ?? "" };
+  }
 
   const PROB_LEVELS: ProbImpact[] = ["low", "medium", "high", "critical"];
   const IMPACT_LEVELS: ProbImpact[] = ["low", "medium", "high", "critical"];
@@ -265,7 +292,22 @@ export default function Risks() {
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <h3 className="font-bold text-foreground">{risk.title}</h3>
                     <StatusBadge status={risk.status} />
+                    {risk.category && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                        {risk.category}
+                      </span>
+                    )}
                   </div>
+                  {(() => {
+                    const ctx = getProjectContext(risk.projectId);
+                    return ctx ? (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
+                        {ctx.initiativeName && <span className="text-primary/70">{ctx.initiativeName}</span>}
+                        {ctx.initiativeName && <span>›</span>}
+                        <span className="font-medium text-foreground/70">{ctx.projectName}</span>
+                      </div>
+                    ) : null;
+                  })()}
                   <p className="text-sm text-muted-foreground line-clamp-1">{risk.description}</p>
                   <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
                     {risk.owner && <span>Owner: <strong className="text-foreground">{risk.owner}</strong></span>}
@@ -307,6 +349,21 @@ export default function Risks() {
           <FormField label="Risk Title" required>
             <input className={inputClass} value={riskForm.title} onChange={(e) => setRiskForm({ ...riskForm, title: e.target.value })} placeholder="e.g. System Integration Failure" required />
           </FormField>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Category">
+              <select className={selectClass} value={riskForm.category} onChange={(e) => setRiskForm({ ...riskForm, category: e.target.value })}>
+                <option value="">— None —</option>
+                {RISK_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Linked Project">
+              <select className={selectClass} value={riskForm.projectId} onChange={(e) => setRiskForm({ ...riskForm, projectId: e.target.value })}>
+                <option value="">— None —</option>
+                {projects.map((p) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+              </select>
+            </FormField>
+          </div>
 
           <FormField label="Description">
             <textarea className={inputClass} rows={3} value={riskForm.description} onChange={(e) => setRiskForm({ ...riskForm, description: e.target.value })} placeholder="Describe the risk and its potential impact..." />

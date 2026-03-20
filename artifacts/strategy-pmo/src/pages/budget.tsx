@@ -3,11 +3,13 @@ import {
   useListSpmoBudget,
   useListSpmoInitiatives,
   useListSpmoProjects,
+  useListSpmoProcurement,
   useCreateSpmoBudgetEntry,
   useUpdateSpmoBudgetEntry,
   useDeleteSpmoBudgetEntry,
   useUpdateSpmoProject,
   type CreateSpmoBudgetEntryRequest,
+  type SpmoInitiativeWithProgress,
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
@@ -103,6 +105,7 @@ export default function Budget() {
   const { data, isLoading } = useListSpmoBudget();
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: projectsData } = useListSpmoProjects();
+  const { data: procurementData } = useListSpmoProcurement();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<EntryForm>(emptyForm());
@@ -207,6 +210,12 @@ export default function Budget() {
   const projects = projectsData?.projects ?? [];
   const totalProjBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
 
+  const vendorByProject: Map<number, string> = new Map(
+    (procurementData?.records ?? [])
+      .filter((r) => r.vendor)
+      .map((r) => [r.projectId, r.vendor as string])
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader title="Budget Tracking" description="Financial overview of programme allocations and spend.">
@@ -293,20 +302,29 @@ export default function Budget() {
                 <tr>
                   <th className="px-5 py-3 font-semibold">Name</th>
                   <th className="px-5 py-3 font-semibold text-right">Alloc (M SAR)</th>
+                  <th className="px-5 py-3 font-semibold text-right">Spent (M SAR)</th>
+                  <th className="px-5 py-3 font-semibold text-right">Weight</th>
                   <th className="px-5 py-3 font-semibold text-right">Progress</th>
                   <th className="px-5 py-3 font-semibold text-center">Health</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {initiatives.map((initiative) => {
+                {(initiatives as SpmoInitiativeWithProgress[]).map((initiative) => {
                   const budget = (initiative as unknown as { budget?: number }).budget ?? 0;
-                  const progress = (initiative as unknown as { progress?: number }).progress ?? 0;
+                  const budgetSpent = (initiative as unknown as { budgetSpent?: number }).budgetSpent ?? 0;
+                  const progress = initiative.progress ?? 0;
                   const health = initiativeHealth(progress);
                   return (
                     <tr key={initiative.id} className="hover:bg-secondary/20 transition-colors">
                       <td className="px-5 py-3 font-semibold">{initiative.name}</td>
                       <td className="px-5 py-3 text-right">
-                        <span className="font-mono text-sm">{(budget / 1_000_000).toFixed(1)}M</span>
+                        <span className="font-mono text-sm">{budget > 0 ? (budget / 1_000_000).toFixed(1) + "M" : "—"}</span>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <span className="font-mono text-sm text-destructive">{budgetSpent > 0 ? (budgetSpent / 1_000_000).toFixed(1) + "M" : "—"}</span>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <span className="font-mono text-sm">{initiative.weight}%</span>
                       </td>
                       <td className="px-5 py-3 text-right">
                         <span className="font-bold">{Math.round(progress)}%</span>
@@ -335,9 +353,10 @@ export default function Budget() {
               <thead className="text-xs text-muted-foreground uppercase border-b border-border">
                 <tr>
                   <th className="px-5 py-3 font-semibold">Name</th>
-                  <th className="px-5 py-3 font-semibold">Owner</th>
-                  <th className="px-5 py-3 font-semibold text-right">Budget (M SAR)</th>
-                  <th className="px-5 py-3 font-semibold text-right">Budget Spent</th>
+                  <th className="px-5 py-3 font-semibold">Vendor</th>
+                  <th className="px-5 py-3 font-semibold text-right">Weight</th>
+                  <th className="px-5 py-3 font-semibold text-right">Alloc (M SAR)</th>
+                  <th className="px-5 py-3 font-semibold text-right">Spent (M SAR)</th>
                   <th className="px-5 py-3 font-semibold text-right">Progress</th>
                 </tr>
               </thead>
@@ -346,10 +365,12 @@ export default function Budget() {
                   const budget = project.budget ?? 0;
                   const budgetSpent = project.budgetSpent ?? 0;
                   const progress = project.progress ?? 0;
+                  const vendor = vendorByProject.get(project.id) ?? "—";
                   return (
                     <tr key={project.id} className="hover:bg-secondary/20 transition-colors">
                       <td className="px-5 py-3 font-semibold">{project.name}</td>
-                      <td className="px-5 py-3 text-muted-foreground text-xs">{project.ownerName || "—"}</td>
+                      <td className="px-5 py-3 text-muted-foreground text-xs">{vendor}</td>
+                      <td className="px-5 py-3 text-right font-mono text-sm">{project.weight}%</td>
                       <td className="px-5 py-3 text-right">
                         <InlineNumberEdit
                           value={budget}

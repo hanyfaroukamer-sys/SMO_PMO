@@ -7,9 +7,9 @@ import {
   useDeleteSpmoProcurement,
   type SpmoProcurementRecord,
 } from "@workspace/api-client-react";
-import { PageHeader } from "@/components/ui-elements";
+import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, Building2, DollarSign } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Building2, DollarSign, FileText, Send, Search, Award, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
@@ -143,6 +143,33 @@ export default function Procurement() {
           <Plus className="w-4 h-4" /> Add Record
         </button>
       </PageHeader>
+
+      {/* 5 Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-5 gap-4">
+        {STAGES.map((stage) => {
+          const stageRecords = allRecords.filter((r) => r.stage === stage.value);
+          const stageValue = stageRecords.reduce((s, r) => s + (r.contractValue ?? 0), 0);
+          const Icon = stage.value === "rfp_draft" ? FileText
+            : stage.value === "rfp_issued" ? Send
+            : stage.value === "evaluation" ? Search
+            : stage.value === "awarded" ? Award
+            : CheckCircle2;
+          return (
+            <Card key={stage.value}>
+              <div className="flex items-center gap-2.5 mb-2">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${stage.color}15` }}>
+                  <Icon className="w-4 h-4" style={{ color: stage.color }} />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{stage.label}</span>
+              </div>
+              <div className="text-2xl font-display font-bold" style={{ color: stage.color }}>{stageRecords.length}</div>
+              {stageValue > 0 && (
+                <div className="text-xs text-muted-foreground mt-0.5">{formatCurrency(stageValue)}</div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
 
       {/* 5-Column Kanban */}
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4 items-start">

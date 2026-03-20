@@ -244,6 +244,7 @@ export const spmoRisksTable = pgTable("spmo_risks", {
   projectId: integer("project_id"),
   title: text("title").notNull(),
   description: text("description"),
+  category: text("category"),
   probability: text("probability", {
     enum: ["low", "medium", "high", "critical"],
   })

@@ -5,6 +5,7 @@
  * Initiative Tracker API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { SpmoAiValidateEvidenceResultSubScores } from "./spmoAiValidateEvidenceResultSubScores";
 import type { SpmoAiValidateEvidenceResultVerdict } from "./spmoAiValidateEvidenceResultVerdict";
 
 export interface SpmoAiValidateEvidenceResult {
@@ -13,6 +14,11 @@ export interface SpmoAiValidateEvidenceResult {
   evidenceCount: number;
   /** 0–100 */
   overallScore: number;
+  subScores?: SpmoAiValidateEvidenceResultSubScores;
+  /** Evidence elements that are present and satisfactory */
+  presentItems?: string[];
+  /** Missing evidence or gaps that need to be addressed */
+  gapItems?: string[];
   verdict: SpmoAiValidateEvidenceResultVerdict;
   reasoning: string;
   suggestions: string[];

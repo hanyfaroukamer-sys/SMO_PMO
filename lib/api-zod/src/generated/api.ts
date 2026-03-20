@@ -1718,6 +1718,7 @@ export const ListSpmoRisksResponse = zod.object({
         projectId: zod.number().nullable(),
         title: zod.string(),
         description: zod.string().nullable(),
+        category: zod.string().nullish(),
         probability: zod.enum(["low", "medium", "high", "critical"]),
         impact: zod.enum(["low", "medium", "high", "critical"]),
         riskScore: zod
@@ -1754,6 +1755,7 @@ export const CreateSpmoRiskBody = zod.object({
   projectId: zod.number().optional(),
   title: zod.string().min(1),
   description: zod.string().optional(),
+  category: zod.string().optional(),
   probability: zod.enum(["low", "medium", "high", "critical"]),
   impact: zod.enum(["low", "medium", "high", "critical"]),
   owner: zod.string().optional(),
@@ -1770,6 +1772,7 @@ export const UpdateSpmoRiskParams = zod.object({
 export const UpdateSpmoRiskBody = zod.object({
   title: zod.string().optional(),
   description: zod.string().optional(),
+  category: zod.string().optional(),
   probability: zod.enum(["low", "medium", "high", "critical"]).optional(),
   impact: zod.enum(["low", "medium", "high", "critical"]).optional(),
   owner: zod.string().optional(),
@@ -1782,6 +1785,7 @@ export const UpdateSpmoRiskResponse = zod.object({
   projectId: zod.number().nullable(),
   title: zod.string(),
   description: zod.string().nullable(),
+  category: zod.string().nullish(),
   probability: zod.enum(["low", "medium", "high", "critical"]),
   impact: zod.enum(["low", "medium", "high", "critical"]),
   riskScore: zod
@@ -2175,6 +2179,21 @@ export const RunSpmoAiValidateEvidenceResponse = zod.object({
   milestoneName: zod.string(),
   evidenceCount: zod.number(),
   overallScore: zod.number().describe("0–100"),
+  subScores: zod
+    .object({
+      completeness: zod.number().optional().describe("0–100"),
+      relevance: zod.number().optional().describe("0–100"),
+      specificity: zod.number().optional().describe("0–100"),
+    })
+    .optional(),
+  presentItems: zod
+    .array(zod.string())
+    .optional()
+    .describe("Evidence elements that are present and satisfactory"),
+  gapItems: zod
+    .array(zod.string())
+    .optional()
+    .describe("Missing evidence or gaps that need to be addressed"),
   verdict: zod.enum(["strong", "adequate", "weak", "insufficient"]),
   reasoning: zod.string(),
   suggestions: zod.array(zod.string()),

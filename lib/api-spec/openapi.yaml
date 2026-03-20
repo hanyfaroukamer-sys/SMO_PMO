@@ -2665,6 +2665,8 @@ components:
           type: string
         description:
           type: [string, 'null']
+        category:
+          type: [string, 'null']
         probability:
           type: string
           enum: [low, medium, high, critical]
@@ -3034,6 +3036,28 @@ components:
         overallScore:
           type: number
           description: 0–100
+        subScores:
+          type: object
+          properties:
+            completeness:
+              type: number
+              description: 0–100
+            relevance:
+              type: number
+              description: 0–100
+            specificity:
+              type: number
+              description: 0–100
+        presentItems:
+          type: array
+          description: Evidence elements that are present and satisfactory
+          items:
+            type: string
+        gapItems:
+          type: array
+          description: Missing evidence or gaps that need to be addressed
+          items:
+            type: string
         verdict:
           type: string
           enum: [strong, adequate, weak, insufficient]
@@ -3305,6 +3329,8 @@ components:
           minLength: 1
         description:
           type: string
+        category:
+          type: string
         probability:
           type: string
           enum: [low, medium, high, critical]
@@ -3323,6 +3349,8 @@ components:
         title:
           type: string
         description:
+          type: string
+        category:
           type: string
         probability:
           type: string

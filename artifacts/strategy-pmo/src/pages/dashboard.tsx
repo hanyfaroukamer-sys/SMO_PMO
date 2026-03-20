@@ -6,7 +6,7 @@ import {
   useRunSpmoAiAssessment,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
-import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, Wallet } from "lucide-react";
+import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, Wallet, ThumbsUp, Lightbulb, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Link } from "wouter";
@@ -221,40 +221,93 @@ export default function Dashboard() {
               )}
               {aiMutation.isSuccess && aiMutation.data && (
                 <div className="space-y-5">
+                  {/* Health + Summary */}
                   <div className="flex items-center gap-4 p-4 bg-secondary/40 rounded-xl border border-border">
-                    <div>
+                    <div className="shrink-0">
                       <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Overall Health</p>
                       <StatusBadge status={aiMutation.data.overallHealth} />
                     </div>
                     <p className="flex-1 text-sm leading-relaxed text-foreground/80">{aiMutation.data.summary}</p>
                   </div>
 
-                  <div>
-                    <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
-                      <AlertTriangle className="w-4 h-4 text-warning" /> Risk Flags
-                    </h3>
-                    <ul className="space-y-1.5">
-                      {aiMutation.data.riskFlags.map((risk, i) => (
-                        <li key={i} className="flex items-start gap-2 bg-destructive/5 text-destructive p-2.5 rounded-lg border border-destructive/10 text-sm">
-                          <span className="shrink-0 mt-0.5">•</span>{risk}
-                        </li>
-                      ))}
-                    </ul>
+                  {/* Positive Highlights from pillarInsights */}
+                  {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "positive").length > 0 && (
+                    <div>
+                      <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
+                        <ThumbsUp className="w-4 h-4 text-success" /> Positive Highlights
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {aiMutation.data.pillarInsights
+                          .filter((pi) => pi.sentiment === "positive")
+                          .map((pi, i) => (
+                            <div key={i} className="flex items-start gap-2 bg-success/5 p-2.5 rounded-lg border border-success/15 text-sm">
+                              <span className="text-success font-bold shrink-0">✓</span>
+                              <div>
+                                <span className="font-semibold text-success/80 text-xs block">{pi.pillarName}</span>
+                                <span className="text-foreground">{pi.insight}</span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Concerns + Actions Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                      <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
+                        <ShieldAlert className="w-4 h-4 text-warning" /> Concerns
+                      </h3>
+                      <ul className="space-y-1.5">
+                        {aiMutation.data.riskFlags.map((risk, i) => (
+                          <li key={i} className="flex items-start gap-2 bg-destructive/5 text-destructive p-2.5 rounded-lg border border-destructive/10 text-sm">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{risk}
+                          </li>
+                        ))}
+                        {aiMutation.data.pillarInsights
+                          .filter((pi) => pi.sentiment === "negative")
+                          .map((pi, i) => (
+                            <li key={`neg-${i}`} className="flex items-start gap-2 bg-warning/5 p-2.5 rounded-lg border border-warning/15 text-sm">
+                              <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
+                              <div>
+                                <span className="font-semibold text-warning/80 text-xs block">{pi.pillarName}</span>
+                                <span className="text-foreground">{pi.insight}</span>
+                              </div>
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
+                        <Lightbulb className="w-4 h-4 text-primary" /> Actions
+                      </h3>
+                      <ul className="space-y-1.5">
+                        {aiMutation.data.recommendations.map((rec, i) => (
+                          <li key={i} className="flex items-start gap-2 bg-primary/5 p-2.5 rounded-lg border border-primary/10 text-sm">
+                            <span className="shrink-0 mt-0.5 text-primary font-bold">→</span>
+                            <span className="text-foreground">{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
 
-                  <div>
-                    <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
-                      <Target className="w-4 h-4 text-success" /> Recommendations
-                    </h3>
-                    <ul className="space-y-1.5">
-                      {aiMutation.data.recommendations.map((rec, i) => (
-                        <li key={i} className="flex items-start gap-2 bg-success/5 p-2.5 rounded-lg border border-success/10 text-sm">
-                          <span className="shrink-0 mt-0.5 text-success">→</span>
-                          <span className="text-foreground">{rec}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {/* Neutral pillar insights */}
+                  {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "neutral").length > 0 && (
+                    <div>
+                      <h3 className="font-bold mb-2 text-sm text-muted-foreground uppercase tracking-wider">Pillar Notes</h3>
+                      <div className="space-y-1.5">
+                        {aiMutation.data.pillarInsights
+                          .filter((pi) => pi.sentiment === "neutral")
+                          .map((pi, i) => (
+                            <div key={i} className="flex items-start gap-2 bg-secondary/40 p-2.5 rounded-lg border border-border text-sm">
+                              <span className="font-semibold text-muted-foreground text-xs shrink-0 mt-0.5">{pi.pillarName}:</span>
+                              <span className="text-foreground/80">{pi.insight}</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

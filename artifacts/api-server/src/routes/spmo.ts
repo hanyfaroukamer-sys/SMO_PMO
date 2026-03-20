@@ -1754,8 +1754,15 @@ ${JSON.stringify(context, null, 2)}
 Evaluate the evidence quality and completeness. Return a JSON object with exactly this structure:
 {
   "overallScore": <number 0-100>,
+  "subScores": {
+    "completeness": <number 0-100, how complete is the evidence set>,
+    "relevance": <number 0-100, how relevant is the evidence to the milestone>,
+    "specificity": <number 0-100, how specific and detailed is the evidence>
+  },
   "verdict": "strong|adequate|weak|insufficient",
   "reasoning": "2-3 sentence explanation of verdict",
+  "presentItems": ["item 1 that is well-evidenced", "item 2"],
+  "gapItems": ["missing item 1", "gap 2"],
   "suggestions": ["suggestion 1", "suggestion 2"]
 }
 
@@ -1779,8 +1786,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
     const rawText2 = textContent.text.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
     const aiResult = JSON.parse(rawText2) as {
       overallScore: number;
+      subScores?: { completeness: number; relevance: number; specificity: number };
       verdict: string;
       reasoning: string;
+      presentItems?: string[];
+      gapItems?: string[];
       suggestions: string[];
     };
 

@@ -12,6 +12,7 @@ import type { UpdateSpmoRiskRequestStatus } from "./updateSpmoRiskRequestStatus"
 export interface UpdateSpmoRiskRequest {
   title?: string;
   description?: string;
+  category?: string;
   probability?: UpdateSpmoRiskRequestProbability;
   impact?: UpdateSpmoRiskRequestImpact;
   owner?: string;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   useListSpmoProjects,
   useListSpmoInitiatives,
@@ -11,18 +11,159 @@ import {
   useUpdateSpmoMilestone,
   useDeleteSpmoMilestone,
   useSubmitSpmoMilestone,
+  useAddSpmoEvidence,
   type SpmoProjectWithProgress,
   type CreateSpmoProjectRequest,
   type UpdateSpmoProjectRequest,
   type CreateSpmoMilestoneRequest,
+  type SpmoEvidence,
+  type SpmoMilestoneWithEvidence,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, CheckCircle2, Send, X } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, CheckCircle2, Send, X, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+
+function fileIcon(contentType: string | null | undefined) {
+  if (!contentType) return FileText;
+  if (contentType.startsWith("image/")) return FileImage;
+  if (contentType.includes("zip") || contentType.includes("archive")) return FileArchive;
+  if (contentType.includes("sheet") || contentType.includes("csv") || contentType.includes("excel")) return FileSpreadsheet;
+  return FileText;
+}
+
+function EvidencePanel({
+  milestone,
+  onInvalidate,
+}: {
+  milestone: SpmoMilestoneWithEvidence;
+  onInvalidate: () => void;
+}) {
+  const { toast } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const addEvidence = useAddSpmoEvidence();
+
+  const evidence = (milestone.evidence ?? []) as SpmoEvidence[];
+  const isApproved = milestone.status === "approved";
+  const isRejected = milestone.status === "rejected";
+  const isSubmitted = milestone.status === "submitted";
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const urlRes = await fetch("/spmo/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ milestoneId: milestone.id }),
+      });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = (await urlRes.json()) as { uploadURL: string; objectPath: string };
+
+      const uploadRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+
+      addEvidence.mutate(
+        { id: milestone.id, data: { fileName: file.name, contentType: file.type, objectPath } },
+        {
+          onSuccess: () => {
+            toast({ title: "Evidence uploaded", description: file.name });
+            onInvalidate();
+            setUploading(false);
+            if (fileRef.current) fileRef.current.value = "";
+          },
+          onError: () => {
+            toast({ variant: "destructive", title: "Failed to register evidence" });
+            setUploading(false);
+          },
+        }
+      );
+    } catch (err) {
+      toast({ variant: "destructive", title: "Upload failed", description: err instanceof Error ? err.message : "Unknown error" });
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="mx-4 mb-3 rounded-xl border border-border overflow-hidden">
+      {/* Status banner */}
+      {isApproved && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-success/10 border-b border-success/20 text-success text-xs font-bold">
+          <CheckCircle2 className="w-3.5 h-3.5" /> Milestone Approved — Evidence Locked
+        </div>
+      )}
+      {isRejected && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-destructive/10 border-b border-destructive/20 text-destructive text-xs font-bold">
+          <X className="w-3.5 h-3.5" /> Milestone Rejected — Upload corrected evidence and re-submit
+        </div>
+      )}
+      {isSubmitted && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border-b border-primary/20 text-primary text-xs font-bold">
+          <Send className="w-3.5 h-3.5" /> Submitted for Approval — Awaiting review
+        </div>
+      )}
+
+      {/* Evidence list */}
+      <div className="p-3 bg-secondary/10">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+          Evidence Files ({evidence.length})
+        </div>
+        {evidence.length === 0 ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground/70 py-1">
+            <AlertCircle className="w-3.5 h-3.5" /> No evidence attached
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {evidence.map((ev) => {
+              const Icon = fileIcon(ev.contentType);
+              return (
+                <div key={ev.id} className="flex items-center gap-2 p-2 bg-card rounded-lg border border-border text-xs hover:border-primary/30 transition-colors">
+                  <Icon className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <span className="flex-1 truncate font-medium">{ev.fileName}</span>
+                  {ev.aiValidated && (
+                    <span className="text-[9px] bg-success/10 text-success px-1 py-0.5 rounded font-bold border border-success/20">AI ✓ {ev.aiScore ?? "—"}</span>
+                  )}
+                  <a
+                    href={`/spmo/api/storage/objects${ev.objectPath}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary hover:underline font-semibold shrink-0 text-[10px]"
+                  >
+                    View
+                  </a>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Upload zone (only if not approved) */}
+      {!isApproved && (
+        <div className="px-3 pb-3">
+          <input ref={fileRef} type="file" className="hidden" onChange={handleFileUpload} />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-border hover:border-primary/40 rounded-lg py-2.5 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+          >
+            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+            {uploading ? "Uploading…" : "Upload Evidence File"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PROJECT_STATUSES = ["active", "on_hold", "completed", "cancelled"] as const;
 const MILESTONE_STATUSES = ["pending", "in_progress", "submitted", "approved", "rejected"] as const;
@@ -370,6 +511,7 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
   const { data, isLoading } = useListSpmoMilestones(projectId);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [expandedEvidence, setExpandedEvidence] = useState<number | null>(null);
 
   const createMutation = useCreateSpmoMilestone();
   const updateMutation = useUpdateSpmoMilestone();
@@ -465,14 +607,18 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
       {isLoading ? (
         <div className="p-6 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : (
-        <div className="divide-y divide-border/30">
-          {milestones.map((m) => {
+        <div>
+          {(milestones as SpmoMilestoneWithEvidence[]).map((m) => {
             const autoWeight = totalEffort > 0 ? Math.round((m.effortDays ?? 0) / totalEffort * 100) : 0;
             const isApproved = m.status === "approved";
+            const evidenceList = (m.evidence ?? []) as SpmoEvidence[];
+            const hasEvidence = evidenceList.length > 0;
+            const canSubmit = (m.progress ?? 0) >= 100 && hasEvidence;
+            const evidenceOpen = expandedEvidence === m.id;
 
             return (
-              <div key={m.id} className="px-6 py-3 group">
-                <div className="flex items-center gap-4">
+              <div key={m.id} className="group border-b border-border/30 last:border-b-0">
+                <div className="px-6 py-3 flex items-center gap-4">
                   <div
                     className="w-1 h-10 rounded-full shrink-0 opacity-60"
                     style={{ backgroundColor: pillarColor }}
@@ -549,14 +695,26 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                     <span className="text-xs font-bold text-muted-foreground">{autoWeight}%</span>
                   </div>
 
+                  {/* Evidence badge + toggle */}
+                  <button
+                    onClick={() => setExpandedEvidence(evidenceOpen ? null : m.id)}
+                    className={`flex items-center gap-1 text-xs rounded-lg px-2 py-1 transition-colors shrink-0 ${
+                      evidenceOpen ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="Evidence"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span className="font-semibold">{evidenceList.length}</span>
+                  </button>
+
                   {/* Actions */}
                   <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     {!isApproved && m.status !== "submitted" && (
                       <button
                         onClick={() => handleSubmitForApproval(m.id, m.name)}
-                        disabled={submitMutation.isPending}
-                        className="p-1.5 rounded-lg hover:bg-blue-50 text-muted-foreground hover:text-blue-600 transition-colors"
-                        title="Submit for approval"
+                        disabled={submitMutation.isPending || !canSubmit}
+                        className="p-1.5 rounded-lg hover:bg-blue-50 text-muted-foreground hover:text-blue-600 transition-colors disabled:opacity-40"
+                        title={canSubmit ? "Submit for approval" : "Progress must be 100% and evidence must be attached"}
                       >
                         <Send className="w-4 h-4" />
                       </button>
@@ -572,6 +730,11 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                     )}
                   </div>
                 </div>
+
+                {/* Evidence Panel */}
+                {evidenceOpen && (
+                  <EvidencePanel milestone={m} onInvalidate={invalidate} />
+                )}
               </div>
             );
           })}

@@ -578,6 +578,8 @@ export interface SpmoRisk {
   title: string;
   /** @nullable */
   description: string | null;
+  /** @nullable */
+  category?: string | null;
   probability: SpmoRiskProbability;
   impact: SpmoRiskImpact;
   /** Computed 1–16 from probability x impact matrix */
@@ -868,6 +870,15 @@ export interface SpmoAiValidateEvidenceRequest {
   milestoneId: number;
 }
 
+export type SpmoAiValidateEvidenceResultSubScores = {
+  /** 0–100 */
+  completeness?: number;
+  /** 0–100 */
+  relevance?: number;
+  /** 0–100 */
+  specificity?: number;
+};
+
 export type SpmoAiValidateEvidenceResultVerdict =
   (typeof SpmoAiValidateEvidenceResultVerdict)[keyof typeof SpmoAiValidateEvidenceResultVerdict];
 
@@ -884,6 +895,11 @@ export interface SpmoAiValidateEvidenceResult {
   evidenceCount: number;
   /** 0–100 */
   overallScore: number;
+  subScores?: SpmoAiValidateEvidenceResultSubScores;
+  /** Evidence elements that are present and satisfactory */
+  presentItems?: string[];
+  /** Missing evidence or gaps that need to be addressed */
+  gapItems?: string[];
   verdict: SpmoAiValidateEvidenceResultVerdict;
   reasoning: string;
   suggestions: string[];
@@ -1133,6 +1149,7 @@ export interface CreateSpmoRiskRequest {
   /** @minLength 1 */
   title: string;
   description?: string;
+  category?: string;
   probability: CreateSpmoRiskRequestProbability;
   impact: CreateSpmoRiskRequestImpact;
   owner?: string;
@@ -1172,6 +1189,7 @@ export const UpdateSpmoRiskRequestStatus = {
 export interface UpdateSpmoRiskRequest {
   title?: string;
   description?: string;
+  category?: string;
   probability?: UpdateSpmoRiskRequestProbability;
   impact?: UpdateSpmoRiskRequestImpact;
   owner?: string;

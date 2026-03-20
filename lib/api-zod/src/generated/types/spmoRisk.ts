@@ -18,6 +18,8 @@ export interface SpmoRisk {
   title: string;
   /** @nullable */
   description: string | null;
+  /** @nullable */
+  category?: string | null;
   probability: SpmoRiskProbability;
   impact: SpmoRiskImpact;
   /** Computed 1–16 from probability x impact matrix */

@@ -4,6 +4,8 @@ import {
   useRunSpmoAiValidateEvidence,
   useApproveSpmoMilestone,
   useRejectSpmoMilestone,
+  type SpmoPendingApprovalItem,
+  type SpmoEvidence,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
 import {
@@ -129,7 +131,7 @@ export default function ProgressProof() {
   );
 }
 
-function ApprovalCard({ item }: { item: Record<string, any> }) {
+function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const aiMutation = useRunSpmoAiValidateEvidence();
@@ -212,7 +214,7 @@ function ApprovalCard({ item }: { item: Record<string, any> }) {
           </div>
         ) : (
           <div className="space-y-1.5">
-            {(item.milestone.evidence as Array<{ id: number; fileName: string; objectPath: string }>).map((ev) => (
+            {(item.milestone.evidence as SpmoEvidence[]).map((ev) => (
               <div key={ev.id} className="flex items-center justify-between p-2 bg-secondary/30 border border-border rounded-lg text-xs group hover:border-primary/30 transition-colors">
                 <span className="font-medium truncate flex-1">{ev.fileName}</span>
                 <a
@@ -242,9 +244,52 @@ function ApprovalCard({ item }: { item: Record<string, any> }) {
             }`}>
               {aiMutation.data.verdict}
             </span>
-            <span className="text-xs text-muted-foreground ml-auto font-semibold">Score: {aiMutation.data.overallScore}/10</span>
+            <span className="text-xs text-muted-foreground ml-auto font-semibold">Score: {aiMutation.data.overallScore}/100</span>
           </div>
+
+          {/* Sub-scores */}
+          {aiMutation.data.subScores && (
+            <div className="grid grid-cols-3 gap-1.5 mb-2">
+              {(["completeness", "relevance", "specificity"] as const).map((key) => {
+                const val = aiMutation.data.subScores?.[key] ?? 0;
+                return (
+                  <div key={key} className="text-center p-1.5 bg-background/60 rounded-lg border border-border/50">
+                    <div className="text-sm font-bold">{val}</div>
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{key}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <p className="text-xs text-foreground/80 leading-relaxed mb-2">{aiMutation.data.reasoning}</p>
+
+          {/* Present / Gaps columns */}
+          {((aiMutation.data.presentItems?.length ?? 0) > 0 || (aiMutation.data.gapItems?.length ?? 0) > 0) && (
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <div>
+                <p className="text-[10px] font-bold text-success mb-1 uppercase tracking-wider">Present</p>
+                <ul className="space-y-0.5">
+                  {(aiMutation.data.presentItems ?? []).map((item, i) => (
+                    <li key={i} className="text-[10px] text-foreground/80 flex items-start gap-1">
+                      <span className="text-success shrink-0">✓</span>{item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-destructive mb-1 uppercase tracking-wider">Gaps</p>
+                <ul className="space-y-0.5">
+                  {(aiMutation.data.gapItems ?? []).map((item, i) => (
+                    <li key={i} className="text-[10px] text-foreground/80 flex items-start gap-1">
+                      <span className="text-destructive shrink-0">✗</span>{item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
           {aiMutation.data.suggestions?.length > 0 && (
             <div className="space-y-1">
               <p className="text-xs font-semibold text-muted-foreground">Recommendations:</p>

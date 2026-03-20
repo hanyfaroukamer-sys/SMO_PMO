@@ -79,6 +79,7 @@ export * from "./spmoAiAssessmentResultPillarInsightsItem";
 export * from "./spmoAiAssessmentResultPillarInsightsItemSentiment";
 export * from "./spmoAiValidateEvidenceRequest";
 export * from "./spmoAiValidateEvidenceResult";
+export * from "./spmoAiValidateEvidenceResultSubScores";
 export * from "./spmoAiValidateEvidenceResultVerdict";
 export * from "./spmoAlert";
 export * from "./spmoAlertCategory";
