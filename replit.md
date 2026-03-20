@@ -1,8 +1,11 @@
-# Initiative Tracker — Workspace
+# Initiative Tracker & StrategyPMO — Workspace
 
 ## Overview
 
-Full-stack Initiative Tracker built on a pnpm monorepo. Features Replit Auth (OIDC with PKCE), three user roles (admin, project-manager, approver), milestone-based progress tracking (`calcProgress`), file uploads via Replit Object Storage, and a React + Vite frontend.
+Full-stack pnpm monorepo hosting two production-grade government applications:
+
+1. **Initiative Tracker** — milestone-based progress tracking with approval workflow
+2. **StrategyPMO** — 5-level programme management dashboard (Programme → Pillars → Initiatives → Projects → Milestones) with AI assessment via Claude, dynamic alerts, KPI/Risk/Budget tracking, and full audit trail
 
 ## Stack
 
@@ -14,61 +17,96 @@ Full-stack Initiative Tracker built on a pnpm monorepo. Features Replit Auth (OI
 - **Database**: PostgreSQL + Drizzle ORM
 - **Auth**: Replit Auth (OIDC/PKCE) via `openid-client` v6 on server; `@workspace/replit-auth-web` on frontend
 - **Object storage**: Replit Object Storage (GCS-backed) — presigned URL upload flow
-- **Frontend**: React 18 + Vite, Tailwind CSS v4, TanStack Query, Wouter, Radix UI, Framer Motion, Sonner
+- **Frontend**: React 18 + Vite, Tailwind CSS v4, TanStack Query, Wouter, Radix UI, Framer Motion, Sonner, Recharts
 - **Validation**: Zod (v3 catalog), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle for api-server)
+- **AI**: Anthropic Claude (via `@workspace/integrations-anthropic-ai`)
 
-## Roles
+## Roles (shared across both apps)
 
 - `admin` — full access, role management
-- `project-manager` — create/manage their own initiatives and milestones, submit for approval
+- `project-manager` — create/manage initiatives and milestones, submit for approval
 - `approver` — approve or reject submitted milestones
-
-Default role for new users: `project-manager`
-
-## calcProgress Logic
-
-Progress = (sum of approved milestone weights / sum of all milestone weights) × 100
-
-Implemented server-side in `artifacts/api-server/src/routes/initiatives.ts`.
 
 ## Structure
 
 ```text
 artifacts-monorepo/
 ├── artifacts/
-│   ├── api-server/            # Express 5 API server (port from $PORT env, default 8080)
-│   └── initiative-tracker/    # React + Vite frontend (port from $PORT env)
+│   ├── api-server/            # Express 5 API server (port 8080)
+│   │   └── src/routes/spmo.ts # All SPMO endpoints (40+ routes)
+│   │   └── src/lib/spmo-calc.ts  # calcProgress cascade engine
+│   │   └── src/lib/spmo-activity.ts  # Activity logger
+│   ├── initiative-tracker/    # React + Vite frontend (initiative tracker)
+│   └── strategy-pmo/          # React + Vite frontend (StrategyPMO, port 22880)
 ├── lib/
 │   ├── api-spec/              # OpenAPI 3.1 spec + Orval codegen config
-│   ├── api-client-react/      # Generated React Query hooks + custom fetch (credentials: include)
+│   ├── api-client-react/      # Generated React Query hooks
 │   ├── api-zod/               # Generated Zod schemas
 │   ├── db/                    # Drizzle ORM schema + DB connection
+│   │   └── src/schema/spmo.ts # 10 SPMO tables (spmo_* prefix)
+│   ├── integrations-anthropic-ai/  # Anthropic Claude client
 │   ├── replit-auth-web/       # useAuth() hook for React frontend
-│   └── object-storage-web/    # File upload utilities (Uppy-based)
-├── scripts/                   # Utility scripts
+│   └── object-storage-web/    # File upload utilities
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
 ├── tsconfig.json              # Root TS project references
 └── package.json
 ```
 
-## DB Schema
+## SPMO DB Schema (all tables prefixed `spmo_`)
 
-- `users` — id (Replit sub), email, firstName, lastName, profileImageUrl, role (admin|project-manager|approver), createdAt/updatedAt
-- `sessions` — id (UUID), data (JSONB), expiresAt
-- `initiatives` — id, title, description, status, priority, ownerId (→ users), startDate, targetDate, createdAt/updatedAt
-- `milestones` — id, initiativeId, title, description, status (pending|in_progress|submitted|approved|rejected), weight (numeric), dueDate, approvedById, approvedAt, rejectionReason, createdAt/updatedAt
-- `approvals` — id, milestoneId, reviewerId (→ users), action (approved|rejected), comment, createdAt — full approval history
-- `upload_intents` — id, userId, milestoneId, objectPath, expiresAt, usedAt, createdAt — upload intent binding (prevents path spoofing)
-- `file_attachments` — id, milestoneId, uploadedById, fileName, objectPath, contentType, createdAt
+- `spmo_pillars` — id, name, description, weight, color, iconName, sortOrder
+- `spmo_initiatives` — id, pillarId, name, description, ownerId, ownerName, startDate, targetDate, weight, status, sortOrder
+- `spmo_projects` — id, initiativeId, name, description, ownerId, ownerName, budget, startDate, targetDate, weight, status
+- `spmo_milestones` — id, projectId, name, description, weight, progress, status, dueDate, submittedAt, approvedAt, approvedById, rejectedAt, rejectedById, rejectionReason
+- `spmo_evidence` — id, milestoneId, fileName, contentType, objectPath, uploadedById, uploadedByName, description, aiValidated, aiScore, aiReasoning
+- `spmo_kpis` — id, projectId, name, type, unit, baseline, target, actual, status, description
+- `spmo_risks` — id, pillarId, projectId, title, description, category, probability, impact, riskScore, status, owner
+- `spmo_mitigations` — id, riskId, description, status, dueDate
+- `spmo_budget` — id, projectId, pillarId, period, allocated, spent, currency, category, label
+- `spmo_activity_log` — id, actorId, actorName, action, entityType, entityId, entityName, details, createdAt
 
-## User Management
+## calcProgress Engine (99% Gate)
 
-Users are provisioned automatically via Replit OIDC on first login. Admins can update roles via the Admin panel (`PUT /api/users/:id/role`). **User creation and deletion are not supported** — this is an intentional product decision: since all users are OIDC-provisioned by Replit Auth, admin responsibility is limited to role assignment only.
+- `milestoneEffectiveProgress()`: if status === 'approved' → actual progress; if progress ≥ 100 AND status !== 'approved' → 99; else → progress
+- `projectProgress()`: weighted average of milestone effective progress
+- `initiativeProgress()`: weighted average of project progress  
+- `pillarProgress()`: weighted average of initiative progress
+- `calcProgrammeProgress()`: weighted average of pillar progress
+- Falls back to simple average if all weights = 0
 
-## API Routes (all under `/api`)
+## SPMO API Routes (all under `/api/spmo/`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /programme | Programme overview with all pillar summaries |
+| GET/POST | /pillars | List/create pillars |
+| GET/PUT/DELETE | /pillars/:id | Get/update/delete pillar |
+| GET/POST | /initiatives | List/create initiatives |
+| GET/PUT/DELETE | /initiatives/:id | Get/update/delete initiative |
+| GET/POST | /projects | List/create projects |
+| GET/PUT/DELETE | /projects/:id | Get/update/delete project |
+| GET/POST | /projects/:id/milestones | List/create milestones |
+| PUT/DELETE | /milestones/:id | Update/delete milestone |
+| POST | /milestones/:id/submit | Submit milestone for approval |
+| POST | /milestones/:id/approve | Approve milestone |
+| POST | /milestones/:id/reject | Reject milestone with reason |
+| POST | /milestones/:id/evidence | Add evidence file |
+| DELETE | /evidence/:id | Delete evidence |
+| GET | /pending-approvals | All pending approval items with context |
+| GET/POST/PUT/DELETE | /kpis | KPI management |
+| GET/POST/PUT/DELETE | /risks | Risk register |
+| POST | /risks/:id/mitigations | Add mitigation |
+| PUT | /mitigations/:id | Update mitigation |
+| GET/POST/PUT/DELETE | /budget | Budget management |
+| GET | /alerts | Computed dynamic alerts engine |
+| GET | /activity-log | Full audit trail |
+| POST | /ai/assessment | AI programme health assessment (Claude, 5min cache) |
+| POST | /ai/validate-evidence | AI evidence quality validation |
+
+## Initiative Tracker API Routes (all under `/api`)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -76,23 +114,17 @@ Users are provisioned automatically via Replit OIDC on first login. Admins can u
 | GET | /login | Start OIDC login |
 | GET | /callback | OIDC callback |
 | GET | /logout | Logout |
-| POST | /mobile-auth/token | Mobile token exchange |
-| GET | /initiatives | List all initiatives (with progress) |
-| POST | /initiatives | Create initiative (admin/PM only) |
-| GET | /initiatives/:id | Get initiative detail + milestones |
-| PUT | /initiatives/:id | Update initiative |
-| DELETE | /initiatives/:id | Delete initiative |
+| GET/POST | /initiatives | List/create initiatives |
+| GET/PUT/DELETE | /initiatives/:id | Initiative CRUD |
 | POST | /initiatives/:id/milestones | Create milestone |
-| PUT | /milestones/:id | Update milestone |
-| DELETE | /milestones/:id | Delete milestone |
+| PUT/DELETE | /milestones/:id | Update/delete milestone |
 | POST | /milestones/:id/submit | Submit for approval |
-| POST | /milestones/:id/approve | Approve milestone (admin/approver) |
-| POST | /milestones/:id/reject | Reject milestone (admin/approver) |
-| POST | /milestones/:id/attachments | Add file attachment |
-| GET | /users | List all users (admin only) |
-| PUT | /users/:id/role | Update user role (admin only) |
-| POST | /storage/uploads/request-url | Request presigned upload URL (auth + milestone ownership required) |
-| GET | /storage/objects/* | Serve private attachment (auth + role/ownership check via DB) |
+| POST | /milestones/:id/approve | Approve (admin/approver) |
+| POST | /milestones/:id/reject | Reject with reason |
+| POST | /milestones/:id/attachments | Add attachment |
+| GET/PUT | /users | User management (admin) |
+| POST | /storage/uploads/request-url | Presigned upload URL |
+| GET | /storage/objects/* | Serve private attachment |
 
 ## TypeScript & Composite Projects
 
@@ -109,6 +141,8 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 ## Development
 
 - API server: `pnpm --filter @workspace/api-server run dev` (port 8080)
-- Frontend: `pnpm --filter @workspace/initiative-tracker run dev`
+- Initiative Tracker frontend: `pnpm --filter @workspace/initiative-tracker run dev`
+- StrategyPMO frontend: `pnpm --filter @workspace/strategy-pmo run dev` (port 22880)
 - DB push: `pnpm --filter @workspace/db run push`
 - Codegen: `pnpm --filter @workspace/api-spec run codegen`
+- SPMO seed: `pnpm --filter @workspace/api-server exec tsx ./scripts/seed-spmo.ts`

@@ -1,0 +1,18 @@
+packages:
+  "recharts": "Required for Budget charts, KPI visualizations, and Risk Matrix"
+  "date-fns": "Required for formatting dates in tables and activity logs"
+  "clsx": "Required for tailwind class merging in UI components"
+  "tailwind-merge": "Required for tailwind class merging in UI components"
+  "framer-motion": "Required for page transitions and micro-interactions"
+  "@hookform/resolvers": "Required for form validation"
+
+images:
+  - path: "artifacts/strategy-pmo/public/images/spmo-logo.png"
+    description: "Minimalist, professional geometric logo for a government enterprise project management office (PMO), abstract shape forming a shield or pillar, dark navy blue and silver, transparent background"
+    aspect_ratio: "1:1"
+
+notes:
+  - The application relies on a session-based auth model calling GET /api/auth/user
+  - Unauthenticated users will be redirected to /api/login
+  - All API hooks are imported from @workspace/api-client-react
+  - Features a dark navy sidebar and clean, data-dense layouts

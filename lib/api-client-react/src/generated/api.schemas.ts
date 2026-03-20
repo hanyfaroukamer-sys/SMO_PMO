@@ -328,6 +328,806 @@ export interface UpdateRoleRequest {
   role: UpdateRoleRequestRole;
 }
 
+export interface SpmoPillar {
+  id: number;
+  name: string;
+  /** @nullable */
+  description: string | null;
+  /** Relative weight in programme progress (0–100) */
+  weight: number;
+  color: string;
+  iconName: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SpmoPillarWithProgress = SpmoPillar & {
+  /** Computed weighted progress (0–100) */
+  progress: number;
+  initiativeCount: number;
+  projectCount: number;
+  milestoneCount: number;
+  approvedMilestones: number;
+  pendingApprovals: number;
+};
+
+export type SpmoInitiativeStatus =
+  (typeof SpmoInitiativeStatus)[keyof typeof SpmoInitiativeStatus];
+
+export const SpmoInitiativeStatus = {
+  active: "active",
+  on_hold: "on_hold",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export interface SpmoInitiative {
+  id: number;
+  pillarId: number;
+  name: string;
+  /** @nullable */
+  description: string | null;
+  ownerId: string;
+  /** @nullable */
+  ownerName: string | null;
+  startDate: string;
+  targetDate: string;
+  weight: number;
+  status: SpmoInitiativeStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SpmoInitiativeWithProgress = SpmoInitiative & {
+  progress: number;
+  projectCount: number;
+  approvedMilestones: number;
+  totalMilestones: number;
+};
+
+export type SpmoPillarDetail = SpmoPillarWithProgress & {
+  initiatives: SpmoInitiativeWithProgress[];
+};
+
+export type SpmoProjectStatus =
+  (typeof SpmoProjectStatus)[keyof typeof SpmoProjectStatus];
+
+export const SpmoProjectStatus = {
+  active: "active",
+  on_hold: "on_hold",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export interface SpmoProject {
+  id: number;
+  initiativeId: number;
+  name: string;
+  /** @nullable */
+  description: string | null;
+  ownerId: string;
+  /** @nullable */
+  ownerName: string | null;
+  startDate: string;
+  targetDate: string;
+  weight: number;
+  /** Allocated budget in base currency */
+  budget: number;
+  /** Actual spend to date */
+  budgetSpent: number;
+  status: SpmoProjectStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SpmoProjectWithProgress = SpmoProject & {
+  progress: number;
+  milestoneCount: number;
+  approvedMilestones: number;
+  pendingApprovals: number;
+};
+
+export type SpmoInitiativeDetail = SpmoInitiativeWithProgress & {
+  projects: SpmoProjectWithProgress[];
+};
+
+export type SpmoMilestoneStatus =
+  (typeof SpmoMilestoneStatus)[keyof typeof SpmoMilestoneStatus];
+
+export const SpmoMilestoneStatus = {
+  pending: "pending",
+  in_progress: "in_progress",
+  submitted: "submitted",
+  approved: "approved",
+  rejected: "rejected",
+} as const;
+
+export interface SpmoMilestone {
+  id: number;
+  projectId: number;
+  name: string;
+  /** @nullable */
+  description: string | null;
+  weight: number;
+  /** @nullable */
+  effortDays: number | null;
+  /** Reported progress 0–100. If >=100 and status != approved, calcProgress caps at 99. */
+  progress: number;
+  status: SpmoMilestoneStatus;
+  /** @nullable */
+  dueDate: string | null;
+  /** @nullable */
+  submittedAt: string | null;
+  /** @nullable */
+  approvedAt: string | null;
+  /** @nullable */
+  approvedById: string | null;
+  /** @nullable */
+  rejectedAt: string | null;
+  /** @nullable */
+  rejectedById: string | null;
+  /** @nullable */
+  rejectionReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SpmoEvidence {
+  id: number;
+  milestoneId: number;
+  fileName: string;
+  /** @nullable */
+  contentType: string | null;
+  objectPath: string;
+  uploadedById: string;
+  /** @nullable */
+  uploadedByName: string | null;
+  /** @nullable */
+  description: string | null;
+  aiValidated: boolean;
+  /**
+   * AI confidence score 0–100
+   * @nullable
+   */
+  aiScore: number | null;
+  /** @nullable */
+  aiReasoning: string | null;
+  createdAt: string;
+}
+
+export type SpmoMilestoneWithEvidence = SpmoMilestone & {
+  evidence: SpmoEvidence[];
+};
+
+export type SpmoProjectDetail = SpmoProjectWithProgress & {
+  milestones: SpmoMilestoneWithEvidence[];
+};
+
+export type SpmoKpiType = (typeof SpmoKpiType)[keyof typeof SpmoKpiType];
+
+export const SpmoKpiType = {
+  strategic: "strategic",
+  operational: "operational",
+} as const;
+
+export type SpmoKpiStatus = (typeof SpmoKpiStatus)[keyof typeof SpmoKpiStatus];
+
+export const SpmoKpiStatus = {
+  on_track: "on_track",
+  at_risk: "at_risk",
+  off_track: "off_track",
+} as const;
+
+export interface SpmoKpi {
+  id: number;
+  type: SpmoKpiType;
+  name: string;
+  unit: string;
+  target: number;
+  actual: number;
+  /** @nullable */
+  projectId: number | null;
+  /** @nullable */
+  pillarId: number | null;
+  status: SpmoKpiStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SpmoRiskProbability =
+  (typeof SpmoRiskProbability)[keyof typeof SpmoRiskProbability];
+
+export const SpmoRiskProbability = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+  critical: "critical",
+} as const;
+
+export type SpmoRiskImpact =
+  (typeof SpmoRiskImpact)[keyof typeof SpmoRiskImpact];
+
+export const SpmoRiskImpact = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+  critical: "critical",
+} as const;
+
+export type SpmoRiskStatus =
+  (typeof SpmoRiskStatus)[keyof typeof SpmoRiskStatus];
+
+export const SpmoRiskStatus = {
+  open: "open",
+  mitigated: "mitigated",
+  accepted: "accepted",
+  closed: "closed",
+} as const;
+
+export interface SpmoRisk {
+  id: number;
+  /** @nullable */
+  pillarId: number | null;
+  /** @nullable */
+  projectId: number | null;
+  title: string;
+  /** @nullable */
+  description: string | null;
+  probability: SpmoRiskProbability;
+  impact: SpmoRiskImpact;
+  /** Computed 1–16 from probability x impact matrix */
+  riskScore: number;
+  /** @nullable */
+  owner: string | null;
+  status: SpmoRiskStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SpmoMitigationStatus =
+  (typeof SpmoMitigationStatus)[keyof typeof SpmoMitigationStatus];
+
+export const SpmoMitigationStatus = {
+  planned: "planned",
+  in_progress: "in_progress",
+  completed: "completed",
+} as const;
+
+export interface SpmoMitigation {
+  id: number;
+  riskId: number;
+  description: string;
+  status: SpmoMitigationStatus;
+  /** @nullable */
+  dueDate: string | null;
+  createdAt: string;
+}
+
+export type SpmoRiskWithMitigations = SpmoRisk & {
+  mitigations: SpmoMitigation[];
+};
+
+export interface SpmoBudgetEntry {
+  id: number;
+  /** @nullable */
+  projectId: number | null;
+  /** @nullable */
+  pillarId: number | null;
+  category: string;
+  /** @nullable */
+  description: string | null;
+  allocated: number;
+  spent: number;
+  currency: string;
+  /** YYYY-MM or YYYY (year) */
+  period: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SpmoBudgetSummary {
+  totalAllocated: number;
+  totalSpent: number;
+  utilizationPct: number;
+  entries: SpmoBudgetEntry[];
+}
+
+export type SpmoAlertSeverity =
+  (typeof SpmoAlertSeverity)[keyof typeof SpmoAlertSeverity];
+
+export const SpmoAlertSeverity = {
+  info: "info",
+  warning: "warning",
+  critical: "critical",
+} as const;
+
+export type SpmoAlertCategory =
+  (typeof SpmoAlertCategory)[keyof typeof SpmoAlertCategory];
+
+export const SpmoAlertCategory = {
+  progress: "progress",
+  approval: "approval",
+  budget: "budget",
+  risk: "risk",
+  deadline: "deadline",
+  kpi: "kpi",
+} as const;
+
+export type SpmoAlertEntityType =
+  (typeof SpmoAlertEntityType)[keyof typeof SpmoAlertEntityType];
+
+export const SpmoAlertEntityType = {
+  programme: "programme",
+  pillar: "pillar",
+  initiative: "initiative",
+  project: "project",
+  milestone: "milestone",
+  kpi: "kpi",
+  risk: "risk",
+} as const;
+
+export interface SpmoAlert {
+  /** Stable computed alert ID */
+  id: string;
+  severity: SpmoAlertSeverity;
+  category: SpmoAlertCategory;
+  title: string;
+  description: string;
+  entityType: SpmoAlertEntityType;
+  /** @nullable */
+  entityId: number | null;
+  entityName: string;
+  createdAt: string;
+}
+
+export type SpmoActivityEntryAction =
+  (typeof SpmoActivityEntryAction)[keyof typeof SpmoActivityEntryAction];
+
+export const SpmoActivityEntryAction = {
+  created: "created",
+  updated: "updated",
+  deleted: "deleted",
+  submitted: "submitted",
+  approved: "approved",
+  rejected: "rejected",
+  uploaded_evidence: "uploaded_evidence",
+  ran_ai_assessment: "ran_ai_assessment",
+} as const;
+
+/**
+ * Flexible JSON blob with action-specific data
+ */
+export type SpmoActivityEntryDetails = { [key: string]: unknown };
+
+export interface SpmoActivityEntry {
+  id: number;
+  actorId: string;
+  /** @nullable */
+  actorName: string | null;
+  action: SpmoActivityEntryAction;
+  entityType: string;
+  entityId: number;
+  entityName: string;
+  /** Flexible JSON blob with action-specific data */
+  details: SpmoActivityEntryDetails;
+  createdAt: string;
+}
+
+export interface SpmoProgrammeOverview {
+  programmeName: string;
+  programmeProgress: number;
+  lastUpdated: string;
+  pillarSummaries: SpmoPillarWithProgress[];
+  totalMilestones: number;
+  approvedMilestones: number;
+  pendingApprovals: number;
+  activeRisks: number;
+  alertCount: number;
+}
+
+export interface SpmoPendingApprovalItem {
+  milestone: SpmoMilestoneWithEvidence;
+  project: SpmoProject;
+  initiative: SpmoInitiative;
+  pillar: SpmoPillar;
+}
+
+export type SpmoAiAssessmentResultOverallHealth =
+  (typeof SpmoAiAssessmentResultOverallHealth)[keyof typeof SpmoAiAssessmentResultOverallHealth];
+
+export const SpmoAiAssessmentResultOverallHealth = {
+  excellent: "excellent",
+  good: "good",
+  fair: "fair",
+  at_risk: "at_risk",
+  critical: "critical",
+} as const;
+
+export type SpmoAiAssessmentResultPillarInsightsItemSentiment =
+  (typeof SpmoAiAssessmentResultPillarInsightsItemSentiment)[keyof typeof SpmoAiAssessmentResultPillarInsightsItemSentiment];
+
+export const SpmoAiAssessmentResultPillarInsightsItemSentiment = {
+  positive: "positive",
+  neutral: "neutral",
+  negative: "negative",
+} as const;
+
+export type SpmoAiAssessmentResultPillarInsightsItem = {
+  pillarId: number;
+  pillarName: string;
+  insight: string;
+  sentiment: SpmoAiAssessmentResultPillarInsightsItemSentiment;
+};
+
+export interface SpmoAiAssessmentResult {
+  overallHealth: SpmoAiAssessmentResultOverallHealth;
+  summary: string;
+  pillarInsights: SpmoAiAssessmentResultPillarInsightsItem[];
+  recommendations: string[];
+  riskFlags: string[];
+  cachedAt: string;
+}
+
+export interface SpmoAiValidateEvidenceRequest {
+  milestoneId: number;
+}
+
+export type SpmoAiValidateEvidenceResultVerdict =
+  (typeof SpmoAiValidateEvidenceResultVerdict)[keyof typeof SpmoAiValidateEvidenceResultVerdict];
+
+export const SpmoAiValidateEvidenceResultVerdict = {
+  strong: "strong",
+  adequate: "adequate",
+  weak: "weak",
+  insufficient: "insufficient",
+} as const;
+
+export interface SpmoAiValidateEvidenceResult {
+  milestoneId: number;
+  milestoneName: string;
+  evidenceCount: number;
+  /** 0–100 */
+  overallScore: number;
+  verdict: SpmoAiValidateEvidenceResultVerdict;
+  reasoning: string;
+  suggestions: string[];
+}
+
+export interface SpmoApprovalRequest {
+  reason?: string;
+}
+
+export interface CreateSpmoPillarRequest {
+  /** @minLength 1 */
+  name: string;
+  description?: string;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  weight: number;
+  color: string;
+  iconName: string;
+  sortOrder?: number;
+}
+
+export interface UpdateSpmoPillarRequest {
+  name?: string;
+  description?: string;
+  weight?: number;
+  color?: string;
+  iconName?: string;
+  sortOrder?: number;
+}
+
+export type CreateSpmoInitiativeRequestStatus =
+  (typeof CreateSpmoInitiativeRequestStatus)[keyof typeof CreateSpmoInitiativeRequestStatus];
+
+export const CreateSpmoInitiativeRequestStatus = {
+  active: "active",
+  on_hold: "on_hold",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export interface CreateSpmoInitiativeRequest {
+  pillarId: number;
+  /** @minLength 1 */
+  name: string;
+  description?: string;
+  ownerId: string;
+  startDate: string;
+  targetDate: string;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  weight: number;
+  status?: CreateSpmoInitiativeRequestStatus;
+}
+
+export type UpdateSpmoInitiativeRequestStatus =
+  (typeof UpdateSpmoInitiativeRequestStatus)[keyof typeof UpdateSpmoInitiativeRequestStatus];
+
+export const UpdateSpmoInitiativeRequestStatus = {
+  active: "active",
+  on_hold: "on_hold",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export interface UpdateSpmoInitiativeRequest {
+  name?: string;
+  description?: string;
+  ownerId?: string;
+  startDate?: string;
+  targetDate?: string;
+  weight?: number;
+  status?: UpdateSpmoInitiativeRequestStatus;
+}
+
+export type CreateSpmoProjectRequestStatus =
+  (typeof CreateSpmoProjectRequestStatus)[keyof typeof CreateSpmoProjectRequestStatus];
+
+export const CreateSpmoProjectRequestStatus = {
+  active: "active",
+  on_hold: "on_hold",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export interface CreateSpmoProjectRequest {
+  initiativeId: number;
+  /** @minLength 1 */
+  name: string;
+  description?: string;
+  ownerId: string;
+  startDate: string;
+  targetDate: string;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  weight: number;
+  budget?: number;
+  status?: CreateSpmoProjectRequestStatus;
+}
+
+export type UpdateSpmoProjectRequestStatus =
+  (typeof UpdateSpmoProjectRequestStatus)[keyof typeof UpdateSpmoProjectRequestStatus];
+
+export const UpdateSpmoProjectRequestStatus = {
+  active: "active",
+  on_hold: "on_hold",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export interface UpdateSpmoProjectRequest {
+  name?: string;
+  description?: string;
+  ownerId?: string;
+  startDate?: string;
+  targetDate?: string;
+  weight?: number;
+  budget?: number;
+  budgetSpent?: number;
+  status?: UpdateSpmoProjectRequestStatus;
+}
+
+export interface CreateSpmoMilestoneRequest {
+  /** @minLength 1 */
+  name: string;
+  description?: string;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  weight: number;
+  effortDays: number;
+  dueDate: string;
+}
+
+export type UpdateSpmoMilestoneRequestStatus =
+  (typeof UpdateSpmoMilestoneRequestStatus)[keyof typeof UpdateSpmoMilestoneRequestStatus];
+
+export const UpdateSpmoMilestoneRequestStatus = {
+  pending: "pending",
+  in_progress: "in_progress",
+} as const;
+
+export interface UpdateSpmoMilestoneRequest {
+  name?: string;
+  description?: string;
+  weight?: number;
+  effortDays?: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  progress?: number;
+  dueDate?: string;
+  status?: UpdateSpmoMilestoneRequestStatus;
+}
+
+export interface AddSpmoEvidenceRequest {
+  /** @minLength 1 */
+  fileName: string;
+  contentType?: string;
+  /** @minLength 1 */
+  objectPath: string;
+  description?: string;
+}
+
+export type CreateSpmoKpiRequestType =
+  (typeof CreateSpmoKpiRequestType)[keyof typeof CreateSpmoKpiRequestType];
+
+export const CreateSpmoKpiRequestType = {
+  strategic: "strategic",
+  operational: "operational",
+} as const;
+
+export interface CreateSpmoKpiRequest {
+  type: CreateSpmoKpiRequestType;
+  /** @minLength 1 */
+  name: string;
+  unit: string;
+  target: number;
+  actual: number;
+  projectId?: number;
+  pillarId?: number;
+}
+
+export type UpdateSpmoKpiRequestStatus =
+  (typeof UpdateSpmoKpiRequestStatus)[keyof typeof UpdateSpmoKpiRequestStatus];
+
+export const UpdateSpmoKpiRequestStatus = {
+  on_track: "on_track",
+  at_risk: "at_risk",
+  off_track: "off_track",
+} as const;
+
+export interface UpdateSpmoKpiRequest {
+  name?: string;
+  unit?: string;
+  target?: number;
+  actual?: number;
+  status?: UpdateSpmoKpiRequestStatus;
+}
+
+export type CreateSpmoRiskRequestProbability =
+  (typeof CreateSpmoRiskRequestProbability)[keyof typeof CreateSpmoRiskRequestProbability];
+
+export const CreateSpmoRiskRequestProbability = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+  critical: "critical",
+} as const;
+
+export type CreateSpmoRiskRequestImpact =
+  (typeof CreateSpmoRiskRequestImpact)[keyof typeof CreateSpmoRiskRequestImpact];
+
+export const CreateSpmoRiskRequestImpact = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+  critical: "critical",
+} as const;
+
+export type CreateSpmoRiskRequestStatus =
+  (typeof CreateSpmoRiskRequestStatus)[keyof typeof CreateSpmoRiskRequestStatus];
+
+export const CreateSpmoRiskRequestStatus = {
+  open: "open",
+  mitigated: "mitigated",
+  accepted: "accepted",
+  closed: "closed",
+} as const;
+
+export interface CreateSpmoRiskRequest {
+  pillarId?: number;
+  projectId?: number;
+  /** @minLength 1 */
+  title: string;
+  description?: string;
+  probability: CreateSpmoRiskRequestProbability;
+  impact: CreateSpmoRiskRequestImpact;
+  owner?: string;
+  status?: CreateSpmoRiskRequestStatus;
+}
+
+export type UpdateSpmoRiskRequestProbability =
+  (typeof UpdateSpmoRiskRequestProbability)[keyof typeof UpdateSpmoRiskRequestProbability];
+
+export const UpdateSpmoRiskRequestProbability = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+  critical: "critical",
+} as const;
+
+export type UpdateSpmoRiskRequestImpact =
+  (typeof UpdateSpmoRiskRequestImpact)[keyof typeof UpdateSpmoRiskRequestImpact];
+
+export const UpdateSpmoRiskRequestImpact = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+  critical: "critical",
+} as const;
+
+export type UpdateSpmoRiskRequestStatus =
+  (typeof UpdateSpmoRiskRequestStatus)[keyof typeof UpdateSpmoRiskRequestStatus];
+
+export const UpdateSpmoRiskRequestStatus = {
+  open: "open",
+  mitigated: "mitigated",
+  accepted: "accepted",
+  closed: "closed",
+} as const;
+
+export interface UpdateSpmoRiskRequest {
+  title?: string;
+  description?: string;
+  probability?: UpdateSpmoRiskRequestProbability;
+  impact?: UpdateSpmoRiskRequestImpact;
+  owner?: string;
+  status?: UpdateSpmoRiskRequestStatus;
+}
+
+export type CreateSpmoMitigationRequestStatus =
+  (typeof CreateSpmoMitigationRequestStatus)[keyof typeof CreateSpmoMitigationRequestStatus];
+
+export const CreateSpmoMitigationRequestStatus = {
+  planned: "planned",
+  in_progress: "in_progress",
+  completed: "completed",
+} as const;
+
+export interface CreateSpmoMitigationRequest {
+  /** @minLength 1 */
+  description: string;
+  status?: CreateSpmoMitigationRequestStatus;
+  dueDate?: string;
+}
+
+export type UpdateSpmoMitigationRequestStatus =
+  (typeof UpdateSpmoMitigationRequestStatus)[keyof typeof UpdateSpmoMitigationRequestStatus];
+
+export const UpdateSpmoMitigationRequestStatus = {
+  planned: "planned",
+  in_progress: "in_progress",
+  completed: "completed",
+} as const;
+
+export interface UpdateSpmoMitigationRequest {
+  description?: string;
+  status?: UpdateSpmoMitigationRequestStatus;
+  dueDate?: string;
+}
+
+export interface CreateSpmoBudgetEntryRequest {
+  projectId?: number;
+  pillarId?: number;
+  /** @minLength 1 */
+  category: string;
+  description?: string;
+  allocated: number;
+  spent: number;
+  currency?: string;
+  period: string;
+}
+
+export interface UpdateSpmoBudgetEntryRequest {
+  category?: string;
+  description?: string;
+  allocated?: number;
+  spent?: number;
+  period?: string;
+}
+
 /**
  * Opaque session token — `Bearer <sid>`.
  */
@@ -356,4 +1156,72 @@ export type ListMilestones200 = {
 
 export type ListUsers200 = {
   users: UserWithRole[];
+};
+
+export type ListSpmoPillars200 = {
+  pillars: SpmoPillarWithProgress[];
+};
+
+export type ListSpmoInitiativesParams = {
+  pillarId?: number;
+};
+
+export type ListSpmoInitiatives200 = {
+  initiatives: SpmoInitiativeWithProgress[];
+};
+
+export type ListSpmoProjectsParams = {
+  initiativeId?: number;
+};
+
+export type ListSpmoProjects200 = {
+  projects: SpmoProjectWithProgress[];
+};
+
+export type ListSpmoMilestones200 = {
+  milestones: SpmoMilestoneWithEvidence[];
+};
+
+export type ListSpmoPendingApprovals200 = {
+  items: SpmoPendingApprovalItem[];
+};
+
+export type ListSpmoKpisParams = {
+  type?: ListSpmoKpisType;
+  projectId?: number;
+};
+
+export type ListSpmoKpisType =
+  (typeof ListSpmoKpisType)[keyof typeof ListSpmoKpisType];
+
+export const ListSpmoKpisType = {
+  strategic: "strategic",
+  operational: "operational",
+} as const;
+
+export type ListSpmoKpis200 = {
+  kpis: SpmoKpi[];
+};
+
+export type ListSpmoRisks200 = {
+  risks: SpmoRiskWithMitigations[];
+};
+
+export type ListSpmoBudgetParams = {
+  projectId?: number;
+  pillarId?: number;
+};
+
+export type ListSpmoAlerts200 = {
+  alerts: SpmoAlert[];
+};
+
+export type ListSpmoActivityLogParams = {
+  limit?: number;
+  offset?: number;
+};
+
+export type ListSpmoActivityLog200 = {
+  entries: SpmoActivityEntry[];
+  total: number;
 };

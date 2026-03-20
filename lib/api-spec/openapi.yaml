@@ -20,6 +20,18 @@ tags:
     description: Milestone CRUD and approval workflow.
   - name: Users
     description: User management (admin only).
+  - name: SpmoHierarchy
+    description: StrategyPMO programme hierarchy — Pillars, Initiatives, Projects, Milestones.
+  - name: SpmoApprovals
+    description: StrategyPMO evidence and approval workflow.
+  - name: SpmoKPIs
+    description: StrategyPMO KPI tracking (strategic and operational).
+  - name: SpmoRisks
+    description: StrategyPMO risk register and mitigations.
+  - name: SpmoAlerts
+    description: StrategyPMO dynamic alerts engine.
+  - name: SpmoAI
+    description: StrategyPMO AI-powered assessment and evidence validation.
 
 paths:
   /healthz:
@@ -666,6 +678,1156 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
 
+  # ======================================================
+  # StrategyPMO Endpoints
+  # ======================================================
+
+  /spmo/programme:
+    get:
+      tags: [SpmoHierarchy]
+      operationId: getSpmoOverview
+      summary: Get the programme overview with computed progress cascade
+      responses:
+        '200':
+          description: Full programme state with pillar breakdown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoProgrammeOverview'
+
+  /spmo/pillars:
+    get:
+      tags: [SpmoHierarchy]
+      operationId: listSpmoPillars
+      summary: List all pillars with computed progress
+      responses:
+        '200':
+          description: List of pillars.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pillars]
+                properties:
+                  pillars:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpmoPillarWithProgress'
+    post:
+      tags: [SpmoHierarchy]
+      operationId: createSpmoPillar
+      summary: Create a pillar (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpmoPillarRequest'
+      responses:
+        '201':
+          description: Pillar created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoPillar'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/pillars/{id}:
+    get:
+      tags: [SpmoHierarchy]
+      operationId: getSpmoPillar
+      summary: Get a pillar with its initiatives and projects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Pillar detail with nested hierarchy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoPillarDetail'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      tags: [SpmoHierarchy]
+      operationId: updateSpmoPillar
+      summary: Update a pillar (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpmoPillarRequest'
+      responses:
+        '200':
+          description: Pillar updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoPillar'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [SpmoHierarchy]
+      operationId: deleteSpmoPillar
+      summary: Delete a pillar (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/initiatives:
+    get:
+      tags: [SpmoHierarchy]
+      operationId: listSpmoInitiatives
+      summary: List all initiatives with computed progress
+      parameters:
+        - name: pillarId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of initiatives with progress.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [initiatives]
+                properties:
+                  initiatives:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpmoInitiativeWithProgress'
+    post:
+      tags: [SpmoHierarchy]
+      operationId: createSpmoInitiative
+      summary: Create an initiative (admin or project-manager)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpmoInitiativeRequest'
+      responses:
+        '201':
+          description: Initiative created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoInitiative'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/initiatives/{id}:
+    get:
+      tags: [SpmoHierarchy]
+      operationId: getSpmoInitiative
+      summary: Get an initiative with its projects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Initiative detail with projects.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoInitiativeDetail'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      tags: [SpmoHierarchy]
+      operationId: updateSpmoInitiative
+      summary: Update an initiative (admin or project-manager)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpmoInitiativeRequest'
+      responses:
+        '200':
+          description: Initiative updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoInitiative'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [SpmoHierarchy]
+      operationId: deleteSpmoInitiative
+      summary: Delete an initiative (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/projects:
+    get:
+      tags: [SpmoHierarchy]
+      operationId: listSpmoProjects
+      summary: List all projects with computed progress
+      parameters:
+        - name: initiativeId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of projects with progress.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [projects]
+                properties:
+                  projects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpmoProjectWithProgress'
+    post:
+      tags: [SpmoHierarchy]
+      operationId: createSpmoProject
+      summary: Create a project (admin or project-manager)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpmoProjectRequest'
+      responses:
+        '201':
+          description: Project created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoProject'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/projects/{id}:
+    get:
+      tags: [SpmoHierarchy]
+      operationId: getSpmoProject
+      summary: Get a project with milestones
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Project detail with milestones.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoProjectDetail'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    put:
+      tags: [SpmoHierarchy]
+      operationId: updateSpmoProject
+      summary: Update a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpmoProjectRequest'
+      responses:
+        '200':
+          description: Project updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoProject'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [SpmoHierarchy]
+      operationId: deleteSpmoProject
+      summary: Delete a project (admin or owner)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/projects/{id}/milestones:
+    get:
+      tags: [SpmoHierarchy]
+      operationId: listSpmoMilestones
+      summary: List milestones for a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of milestones with evidence.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [milestones]
+                properties:
+                  milestones:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpmoMilestoneWithEvidence'
+    post:
+      tags: [SpmoHierarchy]
+      operationId: createSpmoMilestone
+      summary: Create a milestone
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpmoMilestoneRequest'
+      responses:
+        '201':
+          description: Milestone created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoMilestone'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/milestones/{id}:
+    put:
+      tags: [SpmoHierarchy]
+      operationId: updateSpmoMilestone
+      summary: Update a milestone progress / details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpmoMilestoneRequest'
+      responses:
+        '200':
+          description: Milestone updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoMilestone'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [SpmoHierarchy]
+      operationId: deleteSpmoMilestone
+      summary: Delete a milestone
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/milestones/{id}/submit:
+    post:
+      tags: [SpmoApprovals]
+      operationId: submitSpmoMilestone
+      summary: Submit a milestone for approval
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Milestone submitted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoMilestone'
+        '400':
+          description: No evidence attached or other validation error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/milestones/{id}/approve:
+    post:
+      tags: [SpmoApprovals]
+      operationId: approveSpmoMilestone
+      summary: Approve a milestone (approver or admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpmoApprovalRequest'
+      responses:
+        '200':
+          description: Milestone approved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoMilestone'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/milestones/{id}/reject:
+    post:
+      tags: [SpmoApprovals]
+      operationId: rejectSpmoMilestone
+      summary: Reject a milestone (approver or admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpmoApprovalRequest'
+      responses:
+        '200':
+          description: Milestone rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoMilestone'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/milestones/{id}/evidence:
+    post:
+      tags: [SpmoApprovals]
+      operationId: addSpmoEvidence
+      summary: Attach evidence to a milestone
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddSpmoEvidenceRequest'
+      responses:
+        '201':
+          description: Evidence added.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoEvidence'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/evidence/{id}:
+    delete:
+      tags: [SpmoApprovals]
+      operationId: deleteSpmoEvidence
+      summary: Delete an evidence attachment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/pending-approvals:
+    get:
+      tags: [SpmoApprovals]
+      operationId: listSpmoPendingApprovals
+      summary: List all milestones awaiting approval
+      responses:
+        '200':
+          description: List of milestones pending approval with context.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpmoPendingApprovalItem'
+
+  /spmo/kpis:
+    get:
+      tags: [SpmoKPIs]
+      operationId: listSpmoKpis
+      summary: List all KPIs
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [strategic, operational]
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of KPIs.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [kpis]
+                properties:
+                  kpis:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpmoKpi'
+    post:
+      tags: [SpmoKPIs]
+      operationId: createSpmoKpi
+      summary: Create a KPI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpmoKpiRequest'
+      responses:
+        '201':
+          description: KPI created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoKpi'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/kpis/{id}:
+    put:
+      tags: [SpmoKPIs]
+      operationId: updateSpmoKpi
+      summary: Update a KPI value
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpmoKpiRequest'
+      responses:
+        '200':
+          description: KPI updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoKpi'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [SpmoKPIs]
+      operationId: deleteSpmoKpi
+      summary: Delete a KPI
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/risks:
+    get:
+      tags: [SpmoRisks]
+      operationId: listSpmoRisks
+      summary: List all risks
+      responses:
+        '200':
+          description: List of risks with mitigations.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [risks]
+                properties:
+                  risks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpmoRiskWithMitigations'
+    post:
+      tags: [SpmoRisks]
+      operationId: createSpmoRisk
+      summary: Create a risk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpmoRiskRequest'
+      responses:
+        '201':
+          description: Risk created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoRisk'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/risks/{id}:
+    put:
+      tags: [SpmoRisks]
+      operationId: updateSpmoRisk
+      summary: Update a risk
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpmoRiskRequest'
+      responses:
+        '200':
+          description: Risk updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoRisk'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [SpmoRisks]
+      operationId: deleteSpmoRisk
+      summary: Delete a risk
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/risks/{id}/mitigations:
+    post:
+      tags: [SpmoRisks]
+      operationId: createSpmoMitigation
+      summary: Add a mitigation to a risk
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpmoMitigationRequest'
+      responses:
+        '201':
+          description: Mitigation created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoMitigation'
+
+  /spmo/mitigations/{id}:
+    put:
+      tags: [SpmoRisks]
+      operationId: updateSpmoMitigation
+      summary: Update a mitigation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpmoMitigationRequest'
+      responses:
+        '200':
+          description: Mitigation updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoMitigation'
+
+  /spmo/budget:
+    get:
+      tags: [SpmoHierarchy]
+      operationId: listSpmoBudget
+      summary: List budget entries
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: pillarId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Budget summary and entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoBudgetSummary'
+    post:
+      tags: [SpmoHierarchy]
+      operationId: createSpmoBudgetEntry
+      summary: Create a budget entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpmoBudgetEntryRequest'
+      responses:
+        '201':
+          description: Entry created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoBudgetEntry'
+
+  /spmo/budget/{id}:
+    put:
+      tags: [SpmoHierarchy]
+      operationId: updateSpmoBudgetEntry
+      summary: Update a budget entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpmoBudgetEntryRequest'
+      responses:
+        '200':
+          description: Entry updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoBudgetEntry'
+    delete:
+      tags: [SpmoHierarchy]
+      operationId: deleteSpmoBudgetEntry
+      summary: Delete a budget entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /spmo/alerts:
+    get:
+      tags: [SpmoAlerts]
+      operationId: listSpmoAlerts
+      summary: Get dynamic system alerts (computed from programme state)
+      responses:
+        '200':
+          description: List of alerts.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [alerts]
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpmoAlert'
+
+  /spmo/activity-log:
+    get:
+      tags: [SpmoHierarchy]
+      operationId: listSpmoActivityLog
+      summary: List programme activity log
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Activity log entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries, total]
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpmoActivityEntry'
+                  total:
+                    type: integer
+
+  /spmo/ai/assessment:
+    post:
+      tags: [SpmoAI]
+      operationId: runSpmoAiAssessment
+      summary: Run AI programme assessment (Claude) — returns structured health analysis
+      responses:
+        '200':
+          description: AI assessment result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoAiAssessmentResult'
+        '503':
+          description: AI service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /spmo/ai/validate-evidence:
+    post:
+      tags: [SpmoAI]
+      operationId: runSpmoAiValidateEvidence
+      summary: Run AI evidence validation for a milestone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpmoAiValidateEvidenceRequest'
+      responses:
+        '200':
+          description: Validation result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoAiValidateEvidenceResult'
+        '404':
+          description: Milestone not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: AI service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
 components:
   parameters:
     AuthorizationSessionHeader:
@@ -1058,3 +2220,924 @@ components:
         role:
           type: string
           enum: [admin, project-manager, approver]
+
+    # ======================================================
+    # StrategyPMO Schemas
+    # ======================================================
+
+    SpmoPillar:
+      type: object
+      required: [id, name, description, weight, color, iconName, sortOrder, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        weight:
+          type: number
+          description: Relative weight in programme progress (0–100)
+        color:
+          type: string
+        iconName:
+          type: string
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SpmoPillarWithProgress:
+      allOf:
+        - $ref: '#/components/schemas/SpmoPillar'
+        - type: object
+          required: [progress, initiativeCount, projectCount, milestoneCount, approvedMilestones, pendingApprovals]
+          properties:
+            progress:
+              type: number
+              description: Computed weighted progress (0–100)
+            initiativeCount:
+              type: integer
+            projectCount:
+              type: integer
+            milestoneCount:
+              type: integer
+            approvedMilestones:
+              type: integer
+            pendingApprovals:
+              type: integer
+
+    SpmoPillarDetail:
+      allOf:
+        - $ref: '#/components/schemas/SpmoPillarWithProgress'
+        - type: object
+          required: [initiatives]
+          properties:
+            initiatives:
+              type: array
+              items:
+                $ref: '#/components/schemas/SpmoInitiativeWithProgress'
+
+    SpmoInitiative:
+      type: object
+      required: [id, pillarId, name, description, ownerId, ownerName, startDate, targetDate, weight, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        pillarId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        ownerId:
+          type: string
+        ownerName:
+          type: [string, 'null']
+        startDate:
+          type: string
+          format: date
+        targetDate:
+          type: string
+          format: date
+        weight:
+          type: number
+        status:
+          type: string
+          enum: [active, on_hold, completed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SpmoInitiativeWithProgress:
+      allOf:
+        - $ref: '#/components/schemas/SpmoInitiative'
+        - type: object
+          required: [progress, projectCount, approvedMilestones, totalMilestones]
+          properties:
+            progress:
+              type: number
+            projectCount:
+              type: integer
+            approvedMilestones:
+              type: integer
+            totalMilestones:
+              type: integer
+
+    SpmoInitiativeDetail:
+      allOf:
+        - $ref: '#/components/schemas/SpmoInitiativeWithProgress'
+        - type: object
+          required: [projects]
+          properties:
+            projects:
+              type: array
+              items:
+                $ref: '#/components/schemas/SpmoProjectWithProgress'
+
+    SpmoProject:
+      type: object
+      required: [id, initiativeId, name, description, ownerId, ownerName, startDate, targetDate, weight, budget, budgetSpent, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        initiativeId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        ownerId:
+          type: string
+        ownerName:
+          type: [string, 'null']
+        startDate:
+          type: string
+          format: date
+        targetDate:
+          type: string
+          format: date
+        weight:
+          type: number
+        budget:
+          type: number
+          description: Allocated budget in base currency
+        budgetSpent:
+          type: number
+          description: Actual spend to date
+        status:
+          type: string
+          enum: [active, on_hold, completed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SpmoProjectWithProgress:
+      allOf:
+        - $ref: '#/components/schemas/SpmoProject'
+        - type: object
+          required: [progress, milestoneCount, approvedMilestones, pendingApprovals]
+          properties:
+            progress:
+              type: number
+            milestoneCount:
+              type: integer
+            approvedMilestones:
+              type: integer
+            pendingApprovals:
+              type: integer
+
+    SpmoProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/SpmoProjectWithProgress'
+        - type: object
+          required: [milestones]
+          properties:
+            milestones:
+              type: array
+              items:
+                $ref: '#/components/schemas/SpmoMilestoneWithEvidence'
+
+    SpmoMilestone:
+      type: object
+      required: [id, projectId, name, description, weight, effortDays, progress, status, dueDate, submittedAt, approvedAt, approvedById, rejectedAt, rejectedById, rejectionReason, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        weight:
+          type: number
+        effortDays:
+          type: [number, 'null']
+        progress:
+          type: number
+          description: Reported progress 0–100. If >=100 and status != approved, calcProgress caps at 99.
+        status:
+          type: string
+          enum: [pending, in_progress, submitted, approved, rejected]
+        dueDate:
+          type: [string, 'null']
+          format: date
+        submittedAt:
+          type: [string, 'null']
+          format: date-time
+        approvedAt:
+          type: [string, 'null']
+          format: date-time
+        approvedById:
+          type: [string, 'null']
+        rejectedAt:
+          type: [string, 'null']
+          format: date-time
+        rejectedById:
+          type: [string, 'null']
+        rejectionReason:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SpmoMilestoneWithEvidence:
+      allOf:
+        - $ref: '#/components/schemas/SpmoMilestone'
+        - type: object
+          required: [evidence]
+          properties:
+            evidence:
+              type: array
+              items:
+                $ref: '#/components/schemas/SpmoEvidence'
+
+    SpmoEvidence:
+      type: object
+      required: [id, milestoneId, fileName, contentType, objectPath, uploadedById, uploadedByName, description, aiValidated, aiScore, aiReasoning, createdAt]
+      properties:
+        id:
+          type: integer
+        milestoneId:
+          type: integer
+        fileName:
+          type: string
+        contentType:
+          type: [string, 'null']
+        objectPath:
+          type: string
+        uploadedById:
+          type: string
+        uploadedByName:
+          type: [string, 'null']
+        description:
+          type: [string, 'null']
+        aiValidated:
+          type: boolean
+        aiScore:
+          type: [number, 'null']
+          description: AI confidence score 0–100
+        aiReasoning:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+
+    SpmoKpi:
+      type: object
+      required: [id, type, name, unit, target, actual, projectId, pillarId, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [strategic, operational]
+        name:
+          type: string
+        unit:
+          type: string
+        target:
+          type: number
+        actual:
+          type: number
+        projectId:
+          type: [integer, 'null']
+        pillarId:
+          type: [integer, 'null']
+        status:
+          type: string
+          enum: [on_track, at_risk, off_track]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SpmoRisk:
+      type: object
+      required: [id, pillarId, projectId, title, description, probability, impact, riskScore, owner, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        pillarId:
+          type: [integer, 'null']
+        projectId:
+          type: [integer, 'null']
+        title:
+          type: string
+        description:
+          type: [string, 'null']
+        probability:
+          type: string
+          enum: [low, medium, high, critical]
+        impact:
+          type: string
+          enum: [low, medium, high, critical]
+        riskScore:
+          type: integer
+          description: Computed 1–16 from probability x impact matrix
+        owner:
+          type: [string, 'null']
+        status:
+          type: string
+          enum: [open, mitigated, accepted, closed]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SpmoMitigation:
+      type: object
+      required: [id, riskId, description, status, dueDate, createdAt]
+      properties:
+        id:
+          type: integer
+        riskId:
+          type: integer
+        description:
+          type: string
+        status:
+          type: string
+          enum: [planned, in_progress, completed]
+        dueDate:
+          type: [string, 'null']
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+
+    SpmoRiskWithMitigations:
+      allOf:
+        - $ref: '#/components/schemas/SpmoRisk'
+        - type: object
+          required: [mitigations]
+          properties:
+            mitigations:
+              type: array
+              items:
+                $ref: '#/components/schemas/SpmoMitigation'
+
+    SpmoBudgetEntry:
+      type: object
+      required: [id, projectId, pillarId, category, description, allocated, spent, currency, period, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: [integer, 'null']
+        pillarId:
+          type: [integer, 'null']
+        category:
+          type: string
+        description:
+          type: [string, 'null']
+        allocated:
+          type: number
+        spent:
+          type: number
+        currency:
+          type: string
+          default: USD
+        period:
+          type: string
+          description: "YYYY-MM or YYYY (year)"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SpmoBudgetSummary:
+      type: object
+      required: [totalAllocated, totalSpent, utilizationPct, entries]
+      properties:
+        totalAllocated:
+          type: number
+        totalSpent:
+          type: number
+        utilizationPct:
+          type: number
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpmoBudgetEntry'
+
+    SpmoAlert:
+      type: object
+      required: [id, severity, category, title, description, entityType, entityId, entityName, createdAt]
+      properties:
+        id:
+          type: string
+          description: Stable computed alert ID
+        severity:
+          type: string
+          enum: [info, warning, critical]
+        category:
+          type: string
+          enum: [progress, approval, budget, risk, deadline, kpi]
+        title:
+          type: string
+        description:
+          type: string
+        entityType:
+          type: string
+          enum: [programme, pillar, initiative, project, milestone, kpi, risk]
+        entityId:
+          type: [integer, 'null']
+        entityName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    SpmoActivityEntry:
+      type: object
+      required: [id, actorId, actorName, action, entityType, entityId, entityName, details, createdAt]
+      properties:
+        id:
+          type: integer
+        actorId:
+          type: string
+        actorName:
+          type: [string, 'null']
+        action:
+          type: string
+          enum: [created, updated, deleted, submitted, approved, rejected, uploaded_evidence, ran_ai_assessment]
+        entityType:
+          type: string
+        entityId:
+          type: integer
+        entityName:
+          type: string
+        details:
+          type: object
+          description: Flexible JSON blob with action-specific data
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+
+    SpmoProgrammeOverview:
+      type: object
+      required: [programmeName, programmeProgress, lastUpdated, pillarSummaries, totalMilestones, approvedMilestones, pendingApprovals, activeRisks, alertCount]
+      properties:
+        programmeName:
+          type: string
+        programmeProgress:
+          type: number
+        lastUpdated:
+          type: string
+          format: date-time
+        pillarSummaries:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpmoPillarWithProgress'
+        totalMilestones:
+          type: integer
+        approvedMilestones:
+          type: integer
+        pendingApprovals:
+          type: integer
+        activeRisks:
+          type: integer
+        alertCount:
+          type: integer
+
+    SpmoPendingApprovalItem:
+      type: object
+      required: [milestone, project, initiative, pillar]
+      properties:
+        milestone:
+          $ref: '#/components/schemas/SpmoMilestoneWithEvidence'
+        project:
+          $ref: '#/components/schemas/SpmoProject'
+        initiative:
+          $ref: '#/components/schemas/SpmoInitiative'
+        pillar:
+          $ref: '#/components/schemas/SpmoPillar'
+
+    SpmoAiAssessmentResult:
+      type: object
+      required: [overallHealth, summary, pillarInsights, recommendations, riskFlags, cachedAt]
+      properties:
+        overallHealth:
+          type: string
+          enum: [excellent, good, fair, at_risk, critical]
+        summary:
+          type: string
+        pillarInsights:
+          type: array
+          items:
+            type: object
+            required: [pillarId, pillarName, insight, sentiment]
+            properties:
+              pillarId:
+                type: integer
+              pillarName:
+                type: string
+              insight:
+                type: string
+              sentiment:
+                type: string
+                enum: [positive, neutral, negative]
+        recommendations:
+          type: array
+          items:
+            type: string
+        riskFlags:
+          type: array
+          items:
+            type: string
+        cachedAt:
+          type: string
+          format: date-time
+
+    SpmoAiValidateEvidenceRequest:
+      type: object
+      required: [milestoneId]
+      properties:
+        milestoneId:
+          type: integer
+
+    SpmoAiValidateEvidenceResult:
+      type: object
+      required: [milestoneId, milestoneName, evidenceCount, overallScore, verdict, reasoning, suggestions]
+      properties:
+        milestoneId:
+          type: integer
+        milestoneName:
+          type: string
+        evidenceCount:
+          type: integer
+        overallScore:
+          type: number
+          description: 0–100
+        verdict:
+          type: string
+          enum: [strong, adequate, weak, insufficient]
+        reasoning:
+          type: string
+        suggestions:
+          type: array
+          items:
+            type: string
+
+    SpmoApprovalRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+
+    CreateSpmoPillarRequest:
+      type: object
+      required: [name, weight, color, iconName]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        weight:
+          type: number
+          minimum: 0
+          maximum: 100
+        color:
+          type: string
+        iconName:
+          type: string
+        sortOrder:
+          type: integer
+
+    UpdateSpmoPillarRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        weight:
+          type: number
+        color:
+          type: string
+        iconName:
+          type: string
+        sortOrder:
+          type: integer
+
+    CreateSpmoInitiativeRequest:
+      type: object
+      required: [pillarId, name, ownerId, startDate, targetDate, weight]
+      properties:
+        pillarId:
+          type: integer
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        ownerId:
+          type: string
+        startDate:
+          type: string
+          format: date
+        targetDate:
+          type: string
+          format: date
+        weight:
+          type: number
+          minimum: 0
+          maximum: 100
+        status:
+          type: string
+          enum: [active, on_hold, completed, cancelled]
+
+    UpdateSpmoInitiativeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        ownerId:
+          type: string
+        startDate:
+          type: string
+          format: date
+        targetDate:
+          type: string
+          format: date
+        weight:
+          type: number
+        status:
+          type: string
+          enum: [active, on_hold, completed, cancelled]
+
+    CreateSpmoProjectRequest:
+      type: object
+      required: [initiativeId, name, ownerId, startDate, targetDate, weight]
+      properties:
+        initiativeId:
+          type: integer
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        ownerId:
+          type: string
+        startDate:
+          type: string
+          format: date
+        targetDate:
+          type: string
+          format: date
+        weight:
+          type: number
+          minimum: 0
+          maximum: 100
+        budget:
+          type: number
+        status:
+          type: string
+          enum: [active, on_hold, completed, cancelled]
+
+    UpdateSpmoProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        ownerId:
+          type: string
+        startDate:
+          type: string
+          format: date
+        targetDate:
+          type: string
+          format: date
+        weight:
+          type: number
+        budget:
+          type: number
+        budgetSpent:
+          type: number
+        status:
+          type: string
+          enum: [active, on_hold, completed, cancelled]
+
+    CreateSpmoMilestoneRequest:
+      type: object
+      required: [name, weight, effortDays, dueDate]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        weight:
+          type: number
+          minimum: 0
+          maximum: 100
+        effortDays:
+          type: number
+        dueDate:
+          type: string
+          format: date
+
+    UpdateSpmoMilestoneRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        weight:
+          type: number
+        effortDays:
+          type: number
+        progress:
+          type: number
+          minimum: 0
+          maximum: 100
+        dueDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [pending, in_progress]
+
+    AddSpmoEvidenceRequest:
+      type: object
+      required: [fileName, objectPath]
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+        contentType:
+          type: string
+        objectPath:
+          type: string
+          minLength: 1
+        description:
+          type: string
+
+    CreateSpmoKpiRequest:
+      type: object
+      required: [type, name, unit, target, actual]
+      properties:
+        type:
+          type: string
+          enum: [strategic, operational]
+        name:
+          type: string
+          minLength: 1
+        unit:
+          type: string
+        target:
+          type: number
+        actual:
+          type: number
+        projectId:
+          type: integer
+        pillarId:
+          type: integer
+
+    UpdateSpmoKpiRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        unit:
+          type: string
+        target:
+          type: number
+        actual:
+          type: number
+        status:
+          type: string
+          enum: [on_track, at_risk, off_track]
+
+    CreateSpmoRiskRequest:
+      type: object
+      required: [title, probability, impact]
+      properties:
+        pillarId:
+          type: integer
+        projectId:
+          type: integer
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        probability:
+          type: string
+          enum: [low, medium, high, critical]
+        impact:
+          type: string
+          enum: [low, medium, high, critical]
+        owner:
+          type: string
+        status:
+          type: string
+          enum: [open, mitigated, accepted, closed]
+
+    UpdateSpmoRiskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        probability:
+          type: string
+          enum: [low, medium, high, critical]
+        impact:
+          type: string
+          enum: [low, medium, high, critical]
+        owner:
+          type: string
+        status:
+          type: string
+          enum: [open, mitigated, accepted, closed]
+
+    CreateSpmoMitigationRequest:
+      type: object
+      required: [description]
+      properties:
+        description:
+          type: string
+          minLength: 1
+        status:
+          type: string
+          enum: [planned, in_progress, completed]
+        dueDate:
+          type: string
+          format: date
+
+    UpdateSpmoMitigationRequest:
+      type: object
+      properties:
+        description:
+          type: string
+        status:
+          type: string
+          enum: [planned, in_progress, completed]
+        dueDate:
+          type: string
+          format: date
+
+    CreateSpmoBudgetEntryRequest:
+      type: object
+      required: [category, allocated, spent, period]
+      properties:
+        projectId:
+          type: integer
+        pillarId:
+          type: integer
+        category:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        allocated:
+          type: number
+        spent:
+          type: number
+        currency:
+          type: string
+        period:
+          type: string
+
+    UpdateSpmoBudgetEntryRequest:
+      type: object
+      properties:
+        category:
+          type: string
+        description:
+          type: string
+        allocated:
+          type: number
+        spent:
+          type: number
+        period:
+          type: string

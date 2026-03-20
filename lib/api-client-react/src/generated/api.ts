@@ -18,11 +18,20 @@ import type {
 
 import type {
   AddAttachmentRequest,
+  AddSpmoEvidenceRequest,
   ApprovalRequest,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
   CreateInitiativeRequest,
   CreateMilestoneRequest,
+  CreateSpmoBudgetEntryRequest,
+  CreateSpmoInitiativeRequest,
+  CreateSpmoKpiRequest,
+  CreateSpmoMilestoneRequest,
+  CreateSpmoMitigationRequest,
+  CreateSpmoPillarRequest,
+  CreateSpmoProjectRequest,
+  CreateSpmoRiskRequest,
   ErrorEnvelope,
   FileAttachment,
   HandleBrowserLoginCallbackParams,
@@ -31,15 +40,55 @@ import type {
   InitiativeDetail,
   ListInitiatives200,
   ListMilestones200,
+  ListSpmoActivityLog200,
+  ListSpmoActivityLogParams,
+  ListSpmoAlerts200,
+  ListSpmoBudgetParams,
+  ListSpmoInitiatives200,
+  ListSpmoInitiativesParams,
+  ListSpmoKpis200,
+  ListSpmoKpisParams,
+  ListSpmoMilestones200,
+  ListSpmoPendingApprovals200,
+  ListSpmoPillars200,
+  ListSpmoProjects200,
+  ListSpmoProjectsParams,
+  ListSpmoRisks200,
   ListUsers200,
   LogoutSuccess,
   Milestone,
   MobileTokenExchangeRequest,
   MobileTokenExchangeSuccess,
+  SpmoAiAssessmentResult,
+  SpmoAiValidateEvidenceRequest,
+  SpmoAiValidateEvidenceResult,
+  SpmoApprovalRequest,
+  SpmoBudgetEntry,
+  SpmoBudgetSummary,
+  SpmoEvidence,
+  SpmoInitiative,
+  SpmoInitiativeDetail,
+  SpmoKpi,
+  SpmoMilestone,
+  SpmoMitigation,
+  SpmoPillar,
+  SpmoPillarDetail,
+  SpmoProgrammeOverview,
+  SpmoProject,
+  SpmoProjectDetail,
+  SpmoRisk,
   SuccessResponse,
   UpdateInitiativeRequest,
   UpdateMilestoneRequest,
   UpdateRoleRequest,
+  UpdateSpmoBudgetEntryRequest,
+  UpdateSpmoInitiativeRequest,
+  UpdateSpmoKpiRequest,
+  UpdateSpmoMilestoneRequest,
+  UpdateSpmoMitigationRequest,
+  UpdateSpmoPillarRequest,
+  UpdateSpmoProjectRequest,
+  UpdateSpmoRiskRequest,
   UploadUrlRequest,
   UploadUrlResponse,
   UserWithRole,
@@ -2178,4 +2227,3804 @@ export const useUpdateUserRole = <
   TContext
 > => {
   return useMutation(getUpdateUserRoleMutationOptions(options));
+};
+
+/**
+ * @summary Get the programme overview with computed progress cascade
+ */
+export const getGetSpmoOverviewUrl = () => {
+  return `/api/spmo/programme`;
+};
+
+export const getSpmoOverview = async (
+  options?: RequestInit,
+): Promise<SpmoProgrammeOverview> => {
+  return customFetch<SpmoProgrammeOverview>(getGetSpmoOverviewUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSpmoOverviewQueryKey = () => {
+  return [`/api/spmo/programme`] as const;
+};
+
+export const getGetSpmoOverviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSpmoOverview>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSpmoOverview>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSpmoOverviewQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSpmoOverview>>> = ({
+    signal,
+  }) => getSpmoOverview({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSpmoOverview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSpmoOverviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSpmoOverview>>
+>;
+export type GetSpmoOverviewQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the programme overview with computed progress cascade
+ */
+
+export function useGetSpmoOverview<
+  TData = Awaited<ReturnType<typeof getSpmoOverview>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSpmoOverview>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSpmoOverviewQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List all pillars with computed progress
+ */
+export const getListSpmoPillarsUrl = () => {
+  return `/api/spmo/pillars`;
+};
+
+export const listSpmoPillars = async (
+  options?: RequestInit,
+): Promise<ListSpmoPillars200> => {
+  return customFetch<ListSpmoPillars200>(getListSpmoPillarsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSpmoPillarsQueryKey = () => {
+  return [`/api/spmo/pillars`] as const;
+};
+
+export const getListSpmoPillarsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoPillars>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoPillars>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSpmoPillarsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSpmoPillars>>> = ({
+    signal,
+  }) => listSpmoPillars({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoPillars>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSpmoPillarsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSpmoPillars>>
+>;
+export type ListSpmoPillarsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all pillars with computed progress
+ */
+
+export function useListSpmoPillars<
+  TData = Awaited<ReturnType<typeof listSpmoPillars>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoPillars>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoPillarsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a pillar (admin only)
+ */
+export const getCreateSpmoPillarUrl = () => {
+  return `/api/spmo/pillars`;
+};
+
+export const createSpmoPillar = async (
+  createSpmoPillarRequest: CreateSpmoPillarRequest,
+  options?: RequestInit,
+): Promise<SpmoPillar> => {
+  return customFetch<SpmoPillar>(getCreateSpmoPillarUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSpmoPillarRequest),
+  });
+};
+
+export const getCreateSpmoPillarMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoPillar>>,
+    TError,
+    { data: BodyType<CreateSpmoPillarRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSpmoPillar>>,
+  TError,
+  { data: BodyType<CreateSpmoPillarRequest> },
+  TContext
+> => {
+  const mutationKey = ["createSpmoPillar"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSpmoPillar>>,
+    { data: BodyType<CreateSpmoPillarRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSpmoPillar(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSpmoPillarMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSpmoPillar>>
+>;
+export type CreateSpmoPillarMutationBody = BodyType<CreateSpmoPillarRequest>;
+export type CreateSpmoPillarMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Create a pillar (admin only)
+ */
+export const useCreateSpmoPillar = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoPillar>>,
+    TError,
+    { data: BodyType<CreateSpmoPillarRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSpmoPillar>>,
+  TError,
+  { data: BodyType<CreateSpmoPillarRequest> },
+  TContext
+> => {
+  return useMutation(getCreateSpmoPillarMutationOptions(options));
+};
+
+/**
+ * @summary Get a pillar with its initiatives and projects
+ */
+export const getGetSpmoPillarUrl = (id: number) => {
+  return `/api/spmo/pillars/${id}`;
+};
+
+export const getSpmoPillar = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SpmoPillarDetail> => {
+  return customFetch<SpmoPillarDetail>(getGetSpmoPillarUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSpmoPillarQueryKey = (id: number) => {
+  return [`/api/spmo/pillars/${id}`] as const;
+};
+
+export const getGetSpmoPillarQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSpmoPillar>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSpmoPillar>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSpmoPillarQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSpmoPillar>>> = ({
+    signal,
+  }) => getSpmoPillar(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSpmoPillar>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSpmoPillarQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSpmoPillar>>
+>;
+export type GetSpmoPillarQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Get a pillar with its initiatives and projects
+ */
+
+export function useGetSpmoPillar<
+  TData = Awaited<ReturnType<typeof getSpmoPillar>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSpmoPillar>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSpmoPillarQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update a pillar (admin only)
+ */
+export const getUpdateSpmoPillarUrl = (id: number) => {
+  return `/api/spmo/pillars/${id}`;
+};
+
+export const updateSpmoPillar = async (
+  id: number,
+  updateSpmoPillarRequest: UpdateSpmoPillarRequest,
+  options?: RequestInit,
+): Promise<SpmoPillar> => {
+  return customFetch<SpmoPillar>(getUpdateSpmoPillarUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSpmoPillarRequest),
+  });
+};
+
+export const getUpdateSpmoPillarMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoPillar>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoPillarRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSpmoPillar>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoPillarRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateSpmoPillar"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSpmoPillar>>,
+    { id: number; data: BodyType<UpdateSpmoPillarRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSpmoPillar(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSpmoPillarMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSpmoPillar>>
+>;
+export type UpdateSpmoPillarMutationBody = BodyType<UpdateSpmoPillarRequest>;
+export type UpdateSpmoPillarMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Update a pillar (admin only)
+ */
+export const useUpdateSpmoPillar = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoPillar>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoPillarRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSpmoPillar>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoPillarRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateSpmoPillarMutationOptions(options));
+};
+
+/**
+ * @summary Delete a pillar (admin only)
+ */
+export const getDeleteSpmoPillarUrl = (id: number) => {
+  return `/api/spmo/pillars/${id}`;
+};
+
+export const deleteSpmoPillar = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDeleteSpmoPillarUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSpmoPillarMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoPillar>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSpmoPillar>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSpmoPillar"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSpmoPillar>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSpmoPillar(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSpmoPillarMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSpmoPillar>>
+>;
+
+export type DeleteSpmoPillarMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Delete a pillar (admin only)
+ */
+export const useDeleteSpmoPillar = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoPillar>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSpmoPillar>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteSpmoPillarMutationOptions(options));
+};
+
+/**
+ * @summary List all initiatives with computed progress
+ */
+export const getListSpmoInitiativesUrl = (
+  params?: ListSpmoInitiativesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/spmo/initiatives?${stringifiedParams}`
+    : `/api/spmo/initiatives`;
+};
+
+export const listSpmoInitiatives = async (
+  params?: ListSpmoInitiativesParams,
+  options?: RequestInit,
+): Promise<ListSpmoInitiatives200> => {
+  return customFetch<ListSpmoInitiatives200>(
+    getListSpmoInitiativesUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListSpmoInitiativesQueryKey = (
+  params?: ListSpmoInitiativesParams,
+) => {
+  return [`/api/spmo/initiatives`, ...(params ? [params] : [])] as const;
+};
+
+export const getListSpmoInitiativesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoInitiatives>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSpmoInitiativesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoInitiatives>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListSpmoInitiativesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSpmoInitiatives>>
+  > = ({ signal }) =>
+    listSpmoInitiatives(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoInitiatives>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSpmoInitiativesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSpmoInitiatives>>
+>;
+export type ListSpmoInitiativesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all initiatives with computed progress
+ */
+
+export function useListSpmoInitiatives<
+  TData = Awaited<ReturnType<typeof listSpmoInitiatives>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSpmoInitiativesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoInitiatives>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoInitiativesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create an initiative (admin or project-manager)
+ */
+export const getCreateSpmoInitiativeUrl = () => {
+  return `/api/spmo/initiatives`;
+};
+
+export const createSpmoInitiative = async (
+  createSpmoInitiativeRequest: CreateSpmoInitiativeRequest,
+  options?: RequestInit,
+): Promise<SpmoInitiative> => {
+  return customFetch<SpmoInitiative>(getCreateSpmoInitiativeUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSpmoInitiativeRequest),
+  });
+};
+
+export const getCreateSpmoInitiativeMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoInitiative>>,
+    TError,
+    { data: BodyType<CreateSpmoInitiativeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSpmoInitiative>>,
+  TError,
+  { data: BodyType<CreateSpmoInitiativeRequest> },
+  TContext
+> => {
+  const mutationKey = ["createSpmoInitiative"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSpmoInitiative>>,
+    { data: BodyType<CreateSpmoInitiativeRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSpmoInitiative(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSpmoInitiativeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSpmoInitiative>>
+>;
+export type CreateSpmoInitiativeMutationBody =
+  BodyType<CreateSpmoInitiativeRequest>;
+export type CreateSpmoInitiativeMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Create an initiative (admin or project-manager)
+ */
+export const useCreateSpmoInitiative = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoInitiative>>,
+    TError,
+    { data: BodyType<CreateSpmoInitiativeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSpmoInitiative>>,
+  TError,
+  { data: BodyType<CreateSpmoInitiativeRequest> },
+  TContext
+> => {
+  return useMutation(getCreateSpmoInitiativeMutationOptions(options));
+};
+
+/**
+ * @summary Get an initiative with its projects
+ */
+export const getGetSpmoInitiativeUrl = (id: number) => {
+  return `/api/spmo/initiatives/${id}`;
+};
+
+export const getSpmoInitiative = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SpmoInitiativeDetail> => {
+  return customFetch<SpmoInitiativeDetail>(getGetSpmoInitiativeUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSpmoInitiativeQueryKey = (id: number) => {
+  return [`/api/spmo/initiatives/${id}`] as const;
+};
+
+export const getGetSpmoInitiativeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSpmoInitiative>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSpmoInitiative>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSpmoInitiativeQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSpmoInitiative>>
+  > = ({ signal }) => getSpmoInitiative(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSpmoInitiative>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSpmoInitiativeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSpmoInitiative>>
+>;
+export type GetSpmoInitiativeQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Get an initiative with its projects
+ */
+
+export function useGetSpmoInitiative<
+  TData = Awaited<ReturnType<typeof getSpmoInitiative>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSpmoInitiative>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSpmoInitiativeQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update an initiative (admin or project-manager)
+ */
+export const getUpdateSpmoInitiativeUrl = (id: number) => {
+  return `/api/spmo/initiatives/${id}`;
+};
+
+export const updateSpmoInitiative = async (
+  id: number,
+  updateSpmoInitiativeRequest: UpdateSpmoInitiativeRequest,
+  options?: RequestInit,
+): Promise<SpmoInitiative> => {
+  return customFetch<SpmoInitiative>(getUpdateSpmoInitiativeUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSpmoInitiativeRequest),
+  });
+};
+
+export const getUpdateSpmoInitiativeMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoInitiative>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoInitiativeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSpmoInitiative>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoInitiativeRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateSpmoInitiative"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSpmoInitiative>>,
+    { id: number; data: BodyType<UpdateSpmoInitiativeRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSpmoInitiative(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSpmoInitiativeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSpmoInitiative>>
+>;
+export type UpdateSpmoInitiativeMutationBody =
+  BodyType<UpdateSpmoInitiativeRequest>;
+export type UpdateSpmoInitiativeMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Update an initiative (admin or project-manager)
+ */
+export const useUpdateSpmoInitiative = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoInitiative>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoInitiativeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSpmoInitiative>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoInitiativeRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateSpmoInitiativeMutationOptions(options));
+};
+
+/**
+ * @summary Delete an initiative (admin only)
+ */
+export const getDeleteSpmoInitiativeUrl = (id: number) => {
+  return `/api/spmo/initiatives/${id}`;
+};
+
+export const deleteSpmoInitiative = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDeleteSpmoInitiativeUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSpmoInitiativeMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoInitiative>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSpmoInitiative>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSpmoInitiative"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSpmoInitiative>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSpmoInitiative(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSpmoInitiativeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSpmoInitiative>>
+>;
+
+export type DeleteSpmoInitiativeMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Delete an initiative (admin only)
+ */
+export const useDeleteSpmoInitiative = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoInitiative>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSpmoInitiative>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteSpmoInitiativeMutationOptions(options));
+};
+
+/**
+ * @summary List all projects with computed progress
+ */
+export const getListSpmoProjectsUrl = (params?: ListSpmoProjectsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/spmo/projects?${stringifiedParams}`
+    : `/api/spmo/projects`;
+};
+
+export const listSpmoProjects = async (
+  params?: ListSpmoProjectsParams,
+  options?: RequestInit,
+): Promise<ListSpmoProjects200> => {
+  return customFetch<ListSpmoProjects200>(getListSpmoProjectsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSpmoProjectsQueryKey = (
+  params?: ListSpmoProjectsParams,
+) => {
+  return [`/api/spmo/projects`, ...(params ? [params] : [])] as const;
+};
+
+export const getListSpmoProjectsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoProjects>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSpmoProjectsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoProjects>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListSpmoProjectsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSpmoProjects>>
+  > = ({ signal }) => listSpmoProjects(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoProjects>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSpmoProjectsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSpmoProjects>>
+>;
+export type ListSpmoProjectsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all projects with computed progress
+ */
+
+export function useListSpmoProjects<
+  TData = Awaited<ReturnType<typeof listSpmoProjects>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSpmoProjectsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoProjects>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoProjectsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a project (admin or project-manager)
+ */
+export const getCreateSpmoProjectUrl = () => {
+  return `/api/spmo/projects`;
+};
+
+export const createSpmoProject = async (
+  createSpmoProjectRequest: CreateSpmoProjectRequest,
+  options?: RequestInit,
+): Promise<SpmoProject> => {
+  return customFetch<SpmoProject>(getCreateSpmoProjectUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSpmoProjectRequest),
+  });
+};
+
+export const getCreateSpmoProjectMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoProject>>,
+    TError,
+    { data: BodyType<CreateSpmoProjectRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSpmoProject>>,
+  TError,
+  { data: BodyType<CreateSpmoProjectRequest> },
+  TContext
+> => {
+  const mutationKey = ["createSpmoProject"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSpmoProject>>,
+    { data: BodyType<CreateSpmoProjectRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSpmoProject(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSpmoProjectMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSpmoProject>>
+>;
+export type CreateSpmoProjectMutationBody = BodyType<CreateSpmoProjectRequest>;
+export type CreateSpmoProjectMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Create a project (admin or project-manager)
+ */
+export const useCreateSpmoProject = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoProject>>,
+    TError,
+    { data: BodyType<CreateSpmoProjectRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSpmoProject>>,
+  TError,
+  { data: BodyType<CreateSpmoProjectRequest> },
+  TContext
+> => {
+  return useMutation(getCreateSpmoProjectMutationOptions(options));
+};
+
+/**
+ * @summary Get a project with milestones
+ */
+export const getGetSpmoProjectUrl = (id: number) => {
+  return `/api/spmo/projects/${id}`;
+};
+
+export const getSpmoProject = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SpmoProjectDetail> => {
+  return customFetch<SpmoProjectDetail>(getGetSpmoProjectUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSpmoProjectQueryKey = (id: number) => {
+  return [`/api/spmo/projects/${id}`] as const;
+};
+
+export const getGetSpmoProjectQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSpmoProject>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSpmoProject>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSpmoProjectQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSpmoProject>>> = ({
+    signal,
+  }) => getSpmoProject(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSpmoProject>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSpmoProjectQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSpmoProject>>
+>;
+export type GetSpmoProjectQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Get a project with milestones
+ */
+
+export function useGetSpmoProject<
+  TData = Awaited<ReturnType<typeof getSpmoProject>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSpmoProject>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSpmoProjectQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update a project
+ */
+export const getUpdateSpmoProjectUrl = (id: number) => {
+  return `/api/spmo/projects/${id}`;
+};
+
+export const updateSpmoProject = async (
+  id: number,
+  updateSpmoProjectRequest: UpdateSpmoProjectRequest,
+  options?: RequestInit,
+): Promise<SpmoProject> => {
+  return customFetch<SpmoProject>(getUpdateSpmoProjectUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSpmoProjectRequest),
+  });
+};
+
+export const getUpdateSpmoProjectMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoProject>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoProjectRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSpmoProject>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoProjectRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateSpmoProject"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSpmoProject>>,
+    { id: number; data: BodyType<UpdateSpmoProjectRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSpmoProject(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSpmoProjectMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSpmoProject>>
+>;
+export type UpdateSpmoProjectMutationBody = BodyType<UpdateSpmoProjectRequest>;
+export type UpdateSpmoProjectMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Update a project
+ */
+export const useUpdateSpmoProject = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoProject>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoProjectRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSpmoProject>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoProjectRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateSpmoProjectMutationOptions(options));
+};
+
+/**
+ * @summary Delete a project (admin or owner)
+ */
+export const getDeleteSpmoProjectUrl = (id: number) => {
+  return `/api/spmo/projects/${id}`;
+};
+
+export const deleteSpmoProject = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDeleteSpmoProjectUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSpmoProjectMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoProject>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSpmoProject>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSpmoProject"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSpmoProject>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSpmoProject(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSpmoProjectMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSpmoProject>>
+>;
+
+export type DeleteSpmoProjectMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Delete a project (admin or owner)
+ */
+export const useDeleteSpmoProject = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoProject>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSpmoProject>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteSpmoProjectMutationOptions(options));
+};
+
+/**
+ * @summary List milestones for a project
+ */
+export const getListSpmoMilestonesUrl = (id: number) => {
+  return `/api/spmo/projects/${id}/milestones`;
+};
+
+export const listSpmoMilestones = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ListSpmoMilestones200> => {
+  return customFetch<ListSpmoMilestones200>(getListSpmoMilestonesUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSpmoMilestonesQueryKey = (id: number) => {
+  return [`/api/spmo/projects/${id}/milestones`] as const;
+};
+
+export const getListSpmoMilestonesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoMilestones>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoMilestones>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSpmoMilestonesQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSpmoMilestones>>
+  > = ({ signal }) => listSpmoMilestones(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoMilestones>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSpmoMilestonesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSpmoMilestones>>
+>;
+export type ListSpmoMilestonesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List milestones for a project
+ */
+
+export function useListSpmoMilestones<
+  TData = Awaited<ReturnType<typeof listSpmoMilestones>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoMilestones>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoMilestonesQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a milestone
+ */
+export const getCreateSpmoMilestoneUrl = (id: number) => {
+  return `/api/spmo/projects/${id}/milestones`;
+};
+
+export const createSpmoMilestone = async (
+  id: number,
+  createSpmoMilestoneRequest: CreateSpmoMilestoneRequest,
+  options?: RequestInit,
+): Promise<SpmoMilestone> => {
+  return customFetch<SpmoMilestone>(getCreateSpmoMilestoneUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSpmoMilestoneRequest),
+  });
+};
+
+export const getCreateSpmoMilestoneMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoMilestone>>,
+    TError,
+    { id: number; data: BodyType<CreateSpmoMilestoneRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSpmoMilestone>>,
+  TError,
+  { id: number; data: BodyType<CreateSpmoMilestoneRequest> },
+  TContext
+> => {
+  const mutationKey = ["createSpmoMilestone"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSpmoMilestone>>,
+    { id: number; data: BodyType<CreateSpmoMilestoneRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createSpmoMilestone(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSpmoMilestoneMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSpmoMilestone>>
+>;
+export type CreateSpmoMilestoneMutationBody =
+  BodyType<CreateSpmoMilestoneRequest>;
+export type CreateSpmoMilestoneMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Create a milestone
+ */
+export const useCreateSpmoMilestone = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoMilestone>>,
+    TError,
+    { id: number; data: BodyType<CreateSpmoMilestoneRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSpmoMilestone>>,
+  TError,
+  { id: number; data: BodyType<CreateSpmoMilestoneRequest> },
+  TContext
+> => {
+  return useMutation(getCreateSpmoMilestoneMutationOptions(options));
+};
+
+/**
+ * @summary Update a milestone progress / details
+ */
+export const getUpdateSpmoMilestoneUrl = (id: number) => {
+  return `/api/spmo/milestones/${id}`;
+};
+
+export const updateSpmoMilestone = async (
+  id: number,
+  updateSpmoMilestoneRequest: UpdateSpmoMilestoneRequest,
+  options?: RequestInit,
+): Promise<SpmoMilestone> => {
+  return customFetch<SpmoMilestone>(getUpdateSpmoMilestoneUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSpmoMilestoneRequest),
+  });
+};
+
+export const getUpdateSpmoMilestoneMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoMilestone>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoMilestoneRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSpmoMilestone>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoMilestoneRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateSpmoMilestone"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSpmoMilestone>>,
+    { id: number; data: BodyType<UpdateSpmoMilestoneRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSpmoMilestone(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSpmoMilestoneMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSpmoMilestone>>
+>;
+export type UpdateSpmoMilestoneMutationBody =
+  BodyType<UpdateSpmoMilestoneRequest>;
+export type UpdateSpmoMilestoneMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Update a milestone progress / details
+ */
+export const useUpdateSpmoMilestone = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoMilestone>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoMilestoneRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSpmoMilestone>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoMilestoneRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateSpmoMilestoneMutationOptions(options));
+};
+
+/**
+ * @summary Delete a milestone
+ */
+export const getDeleteSpmoMilestoneUrl = (id: number) => {
+  return `/api/spmo/milestones/${id}`;
+};
+
+export const deleteSpmoMilestone = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDeleteSpmoMilestoneUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSpmoMilestoneMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoMilestone>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSpmoMilestone>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSpmoMilestone"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSpmoMilestone>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSpmoMilestone(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSpmoMilestoneMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSpmoMilestone>>
+>;
+
+export type DeleteSpmoMilestoneMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Delete a milestone
+ */
+export const useDeleteSpmoMilestone = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoMilestone>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSpmoMilestone>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteSpmoMilestoneMutationOptions(options));
+};
+
+/**
+ * @summary Submit a milestone for approval
+ */
+export const getSubmitSpmoMilestoneUrl = (id: number) => {
+  return `/api/spmo/milestones/${id}/submit`;
+};
+
+export const submitSpmoMilestone = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SpmoMilestone> => {
+  return customFetch<SpmoMilestone>(getSubmitSpmoMilestoneUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSubmitSpmoMilestoneMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitSpmoMilestone>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitSpmoMilestone>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["submitSpmoMilestone"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitSpmoMilestone>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return submitSpmoMilestone(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitSpmoMilestoneMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitSpmoMilestone>>
+>;
+
+export type SubmitSpmoMilestoneMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Submit a milestone for approval
+ */
+export const useSubmitSpmoMilestone = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitSpmoMilestone>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitSpmoMilestone>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getSubmitSpmoMilestoneMutationOptions(options));
+};
+
+/**
+ * @summary Approve a milestone (approver or admin)
+ */
+export const getApproveSpmoMilestoneUrl = (id: number) => {
+  return `/api/spmo/milestones/${id}/approve`;
+};
+
+export const approveSpmoMilestone = async (
+  id: number,
+  spmoApprovalRequest?: SpmoApprovalRequest,
+  options?: RequestInit,
+): Promise<SpmoMilestone> => {
+  return customFetch<SpmoMilestone>(getApproveSpmoMilestoneUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(spmoApprovalRequest),
+  });
+};
+
+export const getApproveSpmoMilestoneMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveSpmoMilestone>>,
+    TError,
+    { id: number; data: BodyType<SpmoApprovalRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof approveSpmoMilestone>>,
+  TError,
+  { id: number; data: BodyType<SpmoApprovalRequest> },
+  TContext
+> => {
+  const mutationKey = ["approveSpmoMilestone"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof approveSpmoMilestone>>,
+    { id: number; data: BodyType<SpmoApprovalRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return approveSpmoMilestone(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApproveSpmoMilestoneMutationResult = NonNullable<
+  Awaited<ReturnType<typeof approveSpmoMilestone>>
+>;
+export type ApproveSpmoMilestoneMutationBody = BodyType<SpmoApprovalRequest>;
+export type ApproveSpmoMilestoneMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Approve a milestone (approver or admin)
+ */
+export const useApproveSpmoMilestone = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof approveSpmoMilestone>>,
+    TError,
+    { id: number; data: BodyType<SpmoApprovalRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof approveSpmoMilestone>>,
+  TError,
+  { id: number; data: BodyType<SpmoApprovalRequest> },
+  TContext
+> => {
+  return useMutation(getApproveSpmoMilestoneMutationOptions(options));
+};
+
+/**
+ * @summary Reject a milestone (approver or admin)
+ */
+export const getRejectSpmoMilestoneUrl = (id: number) => {
+  return `/api/spmo/milestones/${id}/reject`;
+};
+
+export const rejectSpmoMilestone = async (
+  id: number,
+  spmoApprovalRequest: SpmoApprovalRequest,
+  options?: RequestInit,
+): Promise<SpmoMilestone> => {
+  return customFetch<SpmoMilestone>(getRejectSpmoMilestoneUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(spmoApprovalRequest),
+  });
+};
+
+export const getRejectSpmoMilestoneMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectSpmoMilestone>>,
+    TError,
+    { id: number; data: BodyType<SpmoApprovalRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rejectSpmoMilestone>>,
+  TError,
+  { id: number; data: BodyType<SpmoApprovalRequest> },
+  TContext
+> => {
+  const mutationKey = ["rejectSpmoMilestone"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rejectSpmoMilestone>>,
+    { id: number; data: BodyType<SpmoApprovalRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return rejectSpmoMilestone(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RejectSpmoMilestoneMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rejectSpmoMilestone>>
+>;
+export type RejectSpmoMilestoneMutationBody = BodyType<SpmoApprovalRequest>;
+export type RejectSpmoMilestoneMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Reject a milestone (approver or admin)
+ */
+export const useRejectSpmoMilestone = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rejectSpmoMilestone>>,
+    TError,
+    { id: number; data: BodyType<SpmoApprovalRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rejectSpmoMilestone>>,
+  TError,
+  { id: number; data: BodyType<SpmoApprovalRequest> },
+  TContext
+> => {
+  return useMutation(getRejectSpmoMilestoneMutationOptions(options));
+};
+
+/**
+ * @summary Attach evidence to a milestone
+ */
+export const getAddSpmoEvidenceUrl = (id: number) => {
+  return `/api/spmo/milestones/${id}/evidence`;
+};
+
+export const addSpmoEvidence = async (
+  id: number,
+  addSpmoEvidenceRequest: AddSpmoEvidenceRequest,
+  options?: RequestInit,
+): Promise<SpmoEvidence> => {
+  return customFetch<SpmoEvidence>(getAddSpmoEvidenceUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(addSpmoEvidenceRequest),
+  });
+};
+
+export const getAddSpmoEvidenceMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addSpmoEvidence>>,
+    TError,
+    { id: number; data: BodyType<AddSpmoEvidenceRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addSpmoEvidence>>,
+  TError,
+  { id: number; data: BodyType<AddSpmoEvidenceRequest> },
+  TContext
+> => {
+  const mutationKey = ["addSpmoEvidence"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addSpmoEvidence>>,
+    { id: number; data: BodyType<AddSpmoEvidenceRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return addSpmoEvidence(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddSpmoEvidenceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addSpmoEvidence>>
+>;
+export type AddSpmoEvidenceMutationBody = BodyType<AddSpmoEvidenceRequest>;
+export type AddSpmoEvidenceMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Attach evidence to a milestone
+ */
+export const useAddSpmoEvidence = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addSpmoEvidence>>,
+    TError,
+    { id: number; data: BodyType<AddSpmoEvidenceRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addSpmoEvidence>>,
+  TError,
+  { id: number; data: BodyType<AddSpmoEvidenceRequest> },
+  TContext
+> => {
+  return useMutation(getAddSpmoEvidenceMutationOptions(options));
+};
+
+/**
+ * @summary Delete an evidence attachment
+ */
+export const getDeleteSpmoEvidenceUrl = (id: number) => {
+  return `/api/spmo/evidence/${id}`;
+};
+
+export const deleteSpmoEvidence = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDeleteSpmoEvidenceUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSpmoEvidenceMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoEvidence>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSpmoEvidence>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSpmoEvidence"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSpmoEvidence>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSpmoEvidence(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSpmoEvidenceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSpmoEvidence>>
+>;
+
+export type DeleteSpmoEvidenceMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Delete an evidence attachment
+ */
+export const useDeleteSpmoEvidence = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoEvidence>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSpmoEvidence>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteSpmoEvidenceMutationOptions(options));
+};
+
+/**
+ * @summary List all milestones awaiting approval
+ */
+export const getListSpmoPendingApprovalsUrl = () => {
+  return `/api/spmo/pending-approvals`;
+};
+
+export const listSpmoPendingApprovals = async (
+  options?: RequestInit,
+): Promise<ListSpmoPendingApprovals200> => {
+  return customFetch<ListSpmoPendingApprovals200>(
+    getListSpmoPendingApprovalsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListSpmoPendingApprovalsQueryKey = () => {
+  return [`/api/spmo/pending-approvals`] as const;
+};
+
+export const getListSpmoPendingApprovalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoPendingApprovals>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoPendingApprovals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListSpmoPendingApprovalsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSpmoPendingApprovals>>
+  > = ({ signal }) => listSpmoPendingApprovals({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoPendingApprovals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSpmoPendingApprovalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSpmoPendingApprovals>>
+>;
+export type ListSpmoPendingApprovalsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all milestones awaiting approval
+ */
+
+export function useListSpmoPendingApprovals<
+  TData = Awaited<ReturnType<typeof listSpmoPendingApprovals>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoPendingApprovals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoPendingApprovalsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List all KPIs
+ */
+export const getListSpmoKpisUrl = (params?: ListSpmoKpisParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/spmo/kpis?${stringifiedParams}`
+    : `/api/spmo/kpis`;
+};
+
+export const listSpmoKpis = async (
+  params?: ListSpmoKpisParams,
+  options?: RequestInit,
+): Promise<ListSpmoKpis200> => {
+  return customFetch<ListSpmoKpis200>(getListSpmoKpisUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSpmoKpisQueryKey = (params?: ListSpmoKpisParams) => {
+  return [`/api/spmo/kpis`, ...(params ? [params] : [])] as const;
+};
+
+export const getListSpmoKpisQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoKpis>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSpmoKpisParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoKpis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSpmoKpisQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSpmoKpis>>> = ({
+    signal,
+  }) => listSpmoKpis(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoKpis>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSpmoKpisQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSpmoKpis>>
+>;
+export type ListSpmoKpisQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all KPIs
+ */
+
+export function useListSpmoKpis<
+  TData = Awaited<ReturnType<typeof listSpmoKpis>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSpmoKpisParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoKpis>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoKpisQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a KPI
+ */
+export const getCreateSpmoKpiUrl = () => {
+  return `/api/spmo/kpis`;
+};
+
+export const createSpmoKpi = async (
+  createSpmoKpiRequest: CreateSpmoKpiRequest,
+  options?: RequestInit,
+): Promise<SpmoKpi> => {
+  return customFetch<SpmoKpi>(getCreateSpmoKpiUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSpmoKpiRequest),
+  });
+};
+
+export const getCreateSpmoKpiMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoKpi>>,
+    TError,
+    { data: BodyType<CreateSpmoKpiRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSpmoKpi>>,
+  TError,
+  { data: BodyType<CreateSpmoKpiRequest> },
+  TContext
+> => {
+  const mutationKey = ["createSpmoKpi"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSpmoKpi>>,
+    { data: BodyType<CreateSpmoKpiRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSpmoKpi(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSpmoKpiMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSpmoKpi>>
+>;
+export type CreateSpmoKpiMutationBody = BodyType<CreateSpmoKpiRequest>;
+export type CreateSpmoKpiMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Create a KPI
+ */
+export const useCreateSpmoKpi = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoKpi>>,
+    TError,
+    { data: BodyType<CreateSpmoKpiRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSpmoKpi>>,
+  TError,
+  { data: BodyType<CreateSpmoKpiRequest> },
+  TContext
+> => {
+  return useMutation(getCreateSpmoKpiMutationOptions(options));
+};
+
+/**
+ * @summary Update a KPI value
+ */
+export const getUpdateSpmoKpiUrl = (id: number) => {
+  return `/api/spmo/kpis/${id}`;
+};
+
+export const updateSpmoKpi = async (
+  id: number,
+  updateSpmoKpiRequest: UpdateSpmoKpiRequest,
+  options?: RequestInit,
+): Promise<SpmoKpi> => {
+  return customFetch<SpmoKpi>(getUpdateSpmoKpiUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSpmoKpiRequest),
+  });
+};
+
+export const getUpdateSpmoKpiMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoKpi>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoKpiRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSpmoKpi>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoKpiRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateSpmoKpi"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSpmoKpi>>,
+    { id: number; data: BodyType<UpdateSpmoKpiRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSpmoKpi(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSpmoKpiMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSpmoKpi>>
+>;
+export type UpdateSpmoKpiMutationBody = BodyType<UpdateSpmoKpiRequest>;
+export type UpdateSpmoKpiMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Update a KPI value
+ */
+export const useUpdateSpmoKpi = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoKpi>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoKpiRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSpmoKpi>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoKpiRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateSpmoKpiMutationOptions(options));
+};
+
+/**
+ * @summary Delete a KPI
+ */
+export const getDeleteSpmoKpiUrl = (id: number) => {
+  return `/api/spmo/kpis/${id}`;
+};
+
+export const deleteSpmoKpi = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDeleteSpmoKpiUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSpmoKpiMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoKpi>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSpmoKpi>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSpmoKpi"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSpmoKpi>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSpmoKpi(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSpmoKpiMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSpmoKpi>>
+>;
+
+export type DeleteSpmoKpiMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Delete a KPI
+ */
+export const useDeleteSpmoKpi = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoKpi>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSpmoKpi>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteSpmoKpiMutationOptions(options));
+};
+
+/**
+ * @summary List all risks
+ */
+export const getListSpmoRisksUrl = () => {
+  return `/api/spmo/risks`;
+};
+
+export const listSpmoRisks = async (
+  options?: RequestInit,
+): Promise<ListSpmoRisks200> => {
+  return customFetch<ListSpmoRisks200>(getListSpmoRisksUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSpmoRisksQueryKey = () => {
+  return [`/api/spmo/risks`] as const;
+};
+
+export const getListSpmoRisksQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoRisks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoRisks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSpmoRisksQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSpmoRisks>>> = ({
+    signal,
+  }) => listSpmoRisks({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoRisks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSpmoRisksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSpmoRisks>>
+>;
+export type ListSpmoRisksQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all risks
+ */
+
+export function useListSpmoRisks<
+  TData = Awaited<ReturnType<typeof listSpmoRisks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoRisks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoRisksQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a risk
+ */
+export const getCreateSpmoRiskUrl = () => {
+  return `/api/spmo/risks`;
+};
+
+export const createSpmoRisk = async (
+  createSpmoRiskRequest: CreateSpmoRiskRequest,
+  options?: RequestInit,
+): Promise<SpmoRisk> => {
+  return customFetch<SpmoRisk>(getCreateSpmoRiskUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSpmoRiskRequest),
+  });
+};
+
+export const getCreateSpmoRiskMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoRisk>>,
+    TError,
+    { data: BodyType<CreateSpmoRiskRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSpmoRisk>>,
+  TError,
+  { data: BodyType<CreateSpmoRiskRequest> },
+  TContext
+> => {
+  const mutationKey = ["createSpmoRisk"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSpmoRisk>>,
+    { data: BodyType<CreateSpmoRiskRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSpmoRisk(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSpmoRiskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSpmoRisk>>
+>;
+export type CreateSpmoRiskMutationBody = BodyType<CreateSpmoRiskRequest>;
+export type CreateSpmoRiskMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Create a risk
+ */
+export const useCreateSpmoRisk = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoRisk>>,
+    TError,
+    { data: BodyType<CreateSpmoRiskRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSpmoRisk>>,
+  TError,
+  { data: BodyType<CreateSpmoRiskRequest> },
+  TContext
+> => {
+  return useMutation(getCreateSpmoRiskMutationOptions(options));
+};
+
+/**
+ * @summary Update a risk
+ */
+export const getUpdateSpmoRiskUrl = (id: number) => {
+  return `/api/spmo/risks/${id}`;
+};
+
+export const updateSpmoRisk = async (
+  id: number,
+  updateSpmoRiskRequest: UpdateSpmoRiskRequest,
+  options?: RequestInit,
+): Promise<SpmoRisk> => {
+  return customFetch<SpmoRisk>(getUpdateSpmoRiskUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSpmoRiskRequest),
+  });
+};
+
+export const getUpdateSpmoRiskMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoRisk>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoRiskRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSpmoRisk>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoRiskRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateSpmoRisk"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSpmoRisk>>,
+    { id: number; data: BodyType<UpdateSpmoRiskRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSpmoRisk(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSpmoRiskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSpmoRisk>>
+>;
+export type UpdateSpmoRiskMutationBody = BodyType<UpdateSpmoRiskRequest>;
+export type UpdateSpmoRiskMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Update a risk
+ */
+export const useUpdateSpmoRisk = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoRisk>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoRiskRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSpmoRisk>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoRiskRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateSpmoRiskMutationOptions(options));
+};
+
+/**
+ * @summary Delete a risk
+ */
+export const getDeleteSpmoRiskUrl = (id: number) => {
+  return `/api/spmo/risks/${id}`;
+};
+
+export const deleteSpmoRisk = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDeleteSpmoRiskUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSpmoRiskMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoRisk>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSpmoRisk>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSpmoRisk"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSpmoRisk>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSpmoRisk(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSpmoRiskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSpmoRisk>>
+>;
+
+export type DeleteSpmoRiskMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Delete a risk
+ */
+export const useDeleteSpmoRisk = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoRisk>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSpmoRisk>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteSpmoRiskMutationOptions(options));
+};
+
+/**
+ * @summary Add a mitigation to a risk
+ */
+export const getCreateSpmoMitigationUrl = (id: number) => {
+  return `/api/spmo/risks/${id}/mitigations`;
+};
+
+export const createSpmoMitigation = async (
+  id: number,
+  createSpmoMitigationRequest: CreateSpmoMitigationRequest,
+  options?: RequestInit,
+): Promise<SpmoMitigation> => {
+  return customFetch<SpmoMitigation>(getCreateSpmoMitigationUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSpmoMitigationRequest),
+  });
+};
+
+export const getCreateSpmoMitigationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoMitigation>>,
+    TError,
+    { id: number; data: BodyType<CreateSpmoMitigationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSpmoMitigation>>,
+  TError,
+  { id: number; data: BodyType<CreateSpmoMitigationRequest> },
+  TContext
+> => {
+  const mutationKey = ["createSpmoMitigation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSpmoMitigation>>,
+    { id: number; data: BodyType<CreateSpmoMitigationRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createSpmoMitigation(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSpmoMitigationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSpmoMitigation>>
+>;
+export type CreateSpmoMitigationMutationBody =
+  BodyType<CreateSpmoMitigationRequest>;
+export type CreateSpmoMitigationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a mitigation to a risk
+ */
+export const useCreateSpmoMitigation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoMitigation>>,
+    TError,
+    { id: number; data: BodyType<CreateSpmoMitigationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSpmoMitigation>>,
+  TError,
+  { id: number; data: BodyType<CreateSpmoMitigationRequest> },
+  TContext
+> => {
+  return useMutation(getCreateSpmoMitigationMutationOptions(options));
+};
+
+/**
+ * @summary Update a mitigation
+ */
+export const getUpdateSpmoMitigationUrl = (id: number) => {
+  return `/api/spmo/mitigations/${id}`;
+};
+
+export const updateSpmoMitigation = async (
+  id: number,
+  updateSpmoMitigationRequest: UpdateSpmoMitigationRequest,
+  options?: RequestInit,
+): Promise<SpmoMitigation> => {
+  return customFetch<SpmoMitigation>(getUpdateSpmoMitigationUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSpmoMitigationRequest),
+  });
+};
+
+export const getUpdateSpmoMitigationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoMitigation>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoMitigationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSpmoMitigation>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoMitigationRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateSpmoMitigation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSpmoMitigation>>,
+    { id: number; data: BodyType<UpdateSpmoMitigationRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSpmoMitigation(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSpmoMitigationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSpmoMitigation>>
+>;
+export type UpdateSpmoMitigationMutationBody =
+  BodyType<UpdateSpmoMitigationRequest>;
+export type UpdateSpmoMitigationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a mitigation
+ */
+export const useUpdateSpmoMitigation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoMitigation>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoMitigationRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSpmoMitigation>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoMitigationRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateSpmoMitigationMutationOptions(options));
+};
+
+/**
+ * @summary List budget entries
+ */
+export const getListSpmoBudgetUrl = (params?: ListSpmoBudgetParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/spmo/budget?${stringifiedParams}`
+    : `/api/spmo/budget`;
+};
+
+export const listSpmoBudget = async (
+  params?: ListSpmoBudgetParams,
+  options?: RequestInit,
+): Promise<SpmoBudgetSummary> => {
+  return customFetch<SpmoBudgetSummary>(getListSpmoBudgetUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSpmoBudgetQueryKey = (params?: ListSpmoBudgetParams) => {
+  return [`/api/spmo/budget`, ...(params ? [params] : [])] as const;
+};
+
+export const getListSpmoBudgetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoBudget>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSpmoBudgetParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoBudget>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSpmoBudgetQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSpmoBudget>>> = ({
+    signal,
+  }) => listSpmoBudget(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoBudget>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSpmoBudgetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSpmoBudget>>
+>;
+export type ListSpmoBudgetQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List budget entries
+ */
+
+export function useListSpmoBudget<
+  TData = Awaited<ReturnType<typeof listSpmoBudget>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSpmoBudgetParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoBudget>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoBudgetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a budget entry
+ */
+export const getCreateSpmoBudgetEntryUrl = () => {
+  return `/api/spmo/budget`;
+};
+
+export const createSpmoBudgetEntry = async (
+  createSpmoBudgetEntryRequest: CreateSpmoBudgetEntryRequest,
+  options?: RequestInit,
+): Promise<SpmoBudgetEntry> => {
+  return customFetch<SpmoBudgetEntry>(getCreateSpmoBudgetEntryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSpmoBudgetEntryRequest),
+  });
+};
+
+export const getCreateSpmoBudgetEntryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoBudgetEntry>>,
+    TError,
+    { data: BodyType<CreateSpmoBudgetEntryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSpmoBudgetEntry>>,
+  TError,
+  { data: BodyType<CreateSpmoBudgetEntryRequest> },
+  TContext
+> => {
+  const mutationKey = ["createSpmoBudgetEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSpmoBudgetEntry>>,
+    { data: BodyType<CreateSpmoBudgetEntryRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSpmoBudgetEntry(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSpmoBudgetEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSpmoBudgetEntry>>
+>;
+export type CreateSpmoBudgetEntryMutationBody =
+  BodyType<CreateSpmoBudgetEntryRequest>;
+export type CreateSpmoBudgetEntryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a budget entry
+ */
+export const useCreateSpmoBudgetEntry = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmoBudgetEntry>>,
+    TError,
+    { data: BodyType<CreateSpmoBudgetEntryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSpmoBudgetEntry>>,
+  TError,
+  { data: BodyType<CreateSpmoBudgetEntryRequest> },
+  TContext
+> => {
+  return useMutation(getCreateSpmoBudgetEntryMutationOptions(options));
+};
+
+/**
+ * @summary Update a budget entry
+ */
+export const getUpdateSpmoBudgetEntryUrl = (id: number) => {
+  return `/api/spmo/budget/${id}`;
+};
+
+export const updateSpmoBudgetEntry = async (
+  id: number,
+  updateSpmoBudgetEntryRequest: UpdateSpmoBudgetEntryRequest,
+  options?: RequestInit,
+): Promise<SpmoBudgetEntry> => {
+  return customFetch<SpmoBudgetEntry>(getUpdateSpmoBudgetEntryUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSpmoBudgetEntryRequest),
+  });
+};
+
+export const getUpdateSpmoBudgetEntryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoBudgetEntry>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoBudgetEntryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSpmoBudgetEntry>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoBudgetEntryRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateSpmoBudgetEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSpmoBudgetEntry>>,
+    { id: number; data: BodyType<UpdateSpmoBudgetEntryRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSpmoBudgetEntry(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSpmoBudgetEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSpmoBudgetEntry>>
+>;
+export type UpdateSpmoBudgetEntryMutationBody =
+  BodyType<UpdateSpmoBudgetEntryRequest>;
+export type UpdateSpmoBudgetEntryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a budget entry
+ */
+export const useUpdateSpmoBudgetEntry = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmoBudgetEntry>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmoBudgetEntryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateSpmoBudgetEntry>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmoBudgetEntryRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateSpmoBudgetEntryMutationOptions(options));
+};
+
+/**
+ * @summary Delete a budget entry
+ */
+export const getDeleteSpmoBudgetEntryUrl = (id: number) => {
+  return `/api/spmo/budget/${id}`;
+};
+
+export const deleteSpmoBudgetEntry = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDeleteSpmoBudgetEntryUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSpmoBudgetEntryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoBudgetEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSpmoBudgetEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSpmoBudgetEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSpmoBudgetEntry>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSpmoBudgetEntry(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSpmoBudgetEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSpmoBudgetEntry>>
+>;
+
+export type DeleteSpmoBudgetEntryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a budget entry
+ */
+export const useDeleteSpmoBudgetEntry = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmoBudgetEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSpmoBudgetEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteSpmoBudgetEntryMutationOptions(options));
+};
+
+/**
+ * @summary Get dynamic system alerts (computed from programme state)
+ */
+export const getListSpmoAlertsUrl = () => {
+  return `/api/spmo/alerts`;
+};
+
+export const listSpmoAlerts = async (
+  options?: RequestInit,
+): Promise<ListSpmoAlerts200> => {
+  return customFetch<ListSpmoAlerts200>(getListSpmoAlertsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSpmoAlertsQueryKey = () => {
+  return [`/api/spmo/alerts`] as const;
+};
+
+export const getListSpmoAlertsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoAlerts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoAlerts>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSpmoAlertsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSpmoAlerts>>> = ({
+    signal,
+  }) => listSpmoAlerts({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoAlerts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSpmoAlertsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSpmoAlerts>>
+>;
+export type ListSpmoAlertsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get dynamic system alerts (computed from programme state)
+ */
+
+export function useListSpmoAlerts<
+  TData = Awaited<ReturnType<typeof listSpmoAlerts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoAlerts>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoAlertsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List programme activity log
+ */
+export const getListSpmoActivityLogUrl = (
+  params?: ListSpmoActivityLogParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/spmo/activity-log?${stringifiedParams}`
+    : `/api/spmo/activity-log`;
+};
+
+export const listSpmoActivityLog = async (
+  params?: ListSpmoActivityLogParams,
+  options?: RequestInit,
+): Promise<ListSpmoActivityLog200> => {
+  return customFetch<ListSpmoActivityLog200>(
+    getListSpmoActivityLogUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListSpmoActivityLogQueryKey = (
+  params?: ListSpmoActivityLogParams,
+) => {
+  return [`/api/spmo/activity-log`, ...(params ? [params] : [])] as const;
+};
+
+export const getListSpmoActivityLogQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoActivityLog>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSpmoActivityLogParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoActivityLog>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListSpmoActivityLogQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSpmoActivityLog>>
+  > = ({ signal }) =>
+    listSpmoActivityLog(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoActivityLog>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSpmoActivityLogQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSpmoActivityLog>>
+>;
+export type ListSpmoActivityLogQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List programme activity log
+ */
+
+export function useListSpmoActivityLog<
+  TData = Awaited<ReturnType<typeof listSpmoActivityLog>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSpmoActivityLogParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSpmoActivityLog>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoActivityLogQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Run AI programme assessment (Claude) — returns structured health analysis
+ */
+export const getRunSpmoAiAssessmentUrl = () => {
+  return `/api/spmo/ai/assessment`;
+};
+
+export const runSpmoAiAssessment = async (
+  options?: RequestInit,
+): Promise<SpmoAiAssessmentResult> => {
+  return customFetch<SpmoAiAssessmentResult>(getRunSpmoAiAssessmentUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRunSpmoAiAssessmentMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runSpmoAiAssessment>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof runSpmoAiAssessment>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["runSpmoAiAssessment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof runSpmoAiAssessment>>,
+    void
+  > = () => {
+    return runSpmoAiAssessment(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RunSpmoAiAssessmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof runSpmoAiAssessment>>
+>;
+
+export type RunSpmoAiAssessmentMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Run AI programme assessment (Claude) — returns structured health analysis
+ */
+export const useRunSpmoAiAssessment = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runSpmoAiAssessment>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof runSpmoAiAssessment>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getRunSpmoAiAssessmentMutationOptions(options));
+};
+
+/**
+ * @summary Run AI evidence validation for a milestone
+ */
+export const getRunSpmoAiValidateEvidenceUrl = () => {
+  return `/api/spmo/ai/validate-evidence`;
+};
+
+export const runSpmoAiValidateEvidence = async (
+  spmoAiValidateEvidenceRequest: SpmoAiValidateEvidenceRequest,
+  options?: RequestInit,
+): Promise<SpmoAiValidateEvidenceResult> => {
+  return customFetch<SpmoAiValidateEvidenceResult>(
+    getRunSpmoAiValidateEvidenceUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(spmoAiValidateEvidenceRequest),
+    },
+  );
+};
+
+export const getRunSpmoAiValidateEvidenceMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runSpmoAiValidateEvidence>>,
+    TError,
+    { data: BodyType<SpmoAiValidateEvidenceRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof runSpmoAiValidateEvidence>>,
+  TError,
+  { data: BodyType<SpmoAiValidateEvidenceRequest> },
+  TContext
+> => {
+  const mutationKey = ["runSpmoAiValidateEvidence"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof runSpmoAiValidateEvidence>>,
+    { data: BodyType<SpmoAiValidateEvidenceRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return runSpmoAiValidateEvidence(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RunSpmoAiValidateEvidenceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof runSpmoAiValidateEvidence>>
+>;
+export type RunSpmoAiValidateEvidenceMutationBody =
+  BodyType<SpmoAiValidateEvidenceRequest>;
+export type RunSpmoAiValidateEvidenceMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Run AI evidence validation for a milestone
+ */
+export const useRunSpmoAiValidateEvidence = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runSpmoAiValidateEvidence>>,
+    TError,
+    { data: BodyType<SpmoAiValidateEvidenceRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof runSpmoAiValidateEvidence>>,
+  TError,
+  { data: BodyType<SpmoAiValidateEvidenceRequest> },
+  TContext
+> => {
+  return useMutation(getRunSpmoAiValidateEvidenceMutationOptions(options));
 };

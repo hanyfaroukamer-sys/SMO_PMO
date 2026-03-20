@@ -655,3 +655,1368 @@ export const UpdateUserRoleResponse = zod.object({
   role: zod.enum(["admin", "project-manager", "approver"]),
   createdAt: zod.date(),
 });
+
+/**
+ * @summary Get the programme overview with computed progress cascade
+ */
+export const GetSpmoOverviewResponse = zod.object({
+  programmeName: zod.string(),
+  programmeProgress: zod.number(),
+  lastUpdated: zod.date(),
+  pillarSummaries: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        name: zod.string(),
+        description: zod.string().nullable(),
+        weight: zod
+          .number()
+          .describe("Relative weight in programme progress (0–100)"),
+        color: zod.string(),
+        iconName: zod.string(),
+        sortOrder: zod.number(),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      })
+      .and(
+        zod.object({
+          progress: zod.number().describe("Computed weighted progress (0–100)"),
+          initiativeCount: zod.number(),
+          projectCount: zod.number(),
+          milestoneCount: zod.number(),
+          approvedMilestones: zod.number(),
+          pendingApprovals: zod.number(),
+        }),
+      ),
+  ),
+  totalMilestones: zod.number(),
+  approvedMilestones: zod.number(),
+  pendingApprovals: zod.number(),
+  activeRisks: zod.number(),
+  alertCount: zod.number(),
+});
+
+/**
+ * @summary List all pillars with computed progress
+ */
+export const ListSpmoPillarsResponse = zod.object({
+  pillars: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        name: zod.string(),
+        description: zod.string().nullable(),
+        weight: zod
+          .number()
+          .describe("Relative weight in programme progress (0–100)"),
+        color: zod.string(),
+        iconName: zod.string(),
+        sortOrder: zod.number(),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      })
+      .and(
+        zod.object({
+          progress: zod.number().describe("Computed weighted progress (0–100)"),
+          initiativeCount: zod.number(),
+          projectCount: zod.number(),
+          milestoneCount: zod.number(),
+          approvedMilestones: zod.number(),
+          pendingApprovals: zod.number(),
+        }),
+      ),
+  ),
+});
+
+/**
+ * @summary Create a pillar (admin only)
+ */
+
+export const createSpmoPillarBodyWeightMin = 0;
+export const createSpmoPillarBodyWeightMax = 100;
+
+export const CreateSpmoPillarBody = zod.object({
+  name: zod.string().min(1),
+  description: zod.string().optional(),
+  weight: zod
+    .number()
+    .min(createSpmoPillarBodyWeightMin)
+    .max(createSpmoPillarBodyWeightMax),
+  color: zod.string(),
+  iconName: zod.string(),
+  sortOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Get a pillar with its initiatives and projects
+ */
+export const GetSpmoPillarParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetSpmoPillarResponse = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullable(),
+    weight: zod
+      .number()
+      .describe("Relative weight in programme progress (0–100)"),
+    color: zod.string(),
+    iconName: zod.string(),
+    sortOrder: zod.number(),
+    createdAt: zod.date(),
+    updatedAt: zod.date(),
+  })
+  .and(
+    zod.object({
+      progress: zod.number().describe("Computed weighted progress (0–100)"),
+      initiativeCount: zod.number(),
+      projectCount: zod.number(),
+      milestoneCount: zod.number(),
+      approvedMilestones: zod.number(),
+      pendingApprovals: zod.number(),
+    }),
+  )
+  .and(
+    zod.object({
+      initiatives: zod.array(
+        zod
+          .object({
+            id: zod.number(),
+            pillarId: zod.number(),
+            name: zod.string(),
+            description: zod.string().nullable(),
+            ownerId: zod.string(),
+            ownerName: zod.string().nullable(),
+            startDate: zod.date(),
+            targetDate: zod.date(),
+            weight: zod.number(),
+            status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+            createdAt: zod.date(),
+            updatedAt: zod.date(),
+          })
+          .and(
+            zod.object({
+              progress: zod.number(),
+              projectCount: zod.number(),
+              approvedMilestones: zod.number(),
+              totalMilestones: zod.number(),
+            }),
+          ),
+      ),
+    }),
+  );
+
+/**
+ * @summary Update a pillar (admin only)
+ */
+export const UpdateSpmoPillarParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSpmoPillarBody = zod.object({
+  name: zod.string().optional(),
+  description: zod.string().optional(),
+  weight: zod.number().optional(),
+  color: zod.string().optional(),
+  iconName: zod.string().optional(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateSpmoPillarResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullable(),
+  weight: zod
+    .number()
+    .describe("Relative weight in programme progress (0–100)"),
+  color: zod.string(),
+  iconName: zod.string(),
+  sortOrder: zod.number(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Delete a pillar (admin only)
+ */
+export const DeleteSpmoPillarParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteSpmoPillarResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List all initiatives with computed progress
+ */
+export const ListSpmoInitiativesQueryParams = zod.object({
+  pillarId: zod.coerce.number().optional(),
+});
+
+export const ListSpmoInitiativesResponse = zod.object({
+  initiatives: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        pillarId: zod.number(),
+        name: zod.string(),
+        description: zod.string().nullable(),
+        ownerId: zod.string(),
+        ownerName: zod.string().nullable(),
+        startDate: zod.date(),
+        targetDate: zod.date(),
+        weight: zod.number(),
+        status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      })
+      .and(
+        zod.object({
+          progress: zod.number(),
+          projectCount: zod.number(),
+          approvedMilestones: zod.number(),
+          totalMilestones: zod.number(),
+        }),
+      ),
+  ),
+});
+
+/**
+ * @summary Create an initiative (admin or project-manager)
+ */
+
+export const createSpmoInitiativeBodyWeightMin = 0;
+export const createSpmoInitiativeBodyWeightMax = 100;
+
+export const CreateSpmoInitiativeBody = zod.object({
+  pillarId: zod.number(),
+  name: zod.string().min(1),
+  description: zod.string().optional(),
+  ownerId: zod.string(),
+  startDate: zod.date(),
+  targetDate: zod.date(),
+  weight: zod
+    .number()
+    .min(createSpmoInitiativeBodyWeightMin)
+    .max(createSpmoInitiativeBodyWeightMax),
+  status: zod.enum(["active", "on_hold", "completed", "cancelled"]).optional(),
+});
+
+/**
+ * @summary Get an initiative with its projects
+ */
+export const GetSpmoInitiativeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetSpmoInitiativeResponse = zod
+  .object({
+    id: zod.number(),
+    pillarId: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullable(),
+    ownerId: zod.string(),
+    ownerName: zod.string().nullable(),
+    startDate: zod.date(),
+    targetDate: zod.date(),
+    weight: zod.number(),
+    status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+    createdAt: zod.date(),
+    updatedAt: zod.date(),
+  })
+  .and(
+    zod.object({
+      progress: zod.number(),
+      projectCount: zod.number(),
+      approvedMilestones: zod.number(),
+      totalMilestones: zod.number(),
+    }),
+  )
+  .and(
+    zod.object({
+      projects: zod.array(
+        zod
+          .object({
+            id: zod.number(),
+            initiativeId: zod.number(),
+            name: zod.string(),
+            description: zod.string().nullable(),
+            ownerId: zod.string(),
+            ownerName: zod.string().nullable(),
+            startDate: zod.date(),
+            targetDate: zod.date(),
+            weight: zod.number(),
+            budget: zod.number().describe("Allocated budget in base currency"),
+            budgetSpent: zod.number().describe("Actual spend to date"),
+            status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+            createdAt: zod.date(),
+            updatedAt: zod.date(),
+          })
+          .and(
+            zod.object({
+              progress: zod.number(),
+              milestoneCount: zod.number(),
+              approvedMilestones: zod.number(),
+              pendingApprovals: zod.number(),
+            }),
+          ),
+      ),
+    }),
+  );
+
+/**
+ * @summary Update an initiative (admin or project-manager)
+ */
+export const UpdateSpmoInitiativeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSpmoInitiativeBody = zod.object({
+  name: zod.string().optional(),
+  description: zod.string().optional(),
+  ownerId: zod.string().optional(),
+  startDate: zod.date().optional(),
+  targetDate: zod.date().optional(),
+  weight: zod.number().optional(),
+  status: zod.enum(["active", "on_hold", "completed", "cancelled"]).optional(),
+});
+
+export const UpdateSpmoInitiativeResponse = zod.object({
+  id: zod.number(),
+  pillarId: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullable(),
+  ownerId: zod.string(),
+  ownerName: zod.string().nullable(),
+  startDate: zod.date(),
+  targetDate: zod.date(),
+  weight: zod.number(),
+  status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Delete an initiative (admin only)
+ */
+export const DeleteSpmoInitiativeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteSpmoInitiativeResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List all projects with computed progress
+ */
+export const ListSpmoProjectsQueryParams = zod.object({
+  initiativeId: zod.coerce.number().optional(),
+});
+
+export const ListSpmoProjectsResponse = zod.object({
+  projects: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        initiativeId: zod.number(),
+        name: zod.string(),
+        description: zod.string().nullable(),
+        ownerId: zod.string(),
+        ownerName: zod.string().nullable(),
+        startDate: zod.date(),
+        targetDate: zod.date(),
+        weight: zod.number(),
+        budget: zod.number().describe("Allocated budget in base currency"),
+        budgetSpent: zod.number().describe("Actual spend to date"),
+        status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      })
+      .and(
+        zod.object({
+          progress: zod.number(),
+          milestoneCount: zod.number(),
+          approvedMilestones: zod.number(),
+          pendingApprovals: zod.number(),
+        }),
+      ),
+  ),
+});
+
+/**
+ * @summary Create a project (admin or project-manager)
+ */
+
+export const createSpmoProjectBodyWeightMin = 0;
+export const createSpmoProjectBodyWeightMax = 100;
+
+export const CreateSpmoProjectBody = zod.object({
+  initiativeId: zod.number(),
+  name: zod.string().min(1),
+  description: zod.string().optional(),
+  ownerId: zod.string(),
+  startDate: zod.date(),
+  targetDate: zod.date(),
+  weight: zod
+    .number()
+    .min(createSpmoProjectBodyWeightMin)
+    .max(createSpmoProjectBodyWeightMax),
+  budget: zod.number().optional(),
+  status: zod.enum(["active", "on_hold", "completed", "cancelled"]).optional(),
+});
+
+/**
+ * @summary Get a project with milestones
+ */
+export const GetSpmoProjectParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetSpmoProjectResponse = zod
+  .object({
+    id: zod.number(),
+    initiativeId: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullable(),
+    ownerId: zod.string(),
+    ownerName: zod.string().nullable(),
+    startDate: zod.date(),
+    targetDate: zod.date(),
+    weight: zod.number(),
+    budget: zod.number().describe("Allocated budget in base currency"),
+    budgetSpent: zod.number().describe("Actual spend to date"),
+    status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+    createdAt: zod.date(),
+    updatedAt: zod.date(),
+  })
+  .and(
+    zod.object({
+      progress: zod.number(),
+      milestoneCount: zod.number(),
+      approvedMilestones: zod.number(),
+      pendingApprovals: zod.number(),
+    }),
+  )
+  .and(
+    zod.object({
+      milestones: zod.array(
+        zod
+          .object({
+            id: zod.number(),
+            projectId: zod.number(),
+            name: zod.string(),
+            description: zod.string().nullable(),
+            weight: zod.number(),
+            effortDays: zod.number().nullable(),
+            progress: zod
+              .number()
+              .describe(
+                "Reported progress 0–100. If >=100 and status != approved, calcProgress caps at 99.",
+              ),
+            status: zod.enum([
+              "pending",
+              "in_progress",
+              "submitted",
+              "approved",
+              "rejected",
+            ]),
+            dueDate: zod.date().nullable(),
+            submittedAt: zod.date().nullable(),
+            approvedAt: zod.date().nullable(),
+            approvedById: zod.string().nullable(),
+            rejectedAt: zod.date().nullable(),
+            rejectedById: zod.string().nullable(),
+            rejectionReason: zod.string().nullable(),
+            createdAt: zod.date(),
+            updatedAt: zod.date(),
+          })
+          .and(
+            zod.object({
+              evidence: zod.array(
+                zod.object({
+                  id: zod.number(),
+                  milestoneId: zod.number(),
+                  fileName: zod.string(),
+                  contentType: zod.string().nullable(),
+                  objectPath: zod.string(),
+                  uploadedById: zod.string(),
+                  uploadedByName: zod.string().nullable(),
+                  description: zod.string().nullable(),
+                  aiValidated: zod.boolean(),
+                  aiScore: zod
+                    .number()
+                    .nullable()
+                    .describe("AI confidence score 0–100"),
+                  aiReasoning: zod.string().nullable(),
+                  createdAt: zod.date(),
+                }),
+              ),
+            }),
+          ),
+      ),
+    }),
+  );
+
+/**
+ * @summary Update a project
+ */
+export const UpdateSpmoProjectParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSpmoProjectBody = zod.object({
+  name: zod.string().optional(),
+  description: zod.string().optional(),
+  ownerId: zod.string().optional(),
+  startDate: zod.date().optional(),
+  targetDate: zod.date().optional(),
+  weight: zod.number().optional(),
+  budget: zod.number().optional(),
+  budgetSpent: zod.number().optional(),
+  status: zod.enum(["active", "on_hold", "completed", "cancelled"]).optional(),
+});
+
+export const UpdateSpmoProjectResponse = zod.object({
+  id: zod.number(),
+  initiativeId: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullable(),
+  ownerId: zod.string(),
+  ownerName: zod.string().nullable(),
+  startDate: zod.date(),
+  targetDate: zod.date(),
+  weight: zod.number(),
+  budget: zod.number().describe("Allocated budget in base currency"),
+  budgetSpent: zod.number().describe("Actual spend to date"),
+  status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Delete a project (admin or owner)
+ */
+export const DeleteSpmoProjectParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteSpmoProjectResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List milestones for a project
+ */
+export const ListSpmoMilestonesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListSpmoMilestonesResponse = zod.object({
+  milestones: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        projectId: zod.number(),
+        name: zod.string(),
+        description: zod.string().nullable(),
+        weight: zod.number(),
+        effortDays: zod.number().nullable(),
+        progress: zod
+          .number()
+          .describe(
+            "Reported progress 0–100. If >=100 and status != approved, calcProgress caps at 99.",
+          ),
+        status: zod.enum([
+          "pending",
+          "in_progress",
+          "submitted",
+          "approved",
+          "rejected",
+        ]),
+        dueDate: zod.date().nullable(),
+        submittedAt: zod.date().nullable(),
+        approvedAt: zod.date().nullable(),
+        approvedById: zod.string().nullable(),
+        rejectedAt: zod.date().nullable(),
+        rejectedById: zod.string().nullable(),
+        rejectionReason: zod.string().nullable(),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      })
+      .and(
+        zod.object({
+          evidence: zod.array(
+            zod.object({
+              id: zod.number(),
+              milestoneId: zod.number(),
+              fileName: zod.string(),
+              contentType: zod.string().nullable(),
+              objectPath: zod.string(),
+              uploadedById: zod.string(),
+              uploadedByName: zod.string().nullable(),
+              description: zod.string().nullable(),
+              aiValidated: zod.boolean(),
+              aiScore: zod
+                .number()
+                .nullable()
+                .describe("AI confidence score 0–100"),
+              aiReasoning: zod.string().nullable(),
+              createdAt: zod.date(),
+            }),
+          ),
+        }),
+      ),
+  ),
+});
+
+/**
+ * @summary Create a milestone
+ */
+export const CreateSpmoMilestoneParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createSpmoMilestoneBodyWeightMin = 0;
+export const createSpmoMilestoneBodyWeightMax = 100;
+
+export const CreateSpmoMilestoneBody = zod.object({
+  name: zod.string().min(1),
+  description: zod.string().optional(),
+  weight: zod
+    .number()
+    .min(createSpmoMilestoneBodyWeightMin)
+    .max(createSpmoMilestoneBodyWeightMax),
+  effortDays: zod.number(),
+  dueDate: zod.date(),
+});
+
+/**
+ * @summary Update a milestone progress / details
+ */
+export const UpdateSpmoMilestoneParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const updateSpmoMilestoneBodyProgressMin = 0;
+export const updateSpmoMilestoneBodyProgressMax = 100;
+
+export const UpdateSpmoMilestoneBody = zod.object({
+  name: zod.string().optional(),
+  description: zod.string().optional(),
+  weight: zod.number().optional(),
+  effortDays: zod.number().optional(),
+  progress: zod
+    .number()
+    .min(updateSpmoMilestoneBodyProgressMin)
+    .max(updateSpmoMilestoneBodyProgressMax)
+    .optional(),
+  dueDate: zod.date().optional(),
+  status: zod.enum(["pending", "in_progress"]).optional(),
+});
+
+export const UpdateSpmoMilestoneResponse = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullable(),
+  weight: zod.number(),
+  effortDays: zod.number().nullable(),
+  progress: zod
+    .number()
+    .describe(
+      "Reported progress 0–100. If >=100 and status != approved, calcProgress caps at 99.",
+    ),
+  status: zod.enum([
+    "pending",
+    "in_progress",
+    "submitted",
+    "approved",
+    "rejected",
+  ]),
+  dueDate: zod.date().nullable(),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  approvedById: zod.string().nullable(),
+  rejectedAt: zod.date().nullable(),
+  rejectedById: zod.string().nullable(),
+  rejectionReason: zod.string().nullable(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Delete a milestone
+ */
+export const DeleteSpmoMilestoneParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteSpmoMilestoneResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Submit a milestone for approval
+ */
+export const SubmitSpmoMilestoneParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SubmitSpmoMilestoneResponse = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullable(),
+  weight: zod.number(),
+  effortDays: zod.number().nullable(),
+  progress: zod
+    .number()
+    .describe(
+      "Reported progress 0–100. If >=100 and status != approved, calcProgress caps at 99.",
+    ),
+  status: zod.enum([
+    "pending",
+    "in_progress",
+    "submitted",
+    "approved",
+    "rejected",
+  ]),
+  dueDate: zod.date().nullable(),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  approvedById: zod.string().nullable(),
+  rejectedAt: zod.date().nullable(),
+  rejectedById: zod.string().nullable(),
+  rejectionReason: zod.string().nullable(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Approve a milestone (approver or admin)
+ */
+export const ApproveSpmoMilestoneParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ApproveSpmoMilestoneBody = zod.object({
+  reason: zod.string().optional(),
+});
+
+export const ApproveSpmoMilestoneResponse = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullable(),
+  weight: zod.number(),
+  effortDays: zod.number().nullable(),
+  progress: zod
+    .number()
+    .describe(
+      "Reported progress 0–100. If >=100 and status != approved, calcProgress caps at 99.",
+    ),
+  status: zod.enum([
+    "pending",
+    "in_progress",
+    "submitted",
+    "approved",
+    "rejected",
+  ]),
+  dueDate: zod.date().nullable(),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  approvedById: zod.string().nullable(),
+  rejectedAt: zod.date().nullable(),
+  rejectedById: zod.string().nullable(),
+  rejectionReason: zod.string().nullable(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Reject a milestone (approver or admin)
+ */
+export const RejectSpmoMilestoneParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RejectSpmoMilestoneBody = zod.object({
+  reason: zod.string().optional(),
+});
+
+export const RejectSpmoMilestoneResponse = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullable(),
+  weight: zod.number(),
+  effortDays: zod.number().nullable(),
+  progress: zod
+    .number()
+    .describe(
+      "Reported progress 0–100. If >=100 and status != approved, calcProgress caps at 99.",
+    ),
+  status: zod.enum([
+    "pending",
+    "in_progress",
+    "submitted",
+    "approved",
+    "rejected",
+  ]),
+  dueDate: zod.date().nullable(),
+  submittedAt: zod.date().nullable(),
+  approvedAt: zod.date().nullable(),
+  approvedById: zod.string().nullable(),
+  rejectedAt: zod.date().nullable(),
+  rejectedById: zod.string().nullable(),
+  rejectionReason: zod.string().nullable(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Attach evidence to a milestone
+ */
+export const AddSpmoEvidenceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AddSpmoEvidenceBody = zod.object({
+  fileName: zod.string().min(1),
+  contentType: zod.string().optional(),
+  objectPath: zod.string().min(1),
+  description: zod.string().optional(),
+});
+
+/**
+ * @summary Delete an evidence attachment
+ */
+export const DeleteSpmoEvidenceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteSpmoEvidenceResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List all milestones awaiting approval
+ */
+export const ListSpmoPendingApprovalsResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      milestone: zod
+        .object({
+          id: zod.number(),
+          projectId: zod.number(),
+          name: zod.string(),
+          description: zod.string().nullable(),
+          weight: zod.number(),
+          effortDays: zod.number().nullable(),
+          progress: zod
+            .number()
+            .describe(
+              "Reported progress 0–100. If >=100 and status != approved, calcProgress caps at 99.",
+            ),
+          status: zod.enum([
+            "pending",
+            "in_progress",
+            "submitted",
+            "approved",
+            "rejected",
+          ]),
+          dueDate: zod.date().nullable(),
+          submittedAt: zod.date().nullable(),
+          approvedAt: zod.date().nullable(),
+          approvedById: zod.string().nullable(),
+          rejectedAt: zod.date().nullable(),
+          rejectedById: zod.string().nullable(),
+          rejectionReason: zod.string().nullable(),
+          createdAt: zod.date(),
+          updatedAt: zod.date(),
+        })
+        .and(
+          zod.object({
+            evidence: zod.array(
+              zod.object({
+                id: zod.number(),
+                milestoneId: zod.number(),
+                fileName: zod.string(),
+                contentType: zod.string().nullable(),
+                objectPath: zod.string(),
+                uploadedById: zod.string(),
+                uploadedByName: zod.string().nullable(),
+                description: zod.string().nullable(),
+                aiValidated: zod.boolean(),
+                aiScore: zod
+                  .number()
+                  .nullable()
+                  .describe("AI confidence score 0–100"),
+                aiReasoning: zod.string().nullable(),
+                createdAt: zod.date(),
+              }),
+            ),
+          }),
+        ),
+      project: zod.object({
+        id: zod.number(),
+        initiativeId: zod.number(),
+        name: zod.string(),
+        description: zod.string().nullable(),
+        ownerId: zod.string(),
+        ownerName: zod.string().nullable(),
+        startDate: zod.date(),
+        targetDate: zod.date(),
+        weight: zod.number(),
+        budget: zod.number().describe("Allocated budget in base currency"),
+        budgetSpent: zod.number().describe("Actual spend to date"),
+        status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      }),
+      initiative: zod.object({
+        id: zod.number(),
+        pillarId: zod.number(),
+        name: zod.string(),
+        description: zod.string().nullable(),
+        ownerId: zod.string(),
+        ownerName: zod.string().nullable(),
+        startDate: zod.date(),
+        targetDate: zod.date(),
+        weight: zod.number(),
+        status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      }),
+      pillar: zod.object({
+        id: zod.number(),
+        name: zod.string(),
+        description: zod.string().nullable(),
+        weight: zod
+          .number()
+          .describe("Relative weight in programme progress (0–100)"),
+        color: zod.string(),
+        iconName: zod.string(),
+        sortOrder: zod.number(),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      }),
+    }),
+  ),
+});
+
+/**
+ * @summary List all KPIs
+ */
+export const ListSpmoKpisQueryParams = zod.object({
+  type: zod.enum(["strategic", "operational"]).optional(),
+  projectId: zod.coerce.number().optional(),
+});
+
+export const ListSpmoKpisResponse = zod.object({
+  kpis: zod.array(
+    zod.object({
+      id: zod.number(),
+      type: zod.enum(["strategic", "operational"]),
+      name: zod.string(),
+      unit: zod.string(),
+      target: zod.number(),
+      actual: zod.number(),
+      projectId: zod.number().nullable(),
+      pillarId: zod.number().nullable(),
+      status: zod.enum(["on_track", "at_risk", "off_track"]),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a KPI
+ */
+
+export const CreateSpmoKpiBody = zod.object({
+  type: zod.enum(["strategic", "operational"]),
+  name: zod.string().min(1),
+  unit: zod.string(),
+  target: zod.number(),
+  actual: zod.number(),
+  projectId: zod.number().optional(),
+  pillarId: zod.number().optional(),
+});
+
+/**
+ * @summary Update a KPI value
+ */
+export const UpdateSpmoKpiParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSpmoKpiBody = zod.object({
+  name: zod.string().optional(),
+  unit: zod.string().optional(),
+  target: zod.number().optional(),
+  actual: zod.number().optional(),
+  status: zod.enum(["on_track", "at_risk", "off_track"]).optional(),
+});
+
+export const UpdateSpmoKpiResponse = zod.object({
+  id: zod.number(),
+  type: zod.enum(["strategic", "operational"]),
+  name: zod.string(),
+  unit: zod.string(),
+  target: zod.number(),
+  actual: zod.number(),
+  projectId: zod.number().nullable(),
+  pillarId: zod.number().nullable(),
+  status: zod.enum(["on_track", "at_risk", "off_track"]),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Delete a KPI
+ */
+export const DeleteSpmoKpiParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteSpmoKpiResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary List all risks
+ */
+export const ListSpmoRisksResponse = zod.object({
+  risks: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        pillarId: zod.number().nullable(),
+        projectId: zod.number().nullable(),
+        title: zod.string(),
+        description: zod.string().nullable(),
+        probability: zod.enum(["low", "medium", "high", "critical"]),
+        impact: zod.enum(["low", "medium", "high", "critical"]),
+        riskScore: zod
+          .number()
+          .describe("Computed 1–16 from probability x impact matrix"),
+        owner: zod.string().nullable(),
+        status: zod.enum(["open", "mitigated", "accepted", "closed"]),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      })
+      .and(
+        zod.object({
+          mitigations: zod.array(
+            zod.object({
+              id: zod.number(),
+              riskId: zod.number(),
+              description: zod.string(),
+              status: zod.enum(["planned", "in_progress", "completed"]),
+              dueDate: zod.date().nullable(),
+              createdAt: zod.date(),
+            }),
+          ),
+        }),
+      ),
+  ),
+});
+
+/**
+ * @summary Create a risk
+ */
+
+export const CreateSpmoRiskBody = zod.object({
+  pillarId: zod.number().optional(),
+  projectId: zod.number().optional(),
+  title: zod.string().min(1),
+  description: zod.string().optional(),
+  probability: zod.enum(["low", "medium", "high", "critical"]),
+  impact: zod.enum(["low", "medium", "high", "critical"]),
+  owner: zod.string().optional(),
+  status: zod.enum(["open", "mitigated", "accepted", "closed"]).optional(),
+});
+
+/**
+ * @summary Update a risk
+ */
+export const UpdateSpmoRiskParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSpmoRiskBody = zod.object({
+  title: zod.string().optional(),
+  description: zod.string().optional(),
+  probability: zod.enum(["low", "medium", "high", "critical"]).optional(),
+  impact: zod.enum(["low", "medium", "high", "critical"]).optional(),
+  owner: zod.string().optional(),
+  status: zod.enum(["open", "mitigated", "accepted", "closed"]).optional(),
+});
+
+export const UpdateSpmoRiskResponse = zod.object({
+  id: zod.number(),
+  pillarId: zod.number().nullable(),
+  projectId: zod.number().nullable(),
+  title: zod.string(),
+  description: zod.string().nullable(),
+  probability: zod.enum(["low", "medium", "high", "critical"]),
+  impact: zod.enum(["low", "medium", "high", "critical"]),
+  riskScore: zod
+    .number()
+    .describe("Computed 1–16 from probability x impact matrix"),
+  owner: zod.string().nullable(),
+  status: zod.enum(["open", "mitigated", "accepted", "closed"]),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Delete a risk
+ */
+export const DeleteSpmoRiskParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteSpmoRiskResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Add a mitigation to a risk
+ */
+export const CreateSpmoMitigationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateSpmoMitigationBody = zod.object({
+  description: zod.string().min(1),
+  status: zod.enum(["planned", "in_progress", "completed"]).optional(),
+  dueDate: zod.date().optional(),
+});
+
+/**
+ * @summary Update a mitigation
+ */
+export const UpdateSpmoMitigationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSpmoMitigationBody = zod.object({
+  description: zod.string().optional(),
+  status: zod.enum(["planned", "in_progress", "completed"]).optional(),
+  dueDate: zod.date().optional(),
+});
+
+export const UpdateSpmoMitigationResponse = zod.object({
+  id: zod.number(),
+  riskId: zod.number(),
+  description: zod.string(),
+  status: zod.enum(["planned", "in_progress", "completed"]),
+  dueDate: zod.date().nullable(),
+  createdAt: zod.date(),
+});
+
+/**
+ * @summary List budget entries
+ */
+export const ListSpmoBudgetQueryParams = zod.object({
+  projectId: zod.coerce.number().optional(),
+  pillarId: zod.coerce.number().optional(),
+});
+
+export const listSpmoBudgetResponseEntriesItemCurrencyDefault = `USD`;
+
+export const ListSpmoBudgetResponse = zod.object({
+  totalAllocated: zod.number(),
+  totalSpent: zod.number(),
+  utilizationPct: zod.number(),
+  entries: zod.array(
+    zod.object({
+      id: zod.number(),
+      projectId: zod.number().nullable(),
+      pillarId: zod.number().nullable(),
+      category: zod.string(),
+      description: zod.string().nullable(),
+      allocated: zod.number(),
+      spent: zod.number(),
+      currency: zod
+        .string()
+        .default(listSpmoBudgetResponseEntriesItemCurrencyDefault),
+      period: zod.string().describe("YYYY-MM or YYYY (year)"),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a budget entry
+ */
+
+export const CreateSpmoBudgetEntryBody = zod.object({
+  projectId: zod.number().optional(),
+  pillarId: zod.number().optional(),
+  category: zod.string().min(1),
+  description: zod.string().optional(),
+  allocated: zod.number(),
+  spent: zod.number(),
+  currency: zod.string().optional(),
+  period: zod.string(),
+});
+
+/**
+ * @summary Update a budget entry
+ */
+export const UpdateSpmoBudgetEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSpmoBudgetEntryBody = zod.object({
+  category: zod.string().optional(),
+  description: zod.string().optional(),
+  allocated: zod.number().optional(),
+  spent: zod.number().optional(),
+  period: zod.string().optional(),
+});
+
+export const updateSpmoBudgetEntryResponseCurrencyDefault = `USD`;
+
+export const UpdateSpmoBudgetEntryResponse = zod.object({
+  id: zod.number(),
+  projectId: zod.number().nullable(),
+  pillarId: zod.number().nullable(),
+  category: zod.string(),
+  description: zod.string().nullable(),
+  allocated: zod.number(),
+  spent: zod.number(),
+  currency: zod.string().default(updateSpmoBudgetEntryResponseCurrencyDefault),
+  period: zod.string().describe("YYYY-MM or YYYY (year)"),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Delete a budget entry
+ */
+export const DeleteSpmoBudgetEntryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteSpmoBudgetEntryResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Get dynamic system alerts (computed from programme state)
+ */
+export const ListSpmoAlertsResponse = zod.object({
+  alerts: zod.array(
+    zod.object({
+      id: zod.string().describe("Stable computed alert ID"),
+      severity: zod.enum(["info", "warning", "critical"]),
+      category: zod.enum([
+        "progress",
+        "approval",
+        "budget",
+        "risk",
+        "deadline",
+        "kpi",
+      ]),
+      title: zod.string(),
+      description: zod.string(),
+      entityType: zod.enum([
+        "programme",
+        "pillar",
+        "initiative",
+        "project",
+        "milestone",
+        "kpi",
+        "risk",
+      ]),
+      entityId: zod.number().nullable(),
+      entityName: zod.string(),
+      createdAt: zod.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary List programme activity log
+ */
+export const listSpmoActivityLogQueryLimitDefault = 50;
+export const listSpmoActivityLogQueryOffsetDefault = 0;
+
+export const ListSpmoActivityLogQueryParams = zod.object({
+  limit: zod.coerce.number().default(listSpmoActivityLogQueryLimitDefault),
+  offset: zod.coerce.number().default(listSpmoActivityLogQueryOffsetDefault),
+});
+
+export const ListSpmoActivityLogResponse = zod.object({
+  entries: zod.array(
+    zod.object({
+      id: zod.number(),
+      actorId: zod.string(),
+      actorName: zod.string().nullable(),
+      action: zod.enum([
+        "created",
+        "updated",
+        "deleted",
+        "submitted",
+        "approved",
+        "rejected",
+        "uploaded_evidence",
+        "ran_ai_assessment",
+      ]),
+      entityType: zod.string(),
+      entityId: zod.number(),
+      entityName: zod.string(),
+      details: zod
+        .record(zod.string(), zod.unknown())
+        .describe("Flexible JSON blob with action-specific data"),
+      createdAt: zod.date(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Run AI programme assessment (Claude) — returns structured health analysis
+ */
+export const RunSpmoAiAssessmentResponse = zod.object({
+  overallHealth: zod.enum(["excellent", "good", "fair", "at_risk", "critical"]),
+  summary: zod.string(),
+  pillarInsights: zod.array(
+    zod.object({
+      pillarId: zod.number(),
+      pillarName: zod.string(),
+      insight: zod.string(),
+      sentiment: zod.enum(["positive", "neutral", "negative"]),
+    }),
+  ),
+  recommendations: zod.array(zod.string()),
+  riskFlags: zod.array(zod.string()),
+  cachedAt: zod.date(),
+});
+
+/**
+ * @summary Run AI evidence validation for a milestone
+ */
+export const RunSpmoAiValidateEvidenceBody = zod.object({
+  milestoneId: zod.number(),
+});
+
+export const RunSpmoAiValidateEvidenceResponse = zod.object({
+  milestoneId: zod.number(),
+  milestoneName: zod.string(),
+  evidenceCount: zod.number(),
+  overallScore: zod.number().describe("0–100"),
+  verdict: zod.enum(["strong", "adequate", "weak", "insufficient"]),
+  reasoning: zod.string(),
+  suggestions: zod.array(zod.string()),
+});
