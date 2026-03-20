@@ -66,17 +66,17 @@ artifacts-monorepo/
 
 ## User Management
 
-Users are provisioned automatically via Replit OIDC on first login (no manual create/delete). Admins can update roles via the Admin panel (`PUT /api/users/:id/role`). There is no user creation or deletion endpoint, consistent with OIDC-provisioned auth.
+Users are provisioned automatically via Replit OIDC on first login. Admins can update roles via the Admin panel (`PUT /api/users/:id/role`). **User creation and deletion are not supported** — this is an intentional product decision: since all users are OIDC-provisioned by Replit Auth, admin responsibility is limited to role assignment only.
 
 ## API Routes (all under `/api`)
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | /auth/user | Get current user |
-| GET | /auth/login | Start OIDC login |
-| GET | /auth/callback | OIDC callback |
-| GET | /auth/logout | Logout |
-| POST | /auth/mobile/token | Mobile token exchange |
+| GET | /login | Start OIDC login |
+| GET | /callback | OIDC callback |
+| GET | /logout | Logout |
+| POST | /mobile-auth/token | Mobile token exchange |
 | GET | /initiatives | List all initiatives (with progress) |
 | POST | /initiatives | Create initiative (admin/PM only) |
 | GET | /initiatives/:id | Get initiative detail + milestones |
