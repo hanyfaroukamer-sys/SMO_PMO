@@ -9,7 +9,7 @@ import type { CreateSpmoProcurementRequestStage } from "./createSpmoProcurementR
 
 export interface CreateSpmoProcurementRequest {
   projectId: number;
-  title: string;
+  title?: string;
   stage: CreateSpmoProcurementRequestStage;
   vendor?: string;
   contractValue?: number;

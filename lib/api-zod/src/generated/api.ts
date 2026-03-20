@@ -2047,7 +2047,7 @@ export const ListSpmoProcurementResponse = zod.object({
  */
 export const CreateSpmoProcurementBody = zod.object({
   projectId: zod.number(),
-  title: zod.string(),
+  title: zod.string().optional(),
   stage: zod.enum([
     "rfp_draft",
     "rfp_issued",

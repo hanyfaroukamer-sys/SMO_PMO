@@ -345,7 +345,7 @@ export const spmoProcurementTable = pgTable("spmo_procurement", {
   projectId: integer("project_id")
     .notNull()
     .references(() => spmoProjectsTable.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
+  title: text("title"),
   stage: text("stage", {
     enum: ["rfp_draft", "rfp_issued", "evaluation", "awarded", "completed"],
   })

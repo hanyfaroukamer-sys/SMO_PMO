@@ -1846,7 +1846,7 @@ router.post("/spmo/procurement", async (req, res): Promise<void> => {
 
   const [row] = await db.insert(spmoProcurementTable).values(insert).returning();
   const user = getAuthUser(req);
-  await logSpmoActivity(userId, getUserDisplayName(user), "created", "procurement", row.id, row.title);
+  await logSpmoActivity(userId, getUserDisplayName(user), "created", "procurement", row.id, row.title ?? "Procurement record");
   res.status(201).json(row);
 });
 
@@ -1878,7 +1878,7 @@ router.put("/spmo/procurement/:id", async (req, res): Promise<void> => {
   }
 
   const user = getAuthUser(req);
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "procurement", row.id, row.title);
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "procurement", row.id, row.title ?? "Procurement record");
   res.json(row);
 });
 

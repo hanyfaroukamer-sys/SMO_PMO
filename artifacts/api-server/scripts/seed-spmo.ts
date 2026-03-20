@@ -434,28 +434,23 @@ async function seed() {
     .values([
       // Traffic Signal Upgrade (pSignals) — 3
       { projectId: pSignals.id, name: "Signal Audit & Design Freeze", effortDays: 30, progress: 100, status: "approved", approvedAt: new Date("2024-04-30"), approvedById: SYS, dueDate: "2024-04-30", description: "Complete audit of 2,400 signal locations and freeze the design specification." },
-      { projectId: pSignals.id, name: "Batch 1 Installation (800 signals)", effortDays: 90, progress: 100, status: "approved", approvedAt: new Date("2024-11-30"), approvedById: SYS, dueDate: "2024-11-30", description: "Install and commission first 800 AI-adaptive signals." },
-      { projectId: pSignals.id, name: "Batch 2 Installation (800 signals)", effortDays: 90, progress: 72, status: "in_progress", dueDate: "2025-06-30", description: "Install and commission second batch of 800 signals." },
-      { projectId: pSignals.id, name: "Batch 3 Installation (800 signals)", effortDays: 90, progress: 0, status: "pending", dueDate: "2025-12-31", description: "Install and commission final 800 signals." },
-      { projectId: pSignals.id, name: "System Integration & Go-Live", effortDays: 45, progress: 0, status: "pending", dueDate: "2026-01-31", description: "Full system integration with TMC and performance validation." },
+      { projectId: pSignals.id, name: "Batch 1 & 2 Installation (1,600 signals)", effortDays: 90, progress: 100, status: "approved", approvedAt: new Date("2024-11-30"), approvedById: SYS, dueDate: "2024-11-30", description: "Install and commission first 1,600 AI-adaptive signals." },
+      { projectId: pSignals.id, name: "Batch 3 Installation & Go-Live", effortDays: 90, progress: 20, status: "in_progress", dueDate: "2025-12-31", description: "Install final 800 signals and complete system integration." },
 
       // IoT Sensors (pIot) — 3
       { projectId: pIot.id, name: "Sensor Technology Procurement", effortDays: 45, progress: 100, status: "approved", approvedAt: new Date("2024-05-31"), approvedById: SYS, dueDate: "2024-05-31", description: "Award contract and procure 12,000 IoT traffic sensors." },
       { projectId: pIot.id, name: "Phase 1 Installation (4,000 sensors)", effortDays: 75, progress: 100, status: "submitted", submittedAt: new Date("2024-12-15"), dueDate: "2024-12-31", description: "Install first 4,000 sensors on primary arterial roads." },
-      { projectId: pIot.id, name: "Phase 2 Installation (8,000 sensors)", effortDays: 75, progress: 38, status: "in_progress", dueDate: "2025-09-30", description: "Install remaining 8,000 sensors on secondary roads." },
-      { projectId: pIot.id, name: "Data Platform Integration", effortDays: 30, progress: 0, status: "pending", dueDate: "2025-12-31", description: "Connect all sensor data feeds to the central analytics platform." },
+      { projectId: pIot.id, name: "Phase 2 Installation & Data Integration", effortDays: 75, progress: 38, status: "in_progress", dueDate: "2025-12-31", description: "Install remaining 8,000 sensors and connect data feeds to analytics platform." },
 
       // Traffic Management Centre (pTmc) — 3
       { projectId: pTmc.id, name: "Facility & Infrastructure Design", effortDays: 60, progress: 100, status: "approved", approvedAt: new Date("2024-09-30"), approvedById: SYS, dueDate: "2024-09-30", description: "Complete architectural and technical design for the TMC facility." },
       { projectId: pTmc.id, name: "Construction & Fit-Out", effortDays: 120, progress: 65, status: "in_progress", dueDate: "2025-09-30", description: "Complete construction and equipment fit-out of the TMC." },
-      { projectId: pTmc.id, name: "Systems Integration & Staff Training", effortDays: 45, progress: 0, status: "pending", dueDate: "2026-06-30", description: "Integrate all traffic systems and train 120 operators." },
-      { projectId: pTmc.id, name: "Operational Acceptance", effortDays: 30, progress: 0, status: "pending", dueDate: "2026-12-31", description: "Formal acceptance testing and 24/7 operations handover." },
+      { projectId: pTmc.id, name: "Systems Integration, Training & Acceptance", effortDays: 60, progress: 0, status: "pending", dueDate: "2026-12-31", description: "Integrate traffic systems, train 120 operators, and complete acceptance testing." },
 
       // Government Data Lake (pDataLake) — 3
       { projectId: pDataLake.id, name: "Architecture Design & Cloud Provisioning", effortDays: 45, progress: 100, status: "approved", approvedAt: new Date("2024-09-30"), approvedById: SYS, dueDate: "2024-09-30", description: "Design data lake architecture and provision cloud infrastructure." },
       { projectId: pDataLake.id, name: "Phase 1 Ingestion (12 entities)", effortDays: 75, progress: 100, status: "submitted", submittedAt: new Date("2025-01-15"), dueDate: "2025-01-31", description: "Connect and ingest data from first 12 government entities." },
-      { projectId: pDataLake.id, name: "Phase 2 Ingestion (20 entities)", effortDays: 75, progress: 45, status: "in_progress", dueDate: "2025-09-30", description: "Connect remaining 20 entities and validate data quality." },
-      { projectId: pDataLake.id, name: "Data Catalogue & Governance Framework", effortDays: 30, progress: 0, status: "pending", dueDate: "2026-06-30", description: "Publish data catalogue and implement data governance policies." },
+      { projectId: pDataLake.id, name: "Phase 2 Ingestion & Data Governance", effortDays: 90, progress: 45, status: "in_progress", dueDate: "2026-06-30", description: "Connect remaining 20 entities and publish data catalogue and governance policies." },
 
       // BI Dashboard Platform (pBiPlatform) — 3
       { projectId: pBiPlatform.id, name: "Platform Selection & Licensing", effortDays: 30, progress: 100, status: "approved", approvedAt: new Date("2024-11-30"), approvedById: SYS, dueDate: "2024-11-30", description: "Select BI platform vendor and negotiate enterprise licensing." },

@@ -2893,7 +2893,7 @@ components:
 
     CreateSpmoProcurementRequest:
       type: object
-      required: [projectId, title, stage]
+      required: [projectId, stage]
       properties:
         projectId:
           type: integer
