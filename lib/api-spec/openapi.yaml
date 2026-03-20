@@ -771,7 +771,7 @@ components:
 
     UploadUrlRequest:
       type: object
-      required: [name, size, contentType]
+      required: [name, size, contentType, milestoneId]
       properties:
         name:
           type: string
@@ -782,6 +782,10 @@ components:
         contentType:
           type: string
           minLength: 1
+        milestoneId:
+          type: integer
+          minimum: 1
+          description: ID of the milestone this upload will be attached to.
 
     UploadUrlResponse:
       type: object

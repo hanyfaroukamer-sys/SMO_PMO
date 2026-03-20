@@ -64,7 +64,10 @@ export interface UploadUrlRequest {
   size: number;
   /** @minLength 1 */
   contentType: string;
-  /** @minimum 1 */
+  /**
+   * ID of the milestone this upload will be attached to.
+   * @minimum 1
+   */
   milestoneId: number;
 }
 

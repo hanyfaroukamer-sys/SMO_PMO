@@ -108,7 +108,10 @@ export const RequestUploadUrlBody = zod.object({
   name: zod.string().min(1),
   size: zod.number().min(1),
   contentType: zod.string().min(1),
-  milestoneId: zod.number().int().positive(),
+  milestoneId: zod
+    .number()
+    .min(1)
+    .describe("ID of the milestone this upload will be attached to."),
 });
 
 export const RequestUploadUrlResponse = zod.object({
@@ -119,6 +122,10 @@ export const RequestUploadUrlResponse = zod.object({
       name: zod.string().min(1),
       size: zod.number().min(1),
       contentType: zod.string().min(1),
+      milestoneId: zod
+        .number()
+        .min(1)
+        .describe("ID of the milestone this upload will be attached to."),
     })
     .optional(),
 });

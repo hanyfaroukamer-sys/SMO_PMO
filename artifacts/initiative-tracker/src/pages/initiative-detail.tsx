@@ -4,6 +4,8 @@ import {
   useGetInitiative, 
   useCreateMilestone, 
   useDeleteInitiative,
+  useUpdateInitiative,
+  useUpdateMilestone,
   useSubmitMilestone,
   useApproveMilestone,
   useRejectMilestone,
@@ -11,6 +13,8 @@ import {
   useDeleteMilestone,
   type MilestoneWithAttachments,
   type FileAttachment,
+  type InitiativeStatus,
+  type InitiativePriority,
 } from "@workspace/api-client-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useUpload } from "@/hooks/use-upload";
@@ -21,7 +25,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus, Calendar, User, Trash2, FileText, CheckCircle2, XCircle, Clock, Upload, Loader2, PlayCircle, Target } from "lucide-react";
+import { ArrowLeft, Plus, Calendar, User, Trash2, FileText, CheckCircle2, XCircle, Clock, Upload, Loader2, PlayCircle, Target, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -41,6 +45,7 @@ export default function InitiativeDetail() {
   const { data: initiative, isLoading } = useGetInitiative(initId);
   const { user } = useAuth();
   const [isAddMilestoneOpen, setIsAddMilestoneOpen] = useState(false);
+  const [isEditInitiativeOpen, setIsEditInitiativeOpen] = useState(false);
   const queryClient = useQueryClient();
   const deleteInitMutation = useDeleteInitiative();
 
@@ -95,9 +100,14 @@ export default function InitiativeDetail() {
             </div>
             
             {canManageInitiative && (
-              <Button variant="outline" className="text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30" onClick={handleDelete}>
-                <Trash2 className="w-4 h-4 mr-2" /> Delete
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setIsEditInitiativeOpen(true)}>
+                  <Pencil className="w-4 h-4 mr-2" /> Edit
+                </Button>
+                <Button variant="outline" className="text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30" onClick={handleDelete}>
+                  <Trash2 className="w-4 h-4 mr-2" /> Delete
+                </Button>
+              </div>
             )}
           </div>
 
@@ -176,6 +186,11 @@ export default function InitiativeDetail() {
         onOpenChange={setIsAddMilestoneOpen} 
         initiativeId={initId} 
       />
+      <EditInitiativeDialog
+        open={isEditInitiativeOpen}
+        onOpenChange={setIsEditInitiativeOpen}
+        initiative={initiative}
+      />
     </div>
   );
 }
@@ -192,6 +207,7 @@ interface MilestoneCardProps {
 function MilestoneCard({ milestone, initiativeId, isAdmin, isOwner, isApprover, isPM }: MilestoneCardProps) {
   const queryClient = useQueryClient();
   const [isRejectOpen, setIsRejectOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const submitMut = useSubmitMilestone();
   const approveMut = useApproveMilestone();
   const deleteMut = useDeleteMilestone();
@@ -200,6 +216,7 @@ function MilestoneCard({ milestone, initiativeId, isAdmin, isOwner, isApprover, 
 
   const canSubmit = (isAdmin || (isPM && isOwner)) && (milestone.status === 'pending' || milestone.status === 'in_progress' || milestone.status === 'rejected');
   const canApprove = (isAdmin || isApprover) && milestone.status === 'submitted';
+  const canEdit = (isAdmin || (isPM && isOwner)) && milestone.status !== 'approved';
   const canDelete = isAdmin || (isPM && isOwner);
   const canUpload = (isAdmin || (isPM && isOwner)) && milestone.status !== 'approved';
 
@@ -310,11 +327,21 @@ function MilestoneCard({ milestone, initiativeId, isAdmin, isOwner, isApprover, 
               </>
             )}
 
+            {canEdit && (
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="text-slate-500 hover:text-primary w-full md:w-auto"
+                onClick={() => setIsEditOpen(true)}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+            )}
             {canDelete && (
               <Button 
                 size="sm" 
                 variant="ghost" 
-                className="text-slate-400 hover:text-destructive w-full md:w-auto mt-auto"
+                className="text-slate-400 hover:text-destructive w-full md:w-auto"
                 onClick={() => {
                   if(confirm("Delete milestone?")) handleAction('deleted', deleteMut.mutateAsync({ id: milestone.id }));
                 }}
@@ -368,6 +395,12 @@ function MilestoneCard({ milestone, initiativeId, isAdmin, isOwner, isApprover, 
         onOpenChange={setIsRejectOpen} 
         milestoneId={milestone.id} 
         onSuccess={invalidate} 
+      />
+      <EditMilestoneDialog
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        milestone={milestone}
+        onSuccess={invalidate}
       />
     </motion.div>
   );
@@ -463,6 +496,173 @@ function RejectDialog({ open, onOpenChange, milestoneId, onSuccess }: RejectDial
         <div className="pt-4 flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button type="submit" variant="destructive" disabled={rejectMut.isPending}>Confirm Reject</Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+interface EditMilestoneDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  milestone: MilestoneWithAttachments;
+  onSuccess: () => void;
+}
+
+function EditMilestoneDialog({ open, onOpenChange, milestone, onSuccess }: EditMilestoneDialogProps) {
+  const updateMut = useUpdateMilestone();
+  const [formData, setFormData] = useState({
+    title: milestone.title,
+    description: milestone.description ?? "",
+    weight: milestone.weight,
+    dueDate: milestone.dueDate ?? "",
+  });
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateMut.mutateAsync({
+        id: milestone.id,
+        data: {
+          title: formData.title,
+          description: formData.description || undefined,
+          weight: formData.weight,
+          dueDate: formData.dueDate || undefined,
+        }
+      });
+      toast.success("Milestone updated");
+      onSuccess();
+      onOpenChange(false);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to update milestone";
+      toast.error(msg);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange} title="Edit Milestone">
+      <form onSubmit={onSubmit} className="space-y-4 pt-2">
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-700">Title</label>
+          <Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-700">Description</label>
+          <Textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700">Weight (%)</label>
+            <Input type="number" min="0" max="100" required value={formData.weight} onChange={e => setFormData({...formData, weight: parseInt(e.target.value)})} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700">Due Date</label>
+            <Input type="date" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} />
+          </div>
+        </div>
+        <div className="pt-4 flex justify-end gap-3">
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="submit" disabled={updateMut.isPending}>Save Changes</Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+interface EditInitiativeDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initiative: {
+    id: number;
+    title: string;
+    description?: string | null;
+    status: string;
+    priority?: string | null;
+    targetDate?: string | null;
+  };
+}
+
+function EditInitiativeDialog({ open, onOpenChange, initiative }: EditInitiativeDialogProps) {
+  const queryClient = useQueryClient();
+  const updateMut = useUpdateInitiative();
+  const [formData, setFormData] = useState({
+    title: initiative.title,
+    description: initiative.description ?? "",
+    status: initiative.status as InitiativeStatus,
+    priority: (initiative.priority ?? "medium") as NonNullable<InitiativePriority>,
+    targetDate: initiative.targetDate ?? "",
+  });
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateMut.mutateAsync({
+        id: initiative.id,
+        data: {
+          title: formData.title,
+          description: formData.description || undefined,
+          status: formData.status,
+          priority: formData.priority,
+          targetDate: formData.targetDate || undefined,
+        }
+      });
+      toast.success("Initiative updated");
+      queryClient.invalidateQueries({ queryKey: [`/api/initiatives/${initiative.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/initiatives"] });
+      onOpenChange(false);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to update initiative";
+      toast.error(msg);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange} title="Edit Initiative" description="Update the details of this initiative.">
+      <form onSubmit={onSubmit} className="space-y-4 pt-2">
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-700">Title</label>
+          <Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-700">Description</label>
+          <Textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700">Status</label>
+            <select
+              className="flex h-12 w-full rounded-xl border-2 border-slate-200 bg-white px-4 text-sm focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
+              value={formData.status}
+              onChange={e => setFormData({...formData, status: e.target.value as InitiativeStatus})}
+            >
+              <option value="draft">Draft</option>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+              <option value="on_hold">On Hold</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700">Priority</label>
+            <select
+              className="flex h-12 w-full rounded-xl border-2 border-slate-200 bg-white px-4 text-sm focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
+              value={formData.priority}
+              onChange={e => setFormData({...formData, priority: e.target.value as NonNullable<InitiativePriority>})}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-700">Target Date</label>
+          <Input type="date" value={formData.targetDate} onChange={e => setFormData({...formData, targetDate: e.target.value})} />
+        </div>
+        <div className="pt-4 flex justify-end gap-3">
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="submit" disabled={updateMut.isPending}>Save Changes</Button>
         </div>
       </form>
     </Dialog>
