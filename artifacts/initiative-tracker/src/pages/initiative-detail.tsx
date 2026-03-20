@@ -220,7 +220,7 @@ function MilestoneCard({ milestone, initiativeId, isAdmin, isOwner, isApprover, 
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const { objectPath, fileName, contentType } = await uploadFile(file);
+      const { objectPath, fileName, contentType } = await uploadFile(file, milestone.id);
       await addAttachmentMut.mutateAsync({
         id: milestone.id,
         data: { fileName, objectPath, contentType }

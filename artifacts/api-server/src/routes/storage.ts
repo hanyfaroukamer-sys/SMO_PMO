@@ -5,7 +5,15 @@ import {
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { ObjectPermission } from "../lib/objectAcl";
+import { db } from "@workspace/db";
+import {
+  uploadIntentsTable,
+  fileAttachmentsTable,
+  milestonesTable,
+  initiativesTable,
+  usersTable,
+} from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -14,9 +22,8 @@ const objectStorageService = new ObjectStorageService();
  * POST /storage/uploads/request-url
  *
  * Request a presigned URL for file upload.
- * The client sends JSON metadata (name, size, contentType) — NOT the file.
- * Then uploads the file directly to the returned presigned URL.
- * Requires authentication.
+ * Requires authentication + initiative ownership (or admin).
+ * Records an upload intent tied to (user, milestone, objectPath, 15min expiry).
  */
 router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
@@ -30,11 +37,42 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
     return;
   }
 
+  const { milestoneId } = parsed.data;
+
+  const [milestone] = await db
+    .select()
+    .from(milestonesTable)
+    .where(eq(milestonesTable.id, milestoneId));
+
+  if (!milestone) {
+    res.status(404).json({ error: "Milestone not found" });
+    return;
+  }
+
+  const [initiative] = await db
+    .select()
+    .from(initiativesTable)
+    .where(eq(initiativesTable.id, milestone.initiativeId));
+
+  const role = req.user.role;
+  if (role !== "admin" && initiative?.ownerId !== req.user.id) {
+    res.status(403).json({ error: "Forbidden — only the initiative owner or an admin can upload files" });
+    return;
+  }
+
   try {
     const { name, size, contentType } = parsed.data;
 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await db.insert(uploadIntentsTable).values({
+      userId: req.user.id,
+      milestoneId,
+      objectPath,
+      expiresAt,
+    });
 
     res.json(
       RequestUploadUrlResponse.parse({
@@ -86,8 +124,9 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
 /**
  * GET /storage/objects/*
  *
- * Serve object entities from PRIVATE_OBJECT_DIR.
- * Protected: requires authentication.
+ * Serve private object entities.
+ * Access control: must be authenticated; requester must be uploader,
+ * initiative owner, approver role, or admin.
  */
 router.get("/storage/objects/*path", async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
@@ -99,17 +138,32 @@ router.get("/storage/objects/*path", async (req: Request, res: Response) => {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
-    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
-    const canAccess = await objectStorageService.canAccessObjectEntity({
-      userId: req.user.id,
-      objectFile,
-      requestedPermission: ObjectPermission.READ,
-    });
-    if (!canAccess) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
+    const role = req.user.role;
+
+    if (role !== "admin" && role !== "approver") {
+      const [attachment] = await db
+        .select({
+          uploadedById: fileAttachmentsTable.uploadedById,
+          ownerId: initiativesTable.ownerId,
+        })
+        .from(fileAttachmentsTable)
+        .innerJoin(milestonesTable, eq(fileAttachmentsTable.milestoneId, milestonesTable.id))
+        .innerJoin(initiativesTable, eq(milestonesTable.initiativeId, initiativesTable.id))
+        .where(eq(fileAttachmentsTable.objectPath, objectPath));
+
+      if (!attachment) {
+        res.status(404).json({ error: "Object not found" });
+        return;
+      }
+
+      if (attachment.uploadedById !== req.user.id && attachment.ownerId !== req.user.id) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
     }
+
+    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
     const response = await objectStorageService.downloadObject(objectFile);
 

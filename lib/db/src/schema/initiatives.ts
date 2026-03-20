@@ -84,6 +84,20 @@ export const approvalsTable = pgTable("approvals", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const uploadIntentsTable = pgTable("upload_intents", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  milestoneId: integer("milestone_id")
+    .notNull()
+    .references(() => milestonesTable.id, { onDelete: "cascade" }),
+  objectPath: text("object_path").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const fileAttachmentsTable = pgTable("file_attachments", {
   id: serial("id").primaryKey(),
   milestoneId: integer("milestone_id")
@@ -130,3 +144,4 @@ export type FileAttachment = typeof fileAttachmentsTable.$inferSelect;
 export type InsertFileAttachment = z.infer<typeof insertFileAttachmentSchema>;
 export type Approval = typeof approvalsTable.$inferSelect;
 export type InsertApproval = z.infer<typeof insertApprovalSchema>;
+export type UploadIntent = typeof uploadIntentsTable.$inferSelect;

@@ -5,9 +5,10 @@ import {
   initiativesTable,
   fileAttachmentsTable,
   approvalsTable,
+  uploadIntentsTable,
   usersTable,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, gt } from "drizzle-orm";
 import { z } from "zod";
 import { ObjectStorageService } from "../lib/objectStorage";
 
@@ -480,15 +481,40 @@ router.post("/milestones/:id/attachments", async (req, res) => {
     return;
   }
 
+  const { objectPath } = parsed.data;
+
+  const [intent] = await db
+    .select()
+    .from(uploadIntentsTable)
+    .where(
+      and(
+        eq(uploadIntentsTable.objectPath, objectPath),
+        eq(uploadIntentsTable.userId, req.user.id),
+        eq(uploadIntentsTable.milestoneId, id),
+        gt(uploadIntentsTable.expiresAt, new Date()),
+      )
+    );
+
+  if (!intent) {
+    res.status(400).json({ error: "Invalid or expired upload intent for the provided objectPath" });
+    return;
+  }
+
+  if (intent.usedAt) {
+    res.status(400).json({ error: "Upload intent has already been used" });
+    return;
+  }
+
   try {
-    try {
-      await objectStorageService.trySetObjectEntityAclPolicy(parsed.data.objectPath, {
-        owner: req.user.id,
-        visibility: "private",
-      });
-    } catch (aclErr) {
-      req.log.warn({ err: aclErr }, "Could not set ACL on uploaded object; proceeding");
-    }
+    await objectStorageService.trySetObjectEntityAclPolicy(objectPath, {
+      owner: req.user.id,
+      visibility: "private",
+    });
+
+    await db
+      .update(uploadIntentsTable)
+      .set({ usedAt: new Date() })
+      .where(eq(uploadIntentsTable.id, intent.id));
 
     const [created] = await db
       .insert(fileAttachmentsTable)
@@ -506,7 +532,7 @@ router.post("/milestones/:id/attachments", async (req, res) => {
     res.status(201).json({ ...created, uploadedByName: uploaderName });
   } catch (err) {
     req.log.error(err);
-    res.status(500).json({ error: "Failed to add attachment" });
+    res.status(500).json({ error: "Failed to add attachment — ensure the file was uploaded before recording it" });
   }
 });
 

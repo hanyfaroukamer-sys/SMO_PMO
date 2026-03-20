@@ -6,17 +6,17 @@ export function useUpload() {
   const [progress, setProgress] = useState(0);
   const requestUrlMutation = useRequestUploadUrl();
 
-  const uploadFile = async (file: File) => {
+  const uploadFile = async (file: File, milestoneId: number) => {
     setIsUploading(true);
     setProgress(10);
     
     try {
-      // 1. Get presigned URL
       const { uploadURL, objectPath } = await requestUrlMutation.mutateAsync({
         data: {
           name: file.name,
           size: file.size,
           contentType: file.type || "application/octet-stream",
+          milestoneId,
         }
       });
       
