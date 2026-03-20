@@ -11,7 +11,9 @@ export interface CreateSpmoKpiRequest {
   type: CreateSpmoKpiRequestType;
   /** @minLength 1 */
   name: string;
+  description?: string;
   unit: string;
+  baseline?: number;
   target: number;
   actual: number;
   projectId?: number;

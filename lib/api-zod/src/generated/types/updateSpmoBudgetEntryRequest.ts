@@ -12,4 +12,6 @@ export interface UpdateSpmoBudgetEntryRequest {
   allocated?: number;
   spent?: number;
   period?: string;
+  fiscalYear?: number;
+  fiscalQuarter?: number;
 }

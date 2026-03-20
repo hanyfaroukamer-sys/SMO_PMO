@@ -62,6 +62,7 @@ export const spmoInitiativesTable = pgTable("spmo_initiatives", {
   })
     .notNull()
     .default("active"),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -206,7 +207,9 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
     .notNull()
     .default("strategic"),
   name: text("name").notNull(),
+  description: text("description"),
   unit: text("unit").notNull().default(""),
+  baseline: real("baseline").notNull().default(0),
   target: real("target").notNull().default(0),
   actual: real("actual").notNull().default(0),
   projectId: integer("project_id"),
@@ -314,6 +317,8 @@ export const spmoBudgetTable = pgTable("spmo_budget_entries", {
   spent: real("spent").notNull().default(0),
   currency: text("currency").notNull().default("USD"),
   period: text("period").notNull(),
+  fiscalYear: integer("fiscal_year"),
+  fiscalQuarter: integer("fiscal_quarter"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

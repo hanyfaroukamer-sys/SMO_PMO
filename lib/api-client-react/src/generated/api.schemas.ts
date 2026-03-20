@@ -375,6 +375,7 @@ export interface SpmoInitiative {
   targetDate: string;
   weight: number;
   status: SpmoInitiativeStatus;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -523,7 +524,10 @@ export interface SpmoKpi {
   id: number;
   type: SpmoKpiType;
   name: string;
+  /** @nullable */
+  description?: string | null;
   unit: string;
+  baseline: number;
   target: number;
   actual: number;
   /** @nullable */
@@ -622,6 +626,10 @@ export interface SpmoBudgetEntry {
   currency: string;
   /** YYYY-MM or YYYY (year) */
   period: string;
+  /** @nullable */
+  fiscalYear?: number | null;
+  /** @nullable */
+  fiscalQuarter?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -860,7 +868,9 @@ export const UpdateSpmoInitiativeRequestStatus = {
 export interface UpdateSpmoInitiativeRequest {
   name?: string;
   description?: string;
+  pillarId?: number;
   ownerId?: string;
+  ownerName?: string;
   startDate?: string;
   targetDate?: string;
   weight?: number;
@@ -972,7 +982,9 @@ export interface CreateSpmoKpiRequest {
   type: CreateSpmoKpiRequestType;
   /** @minLength 1 */
   name: string;
+  description?: string;
   unit: string;
+  baseline?: number;
   target: number;
   actual: number;
   projectId?: number;
@@ -990,7 +1002,9 @@ export const UpdateSpmoKpiRequestStatus = {
 
 export interface UpdateSpmoKpiRequest {
   name?: string;
+  description?: string;
   unit?: string;
+  baseline?: number;
   target?: number;
   actual?: number;
   status?: UpdateSpmoKpiRequestStatus;
@@ -1118,6 +1132,8 @@ export interface CreateSpmoBudgetEntryRequest {
   spent: number;
   currency?: string;
   period: string;
+  fiscalYear?: number;
+  fiscalQuarter?: number;
 }
 
 export interface UpdateSpmoBudgetEntryRequest {
@@ -1126,6 +1142,8 @@ export interface UpdateSpmoBudgetEntryRequest {
   allocated?: number;
   spent?: number;
   period?: string;
+  fiscalYear?: number;
+  fiscalQuarter?: number;
 }
 
 /**

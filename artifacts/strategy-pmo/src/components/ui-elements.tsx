@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import React, { ReactNode } from "react";
 import { cn, getStatusColor, calcEffectiveProgress } from "@/lib/utils";
 
 export function PageHeader({ title, description, children }: { title: string, description?: string, children?: ReactNode }) {
@@ -50,13 +50,16 @@ export function ProgressBar({ progress, status, className, showLabel = true }: {
   );
 }
 
-export function Card({ className, children, noPadding = false }: { className?: string, children: ReactNode, noPadding?: boolean }) {
+export function Card({ className, children, noPadding = false, style }: { className?: string, children: ReactNode, noPadding?: boolean, style?: React.CSSProperties }) {
   return (
-    <div className={cn(
-      "bg-card border border-card-border rounded-xl shadow-sm overflow-hidden",
-      !noPadding && "p-5 md:p-6",
-      className
-    )}>
+    <div
+      className={cn(
+        "bg-card border border-card-border rounded-xl shadow-sm overflow-hidden",
+        !noPadding && "p-5 md:p-6",
+        className
+      )}
+      style={style}
+    >
       {children}
     </div>
   );

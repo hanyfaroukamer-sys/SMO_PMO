@@ -10,7 +10,9 @@ import type { UpdateSpmoInitiativeRequestStatus } from "./updateSpmoInitiativeRe
 export interface UpdateSpmoInitiativeRequest {
   name?: string;
   description?: string;
+  pillarId?: number;
   ownerId?: string;
+  ownerName?: string;
   startDate?: Date;
   targetDate?: Date;
   weight?: number;

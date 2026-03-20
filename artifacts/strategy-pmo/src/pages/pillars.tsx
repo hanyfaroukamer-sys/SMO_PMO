@@ -4,6 +4,7 @@ import {
   useCreateSpmoPillar,
   useUpdateSpmoPillar,
   useDeleteSpmoPillar,
+  type CreateSpmoPillarRequest,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass } from "@/components/modal";
@@ -77,7 +78,7 @@ export default function Pillars() {
     e.preventDefault();
     const payload = {
       name: form.name,
-      description: form.description || null,
+      description: form.description || undefined,
       weight: parseFloat(form.weight) || 0,
       color: form.color,
       sortOrder: parseInt(form.sortOrder) || 0,
@@ -93,7 +94,11 @@ export default function Pillars() {
         onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update pillar." }),
       });
     } else {
-      createMutation.mutate({ data: payload as never }, {
+      const createPayload: CreateSpmoPillarRequest = {
+        ...payload,
+        iconName: "circle",
+      };
+      createMutation.mutate({ data: createPayload }, {
         onSuccess: () => {
           toast({ title: "Created", description: `Pillar "${form.name}" added.` });
           setModalOpen(false);

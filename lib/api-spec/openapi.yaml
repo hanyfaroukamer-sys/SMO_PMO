@@ -2284,7 +2284,7 @@ components:
 
     SpmoInitiative:
       type: object
-      required: [id, pillarId, name, description, ownerId, ownerName, startDate, targetDate, weight, status, createdAt, updatedAt]
+      required: [id, pillarId, name, description, ownerId, ownerName, startDate, targetDate, weight, status, sortOrder, createdAt, updatedAt]
       properties:
         id:
           type: integer
@@ -2309,6 +2309,8 @@ components:
         status:
           type: string
           enum: [active, on_hold, completed, cancelled]
+        sortOrder:
+          type: integer
         createdAt:
           type: string
           format: date-time
@@ -2499,7 +2501,7 @@ components:
 
     SpmoKpi:
       type: object
-      required: [id, type, name, unit, target, actual, projectId, pillarId, status, createdAt, updatedAt]
+      required: [id, type, name, unit, baseline, target, actual, projectId, pillarId, status, createdAt, updatedAt]
       properties:
         id:
           type: integer
@@ -2508,8 +2510,12 @@ components:
           enum: [strategic, operational]
         name:
           type: string
+        description:
+          type: [string, 'null']
         unit:
           type: string
+        baseline:
+          type: number
         target:
           type: number
         actual:
@@ -2618,6 +2624,10 @@ components:
         period:
           type: string
           description: "YYYY-MM or YYYY (year)"
+        fiscalYear:
+          type: [integer, 'null']
+        fiscalQuarter:
+          type: [integer, 'null']
         createdAt:
           type: string
           format: date-time
@@ -2876,7 +2886,11 @@ components:
           type: string
         description:
           type: string
+        pillarId:
+          type: integer
         ownerId:
+          type: string
+        ownerName:
           type: string
         startDate:
           type: string
@@ -3010,8 +3024,12 @@ components:
         name:
           type: string
           minLength: 1
+        description:
+          type: string
         unit:
           type: string
+        baseline:
+          type: number
         target:
           type: number
         actual:
@@ -3026,8 +3044,12 @@ components:
       properties:
         name:
           type: string
+        description:
+          type: string
         unit:
           type: string
+        baseline:
+          type: number
         target:
           type: number
         actual:
@@ -3127,6 +3149,10 @@ components:
           type: string
         period:
           type: string
+        fiscalYear:
+          type: integer
+        fiscalQuarter:
+          type: integer
 
     UpdateSpmoBudgetEntryRequest:
       type: object
@@ -3141,3 +3167,7 @@ components:
           type: number
         period:
           type: string
+        fiscalYear:
+          type: integer
+        fiscalQuarter:
+          type: integer

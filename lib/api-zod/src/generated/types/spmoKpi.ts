@@ -12,7 +12,10 @@ export interface SpmoKpi {
   id: number;
   type: SpmoKpiType;
   name: string;
+  /** @nullable */
+  description?: string | null;
   unit: string;
+  baseline: number;
   target: number;
   actual: number;
   /** @nullable */

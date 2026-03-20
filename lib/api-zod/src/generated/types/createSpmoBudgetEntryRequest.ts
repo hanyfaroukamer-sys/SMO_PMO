@@ -16,4 +16,6 @@ export interface CreateSpmoBudgetEntryRequest {
   spent: number;
   currency?: string;
   period: string;
+  fiscalYear?: number;
+  fiscalQuarter?: number;
 }

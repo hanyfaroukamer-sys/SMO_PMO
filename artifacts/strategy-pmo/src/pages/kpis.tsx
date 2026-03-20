@@ -4,6 +4,7 @@ import {
   useCreateSpmoKpi,
   useUpdateSpmoKpi,
   useDeleteSpmoKpi,
+  type CreateSpmoKpiRequest,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
@@ -80,19 +81,17 @@ export default function KPIs() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const payload = {
-      name: form.name,
-      description: form.description || null,
-      type: form.type,
-      unit: form.unit,
-      target: parseFloat(form.target) || 0,
-      actual: parseFloat(form.actual) || 0,
-      baseline: parseFloat(form.baseline) || 0,
-      status: form.status,
-    };
 
     if (editId !== null) {
-      updateMutation.mutate({ id: editId, data: payload }, {
+      updateMutation.mutate({ id: editId, data: {
+        name: form.name,
+        description: form.description || undefined,
+        unit: form.unit,
+        target: parseFloat(form.target) || 0,
+        actual: parseFloat(form.actual) || 0,
+        baseline: parseFloat(form.baseline) || 0,
+        status: form.status as "on_track" | "at_risk" | "off_track",
+      }}, {
         onSuccess: () => {
           toast({ title: "KPI Updated" });
           setModalOpen(false);
@@ -101,7 +100,16 @@ export default function KPIs() {
         onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update KPI." }),
       });
     } else {
-      createMutation.mutate({ data: payload as never }, {
+      const createPayload: CreateSpmoKpiRequest = {
+        name: form.name,
+        description: form.description || undefined,
+        type: form.type as "strategic" | "operational",
+        unit: form.unit,
+        target: parseFloat(form.target) || 0,
+        actual: parseFloat(form.actual) || 0,
+        baseline: parseFloat(form.baseline) || 0,
+      };
+      createMutation.mutate({ data: createPayload }, {
         onSuccess: () => {
           toast({ title: "KPI Created", description: `"${form.name}" added.` });
           setModalOpen(false);

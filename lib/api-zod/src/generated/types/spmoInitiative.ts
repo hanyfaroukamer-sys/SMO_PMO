@@ -20,6 +20,7 @@ export interface SpmoInitiative {
   targetDate: Date;
   weight: number;
   status: SpmoInitiativeStatus;
+  sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
 }

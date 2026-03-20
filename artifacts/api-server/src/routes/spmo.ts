@@ -12,6 +12,10 @@ import {
   spmoMitigationsTable,
   spmoBudgetTable,
   spmoActivityLogTable,
+  type InsertSpmoInitiative,
+  type InsertSpmoProject,
+  type InsertSpmoMilestone,
+  type InsertSpmoMitigation,
 } from "@workspace/db";
 import {
   CreateSpmoPillarBody,
@@ -110,6 +114,12 @@ function requireAuth(
     return null;
   }
   return user.id;
+}
+
+/** Convert a Date to an ISO date string (YYYY-MM-DD) for Drizzle date() columns */
+function dateToStr(d: Date | undefined | null): string | undefined | null {
+  if (d instanceof Date) return d.toISOString().split("T")[0];
+  return d as undefined | null;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -226,7 +236,7 @@ router.get("/spmo/pillars/:id", async (req, res): Promise<void> => {
     .select()
     .from(spmoInitiativesTable)
     .where(eq(spmoInitiativesTable.pillarId, pillar.id))
-    .orderBy(asc(spmoInitiativesTable.sortOrder ?? spmoInitiativesTable.createdAt));
+    .orderBy(asc(spmoInitiativesTable.sortOrder), asc(spmoInitiativesTable.createdAt));
 
   const initiativesWithProgress = await Promise.all(
     initiatives.map(async (i) => {
@@ -350,9 +360,14 @@ router.post("/spmo/initiatives", async (req, res): Promise<void> => {
     return;
   }
 
+  const insertInitiative: InsertSpmoInitiative = {
+    ...parsed.data,
+    startDate: dateToStr(parsed.data.startDate) as string,
+    targetDate: dateToStr(parsed.data.targetDate) as string,
+  };
   const [initiative] = await db
     .insert(spmoInitiativesTable)
-    .values({ ...parsed.data, ownerName: parsed.data.ownerName ?? null })
+    .values(insertInitiative)
     .returning();
 
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "initiative", initiative.id, initiative.name);
@@ -418,9 +433,15 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const { startDate: sd, targetDate: td, ...restInitiativeUpdate } = parsed.data;
+  const updateInitiative = {
+    ...restInitiativeUpdate,
+    ...(sd !== undefined && { startDate: dateToStr(sd) as string }),
+    ...(td !== undefined && { targetDate: dateToStr(td) as string }),
+  };
   const [initiative] = await db
     .update(spmoInitiativesTable)
-    .set(parsed.data)
+    .set(updateInitiative)
     .where(eq(spmoInitiativesTable.id, params.data.id))
     .returning();
 
@@ -507,9 +528,15 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
     return;
   }
 
+  const insertProject: InsertSpmoProject = {
+    ...parsed.data,
+    budget: parsed.data.budget ?? 0,
+    startDate: dateToStr(parsed.data.startDate) as string,
+    targetDate: dateToStr(parsed.data.targetDate) as string,
+  };
   const [project] = await db
     .insert(spmoProjectsTable)
-    .values({ ...parsed.data, budget: parsed.data.budget ?? 0 })
+    .values(insertProject)
     .returning();
 
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "project", project.id, project.name);
@@ -568,9 +595,15 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const { startDate: psd, targetDate: ptd, ...restProjectUpdate } = parsed.data;
+  const updateProject = {
+    ...restProjectUpdate,
+    ...(psd !== undefined && { startDate: dateToStr(psd) as string }),
+    ...(ptd !== undefined && { targetDate: dateToStr(ptd) as string }),
+  };
   const [project] = await db
     .update(spmoProjectsTable)
-    .set(parsed.data)
+    .set(updateProject)
     .where(eq(spmoProjectsTable.id, params.data.id))
     .returning();
 
@@ -660,9 +693,14 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
     return;
   }
 
+  const insertMilestone: InsertSpmoMilestone = {
+    ...parsed.data,
+    projectId: params.data.id,
+    dueDate: dateToStr(parsed.data.dueDate),
+  };
   const [milestone] = await db
     .insert(spmoMilestonesTable)
-    .values({ ...parsed.data, projectId: params.data.id })
+    .values(insertMilestone)
     .returning();
 
   const user = getAuthUser(req);
@@ -686,9 +724,14 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const { dueDate: mdd, ...restMilestoneUpdate } = parsed.data;
+  const updateMilestone = {
+    ...restMilestoneUpdate,
+    ...(mdd !== undefined && { dueDate: dateToStr(mdd) }),
+  };
   const [milestone] = await db
     .update(spmoMilestonesTable)
-    .set(parsed.data)
+    .set(updateMilestone)
     .where(eq(spmoMilestonesTable.id, params.data.id))
     .returning();
 
@@ -1176,9 +1219,15 @@ router.post("/spmo/risks/:id/mitigations", async (req, res): Promise<void> => {
     return;
   }
 
+  const { dueDate: mitigationDd, ...restMitigation } = parsed.data;
+  const insertMitigation: InsertSpmoMitigation = {
+    ...restMitigation,
+    riskId: params.data.id,
+    ...(mitigationDd !== undefined && { dueDate: dateToStr(mitigationDd) }),
+  };
   const [mitigation] = await db
     .insert(spmoMitigationsTable)
-    .values({ ...parsed.data, riskId: params.data.id })
+    .values(insertMitigation)
     .returning();
 
   res.status(201).json(mitigation);
@@ -1200,9 +1249,13 @@ router.put("/spmo/mitigations/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const { dueDate: mitigationUpdDd, ...restMitigationUpdate } = parsed.data;
   const [mitigation] = await db
     .update(spmoMitigationsTable)
-    .set(parsed.data)
+    .set({
+      ...restMitigationUpdate,
+      ...(mitigationUpdDd !== undefined && { dueDate: dateToStr(mitigationUpdDd) }),
+    })
     .where(eq(spmoMitigationsTable.id, params.data.id))
     .returning();
 

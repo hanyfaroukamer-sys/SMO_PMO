@@ -1,10 +1,10 @@
 import { useListSpmoAlerts } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
-import { Loader2, AlertTriangle, Info, AlertCircle } from "lucide-react";
+import { Loader2, AlertTriangle, Info, AlertCircle, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Alerts() {
-  const { data, isLoading } = useListSpmoAlerts({ query: { refetchInterval: 60000 } });
+  const { data, isLoading } = useListSpmoAlerts();
 
   if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 

@@ -9,7 +9,9 @@ import type { UpdateSpmoKpiRequestStatus } from "./updateSpmoKpiRequestStatus";
 
 export interface UpdateSpmoKpiRequest {
   name?: string;
+  description?: string;
   unit?: string;
+  baseline?: number;
   target?: number;
   actual?: number;
   status?: UpdateSpmoKpiRequestStatus;

@@ -6,6 +6,8 @@ import {
   useDeleteSpmoRisk,
   useCreateSpmoMitigation,
   useUpdateSpmoMitigation,
+  type CreateSpmoRiskRequest,
+  type CreateSpmoMitigationRequest,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
@@ -14,14 +16,16 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 const RISK_STATUSES = ["open", "mitigated", "closed", "accepted"] as const;
-const LIKELIHOOD = ["1", "2", "3", "4", "5"] as const;
-const IMPACT = ["1", "2", "3", "4", "5"] as const;
+const PROB_IMPACT_VALUES = ["low", "medium", "high", "critical"] as const;
+type ProbImpact = "low" | "medium" | "high" | "critical";
+
+const SCORE_MAP: Record<ProbImpact, number> = { low: 1, medium: 2, high: 3, critical: 4 };
 
 type RiskForm = {
   title: string;
   description: string;
-  likelihood: string;
-  impact: string;
+  probability: ProbImpact;
+  impact: ProbImpact;
   status: string;
   owner: string;
 };
@@ -32,10 +36,10 @@ type MitigationForm = {
 };
 
 const emptyRisk = (): RiskForm => ({
-  title: "", description: "", likelihood: "3", impact: "3", status: "open", owner: "",
+  title: "", description: "", probability: "medium", impact: "medium", status: "open", owner: "",
 });
 
-const emptyMitigation = (): MitigationForm => ({ description: "", status: "open" });
+const emptyMitigation = (): MitigationForm => ({ description: "", status: "planned" });
 
 const riskColor = (score: number) =>
   score >= 16 ? "text-destructive bg-destructive/10 border-destructive/30"
@@ -69,8 +73,8 @@ export default function Risks() {
     setRiskForm({
       title: risk.title,
       description: risk.description ?? "",
-      likelihood: String(risk.likelihood),
-      impact: String(risk.impact),
+      probability: (risk.probability as ProbImpact) ?? "medium",
+      impact: (risk.impact as ProbImpact) ?? "medium",
       status: risk.status,
       owner: risk.owner ?? "",
     });
@@ -91,11 +95,11 @@ export default function Risks() {
     e.preventDefault();
     const payload = {
       title: riskForm.title,
-      description: riskForm.description || null,
-      likelihood: parseInt(riskForm.likelihood),
-      impact: parseInt(riskForm.impact),
-      status: riskForm.status,
-      owner: riskForm.owner || null,
+      description: riskForm.description || undefined,
+      probability: riskForm.probability,
+      impact: riskForm.impact,
+      status: riskForm.status as "open" | "mitigated" | "accepted" | "closed",
+      owner: riskForm.owner || undefined,
     };
 
     if (editId !== null) {
@@ -108,7 +112,15 @@ export default function Risks() {
         onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update risk." }),
       });
     } else {
-      createMutation.mutate({ data: payload as never }, {
+      const createRiskPayload: CreateSpmoRiskRequest = {
+        title: riskForm.title,
+        description: riskForm.description || undefined,
+        probability: riskForm.probability,
+        impact: riskForm.impact,
+        status: riskForm.status as "open" | "mitigated" | "accepted" | "closed",
+        owner: riskForm.owner || undefined,
+      };
+      createMutation.mutate({ data: createRiskPayload }, {
         onSuccess: () => {
           toast({ title: "Risk logged", description: `"${riskForm.title}" added to register.` });
           setRiskModal(false);
@@ -174,8 +186,8 @@ export default function Risks() {
 
               <div className="flex items-center gap-4 shrink-0">
                 <div className="text-center hidden md:block">
-                  <div className="text-sm font-bold">{risk.likelihood} × {risk.impact}</div>
-                  <div className="text-[10px] text-muted-foreground uppercase">L × I</div>
+                  <div className="text-sm font-bold capitalize">{risk.probability} × {risk.impact}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase">P × I</div>
                 </div>
                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                   <button onClick={() => openEdit(risk)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
@@ -227,14 +239,14 @@ export default function Risks() {
           </FormField>
 
           <div className="grid grid-cols-3 gap-4">
-            <FormField label="Likelihood (1–5)">
-              <select className={selectClass} value={riskForm.likelihood} onChange={(e) => setRiskForm({ ...riskForm, likelihood: e.target.value })}>
-                {LIKELIHOOD.map((v) => <option key={v} value={v}>{v}</option>)}
+            <FormField label="Probability">
+              <select className={selectClass} value={riskForm.probability} onChange={(e) => setRiskForm({ ...riskForm, probability: e.target.value as ProbImpact })}>
+                {PROB_IMPACT_VALUES.map((v) => <option key={v} value={v} className="capitalize">{v}</option>)}
               </select>
             </FormField>
-            <FormField label="Impact (1–5)">
-              <select className={selectClass} value={riskForm.impact} onChange={(e) => setRiskForm({ ...riskForm, impact: e.target.value })}>
-                {IMPACT.map((v) => <option key={v} value={v}>{v}</option>)}
+            <FormField label="Impact">
+              <select className={selectClass} value={riskForm.impact} onChange={(e) => setRiskForm({ ...riskForm, impact: e.target.value as ProbImpact })}>
+                {PROB_IMPACT_VALUES.map((v) => <option key={v} value={v} className="capitalize">{v}</option>)}
               </select>
             </FormField>
             <FormField label="Status">
@@ -254,13 +266,13 @@ export default function Risks() {
           </FormField>
 
           <div className="p-3 bg-secondary/50 rounded-lg border border-border text-sm">
-            Risk Score = Likelihood × Impact ={" "}
-            <strong>{parseInt(riskForm.likelihood) * parseInt(riskForm.impact)}</strong>
+            Risk Score = Probability × Impact ={" "}
+            <strong>{SCORE_MAP[riskForm.probability] * SCORE_MAP[riskForm.impact]}</strong>
             {" "}
-            {parseInt(riskForm.likelihood) * parseInt(riskForm.impact) >= 16 ? "🔴 Critical"
-              : parseInt(riskForm.likelihood) * parseInt(riskForm.impact) >= 9 ? "🟠 High"
-              : parseInt(riskForm.likelihood) * parseInt(riskForm.impact) >= 4 ? "🟡 Medium"
-              : "🟢 Low"}
+            {SCORE_MAP[riskForm.probability] * SCORE_MAP[riskForm.impact] >= 16 ? "Critical"
+              : SCORE_MAP[riskForm.probability] * SCORE_MAP[riskForm.impact] >= 9 ? "High"
+              : SCORE_MAP[riskForm.probability] * SCORE_MAP[riskForm.impact] >= 4 ? "Medium"
+              : "Low"}
           </div>
 
           <FormActions loading={isSaving} label={editId ? "Update Risk" : "Log Risk"} onCancel={() => setRiskModal(false)} />
@@ -304,9 +316,9 @@ function MitigationSection({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const payload = { description: form.description, status: form.status };
+    const status = form.status as "planned" | "in_progress" | "completed";
     if (editId !== null) {
-      updateMutation.mutate({ id: editId, data: payload }, {
+      updateMutation.mutate({ id: editId, data: { description: form.description, status } }, {
         onSuccess: () => {
           toast({ title: "Mitigation updated" });
           setModalOpen(false);
@@ -314,7 +326,11 @@ function MitigationSection({
         },
       });
     } else {
-      createMutation.mutate({ id: riskId, data: payload as never }, {
+      const createMitigationPayload: CreateSpmoMitigationRequest = {
+        description: form.description,
+        status,
+      };
+      createMutation.mutate({ id: riskId, data: createMitigationPayload }, {
         onSuccess: () => {
           toast({ title: "Mitigation added" });
           setModalOpen(false);
@@ -370,7 +386,7 @@ function MitigationSection({
           </FormField>
           <FormField label="Status">
             <select className={selectClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-              <option value="open">Open</option>
+              <option value="planned">Planned</option>
               <option value="in_progress">In Progress</option>
               <option value="completed">Completed</option>
             </select>

@@ -20,6 +20,10 @@ export interface SpmoBudgetEntry {
   currency: string;
   /** YYYY-MM or YYYY (year) */
   period: string;
+  /** @nullable */
+  fiscalYear?: number | null;
+  /** @nullable */
+  fiscalQuarter?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

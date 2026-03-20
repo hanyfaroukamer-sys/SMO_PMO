@@ -5,6 +5,8 @@ import {
   useCreateSpmoInitiative,
   useUpdateSpmoInitiative,
   useDeleteSpmoInitiative,
+  type CreateSpmoInitiativeRequest,
+  type UpdateSpmoInitiativeRequest,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
@@ -91,21 +93,24 @@ export default function Initiatives() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const payload = {
+    const commonFields = {
       name: form.name,
-      description: form.description || null,
+      description: form.description || undefined,
       pillarId: parseInt(form.pillarId),
       ownerId: "user",
-      ownerName: form.ownerName || null,
+      ownerName: form.ownerName || undefined,
       weight: parseFloat(form.weight) || 0,
-      status: form.status,
-      startDate: form.startDate || null,
-      targetDate: form.targetDate || null,
+      status: form.status as "active" | "on_hold" | "completed" | "cancelled",
     };
 
     if (editId !== null) {
+      const updatePayload: UpdateSpmoInitiativeRequest = {
+        ...commonFields,
+        startDate: form.startDate || undefined,
+        targetDate: form.targetDate || undefined,
+      };
       updateMutation.mutate(
-        { id: editId, data: payload },
+        { id: editId, data: updatePayload },
         {
           onSuccess: () => {
             toast({ title: "Updated", description: `"${form.name}" updated.` });
@@ -116,8 +121,13 @@ export default function Initiatives() {
         }
       );
     } else {
+      const createPayload: CreateSpmoInitiativeRequest = {
+        ...commonFields,
+        startDate: form.startDate,
+        targetDate: form.targetDate,
+      };
       createMutation.mutate(
-        { data: payload as never },
+        { data: createPayload },
         {
           onSuccess: () => {
             toast({ title: "Created", description: `"${form.name}" added.` });

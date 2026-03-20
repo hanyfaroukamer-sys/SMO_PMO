@@ -4,6 +4,7 @@ import {
   useCreateSpmoBudgetEntry,
   useUpdateSpmoBudgetEntry,
   useDeleteSpmoBudgetEntry,
+  type CreateSpmoBudgetEntryRequest,
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
@@ -84,17 +85,24 @@ export default function Budget() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const payload = {
-      category: form.category,
-      allocated: parseFloat(form.allocated) || 0,
-      spent: parseFloat(form.spent) || 0,
-      description: form.description || null,
-      fiscalYear: parseInt(form.fiscalYear) || null,
-      fiscalQuarter: form.fiscalQuarter ? parseInt(form.fiscalQuarter) : null,
-    };
+    const fiscalYear = parseInt(form.fiscalYear) || undefined;
+    const fiscalQuarter = form.fiscalQuarter ? parseInt(form.fiscalQuarter) : undefined;
+    const period = fiscalYear && fiscalQuarter
+      ? `FY${fiscalYear} Q${fiscalQuarter}`
+      : fiscalYear
+        ? `FY${fiscalYear}`
+        : new Date().getFullYear().toString();
 
     if (editId !== null) {
-      updateMutation.mutate({ id: editId, data: payload }, {
+      updateMutation.mutate({ id: editId, data: {
+        category: form.category,
+        allocated: parseFloat(form.allocated) || 0,
+        spent: parseFloat(form.spent) || 0,
+        description: form.description || undefined,
+        fiscalYear,
+        fiscalQuarter,
+        period,
+      }}, {
         onSuccess: () => {
           toast({ title: "Entry updated" });
           setModalOpen(false);
@@ -103,7 +111,16 @@ export default function Budget() {
         onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update entry." }),
       });
     } else {
-      createMutation.mutate({ data: payload as never }, {
+      const createPayload: CreateSpmoBudgetEntryRequest = {
+        category: form.category,
+        allocated: parseFloat(form.allocated) || 0,
+        spent: parseFloat(form.spent) || 0,
+        description: form.description || undefined,
+        fiscalYear,
+        fiscalQuarter,
+        period,
+      };
+      createMutation.mutate({ data: createPayload }, {
         onSuccess: () => {
           toast({ title: "Entry added", description: `${form.category} budget entry created.` });
           setModalOpen(false);

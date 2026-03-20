@@ -5,6 +5,7 @@ import {
   spmoProjectsTable,
   spmoMilestonesTable,
   spmoEvidenceTable,
+  type SpmoPillar,
 } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
 
@@ -175,7 +176,7 @@ async function pillarProgress(pillarId: number): Promise<{
 export async function calcProgrammeProgress(): Promise<{
   programmeProgress: number;
   pillarSummaries: Array<{
-    pillar: Awaited<ReturnType<typeof db.select>>[number];
+    pillar: SpmoPillar;
     progress: number;
     initiativeCount: number;
     projectCount: number;

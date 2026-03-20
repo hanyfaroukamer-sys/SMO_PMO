@@ -793,6 +793,7 @@ export const GetSpmoPillarResponse = zod
             targetDate: zod.date(),
             weight: zod.number(),
             status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+            sortOrder: zod.number(),
             createdAt: zod.date(),
             updatedAt: zod.date(),
           })
@@ -870,6 +871,7 @@ export const ListSpmoInitiativesResponse = zod.object({
         targetDate: zod.date(),
         weight: zod.number(),
         status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+        sortOrder: zod.number(),
         createdAt: zod.date(),
         updatedAt: zod.date(),
       })
@@ -924,6 +926,7 @@ export const GetSpmoInitiativeResponse = zod
     targetDate: zod.date(),
     weight: zod.number(),
     status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+    sortOrder: zod.number(),
     createdAt: zod.date(),
     updatedAt: zod.date(),
   })
@@ -977,7 +980,9 @@ export const UpdateSpmoInitiativeParams = zod.object({
 export const UpdateSpmoInitiativeBody = zod.object({
   name: zod.string().optional(),
   description: zod.string().optional(),
+  pillarId: zod.number().optional(),
   ownerId: zod.string().optional(),
+  ownerName: zod.string().optional(),
   startDate: zod.date().optional(),
   targetDate: zod.date().optional(),
   weight: zod.number().optional(),
@@ -995,6 +1000,7 @@ export const UpdateSpmoInitiativeResponse = zod.object({
   targetDate: zod.date(),
   weight: zod.number(),
   status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+  sortOrder: zod.number(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
 });
@@ -1589,6 +1595,7 @@ export const ListSpmoPendingApprovalsResponse = zod.object({
         targetDate: zod.date(),
         weight: zod.number(),
         status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+        sortOrder: zod.number(),
         createdAt: zod.date(),
         updatedAt: zod.date(),
       }),
@@ -1623,7 +1630,9 @@ export const ListSpmoKpisResponse = zod.object({
       id: zod.number(),
       type: zod.enum(["strategic", "operational"]),
       name: zod.string(),
+      description: zod.string().nullish(),
       unit: zod.string(),
+      baseline: zod.number(),
       target: zod.number(),
       actual: zod.number(),
       projectId: zod.number().nullable(),
@@ -1642,7 +1651,9 @@ export const ListSpmoKpisResponse = zod.object({
 export const CreateSpmoKpiBody = zod.object({
   type: zod.enum(["strategic", "operational"]),
   name: zod.string().min(1),
+  description: zod.string().optional(),
   unit: zod.string(),
+  baseline: zod.number().optional(),
   target: zod.number(),
   actual: zod.number(),
   projectId: zod.number().optional(),
@@ -1658,7 +1669,9 @@ export const UpdateSpmoKpiParams = zod.object({
 
 export const UpdateSpmoKpiBody = zod.object({
   name: zod.string().optional(),
+  description: zod.string().optional(),
   unit: zod.string().optional(),
+  baseline: zod.number().optional(),
   target: zod.number().optional(),
   actual: zod.number().optional(),
   status: zod.enum(["on_track", "at_risk", "off_track"]).optional(),
@@ -1668,7 +1681,9 @@ export const UpdateSpmoKpiResponse = zod.object({
   id: zod.number(),
   type: zod.enum(["strategic", "operational"]),
   name: zod.string(),
+  description: zod.string().nullish(),
   unit: zod.string(),
+  baseline: zod.number(),
   target: zod.number(),
   actual: zod.number(),
   projectId: zod.number().nullable(),
@@ -1849,6 +1864,8 @@ export const ListSpmoBudgetResponse = zod.object({
         .string()
         .default(listSpmoBudgetResponseEntriesItemCurrencyDefault),
       period: zod.string().describe("YYYY-MM or YYYY (year)"),
+      fiscalYear: zod.number().nullish(),
+      fiscalQuarter: zod.number().nullish(),
       createdAt: zod.date(),
       updatedAt: zod.date(),
     }),
@@ -1868,6 +1885,8 @@ export const CreateSpmoBudgetEntryBody = zod.object({
   spent: zod.number(),
   currency: zod.string().optional(),
   period: zod.string(),
+  fiscalYear: zod.number().optional(),
+  fiscalQuarter: zod.number().optional(),
 });
 
 /**
@@ -1883,6 +1902,8 @@ export const UpdateSpmoBudgetEntryBody = zod.object({
   allocated: zod.number().optional(),
   spent: zod.number().optional(),
   period: zod.string().optional(),
+  fiscalYear: zod.number().optional(),
+  fiscalQuarter: zod.number().optional(),
 });
 
 export const updateSpmoBudgetEntryResponseCurrencyDefault = `USD`;
@@ -1897,6 +1918,8 @@ export const UpdateSpmoBudgetEntryResponse = zod.object({
   spent: zod.number(),
   currency: zod.string().default(updateSpmoBudgetEntryResponseCurrencyDefault),
   period: zod.string().describe("YYYY-MM or YYYY (year)"),
+  fiscalYear: zod.number().nullish(),
+  fiscalQuarter: zod.number().nullish(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
 });

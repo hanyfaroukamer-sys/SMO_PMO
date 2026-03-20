@@ -10,6 +10,10 @@ import {
   useUpdateSpmoMilestone,
   useDeleteSpmoMilestone,
   useSubmitSpmoMilestone,
+  type SpmoProjectWithProgress,
+  type CreateSpmoProjectRequest,
+  type UpdateSpmoProjectRequest,
+  type CreateSpmoMilestoneRequest,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
@@ -20,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 const PROJECT_STATUSES = ["active", "on_hold", "completed", "cancelled"] as const;
-const MILESTONE_STATUSES = ["not_started", "in_progress", "submitted", "approved", "rejected"] as const;
+const MILESTONE_STATUSES = ["pending", "in_progress", "submitted", "approved", "rejected"] as const;
 
 type ProjectForm = {
   name: string;
@@ -50,7 +54,7 @@ const emptyProject = (): ProjectForm => ({
 
 const emptyMilestone = (): MilestoneForm => ({
   name: "", description: "", weight: "25", progress: "0",
-  status: "not_started", dueDate: "",
+  status: "pending", dueDate: "",
 });
 
 export default function Projects() {
@@ -106,21 +110,24 @@ export default function Projects() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const payload = {
+    const commonFields = {
       name: form.name,
-      description: form.description || null,
+      description: form.description || undefined,
       initiativeId: parseInt(form.initiativeId),
       ownerId: "user",
-      ownerName: form.ownerName || null,
+      ownerName: form.ownerName || undefined,
       weight: parseFloat(form.weight) || 0,
-      status: form.status,
+      status: form.status as "active" | "on_hold" | "completed" | "cancelled",
       budget: form.budget ? parseFloat(form.budget) : 0,
-      startDate: form.startDate || null,
-      targetDate: form.targetDate || null,
     };
 
     if (editId !== null) {
-      updateMutation.mutate({ id: editId, data: payload }, {
+      const updatePayload: UpdateSpmoProjectRequest = {
+        ...commonFields,
+        startDate: form.startDate || undefined,
+        targetDate: form.targetDate || undefined,
+      };
+      updateMutation.mutate({ id: editId, data: updatePayload }, {
         onSuccess: () => {
           toast({ title: "Updated" });
           setModalOpen(false);
@@ -129,7 +136,12 @@ export default function Projects() {
         onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update." }),
       });
     } else {
-      createMutation.mutate({ data: payload as never }, {
+      const createPayload: CreateSpmoProjectRequest = {
+        ...commonFields,
+        startDate: form.startDate,
+        targetDate: form.targetDate,
+      };
+      createMutation.mutate({ data: createPayload }, {
         onSuccess: () => {
           toast({ title: "Created", description: `"${form.name}" created.` });
           setModalOpen(false);
@@ -239,7 +251,7 @@ function ProjectRow({
   onEdit,
   onDelete,
 }: {
-  project: NonNullable<ReturnType<typeof useListSpmoProjects>["data"]>["projects"][number];
+  project: SpmoProjectWithProgress;
   expanded: boolean;
   onToggle: () => void;
   onEdit: () => void;
@@ -345,11 +357,11 @@ function MilestoneSection({ projectId }: { projectId: number }) {
     e.preventDefault();
     const payload = {
       name: form.name,
-      description: form.description || null,
+      description: form.description || undefined,
       weight: parseFloat(form.weight) || 0,
       progress: parseInt(form.progress) || 0,
-      status: form.status,
-      dueDate: form.dueDate || null,
+      status: form.status as "pending" | "in_progress",
+      dueDate: form.dueDate || undefined,
     };
 
     if (editId !== null) {
@@ -362,7 +374,14 @@ function MilestoneSection({ projectId }: { projectId: number }) {
         onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update." }),
       });
     } else {
-      createMutation.mutate({ id: projectId, data: payload as never }, {
+      const createMilestonePayload: CreateSpmoMilestoneRequest = {
+        name: form.name,
+        description: form.description || undefined,
+        weight: parseFloat(form.weight) || 0,
+        effortDays: 0,
+        dueDate: form.dueDate,
+      };
+      createMutation.mutate({ id: projectId, data: createMilestonePayload }, {
         onSuccess: () => {
           toast({ title: "Created", description: `"${form.name}" added.` });
           setModalOpen(false);
@@ -393,7 +412,7 @@ function MilestoneSection({ projectId }: { projectId: number }) {
     submitted: "text-blue-600",
     in_progress: "text-amber-600",
     rejected: "text-red-600",
-    not_started: "text-muted-foreground",
+    pending: "text-muted-foreground",
   };
 
   return (
@@ -438,7 +457,7 @@ function MilestoneSection({ projectId }: { projectId: number }) {
                 </div>
 
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {(m.status === "not_started" || m.status === "in_progress" || m.status === "rejected") && (
+                  {(m.status === "pending" || m.status === "in_progress" || m.status === "rejected") && (
                     <button
                       onClick={() => handleSubmitForApproval(m.id, m.name)}
                       disabled={submitMutation.isPending}
@@ -478,30 +497,33 @@ function MilestoneSection({ projectId }: { projectId: number }) {
             <textarea className={inputClass} rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What does completion of this milestone mean?" />
           </FormField>
 
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Status">
-              <select className={selectClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                {MILESTONE_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-              </select>
-            </FormField>
-            <FormField label="Due Date">
-              <input type="date" className={inputClass} value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
-            </FormField>
-          </div>
-
-          <FormField label={`Progress: ${form.progress}%`}>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              className="w-full accent-primary"
-              value={form.progress}
-              onChange={(e) => setForm({ ...form, progress: e.target.value })}
-            />
-            <div className="h-2 bg-border rounded-full overflow-hidden mt-2">
-              <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${form.progress}%` }} />
-            </div>
+          <FormField label="Due Date" required>
+            <input type="date" className={inputClass} value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} required />
           </FormField>
+
+          {editId !== null && (
+            <>
+              <FormField label="Status">
+                <select className={selectClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                  {MILESTONE_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                </select>
+              </FormField>
+
+              <FormField label={`Progress: ${form.progress}%`}>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  className="w-full accent-primary"
+                  value={form.progress}
+                  onChange={(e) => setForm({ ...form, progress: e.target.value })}
+                />
+                <div className="h-2 bg-border rounded-full overflow-hidden mt-2">
+                  <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${form.progress}%` }} />
+                </div>
+              </FormField>
+            </>
+          )}
 
           <FormField label={`Weight (${form.weight}%)`}>
             <input type="range" min="0" max="100" className="w-full accent-primary" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} />
