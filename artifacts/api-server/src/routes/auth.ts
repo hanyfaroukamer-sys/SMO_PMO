@@ -19,9 +19,24 @@ import {
   type SessionData,
 } from "../lib/auth";
 
-const OIDC_COOKIE_TTL = 10 * 60 * 1000;
-
 const router: IRouter = Router();
+
+interface OidcState {
+  nonce: string;
+  codeVerifier: string;
+  returnTo: string;
+  expiresAt: number;
+}
+
+const oidcStateStore = new Map<string, OidcState>();
+const OIDC_TTL_MS = 10 * 60 * 1000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of oidcStateStore.entries()) {
+    if (val.expiresAt < now) oidcStateStore.delete(key);
+  }
+}, 60_000);
 
 function getOrigin(req: Request): string {
   const proto = req.headers["x-forwarded-proto"] || "https";
@@ -40,18 +55,12 @@ function setSessionCookie(res: Response, sid: string) {
   });
 }
 
-function setOidcCookie(res: Response, name: string, value: string) {
-  res.cookie(name, value, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-    path: "/",
-    maxAge: OIDC_COOKIE_TTL,
-  });
-}
-
 function getSafeReturnTo(value: unknown): string {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+  if (
+    typeof value !== "string" ||
+    !value.startsWith("/") ||
+    value.startsWith("//")
+  ) {
     return "/";
   }
   return value;
@@ -93,13 +102,19 @@ router.get("/auth/user", (req: Request, res: Response) => {
 router.get("/login", async (req: Request, res: Response) => {
   const config = await getOidcConfig();
   const callbackUrl = `${getOrigin(req)}/api/callback`;
-
   const returnTo = getSafeReturnTo(req.query.returnTo);
 
   const state = oidc.randomState();
   const nonce = oidc.randomNonce();
   const codeVerifier = oidc.randomPKCECodeVerifier();
   const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
+
+  oidcStateStore.set(state, {
+    nonce,
+    codeVerifier,
+    returnTo,
+    expiresAt: Date.now() + OIDC_TTL_MS,
+  });
 
   const redirectTo = oidc.buildAuthorizationUrl(config, {
     redirect_uri: callbackUrl,
@@ -111,29 +126,31 @@ router.get("/login", async (req: Request, res: Response) => {
     nonce,
   });
 
-  setOidcCookie(res, "code_verifier", codeVerifier);
-  setOidcCookie(res, "nonce", nonce);
-  setOidcCookie(res, "state", state);
-  setOidcCookie(res, "return_to", returnTo);
-
   res.redirect(redirectTo.href);
 });
 
-// Query params are not validated because the OIDC provider may include
-// parameters not expressed in the schema.
 router.get("/callback", async (req: Request, res: Response) => {
   const config = await getOidcConfig();
   const callbackUrl = `${getOrigin(req)}/api/callback`;
 
-  const codeVerifier = req.cookies?.code_verifier;
-  const nonce = req.cookies?.nonce;
-  const expectedState = req.cookies?.state;
-
-  if (!codeVerifier || !expectedState) {
-    req.log.warn({ hasCookies: !!req.cookies, keys: Object.keys(req.cookies ?? {}) }, "OIDC callback: missing PKCE cookies, restarting login");
+  const stateParam = req.query.state;
+  if (typeof stateParam !== "string" || !stateParam) {
+    req.log.warn("OIDC callback: missing state query param");
     res.redirect("/api/login");
     return;
   }
+
+  const stored = oidcStateStore.get(stateParam);
+  if (!stored || stored.expiresAt < Date.now()) {
+    req.log.warn({ stateFound: !!stored }, "OIDC callback: state not found or expired");
+    oidcStateStore.delete(stateParam);
+    res.redirect("/api/login");
+    return;
+  }
+
+  oidcStateStore.delete(stateParam);
+
+  const { nonce, codeVerifier, returnTo } = stored;
 
   const currentUrl = new URL(
     `${callbackUrl}?${new URL(req.url, `http://${req.headers.host}`).searchParams}`,
@@ -144,7 +161,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     tokens = await oidc.authorizationCodeGrant(config, currentUrl, {
       pkceCodeVerifier: codeVerifier,
       expectedNonce: nonce,
-      expectedState,
+      expectedState: stateParam,
       idTokenExpected: true,
     });
   } catch (err) {
@@ -153,15 +170,9 @@ router.get("/callback", async (req: Request, res: Response) => {
     return;
   }
 
-  const returnTo = getSafeReturnTo(req.cookies?.return_to);
-
-  res.clearCookie("code_verifier", { path: "/" });
-  res.clearCookie("nonce", { path: "/" });
-  res.clearCookie("state", { path: "/" });
-  res.clearCookie("return_to", { path: "/" });
-
   const claims = tokens.claims();
   if (!claims) {
+    req.log.error("OIDC callback: no claims in ID token");
     res.redirect("/api/login");
     return;
   }
