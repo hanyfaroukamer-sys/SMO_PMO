@@ -34,7 +34,7 @@ function setSessionCookie(res: Response, sid: string) {
   res.cookie(SESSION_COOKIE, sid, {
     httpOnly: true,
     secure: true,
-    sameSite: "lax",
+    sameSite: "none",
     path: "/",
     maxAge: SESSION_TTL,
   });
@@ -44,7 +44,7 @@ function setOidcCookie(res: Response, name: string, value: string) {
   res.cookie(name, value, {
     httpOnly: true,
     secure: true,
-    sameSite: "lax",
+    sameSite: "none",
     path: "/",
     maxAge: OIDC_COOKIE_TTL,
   });
@@ -130,6 +130,7 @@ router.get("/callback", async (req: Request, res: Response) => {
   const expectedState = req.cookies?.state;
 
   if (!codeVerifier || !expectedState) {
+    req.log.warn({ hasCookies: !!req.cookies, keys: Object.keys(req.cookies ?? {}) }, "OIDC callback: missing PKCE cookies, restarting login");
     res.redirect("/api/login");
     return;
   }
@@ -146,7 +147,8 @@ router.get("/callback", async (req: Request, res: Response) => {
       expectedState,
       idTokenExpected: true,
     });
-  } catch {
+  } catch (err) {
+    req.log.error({ err }, "OIDC token exchange failed");
     res.redirect("/api/login");
     return;
   }
