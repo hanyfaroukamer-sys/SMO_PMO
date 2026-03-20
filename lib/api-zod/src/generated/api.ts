@@ -661,6 +661,8 @@ export const UpdateUserRoleResponse = zod.object({
  */
 export const GetSpmoOverviewResponse = zod.object({
   programmeName: zod.string(),
+  vision: zod.string().nullish(),
+  mission: zod.string().nullish(),
   programmeProgress: zod.number(),
   lastUpdated: zod.date(),
   pillarSummaries: zod.array(
@@ -2009,6 +2011,140 @@ export const ListSpmoActivityLogResponse = zod.object({
 });
 
 /**
+ * @summary List procurement records
+ */
+export const ListSpmoProcurementQueryParams = zod.object({
+  projectId: zod.coerce.number().optional(),
+});
+
+export const ListSpmoProcurementResponse = zod.object({
+  procurement: zod.array(
+    zod.object({
+      id: zod.number(),
+      projectId: zod.number(),
+      title: zod.string(),
+      stage: zod.enum([
+        "rfp_draft",
+        "rfp_issued",
+        "evaluation",
+        "awarded",
+        "completed",
+      ]),
+      vendor: zod.string().nullish(),
+      contractValue: zod.number().nullish(),
+      currency: zod.string(),
+      notes: zod.string().nullish(),
+      awardDate: zod.string().nullish(),
+      completionDate: zod.string().nullish(),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a procurement record
+ */
+export const CreateSpmoProcurementBody = zod.object({
+  projectId: zod.number(),
+  title: zod.string(),
+  stage: zod.enum([
+    "rfp_draft",
+    "rfp_issued",
+    "evaluation",
+    "awarded",
+    "completed",
+  ]),
+  vendor: zod.string().optional(),
+  contractValue: zod.number().optional(),
+  currency: zod.string().optional(),
+  notes: zod.string().optional(),
+  awardDate: zod.string().optional(),
+  completionDate: zod.string().optional(),
+});
+
+/**
+ * @summary Update a procurement record
+ */
+export const UpdateSpmoProcurementParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSpmoProcurementBody = zod.object({
+  title: zod.string().optional(),
+  stage: zod
+    .enum(["rfp_draft", "rfp_issued", "evaluation", "awarded", "completed"])
+    .optional(),
+  vendor: zod.string().optional(),
+  contractValue: zod.number().optional(),
+  notes: zod.string().optional(),
+  awardDate: zod.string().optional(),
+  completionDate: zod.string().optional(),
+});
+
+export const UpdateSpmoProcurementResponse = zod.object({
+  id: zod.number(),
+  projectId: zod.number(),
+  title: zod.string(),
+  stage: zod.enum([
+    "rfp_draft",
+    "rfp_issued",
+    "evaluation",
+    "awarded",
+    "completed",
+  ]),
+  vendor: zod.string().nullish(),
+  contractValue: zod.number().nullish(),
+  currency: zod.string(),
+  notes: zod.string().nullish(),
+  awardDate: zod.string().nullish(),
+  completionDate: zod.string().nullish(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Delete a procurement record
+ */
+export const DeleteSpmoProcurementParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteSpmoProcurementResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Get programme configuration (vision, mission, name)
+ */
+export const GetSpmoConfigResponse = zod.object({
+  id: zod.number(),
+  programmeName: zod.string(),
+  vision: zod.string().nullish(),
+  mission: zod.string().nullish(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Update programme configuration
+ */
+export const UpdateSpmoConfigBody = zod.object({
+  programmeName: zod.string().optional(),
+  vision: zod.string().optional(),
+  mission: zod.string().optional(),
+});
+
+export const UpdateSpmoConfigResponse = zod.object({
+  id: zod.number(),
+  programmeName: zod.string(),
+  vision: zod.string().nullish(),
+  mission: zod.string().nullish(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
  * @summary Run AI programme assessment (Claude) — returns structured health analysis
  */
 export const RunSpmoAiAssessmentResponse = zod.object({
@@ -2042,55 +2178,4 @@ export const RunSpmoAiValidateEvidenceResponse = zod.object({
   verdict: zod.enum(["strong", "adequate", "weak", "insufficient"]),
   reasoning: zod.string(),
   suggestions: zod.array(zod.string()),
-});
-
-// ─────────────────────────────────────────────────────────────
-// Procurement
-// ─────────────────────────────────────────────────────────────
-
-export const ListSpmoProcurementQueryParams = zod.object({
-  projectId: zod.coerce.number().optional(),
-});
-
-export const CreateSpmoProcurementBody = zod.object({
-  projectId: zod.number(),
-  title: zod.string().min(1),
-  stage: zod.enum(["rfp_draft", "rfp_issued", "evaluation", "awarded", "completed"]).optional(),
-  vendor: zod.string().optional(),
-  contractValue: zod.number().optional(),
-  currency: zod.string().optional(),
-  notes: zod.string().optional(),
-  awardDate: zod.coerce.date().optional(),
-  completionDate: zod.coerce.date().optional(),
-});
-
-export const UpdateSpmoProcurementParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const UpdateSpmoProcurementBody = zod.object({
-  title: zod.string().optional(),
-  stage: zod.enum(["rfp_draft", "rfp_issued", "evaluation", "awarded", "completed"]).optional(),
-  vendor: zod.string().optional(),
-  contractValue: zod.number().optional(),
-  currency: zod.string().optional(),
-  notes: zod.string().optional(),
-  awardDate: zod.coerce.date().optional(),
-  completionDate: zod.coerce.date().optional(),
-});
-
-export const DeleteSpmoProcurementParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-// ─────────────────────────────────────────────────────────────
-// Programme Config
-// ─────────────────────────────────────────────────────────────
-
-export const UpdateSpmoProgrammeConfigBody = zod.object({
-  programmeName: zod.string().optional(),
-  vision: zod.string().optional(),
-  mission: zod.string().optional(),
-  reportingCurrency: zod.string().optional(),
-  fiscalYearStart: zod.number().int().min(1).max(12).optional(),
 });

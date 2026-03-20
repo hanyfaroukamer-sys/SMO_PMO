@@ -77,7 +77,7 @@ import {
   UpdateSpmoProcurementParams,
   UpdateSpmoProcurementBody,
   DeleteSpmoProcurementParams,
-  UpdateSpmoProgrammeConfigBody,
+  UpdateSpmoConfigBody,
 } from "@workspace/api-zod";
 import {
   calcProgrammeProgress,
@@ -152,8 +152,15 @@ router.get("/spmo/programme", async (req, res): Promise<void> => {
 
   const alertCount = await computeAlertCount();
 
+  const [config] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const programmeName = config?.programmeName ?? "National Transformation Programme";
+  const vision = config?.vision ?? null;
+  const mission = config?.mission ?? null;
+
   res.json({
-    programmeName: "StrategyPMO",
+    programmeName,
+    vision,
+    mission,
     programmeProgress,
     lastUpdated: new Date(),
     pillarSummaries: pillarSummaries.map(({ pillar, progress, ...stats }) => ({
@@ -1833,11 +1840,8 @@ router.post("/spmo/procurement", async (req, res): Promise<void> => {
     return;
   }
 
-  const { awardDate: ad, completionDate: cd, ...rest } = parsed.data;
   const insert: InsertSpmoProcurement = {
-    ...rest,
-    ...(ad !== undefined && { awardDate: dateToStr(ad) }),
-    ...(cd !== undefined && { completionDate: dateToStr(cd) }),
+    ...parsed.data,
   };
 
   const [row] = await db.insert(spmoProcurementTable).values(insert).returning();
@@ -1862,14 +1866,9 @@ router.put("/spmo/procurement/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const { awardDate: ad, completionDate: cd, ...rest } = parsed.data;
   const [row] = await db
     .update(spmoProcurementTable)
-    .set({
-      ...rest,
-      ...(ad !== undefined && { awardDate: dateToStr(ad) }),
-      ...(cd !== undefined && { completionDate: dateToStr(cd) }),
-    })
+    .set(parsed.data)
     .where(eq(spmoProcurementTable.id, params.data.id))
     .returning();
 
@@ -1938,7 +1937,7 @@ router.put("/spmo/programme-config", async (req, res): Promise<void> => {
     return;
   }
 
-  const parsed = UpdateSpmoProgrammeConfigBody.safeParse(req.body);
+  const parsed = UpdateSpmoConfigBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;

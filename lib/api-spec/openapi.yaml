@@ -1778,6 +1778,123 @@ paths:
                   total:
                     type: integer
 
+  /spmo/procurement:
+    get:
+      tags: [SpmoProcurement]
+      operationId: listSpmoProcurement
+      summary: List procurement records
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of procurement records.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [procurement]
+                properties:
+                  procurement:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SpmoProcurementRecord'
+    post:
+      tags: [SpmoProcurement]
+      operationId: createSpmoProcurement
+      summary: Create a procurement record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpmoProcurementRequest'
+      responses:
+        '201':
+          description: Created procurement record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoProcurementRecord'
+
+  /spmo/procurement/{id}:
+    put:
+      tags: [SpmoProcurement]
+      operationId: updateSpmoProcurement
+      summary: Update a procurement record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpmoProcurementRequest'
+      responses:
+        '200':
+          description: Updated procurement record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoProcurementRecord'
+    delete:
+      tags: [SpmoProcurement]
+      operationId: deleteSpmoProcurement
+      summary: Delete a procurement record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deletion result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success:
+                    type: boolean
+
+  /spmo/programme-config:
+    get:
+      tags: [SpmoConfig]
+      operationId: getSpmoConfig
+      summary: Get programme configuration (vision, mission, name)
+      responses:
+        '200':
+          description: Programme configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoProgrammeConfig'
+    put:
+      tags: [SpmoConfig]
+      operationId: updateSpmoConfig
+      summary: Update programme configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpmoProgrammeConfigRequest'
+      responses:
+        '200':
+          description: Updated configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpmoProgrammeConfig'
+
   /spmo/ai/assessment:
     post:
       tags: [SpmoAI]
@@ -2711,6 +2828,12 @@ components:
       properties:
         programmeName:
           type: string
+        vision:
+          type: string
+          nullable: true
+        mission:
+          type: string
+          nullable: true
         programmeProgress:
           type: number
         lastUpdated:
@@ -2730,6 +2853,117 @@ components:
           type: integer
         alertCount:
           type: integer
+
+    SpmoProcurementRecord:
+      type: object
+      required: [id, projectId, title, stage, currency, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        title:
+          type: string
+        stage:
+          type: string
+          enum: [rfp_draft, rfp_issued, evaluation, awarded, completed]
+        vendor:
+          type: string
+          nullable: true
+        contractValue:
+          type: number
+          nullable: true
+        currency:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        awardDate:
+          type: string
+          nullable: true
+        completionDate:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateSpmoProcurementRequest:
+      type: object
+      required: [projectId, title, stage]
+      properties:
+        projectId:
+          type: integer
+        title:
+          type: string
+        stage:
+          type: string
+          enum: [rfp_draft, rfp_issued, evaluation, awarded, completed]
+        vendor:
+          type: string
+        contractValue:
+          type: number
+        currency:
+          type: string
+        notes:
+          type: string
+        awardDate:
+          type: string
+        completionDate:
+          type: string
+
+    UpdateSpmoProcurementRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        stage:
+          type: string
+          enum: [rfp_draft, rfp_issued, evaluation, awarded, completed]
+        vendor:
+          type: string
+        contractValue:
+          type: number
+        notes:
+          type: string
+        awardDate:
+          type: string
+        completionDate:
+          type: string
+
+    SpmoProgrammeConfig:
+      type: object
+      required: [id, programmeName, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        programmeName:
+          type: string
+        vision:
+          type: string
+          nullable: true
+        mission:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UpdateSpmoProgrammeConfigRequest:
+      type: object
+      properties:
+        programmeName:
+          type: string
+        vision:
+          type: string
+        mission:
+          type: string
 
     SpmoPendingApprovalItem:
       type: object

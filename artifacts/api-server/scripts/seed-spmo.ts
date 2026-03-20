@@ -1,4 +1,5 @@
 import { db } from "@workspace/db";
+import { sql } from "drizzle-orm";
 import {
   spmoPillarsTable,
   spmoInitiativesTable,
@@ -20,19 +21,36 @@ async function seed() {
   console.log("Seeding StrategyPMO data (prototype-exact)...");
 
   // ─────────────────────────────────────────────────────────────
+  // Truncate all SPMO tables (cascade) for idempotent reruns
+  // ─────────────────────────────────────────────────────────────
+  console.log("Truncating existing SPMO data...");
+  await db.execute(sql`TRUNCATE TABLE
+    spmo_evidence,
+    spmo_milestones,
+    spmo_projects,
+    spmo_initiatives,
+    spmo_pillars,
+    spmo_kpis,
+    spmo_mitigations,
+    spmo_risks,
+    spmo_budget_entries,
+    spmo_procurement,
+    spmo_activity_log,
+    spmo_programme_config
+    RESTART IDENTITY CASCADE`);
+  console.log("Truncation complete.");
+
+  // ─────────────────────────────────────────────────────────────
   // Programme Config
   // ─────────────────────────────────────────────────────────────
-  await db
-    .insert(spmoProgrammeConfigTable)
-    .values({
-      id: 1,
-      programmeName: "National Transformation Programme",
-      vision: "To become a leading digital government that delivers world-class services to all citizens and residents.",
-      mission: "Drive transformation across all strategic pillars through evidence-based programme management, innovation, and accountability.",
-      reportingCurrency: "SAR",
-      fiscalYearStart: 1,
-    })
-    .onConflictDoNothing();
+  await db.insert(spmoProgrammeConfigTable).values({
+    id: 1,
+    programmeName: "National Transformation Programme",
+    vision: "To become a leading digital government that delivers world-class services to all citizens and residents.",
+    mission: "Drive transformation across all strategic pillars through evidence-based programme management, innovation, and accountability.",
+    reportingCurrency: "SAR",
+    fiscalYearStart: 1,
+  });
 
   // ─────────────────────────────────────────────────────────────
   // Pillars (prototype-exact)
@@ -684,7 +702,6 @@ async function seed() {
         projectId: pEvFleet.id,
         title: "EV Supply Chain Delays",
         description: "Global EV battery supply chain constraints may delay Phase 2 and 3 vehicle deliveries by 6–9 months.",
-        category: "operational",
         probability: "high",
         impact: "high",
         riskScore: 9,
@@ -695,7 +712,6 @@ async function seed() {
         projectId: pHr.id,
         title: "ERP Payroll Parallel Run Failure",
         description: "Payroll data migration errors could result in incorrect salary payments for 45,000 employees.",
-        category: "technical",
         probability: "medium",
         impact: "critical",
         riskScore: 8,
@@ -706,7 +722,6 @@ async function seed() {
         projectId: pPortalUx.id,
         title: "Cybersecurity Breach on Citizen Portal",
         description: "The high-profile citizen portal is a target for nation-state and criminal hackers; a breach would damage public trust.",
-        category: "technical",
         probability: "low",
         impact: "critical",
         riskScore: 4,
@@ -717,7 +732,6 @@ async function seed() {
         projectId: pCharging.id,
         title: "Grid Capacity Constraint for EV Charging",
         description: "Utility grid upgrades may not be completed in time to support the full charging station network load.",
-        category: "regulatory",
         probability: "medium",
         impact: "medium",
         riskScore: 4,

@@ -9,6 +9,8 @@ import type { SpmoPillarWithProgress } from "./spmoPillarWithProgress";
 
 export interface SpmoProgrammeOverview {
   programmeName: string;
+  vision?: string | null;
+  mission?: string | null;
   programmeProgress: number;
   lastUpdated: Date;
   pillarSummaries: SpmoPillarWithProgress[];

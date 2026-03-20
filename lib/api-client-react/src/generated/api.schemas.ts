@@ -724,6 +724,8 @@ export interface SpmoActivityEntry {
 
 export interface SpmoProgrammeOverview {
   programmeName: string;
+  vision?: string | null;
+  mission?: string | null;
   programmeProgress: number;
   lastUpdated: string;
   pillarSummaries: SpmoPillarWithProgress[];
@@ -732,6 +734,91 @@ export interface SpmoProgrammeOverview {
   pendingApprovals: number;
   activeRisks: number;
   alertCount: number;
+}
+
+export type SpmoProcurementRecordStage =
+  (typeof SpmoProcurementRecordStage)[keyof typeof SpmoProcurementRecordStage];
+
+export const SpmoProcurementRecordStage = {
+  rfp_draft: "rfp_draft",
+  rfp_issued: "rfp_issued",
+  evaluation: "evaluation",
+  awarded: "awarded",
+  completed: "completed",
+} as const;
+
+export interface SpmoProcurementRecord {
+  id: number;
+  projectId: number;
+  title: string;
+  stage: SpmoProcurementRecordStage;
+  vendor?: string | null;
+  contractValue?: number | null;
+  currency: string;
+  notes?: string | null;
+  awardDate?: string | null;
+  completionDate?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateSpmoProcurementRequestStage =
+  (typeof CreateSpmoProcurementRequestStage)[keyof typeof CreateSpmoProcurementRequestStage];
+
+export const CreateSpmoProcurementRequestStage = {
+  rfp_draft: "rfp_draft",
+  rfp_issued: "rfp_issued",
+  evaluation: "evaluation",
+  awarded: "awarded",
+  completed: "completed",
+} as const;
+
+export interface CreateSpmoProcurementRequest {
+  projectId: number;
+  title: string;
+  stage: CreateSpmoProcurementRequestStage;
+  vendor?: string;
+  contractValue?: number;
+  currency?: string;
+  notes?: string;
+  awardDate?: string;
+  completionDate?: string;
+}
+
+export type UpdateSpmoProcurementRequestStage =
+  (typeof UpdateSpmoProcurementRequestStage)[keyof typeof UpdateSpmoProcurementRequestStage];
+
+export const UpdateSpmoProcurementRequestStage = {
+  rfp_draft: "rfp_draft",
+  rfp_issued: "rfp_issued",
+  evaluation: "evaluation",
+  awarded: "awarded",
+  completed: "completed",
+} as const;
+
+export interface UpdateSpmoProcurementRequest {
+  title?: string;
+  stage?: UpdateSpmoProcurementRequestStage;
+  vendor?: string;
+  contractValue?: number;
+  notes?: string;
+  awardDate?: string;
+  completionDate?: string;
+}
+
+export interface SpmoProgrammeConfig {
+  id: number;
+  programmeName: string;
+  vision?: string | null;
+  mission?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateSpmoProgrammeConfigRequest {
+  programmeName?: string;
+  vision?: string;
+  mission?: string;
 }
 
 export interface SpmoPendingApprovalItem {
@@ -1242,4 +1329,16 @@ export type ListSpmoActivityLogParams = {
 export type ListSpmoActivityLog200 = {
   entries: SpmoActivityEntry[];
   total: number;
+};
+
+export type ListSpmoProcurementParams = {
+  projectId?: number;
+};
+
+export type ListSpmoProcurement200 = {
+  procurement: SpmoProcurementRecord[];
+};
+
+export type DeleteSpmoProcurement200 = {
+  success: boolean;
 };

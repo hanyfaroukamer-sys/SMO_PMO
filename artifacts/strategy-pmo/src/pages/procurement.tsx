@@ -1,11 +1,17 @@
 import { useState } from "react";
-import { useListSpmoProjects } from "@workspace/api-client-react";
-import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
+import {
+  useListSpmoProjects,
+  useListSpmoProcurement,
+  useCreateSpmoProcurement,
+  useUpdateSpmoProcurement,
+  useDeleteSpmoProcurement,
+  type SpmoProcurementRecord,
+} from "@workspace/api-client-react";
+import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import { Loader2, ShoppingCart, Plus, Pencil, Trash2, Building2, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { customFetch } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 const PROCUREMENT_STAGES = [
   { value: "rfp_draft", label: "RFP Draft" },
@@ -16,21 +22,6 @@ const PROCUREMENT_STAGES = [
 ] as const;
 
 type ProcurementStage = (typeof PROCUREMENT_STAGES)[number]["value"];
-
-interface ProcurementRecord {
-  id: number;
-  projectId: number;
-  title: string;
-  stage: ProcurementStage;
-  vendor: string | null;
-  contractValue: number | null;
-  currency: string;
-  notes: string | null;
-  awardDate: string | null;
-  completionDate: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
 
 type ProcurementForm = {
   projectId: string;
@@ -67,50 +58,9 @@ function StagePill({ stage }: { stage: string }) {
   );
 }
 
-function useProcurement(projectId?: number) {
-  const qk = ["/api/spmo/procurement", projectId];
-  return useQuery({
-    queryKey: qk,
-    queryFn: async () => {
-      const url = projectId ? `/api/spmo/procurement?projectId=${projectId}` : "/api/spmo/procurement";
-      const data = await customFetch<{ procurement: ProcurementRecord[] }>(url, { method: "GET" });
-      return data;
-    },
-  });
-}
-
-function useCreateProcurement() {
-  return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      customFetch<ProcurementRecord>("/api/spmo/procurement", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-  });
-}
-
-function useUpdateProcurement() {
-  return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) =>
-      customFetch<ProcurementRecord>(`/api/spmo/procurement/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }),
-  });
-}
-
-function useDeleteProcurement() {
-  return useMutation({
-    mutationFn: (id: number) =>
-      customFetch<{ success: boolean }>(`/api/spmo/procurement/${id}`, { method: "DELETE" }),
-  });
-}
-
 export default function Procurement() {
   const { data: projectsData } = useListSpmoProjects();
-  const { data: procurementData, isLoading } = useProcurement();
+  const { data: procurementData, isLoading } = useListSpmoProcurement();
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -119,12 +69,12 @@ export default function Procurement() {
   const [form, setForm] = useState<ProcurementForm>(emptyForm());
   const [filterStage, setFilterStage] = useState<string>("all");
 
-  const createMutation = useCreateProcurement();
-  const updateMutation = useUpdateProcurement();
-  const deleteMutation = useDeleteProcurement();
+  const createMutation = useCreateSpmoProcurement();
+  const updateMutation = useUpdateSpmoProcurement();
+  const deleteMutation = useDeleteSpmoProcurement();
 
   const projects = projectsData?.projects ?? [];
-  const allRecords: ProcurementRecord[] = procurementData?.procurement ?? [];
+  const allRecords: SpmoProcurementRecord[] = procurementData?.procurement ?? [];
   const records = filterStage === "all" ? allRecords : allRecords.filter((r) => r.stage === filterStage);
 
   const invalidate = () => {
@@ -141,7 +91,7 @@ export default function Procurement() {
     setModalOpen(true);
   }
 
-  function openEdit(rec: ProcurementRecord) {
+  function openEdit(rec: SpmoProcurementRecord) {
     setEditId(rec.id);
     setForm({
       projectId: String(rec.projectId),
@@ -156,46 +106,49 @@ export default function Procurement() {
     setModalOpen(true);
   }
 
-  function buildPayload() {
-    const p: Record<string, unknown> = {
-      projectId: parseInt(form.projectId),
-      title: form.title,
-      stage: form.stage,
-    };
-    if (form.vendor) p.vendor = form.vendor;
-    if (form.contractValue) p.contractValue = parseFloat(form.contractValue);
-    if (form.notes) p.notes = form.notes;
-    if (form.awardDate) p.awardDate = form.awardDate;
-    if (form.completionDate) p.completionDate = form.completionDate;
-    return p;
-  }
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.projectId || !form.title) return;
 
+    const stage = form.stage as ProcurementStage;
+    const base = {
+      title: form.title,
+      stage,
+      vendor: form.vendor || undefined,
+      contractValue: form.contractValue ? parseFloat(form.contractValue) : undefined,
+      notes: form.notes || undefined,
+      awardDate: form.awardDate || undefined,
+      completionDate: form.completionDate || undefined,
+    };
+
     if (editId) {
       updateMutation.mutate(
-        { id: editId, data: buildPayload() },
+        { id: editId, data: base },
         {
           onSuccess: () => { toast({ title: "Record updated" }); setModalOpen(false); invalidate(); },
           onError: () => toast({ title: "Update failed", variant: "destructive" }),
         }
       );
     } else {
-      createMutation.mutate(buildPayload(), {
-        onSuccess: () => { toast({ title: "Record created" }); setModalOpen(false); invalidate(); },
-        onError: () => toast({ title: "Create failed", variant: "destructive" }),
-      });
+      createMutation.mutate(
+        { data: { projectId: parseInt(form.projectId), ...base } },
+        {
+          onSuccess: () => { toast({ title: "Record created" }); setModalOpen(false); invalidate(); },
+          onError: () => toast({ title: "Create failed", variant: "destructive" }),
+        }
+      );
     }
   }
 
   function handleDelete(id: number) {
     if (!confirm("Delete this procurement record?")) return;
-    deleteMutation.mutate(id, {
-      onSuccess: () => { toast({ title: "Record deleted" }); invalidate(); },
-      onError: () => toast({ title: "Delete failed", variant: "destructive" }),
-    });
+    deleteMutation.mutate(
+      { id },
+      {
+        onSuccess: () => { toast({ title: "Record deleted" }); invalidate(); },
+        onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+      }
+    );
   }
 
   const stageCounts = STAGE_PIPELINE.reduce(
@@ -248,13 +201,19 @@ export default function Procurement() {
         </Card>
       )}
 
-      {/* Records Table */}
+      {/* Records List */}
       {records.length === 0 ? (
         <Card className="text-center py-16 text-muted-foreground">
           <ShoppingCart className="w-12 h-12 mx-auto mb-4 opacity-20" />
-          <p className="text-lg font-medium">{filterStage === "all" ? "No procurement records yet." : `No records in ${PROCUREMENT_STAGES.find((s) => s.value === filterStage)?.label} stage.`}</p>
+          <p className="text-lg font-medium">
+            {filterStage === "all"
+              ? "No procurement records yet."
+              : `No records in ${PROCUREMENT_STAGES.find((s) => s.value === filterStage)?.label} stage.`}
+          </p>
           {filterStage === "all" && (
-            <button onClick={openCreate} className="mt-4 text-primary hover:underline text-sm font-medium">Add the first record</button>
+            <button onClick={openCreate} className="mt-4 text-primary hover:underline text-sm font-medium">
+              Add the first record
+            </button>
           )}
         </Card>
       ) : (
@@ -272,7 +231,9 @@ export default function Procurement() {
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                     <span className="font-medium text-foreground/70">{getProjectName(rec.projectId)}</span>
-                    {rec.vendor && <span>Vendor: <strong className="text-foreground">{rec.vendor}</strong></span>}
+                    {rec.vendor && (
+                      <span>Vendor: <strong className="text-foreground">{rec.vendor}</strong></span>
+                    )}
                     {rec.contractValue && (
                       <span>Contract: <strong className="text-foreground">SAR {(rec.contractValue / 1_000_000).toFixed(1)}M</strong></span>
                     )}
@@ -289,18 +250,34 @@ export default function Procurement() {
                     const isPast = STAGE_PIPELINE.indexOf(rec.stage) > i;
                     return (
                       <div key={s} className="flex items-center gap-1">
-                        <div className={`w-2 h-2 rounded-full transition-all ${isActive ? "w-3 h-3 bg-primary shadow-sm shadow-primary/40" : isPast ? "bg-primary/40" : "bg-secondary border border-border"}`} />
-                        {i < STAGE_PIPELINE.length - 1 && <div className={`w-4 h-0.5 ${isPast ? "bg-primary/40" : "bg-border"}`} />}
+                        <div
+                          className={`rounded-full transition-all ${
+                            isActive
+                              ? "w-3 h-3 bg-primary shadow-sm shadow-primary/40"
+                              : isPast
+                              ? "w-2 h-2 bg-primary/40"
+                              : "w-2 h-2 bg-secondary border border-border"
+                          }`}
+                        />
+                        {i < STAGE_PIPELINE.length - 1 && (
+                          <div className={`w-4 h-0.5 ${isPast ? "bg-primary/40" : "bg-border"}`} />
+                        )}
                       </div>
                     );
                   })}
                 </div>
 
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                  <button onClick={() => openEdit(rec)} className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground hover:text-foreground transition-colors">
+                  <button
+                    onClick={() => openEdit(rec)}
+                    className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+                  >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => handleDelete(rec.id)} className="p-1.5 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive transition-colors">
+                  <button
+                    onClick={() => handleDelete(rec.id)}
+                    className="p-1.5 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive transition-colors"
+                  >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -318,37 +295,83 @@ export default function Procurement() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField label="Project" required>
-            <select className={selectClass} value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })} required>
+            <select
+              className={selectClass}
+              value={form.projectId}
+              onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+              required
+            >
               <option value="">Select project…</option>
-              {projects.map((p) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+              {projects.map((p) => (
+                <option key={p.id} value={String(p.id)}>{p.name}</option>
+              ))}
             </select>
           </FormField>
           <FormField label="Title" required>
-            <input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required placeholder="e.g. EV Fleet Procurement — Phase 2" />
+            <input
+              className={inputClass}
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              required
+              placeholder="e.g. EV Fleet Procurement — Phase 2"
+            />
           </FormField>
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Stage">
-              <select className={selectClass} value={form.stage} onChange={(e) => setForm({ ...form, stage: e.target.value })}>
-                {PROCUREMENT_STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              <select
+                className={selectClass}
+                value={form.stage}
+                onChange={(e) => setForm({ ...form, stage: e.target.value })}
+              >
+                {PROCUREMENT_STAGES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
               </select>
             </FormField>
             <FormField label="Vendor">
-              <input className={inputClass} value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} placeholder="Vendor name" />
+              <input
+                className={inputClass}
+                value={form.vendor}
+                onChange={(e) => setForm({ ...form, vendor: e.target.value })}
+                placeholder="Vendor name"
+              />
             </FormField>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Contract Value (SAR)">
-              <input className={inputClass} type="number" value={form.contractValue} onChange={(e) => setForm({ ...form, contractValue: e.target.value })} placeholder="0" />
+              <input
+                className={inputClass}
+                type="number"
+                value={form.contractValue}
+                onChange={(e) => setForm({ ...form, contractValue: e.target.value })}
+                placeholder="0"
+              />
             </FormField>
             <FormField label="Award Date">
-              <input className={inputClass} type="date" value={form.awardDate} onChange={(e) => setForm({ ...form, awardDate: e.target.value })} />
+              <input
+                className={inputClass}
+                type="date"
+                value={form.awardDate}
+                onChange={(e) => setForm({ ...form, awardDate: e.target.value })}
+              />
             </FormField>
           </div>
           <FormField label="Completion Date">
-            <input className={inputClass} type="date" value={form.completionDate} onChange={(e) => setForm({ ...form, completionDate: e.target.value })} />
+            <input
+              className={inputClass}
+              type="date"
+              value={form.completionDate}
+              onChange={(e) => setForm({ ...form, completionDate: e.target.value })}
+            />
           </FormField>
           <FormField label="Notes">
-            <textarea className={inputClass} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} placeholder="Key notes, conditions, or status updates…" />
+            <textarea
+              className={inputClass}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              rows={3}
+              placeholder="Key notes, conditions, or status updates…"
+            />
           </FormField>
           <FormActions
             onCancel={() => setModalOpen(false)}
