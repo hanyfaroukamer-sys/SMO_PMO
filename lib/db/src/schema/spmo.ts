@@ -57,6 +57,7 @@ export const spmoInitiativesTable = pgTable("spmo_initiatives", {
   startDate: date("start_date").notNull(),
   targetDate: date("target_date").notNull(),
   weight: real("weight").notNull().default(0),
+  budget: real("budget").notNull().default(0),
   status: text("status", {
     enum: ["active", "on_hold", "completed", "cancelled"],
   })
@@ -315,7 +316,7 @@ export const spmoBudgetTable = pgTable("spmo_budget_entries", {
   description: text("description"),
   allocated: real("allocated").notNull().default(0),
   spent: real("spent").notNull().default(0),
-  currency: text("currency").notNull().default("USD"),
+  currency: text("currency").notNull().default("SAR"),
   period: text("period").notNull(),
   fiscalYear: integer("fiscal_year"),
   fiscalQuarter: integer("fiscal_quarter"),
@@ -335,6 +336,73 @@ export const insertSpmoBudgetSchema = createInsertSchema(spmoBudgetTable).omit({
 });
 export type InsertSpmoBudget = z.infer<typeof insertSpmoBudgetSchema>;
 export type SpmoBudgetEntry = typeof spmoBudgetTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// PROCUREMENT
+// ─────────────────────────────────────────────
+export const spmoProcurementTable = pgTable("spmo_procurement", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .notNull()
+    .references(() => spmoProjectsTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  stage: text("stage", {
+    enum: ["rfp_draft", "rfp_issued", "evaluation", "awarded", "completed"],
+  })
+    .notNull()
+    .default("rfp_draft"),
+  vendor: text("vendor"),
+  contractValue: real("contract_value"),
+  currency: text("currency").notNull().default("SAR"),
+  notes: text("notes"),
+  awardDate: date("award_date"),
+  completionDate: date("completion_date"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const insertSpmoProcurementSchema = createInsertSchema(
+  spmoProcurementTable
+).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSpmoProcurement = z.infer<typeof insertSpmoProcurementSchema>;
+export type SpmoProcurement = typeof spmoProcurementTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// PROGRAMME CONFIG (singleton row id=1)
+// ─────────────────────────────────────────────
+export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
+  id: integer("id").primaryKey().default(1),
+  programmeName: text("programme_name").notNull().default("National Transformation Programme"),
+  vision: text("vision"),
+  mission: text("mission"),
+  reportingCurrency: text("reporting_currency").notNull().default("SAR"),
+  fiscalYearStart: integer("fiscal_year_start").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const insertSpmoProgrammeConfigSchema = createInsertSchema(
+  spmoProgrammeConfigTable
+).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSpmoProgrammeConfig = z.infer<typeof insertSpmoProgrammeConfigSchema>;
+export type SpmoProgrammeConfig = typeof spmoProgrammeConfigTable.$inferSelect;
 
 // ─────────────────────────────────────────────
 // ACTIVITY LOG

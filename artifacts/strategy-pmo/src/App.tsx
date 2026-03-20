@@ -8,13 +8,14 @@ import { AuthGuard } from "@/components/auth-guard";
 
 // Pages
 import Dashboard from "@/pages/dashboard";
-import Pillars from "@/pages/pillars";
-import Initiatives from "@/pages/initiatives";
+import StrategyMap from "@/pages/strategy-map";
 import Projects from "@/pages/projects";
 import ProgressProof from "@/pages/progress-proof";
 import KPIs from "@/pages/kpis";
-import Risks from "@/pages/risks";
+import OpKPIs from "@/pages/op-kpis";
 import Budget from "@/pages/budget";
+import Procurement from "@/pages/procurement";
+import Risks from "@/pages/risks";
 import Alerts from "@/pages/alerts";
 import ActivityLog from "@/pages/activity";
 
@@ -33,13 +34,14 @@ function Router() {
       <Layout>
         <Switch>
           <Route path="/" component={Dashboard} />
-          <Route path="/pillars" component={Pillars} />
-          <Route path="/initiatives" component={Initiatives} />
+          <Route path="/strategy-map" component={StrategyMap} />
           <Route path="/projects" component={Projects} />
           <Route path="/progress" component={ProgressProof} />
           <Route path="/kpis" component={KPIs} />
-          <Route path="/risks" component={Risks} />
+          <Route path="/op-kpis" component={OpKPIs} />
           <Route path="/budget" component={Budget} />
+          <Route path="/procurement" component={Procurement} />
+          <Route path="/risks" component={Risks} />
           <Route path="/alerts" component={Alerts} />
           <Route path="/activity" component={ActivityLog} />
           <Route component={NotFound} />

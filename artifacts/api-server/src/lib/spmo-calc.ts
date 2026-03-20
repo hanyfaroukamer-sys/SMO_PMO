@@ -35,8 +35,16 @@ function weightedAvg(items: { value: number; weight: number }[]): number {
   return Math.round((weighted / totalWeight) * 10) / 10;
 }
 
+// Simple average
+function simpleAvg(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sum = values.reduce((s, v) => s + v, 0);
+  return Math.round((sum / values.length) * 10) / 10;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Project-level progress from its milestones
+// Weight = effortDays (falls back to equal weight if all 0)
 // ─────────────────────────────────────────────────────────────
 async function projectProgress(projectId: number): Promise<{
   progress: number;
@@ -55,7 +63,7 @@ async function projectProgress(projectId: number): Promise<{
 
   const items = milestones.map((m) => ({
     value: milestoneEffectiveProgress(m),
-    weight: m.weight,
+    weight: m.effortDays ?? 0,
   }));
 
   const approved = milestones.filter((m) => m.status === "approved").length;
@@ -71,6 +79,7 @@ async function projectProgress(projectId: number): Promise<{
 
 // ─────────────────────────────────────────────────────────────
 // Initiative-level progress from its projects
+// Weight = project.budget (falls back to equal weight if all 0)
 // ─────────────────────────────────────────────────────────────
 async function initiativeProgress(initiativeId: number): Promise<{
   progress: number;
@@ -90,7 +99,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
   const projectStats = await Promise.all(
     projects.map(async (p) => {
       const s = await projectProgress(p.id);
-      return { value: s.progress, weight: p.weight, ...s };
+      return { value: s.progress, weight: p.budget ?? 0, ...s };
     })
   );
 
@@ -107,6 +116,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
 
 // ─────────────────────────────────────────────────────────────
 // Pillar-level progress from its initiatives
+// Weight = initiative.budget (falls back to equal weight if all 0)
 // ─────────────────────────────────────────────────────────────
 async function pillarProgress(pillarId: number): Promise<{
   progress: number;
@@ -135,7 +145,7 @@ async function pillarProgress(pillarId: number): Promise<{
   const initiativeStats = await Promise.all(
     initiatives.map(async (i) => {
       const s = await initiativeProgress(i.id);
-      return { value: s.progress, weight: i.weight, ...s };
+      return { value: s.progress, weight: i.budget ?? 0, ...s };
     })
   );
 
@@ -145,7 +155,6 @@ async function pillarProgress(pillarId: number): Promise<{
     .from(spmoProjectsTable)
     .where(inArray(spmoProjectsTable.initiativeId, projectIds));
 
-  // Get pending approvals (submitted milestones) for all projects in this pillar
   let pendingApprovals = 0;
   if (allProjects.length > 0) {
     const projectIdList = allProjects.map((p) => p.id);
@@ -171,7 +180,7 @@ async function pillarProgress(pillarId: number): Promise<{
 }
 
 // ─────────────────────────────────────────────────────────────
-// Programme-level progress from pillars
+// Programme-level progress = simple average across all pillars
 // ─────────────────────────────────────────────────────────────
 export async function calcProgrammeProgress(): Promise<{
   programmeProgress: number;
@@ -193,15 +202,15 @@ export async function calcProgrammeProgress(): Promise<{
   const pillarStats = await Promise.all(
     pillars.map(async (p) => {
       const s = await pillarProgress(p.id);
-      return { pillar: p, value: s.progress, weight: p.weight, ...s };
+      return { pillar: p, value: s.progress, ...s };
     })
   );
 
-  const programmeProgress = weightedAvg(pillarStats.map((p) => ({ value: p.value, weight: p.weight })));
+  const programmeProgress = simpleAvg(pillarStats.map((p) => p.value));
 
   return {
     programmeProgress,
-    pillarSummaries: pillarStats.map(({ value, weight, ...rest }) => ({
+    pillarSummaries: pillarStats.map(({ value, ...rest }) => ({
       ...rest,
       progress: value,
     })),

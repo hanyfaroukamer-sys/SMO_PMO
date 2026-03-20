@@ -9,192 +9,852 @@ import {
   spmoRisksTable,
   spmoMitigationsTable,
   spmoBudgetTable,
+  spmoProcurementTable,
+  spmoProgrammeConfigTable,
   spmoActivityLogTable,
 } from "@workspace/db";
 
-const SYSTEM_USER_ID = "seed-system";
+const SYS = "seed-system";
 
 async function seed() {
-  console.log("Seeding SPMO data...");
+  console.log("Seeding StrategyPMO data (prototype-exact)...");
 
   // ─────────────────────────────────────────────────────────────
-  // Pillars
+  // Programme Config
   // ─────────────────────────────────────────────────────────────
-  const [digitalPillar, economicPillar, socialPillar, infraPillar] =
-    await db
-      .insert(spmoPillarsTable)
-      .values([
-        { name: "Digital Transformation", description: "Modernise government services through digital technology and data-driven decision making.", weight: 30, color: "#6366f1", iconName: "Monitor", sortOrder: 1 },
-        { name: "Economic Development", description: "Foster inclusive economic growth, entrepreneurship, and employment across all regions.", weight: 25, color: "#f59e0b", iconName: "TrendingUp", sortOrder: 2 },
-        { name: "Social Welfare & Inclusion", description: "Strengthen social protection systems and promote equitable access to public services.", weight: 25, color: "#10b981", iconName: "Heart", sortOrder: 3 },
-        { name: "Infrastructure & Resilience", description: "Build and maintain modern, climate-resilient infrastructure for sustainable development.", weight: 20, color: "#3b82f6", iconName: "Building2", sortOrder: 4 },
-      ])
-      .returning();
+  await db
+    .insert(spmoProgrammeConfigTable)
+    .values({
+      id: 1,
+      programmeName: "National Transformation Programme",
+      vision: "To become a leading digital government that delivers world-class services to all citizens and residents.",
+      mission: "Drive transformation across all strategic pillars through evidence-based programme management, innovation, and accountability.",
+      reportingCurrency: "SAR",
+      fiscalYearStart: 1,
+    })
+    .onConflictDoNothing();
 
   // ─────────────────────────────────────────────────────────────
-  // Initiatives
+  // Pillars (prototype-exact)
   // ─────────────────────────────────────────────────────────────
-  const [eGovInit, dataInit, openGovInit] = await db
-    .insert(spmoInitiativesTable)
+  const [p1, p2, p3, p4] = await db
+    .insert(spmoPillarsTable)
     .values([
-      { pillarId: digitalPillar.id, name: "e-Government Services Portal", description: "Unified citizen portal for all government digital services with single sign-on.", ownerId: SYSTEM_USER_ID, ownerName: "Sarah Al-Rashid", weight: 40, status: "active", startDate: "2025-01-01", targetDate: "2026-06-30", sortOrder: 1 },
-      { pillarId: digitalPillar.id, name: "National Data Platform", description: "Centralised open data platform enabling cross-ministry data sharing and analytics.", ownerId: SYSTEM_USER_ID, ownerName: "Ahmed Khalil", weight: 35, status: "active", startDate: "2025-03-01", targetDate: "2026-12-31", sortOrder: 2 },
-      { pillarId: digitalPillar.id, name: "Open Government Partnership", description: "Transparency and accountability initiative under the OGP framework.", ownerId: SYSTEM_USER_ID, ownerName: "Nour Hassan", weight: 25, status: "active", startDate: "2025-06-01", targetDate: "2026-12-31", sortOrder: 3 },
+      {
+        name: "Digital Excellence",
+        description: "Transform government operations through advanced digital technologies, AI-driven services, and smart infrastructure.",
+        weight: 25,
+        color: "#2563EB",
+        iconName: "Cpu",
+        sortOrder: 1,
+      },
+      {
+        name: "Operational Efficiency",
+        description: "Streamline government processes, modernise enterprise systems, and maximise productivity across all departments.",
+        weight: 25,
+        color: "#7C3AED",
+        iconName: "Settings",
+        sortOrder: 2,
+      },
+      {
+        name: "Customer Experience",
+        description: "Deliver seamless, citizen-centric services that exceed expectations across all digital and physical touchpoints.",
+        weight: 25,
+        color: "#E8590C",
+        iconName: "Users",
+        sortOrder: 3,
+      },
+      {
+        name: "Sustainability",
+        description: "Advance environmental and social sustainability goals through green technology adoption and responsible operations.",
+        weight: 25,
+        color: "#0D9488",
+        iconName: "Leaf",
+        sortOrder: 4,
+      },
     ])
     .returning();
 
-  const [smeInit, tradeInit] = await db
+  // ─────────────────────────────────────────────────────────────
+  // Initiatives (6, prototype-exact)
+  // ─────────────────────────────────────────────────────────────
+  const [iTraffic, iAnalytics] = await db
     .insert(spmoInitiativesTable)
     .values([
-      { pillarId: economicPillar.id, name: "SME Development Programme", description: "Accelerate SME growth through financing, mentorship, and market access support.", ownerId: SYSTEM_USER_ID, ownerName: "Khalid Mansour", weight: 55, status: "active", startDate: "2025-01-15", targetDate: "2026-12-31", sortOrder: 1 },
-      { pillarId: economicPillar.id, name: "Export Facilitation Initiative", description: "Streamline export procedures and expand access to international markets.", ownerId: SYSTEM_USER_ID, ownerName: "Fatima Al-Zahra", weight: 45, status: "active", startDate: "2025-04-01", targetDate: "2026-09-30", sortOrder: 2 },
+      {
+        pillarId: p1.id,
+        name: "Smart Traffic Management",
+        description: "Deploy AI-powered traffic management systems across the capital and major cities to reduce congestion by 40%.",
+        ownerId: SYS,
+        ownerName: "Ahmed Al-Rashid",
+        budget: 450000000,
+        weight: 75,
+        status: "active",
+        startDate: "2024-01-01",
+        targetDate: "2026-12-31",
+        sortOrder: 1,
+      },
+      {
+        pillarId: p1.id,
+        name: "Analytics Centre of Excellence",
+        description: "Establish a world-class analytics centre providing data intelligence and AI capabilities across all government entities.",
+        ownerId: SYS,
+        ownerName: "Omar Al-Sheikh",
+        budget: 150000000,
+        weight: 25,
+        status: "active",
+        startDate: "2024-06-01",
+        targetDate: "2026-06-30",
+        sortOrder: 2,
+      },
     ])
     .returning();
 
-  const [healthInit, edInit] = await db
+  const [iErp] = await db
     .insert(spmoInitiativesTable)
     .values([
-      { pillarId: socialPillar.id, name: "Universal Health Coverage", description: "Expand healthcare access to underserved communities through mobile clinics and telemedicine.", ownerId: SYSTEM_USER_ID, ownerName: "Dr. Laila Hussain", weight: 60, status: "active", startDate: "2025-01-01", targetDate: "2026-12-31", sortOrder: 1 },
-      { pillarId: socialPillar.id, name: "Education Equity Programme", description: "Bridge the education gap through targeted scholarships and digital learning tools.", ownerId: SYSTEM_USER_ID, ownerName: "Omar Farouk", weight: 40, status: "active", startDate: "2025-02-01", targetDate: "2026-11-30", sortOrder: 2 },
+      {
+        pillarId: p2.id,
+        name: "ERP Modernisation",
+        description: "Replace legacy enterprise systems with an integrated cloud ERP platform covering Finance, HR, and Procurement.",
+        ownerId: SYS,
+        ownerName: "Fatima Al-Harbi",
+        budget: 380000000,
+        weight: 100,
+        status: "active",
+        startDate: "2024-03-01",
+        targetDate: "2026-09-30",
+        sortOrder: 1,
+      },
     ])
     .returning();
 
-  const [roadInit] = await db
+  const [iPortal] = await db
     .insert(spmoInitiativesTable)
     .values([
-      { pillarId: infraPillar.id, name: "Rural Connectivity Programme", description: "Upgrade road networks and broadband connectivity in rural and remote regions.", ownerId: SYSTEM_USER_ID, ownerName: "Eng. Hassan Nour", weight: 100, status: "active", startDate: "2025-01-01", targetDate: "2027-06-30", sortOrder: 1 },
+      {
+        pillarId: p3.id,
+        name: "Customer Portal Redesign",
+        description: "Redesign the national citizen portal with UX-first approach, mobile app, and AI-powered self-service capabilities.",
+        ownerId: SYS,
+        ownerName: "Sara Al-Mutairi",
+        budget: 280000000,
+        weight: 100,
+        status: "active",
+        startDate: "2024-02-01",
+        targetDate: "2026-03-31",
+        sortOrder: 1,
+      },
+    ])
+    .returning();
+
+  const [iFleet, iRoadSafety] = await db
+    .insert(spmoInitiativesTable)
+    .values([
+      {
+        pillarId: p4.id,
+        name: "Fleet Electrification",
+        description: "Transition 100% of the government vehicle fleet to electric vehicles with supporting charging infrastructure.",
+        ownerId: SYS,
+        ownerName: "Khalid Al-Zahrani",
+        budget: 620000000,
+        weight: 75,
+        status: "active",
+        startDate: "2024-01-01",
+        targetDate: "2027-12-31",
+        sortOrder: 1,
+      },
+      {
+        pillarId: p4.id,
+        name: "Road Safety Programme",
+        description: "Reduce road fatalities by 50% through AI speed enforcement, road engineering improvements, and public awareness.",
+        ownerId: SYS,
+        ownerName: "Nora Al-Dosari",
+        budget: 200000000,
+        weight: 25,
+        status: "active",
+        startDate: "2024-04-01",
+        targetDate: "2026-12-31",
+        sortOrder: 2,
+      },
     ])
     .returning();
 
   // ─────────────────────────────────────────────────────────────
-  // Projects
+  // Projects (14 total)
   // ─────────────────────────────────────────────────────────────
-  const projects = await db
+
+  // Smart Traffic Management (3 projects)
+  const [pSignals, pIot, pTmc] = await db
     .insert(spmoProjectsTable)
     .values([
-      // e-Gov
-      { initiativeId: eGovInit.id, name: "Citizen Identity Module", description: "Single digital identity system with biometric authentication.", ownerId: SYSTEM_USER_ID, ownerName: "Rania Ibrahim", weight: 50, status: "active", budget: 2500000, startDate: "2025-01-01", targetDate: "2025-12-31" },
-      { initiativeId: eGovInit.id, name: "Payment Gateway Integration", description: "Secure, unified payment system for all government service fees.", ownerId: SYSTEM_USER_ID, ownerName: "Youssef Malik", weight: 50, status: "active", budget: 1800000, startDate: "2025-03-01", targetDate: "2025-11-30" },
-      // Data Platform
-      { initiativeId: dataInit.id, name: "Ministry Data Connectors", description: "API integrations connecting all 15 ministries to the central data platform.", ownerId: SYSTEM_USER_ID, ownerName: "Dina Khoury", weight: 60, status: "active", budget: 3200000, startDate: "2025-03-01", targetDate: "2026-03-31" },
-      { initiativeId: dataInit.id, name: "Data Analytics Dashboard", description: "Real-time executive dashboard for programme and KPI monitoring.", ownerId: SYSTEM_USER_ID, ownerName: "Kareem Salah", weight: 40, status: "active", budget: 900000, startDate: "2025-06-01", targetDate: "2026-06-30" },
-      // SME
-      { initiativeId: smeInit.id, name: "SME Loan Guarantee Scheme", description: "Government-backed loan guarantees enabling SME access to capital.", ownerId: SYSTEM_USER_ID, ownerName: "Maha Salim", weight: 60, status: "active", budget: 15000000, startDate: "2025-02-01", targetDate: "2026-06-30" },
-      { initiativeId: smeInit.id, name: "Entrepreneurship Training Hub", description: "National network of business incubators providing training and mentorship.", ownerId: SYSTEM_USER_ID, ownerName: "Bilal Qasim", weight: 40, status: "active", budget: 4200000, startDate: "2025-04-01", targetDate: "2026-12-31" },
-      // Health
-      { initiativeId: healthInit.id, name: "Mobile Medical Units Deployment", description: "Deploy 50 mobile clinics to underserved rural districts by end of 2025.", ownerId: SYSTEM_USER_ID, ownerName: "Dr. Samira Wahbi", weight: 55, status: "active", budget: 8500000, startDate: "2025-01-01", targetDate: "2025-10-31" },
-      { initiativeId: healthInit.id, name: "Telemedicine Platform", description: "Digital health consultation platform connecting patients with specialists nationwide.", ownerId: SYSTEM_USER_ID, ownerName: "Dr. Tarek Abdel", weight: 45, status: "active", budget: 2100000, startDate: "2025-04-01", targetDate: "2026-04-30" },
-      // Infrastructure
-      { initiativeId: roadInit.id, name: "Northern Highway Phase I", description: "450km of upgraded highway linking northern provinces to the capital.", ownerId: SYSTEM_USER_ID, ownerName: "Eng. Walid Nassar", weight: 65, status: "active", budget: 95000000, startDate: "2025-01-01", targetDate: "2026-12-31" },
-      { initiativeId: roadInit.id, name: "Rural Broadband Expansion", description: "Fibre optic and 5G rollout to 800 rural settlements.", ownerId: SYSTEM_USER_ID, ownerName: "Eng. Lina Barakat", weight: 35, status: "active", budget: 28000000, startDate: "2025-03-01", targetDate: "2027-03-31" },
+      {
+        initiativeId: iTraffic.id,
+        name: "Traffic Signal Upgrade",
+        description: "Replace 2,400 traffic signals with AI-adaptive systems capable of real-time flow optimisation.",
+        ownerId: SYS,
+        ownerName: "Hassan Al-Qahtani",
+        weight: 40,
+        budget: 180000000,
+        budgetSpent: 127500000,
+        status: "active",
+        startDate: "2024-01-15",
+        targetDate: "2026-01-31",
+      },
+      {
+        initiativeId: iTraffic.id,
+        name: "IoT Sensors Deployment",
+        description: "Install 12,000 traffic sensors across arterial roads and intersections for real-time data collection.",
+        ownerId: SYS,
+        ownerName: "Reem Al-Dosari",
+        weight: 33,
+        budget: 150000000,
+        budgetSpent: 88200000,
+        status: "active",
+        startDate: "2024-03-01",
+        targetDate: "2025-12-31",
+      },
+      {
+        initiativeId: iTraffic.id,
+        name: "Traffic Management Centre",
+        description: "Build and operate a centralised traffic management centre with AI command and control capabilities.",
+        ownerId: SYS,
+        ownerName: "Tariq Al-Ghamdi",
+        weight: 27,
+        budget: 120000000,
+        budgetSpent: 54000000,
+        status: "active",
+        startDate: "2024-06-01",
+        targetDate: "2026-12-31",
+      },
     ])
     .returning();
 
-  const [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9] = projects;
+  // Analytics CoE (2 projects)
+  const [pDataLake, pBiPlatform] = await db
+    .insert(spmoProjectsTable)
+    .values([
+      {
+        initiativeId: iAnalytics.id,
+        name: "Government Data Lake",
+        description: "Build a unified data lake aggregating structured and unstructured data from all 32 government entities.",
+        ownerId: SYS,
+        ownerName: "Layla Al-Shammari",
+        weight: 60,
+        budget: 90000000,
+        budgetSpent: 41400000,
+        status: "active",
+        startDate: "2024-06-01",
+        targetDate: "2026-06-30",
+      },
+      {
+        initiativeId: iAnalytics.id,
+        name: "BI Dashboard Platform",
+        description: "Deploy enterprise BI platform with executive dashboards, predictive analytics, and self-service reporting.",
+        ownerId: SYS,
+        ownerName: "Faisal Al-Otaibi",
+        weight: 40,
+        budget: 60000000,
+        budgetSpent: 21600000,
+        status: "active",
+        startDate: "2024-09-01",
+        targetDate: "2026-06-30",
+      },
+    ])
+    .returning();
+
+  // ERP Modernisation (3 projects)
+  const [pFinance, pHr, pProcMod] = await db
+    .insert(spmoProjectsTable)
+    .values([
+      {
+        initiativeId: iErp.id,
+        name: "Finance Module Implementation",
+        description: "Implement cloud-based financial management covering budgeting, accounts, treasury, and reporting.",
+        ownerId: SYS,
+        ownerName: "Mona Al-Zahrani",
+        weight: 42,
+        budget: 160000000,
+        budgetSpent: 112000000,
+        status: "active",
+        startDate: "2024-03-01",
+        targetDate: "2025-12-31",
+      },
+      {
+        initiativeId: iErp.id,
+        name: "HR & Payroll Module",
+        description: "Deploy integrated HR, talent management, and payroll system for 45,000 government employees.",
+        ownerId: SYS,
+        ownerName: "Saleh Al-Mutairi",
+        weight: 32,
+        budget: 120000000,
+        budgetSpent: 66000000,
+        status: "active",
+        startDate: "2024-06-01",
+        targetDate: "2026-03-31",
+      },
+      {
+        initiativeId: iErp.id,
+        name: "Procurement & Contracts Module",
+        description: "End-to-end electronic procurement platform covering sourcing, contracts, and supplier management.",
+        ownerId: SYS,
+        ownerName: "Dana Al-Harbi",
+        weight: 26,
+        budget: 100000000,
+        budgetSpent: 28000000,
+        status: "active",
+        startDate: "2024-09-01",
+        targetDate: "2026-09-30",
+      },
+    ])
+    .returning();
+
+  // Customer Portal (2 projects)
+  const [pPortalUx, pMobileApp] = await db
+    .insert(spmoProjectsTable)
+    .values([
+      {
+        initiativeId: iPortal.id,
+        name: "Portal UX & Backend Redesign",
+        description: "Redesign the citizen portal with accessible UI, personalised dashboards, and 200+ integrated services.",
+        ownerId: SYS,
+        ownerName: "Amal Al-Rashidi",
+        weight: 50,
+        budget: 140000000,
+        budgetSpent: 91000000,
+        status: "active",
+        startDate: "2024-02-01",
+        targetDate: "2025-12-31",
+      },
+      {
+        initiativeId: iPortal.id,
+        name: "National Mobile App",
+        description: "Launch iOS and Android super-app for government services with biometric authentication and push notifications.",
+        ownerId: SYS,
+        ownerName: "Yazeed Al-Qahtani",
+        weight: 50,
+        budget: 140000000,
+        budgetSpent: 49000000,
+        status: "active",
+        startDate: "2024-05-01",
+        targetDate: "2026-03-31",
+      },
+    ])
+    .returning();
+
+  // Fleet Electrification (2 projects)
+  const [pEvFleet, pCharging] = await db
+    .insert(spmoProjectsTable)
+    .values([
+      {
+        initiativeId: iFleet.id,
+        name: "EV Fleet Procurement",
+        description: "Procure and deploy 8,500 electric vehicles across all government ministries and agencies.",
+        ownerId: SYS,
+        ownerName: "Sultan Al-Anzi",
+        weight: 60,
+        budget: 420000000,
+        budgetSpent: 231000000,
+        status: "active",
+        startDate: "2024-01-01",
+        targetDate: "2027-06-30",
+      },
+      {
+        initiativeId: iFleet.id,
+        name: "Charging Infrastructure Network",
+        description: "Install 1,200 EV charging stations at government facilities, parking areas, and public locations.",
+        ownerId: SYS,
+        ownerName: "Noura Al-Subaie",
+        weight: 40,
+        budget: 200000000,
+        budgetSpent: 72000000,
+        status: "active",
+        startDate: "2024-04-01",
+        targetDate: "2027-06-30",
+      },
+    ])
+    .returning();
+
+  // Road Safety (2 projects)
+  const [pCameras, pRoadEng] = await db
+    .insert(spmoProjectsTable)
+    .values([
+      {
+        initiativeId: iRoadSafety.id,
+        name: "AI Speed Camera Network",
+        description: "Deploy 800 AI-powered speed and behaviour cameras on high-risk roads with automated penalty issuance.",
+        ownerId: SYS,
+        ownerName: "Abdulrahman Al-Dosari",
+        weight: 55,
+        budget: 110000000,
+        budgetSpent: 55000000,
+        status: "active",
+        startDate: "2024-04-01",
+        targetDate: "2026-06-30",
+      },
+      {
+        initiativeId: iRoadSafety.id,
+        name: "Road Engineering Improvements",
+        description: "Upgrade 450 high-accident black spots with improved geometry, signage, barriers, and pedestrian crossings.",
+        ownerId: SYS,
+        ownerName: "Hessa Al-Maliki",
+        weight: 45,
+        budget: 90000000,
+        budgetSpent: 31500000,
+        status: "active",
+        startDate: "2024-07-01",
+        targetDate: "2026-12-31",
+      },
+    ])
+    .returning();
 
   // ─────────────────────────────────────────────────────────────
-  // Milestones
+  // Milestones (45 total, ~3 per project)
   // ─────────────────────────────────────────────────────────────
   const milestones = await db
     .insert(spmoMilestonesTable)
     .values([
-      // Citizen Identity Module - p0
-      { projectId: p0.id, name: "Requirements & Architecture Sign-off", weight: 20, progress: 100, status: "approved", approvedAt: new Date("2025-02-15"), dueDate: "2025-02-28", approvedById: SYSTEM_USER_ID, description: "Finalise technical requirements and system architecture." },
-      { projectId: p0.id, name: "Biometric Pilot (500 users)", weight: 30, progress: 100, status: "approved", approvedAt: new Date("2025-05-10"), dueDate: "2025-05-31", approvedById: SYSTEM_USER_ID, description: "Conduct biometric enrolment pilot with 500 volunteer citizens." },
-      { projectId: p0.id, name: "National Rollout Phase 1 (1M users)", weight: 30, progress: 68, status: "in_progress", dueDate: "2025-09-30", description: "Roll out biometric identity to first 1 million citizens." },
-      { projectId: p0.id, name: "System Audit & Security Certification", weight: 20, progress: 0, status: "not_started", dueDate: "2025-12-15", description: "Independent security audit and ISO 27001 certification." },
-      // Payment Gateway - p1
-      { projectId: p1.id, name: "Bank Integration Agreements", weight: 25, progress: 100, status: "approved", approvedAt: new Date("2025-04-20"), dueDate: "2025-04-30", approvedById: SYSTEM_USER_ID, description: "Signed MoUs with all 12 partner banks." },
-      { projectId: p1.id, name: "Payment API Development", weight: 35, progress: 100, status: "submitted", submittedAt: new Date("2025-07-01"), dueDate: "2025-07-15", description: "Complete development of the unified payment REST API." },
-      { projectId: p1.id, name: "UAT & Load Testing", weight: 25, progress: 30, status: "in_progress", dueDate: "2025-09-30", description: "User acceptance testing and load testing (10K TPS)." },
-      { projectId: p1.id, name: "Production Go-Live", weight: 15, progress: 0, status: "not_started", dueDate: "2025-11-15", description: "Go-live with all government service fee collections." },
-      // Ministry Data Connectors - p2
-      { projectId: p2.id, name: "API Standards Framework Published", weight: 20, progress: 100, status: "approved", approvedAt: new Date("2025-04-30"), dueDate: "2025-04-30", approvedById: SYSTEM_USER_ID, description: "Publish open API standards for all ministries." },
-      { projectId: p2.id, name: "First 5 Ministries Connected", weight: 35, progress: 100, status: "submitted", submittedAt: new Date("2025-07-10"), dueDate: "2025-07-31", description: "Live API integrations for Finance, Health, Education, Interior, Justice." },
-      { projectId: p2.id, name: "Remaining 10 Ministries Connected", weight: 45, progress: 40, status: "in_progress", dueDate: "2026-01-31", description: "Complete integration for remaining ministries." },
-      // SME Loan Guarantee - p4
-      { projectId: p4.id, name: "Programme Framework & Legal Gazette", weight: 15, progress: 100, status: "approved", approvedAt: new Date("2025-03-15"), dueDate: "2025-03-31", approvedById: SYSTEM_USER_ID, description: "Publish programme framework and gazette legal basis." },
-      { projectId: p4.id, name: "Partner Bank Onboarding (8 banks)", weight: 25, progress: 100, status: "approved", approvedAt: new Date("2025-05-31"), dueDate: "2025-05-31", approvedById: SYSTEM_USER_ID, description: "8 commercial banks enrolled as lending partners." },
-      { projectId: p4.id, name: "First 1,000 Loans Guaranteed", weight: 40, progress: 72, status: "in_progress", dueDate: "2025-12-31", description: "Guarantee 1,000 SME loans totalling $30M." },
-      { projectId: p4.id, name: "Impact Assessment Report", weight: 20, progress: 5, status: "in_progress", dueDate: "2026-03-31", description: "Independent impact assessment of SME loan outcomes." },
-      // Mobile Medical Units - p6
-      { projectId: p6.id, name: "Vehicle Procurement & Equipping (50 units)", weight: 30, progress: 100, status: "approved", approvedAt: new Date("2025-03-31"), dueDate: "2025-03-31", approvedById: SYSTEM_USER_ID, description: "Procure and fully equip 50 mobile medical units." },
-      { projectId: p6.id, name: "Medical Staff Recruitment & Training", weight: 30, progress: 100, status: "approved", approvedAt: new Date("2025-05-15"), dueDate: "2025-05-31", approvedById: SYSTEM_USER_ID, description: "Recruit and train 200 medical staff for mobile units." },
-      { projectId: p6.id, name: "District Deployment (30 districts)", weight: 40, progress: 85, status: "submitted", submittedAt: new Date("2025-08-01"), dueDate: "2025-08-31", description: "Deploy units across 30 prioritised rural districts." },
-      // Northern Highway - p8
-      { projectId: p8.id, name: "Environmental & Social Impact Assessment", weight: 10, progress: 100, status: "approved", approvedAt: new Date("2025-02-28"), dueDate: "2025-02-28", approvedById: SYSTEM_USER_ID, description: "Complete ESIA with public consultation." },
-      { projectId: p8.id, name: "Land Acquisition (Phase 1)", weight: 20, progress: 100, status: "submitted", submittedAt: new Date("2025-06-30"), dueDate: "2025-06-30", description: "Acquire all land parcels for Phase 1 route." },
-      { projectId: p8.id, name: "Base Layer Construction (km 0–150)", weight: 35, progress: 55, status: "in_progress", dueDate: "2025-12-31", description: "Complete road base layer for first 150km stretch." },
-      { projectId: p8.id, name: "Surfacing & Signage (km 0–150)", weight: 35, progress: 0, status: "not_started", dueDate: "2026-06-30", description: "Apply final surface layer and install road signage." },
+      // Traffic Signal Upgrade (pSignals) — 3
+      { projectId: pSignals.id, name: "Signal Audit & Design Freeze", effortDays: 30, progress: 100, status: "approved", approvedAt: new Date("2024-04-30"), approvedById: SYS, dueDate: "2024-04-30", description: "Complete audit of 2,400 signal locations and freeze the design specification." },
+      { projectId: pSignals.id, name: "Batch 1 Installation (800 signals)", effortDays: 90, progress: 100, status: "approved", approvedAt: new Date("2024-11-30"), approvedById: SYS, dueDate: "2024-11-30", description: "Install and commission first 800 AI-adaptive signals." },
+      { projectId: pSignals.id, name: "Batch 2 Installation (800 signals)", effortDays: 90, progress: 72, status: "in_progress", dueDate: "2025-06-30", description: "Install and commission second batch of 800 signals." },
+      { projectId: pSignals.id, name: "Batch 3 Installation (800 signals)", effortDays: 90, progress: 0, status: "pending", dueDate: "2025-12-31", description: "Install and commission final 800 signals." },
+      { projectId: pSignals.id, name: "System Integration & Go-Live", effortDays: 45, progress: 0, status: "pending", dueDate: "2026-01-31", description: "Full system integration with TMC and performance validation." },
+
+      // IoT Sensors (pIot) — 3
+      { projectId: pIot.id, name: "Sensor Technology Procurement", effortDays: 45, progress: 100, status: "approved", approvedAt: new Date("2024-05-31"), approvedById: SYS, dueDate: "2024-05-31", description: "Award contract and procure 12,000 IoT traffic sensors." },
+      { projectId: pIot.id, name: "Phase 1 Installation (4,000 sensors)", effortDays: 75, progress: 100, status: "submitted", submittedAt: new Date("2024-12-15"), dueDate: "2024-12-31", description: "Install first 4,000 sensors on primary arterial roads." },
+      { projectId: pIot.id, name: "Phase 2 Installation (8,000 sensors)", effortDays: 75, progress: 38, status: "in_progress", dueDate: "2025-09-30", description: "Install remaining 8,000 sensors on secondary roads." },
+      { projectId: pIot.id, name: "Data Platform Integration", effortDays: 30, progress: 0, status: "pending", dueDate: "2025-12-31", description: "Connect all sensor data feeds to the central analytics platform." },
+
+      // Traffic Management Centre (pTmc) — 3
+      { projectId: pTmc.id, name: "Facility & Infrastructure Design", effortDays: 60, progress: 100, status: "approved", approvedAt: new Date("2024-09-30"), approvedById: SYS, dueDate: "2024-09-30", description: "Complete architectural and technical design for the TMC facility." },
+      { projectId: pTmc.id, name: "Construction & Fit-Out", effortDays: 120, progress: 65, status: "in_progress", dueDate: "2025-09-30", description: "Complete construction and equipment fit-out of the TMC." },
+      { projectId: pTmc.id, name: "Systems Integration & Staff Training", effortDays: 45, progress: 0, status: "pending", dueDate: "2026-06-30", description: "Integrate all traffic systems and train 120 operators." },
+      { projectId: pTmc.id, name: "Operational Acceptance", effortDays: 30, progress: 0, status: "pending", dueDate: "2026-12-31", description: "Formal acceptance testing and 24/7 operations handover." },
+
+      // Government Data Lake (pDataLake) — 3
+      { projectId: pDataLake.id, name: "Architecture Design & Cloud Provisioning", effortDays: 45, progress: 100, status: "approved", approvedAt: new Date("2024-09-30"), approvedById: SYS, dueDate: "2024-09-30", description: "Design data lake architecture and provision cloud infrastructure." },
+      { projectId: pDataLake.id, name: "Phase 1 Ingestion (12 entities)", effortDays: 75, progress: 100, status: "submitted", submittedAt: new Date("2025-01-15"), dueDate: "2025-01-31", description: "Connect and ingest data from first 12 government entities." },
+      { projectId: pDataLake.id, name: "Phase 2 Ingestion (20 entities)", effortDays: 75, progress: 45, status: "in_progress", dueDate: "2025-09-30", description: "Connect remaining 20 entities and validate data quality." },
+      { projectId: pDataLake.id, name: "Data Catalogue & Governance Framework", effortDays: 30, progress: 0, status: "pending", dueDate: "2026-06-30", description: "Publish data catalogue and implement data governance policies." },
+
+      // BI Dashboard Platform (pBiPlatform) — 3
+      { projectId: pBiPlatform.id, name: "Platform Selection & Licensing", effortDays: 30, progress: 100, status: "approved", approvedAt: new Date("2024-11-30"), approvedById: SYS, dueDate: "2024-11-30", description: "Select BI platform vendor and negotiate enterprise licensing." },
+      { projectId: pBiPlatform.id, name: "Core Dashboards Development", effortDays: 75, progress: 55, status: "in_progress", dueDate: "2025-09-30", description: "Build executive and operational dashboards for 15 ministries." },
+      { projectId: pBiPlatform.id, name: "Self-Service Analytics Rollout", effortDays: 45, progress: 0, status: "pending", dueDate: "2026-06-30", description: "Enable self-service analytics for 2,000 analysts across government." },
+
+      // Finance Module (pFinance) — 3
+      { projectId: pFinance.id, name: "System Design & Configuration", effortDays: 60, progress: 100, status: "approved", approvedAt: new Date("2024-06-30"), approvedById: SYS, dueDate: "2024-06-30", description: "Complete system configuration and parallel run planning." },
+      { projectId: pFinance.id, name: "Data Migration & UAT", effortDays: 90, progress: 100, status: "submitted", submittedAt: new Date("2024-12-20"), dueDate: "2024-12-31", description: "Migrate 8 years of financial data and complete user acceptance testing." },
+      { projectId: pFinance.id, name: "Go-Live & Stabilisation", effortDays: 60, progress: 82, status: "in_progress", dueDate: "2025-09-30", description: "Go-live with all financial modules and complete hypercare period." },
+      { projectId: pFinance.id, name: "Advanced Reporting & Analytics", effortDays: 45, progress: 15, status: "in_progress", dueDate: "2025-12-31", description: "Implement advanced financial reporting and predictive analytics." },
+
+      // HR & Payroll (pHr) — 3
+      { projectId: pHr.id, name: "HR Requirements & Configuration", effortDays: 60, progress: 100, status: "approved", approvedAt: new Date("2024-10-31"), approvedById: SYS, dueDate: "2024-10-31", description: "Document HR processes and complete system configuration for 45,000 employees." },
+      { projectId: pHr.id, name: "Employee Data Migration", effortDays: 45, progress: 68, status: "in_progress", dueDate: "2025-06-30", description: "Migrate all employee records, leave history, and payroll data." },
+      { projectId: pHr.id, name: "Payroll Parallel Run & Go-Live", effortDays: 60, progress: 0, status: "pending", dueDate: "2026-03-31", description: "Run payroll in parallel for 3 months then go-live." },
+
+      // Procurement Module (pProcMod) — 3
+      { projectId: pProcMod.id, name: "Process Design & Vendor Registration", effortDays: 45, progress: 100, status: "approved", approvedAt: new Date("2025-01-31"), approvedById: SYS, dueDate: "2025-01-31", description: "Design e-procurement processes and migrate 3,200 supplier records." },
+      { projectId: pProcMod.id, name: "E-Tendering Module Go-Live", effortDays: 75, progress: 30, status: "in_progress", dueDate: "2025-12-31", description: "Launch electronic tendering for all procurement above SAR 100,000." },
+      { projectId: pProcMod.id, name: "Contract Management Integration", effortDays: 45, progress: 0, status: "pending", dueDate: "2026-09-30", description: "Integrate contract lifecycle management with finance and HR systems." },
+
+      // Portal UX (pPortalUx) — 3
+      { projectId: pPortalUx.id, name: "UX Research & Design System", effortDays: 45, progress: 100, status: "approved", approvedAt: new Date("2024-05-31"), approvedById: SYS, dueDate: "2024-05-31", description: "Complete user research with 5,000 citizens and publish the national design system." },
+      { projectId: pPortalUx.id, name: "Core Services Migration (100 services)", effortDays: 90, progress: 100, status: "submitted", submittedAt: new Date("2024-12-10"), dueDate: "2024-12-31", description: "Migrate 100 priority government services to the new portal." },
+      { projectId: pPortalUx.id, name: "Remaining Services & AI Self-Service", effortDays: 90, progress: 48, status: "in_progress", dueDate: "2025-12-31", description: "Migrate remaining 100+ services and launch AI chatbot." },
+
+      // Mobile App (pMobileApp) — 3
+      { projectId: pMobileApp.id, name: "App Architecture & Design", effortDays: 45, progress: 100, status: "approved", approvedAt: new Date("2024-08-31"), approvedById: SYS, dueDate: "2024-08-31", description: "Complete app architecture, UI/UX design, and security framework." },
+      { projectId: pMobileApp.id, name: "Beta Launch & User Testing", effortDays: 60, progress: 75, status: "in_progress", dueDate: "2025-06-30", description: "Release beta app with 50 services to 100,000 pilot users." },
+      { projectId: pMobileApp.id, name: "Full Production Launch", effortDays: 45, progress: 0, status: "pending", dueDate: "2026-03-31", description: "Full production launch with all services and marketing campaign." },
+
+      // EV Fleet (pEvFleet) — 3
+      { projectId: pEvFleet.id, name: "Fleet Assessment & Procurement Framework", effortDays: 45, progress: 100, status: "approved", approvedAt: new Date("2024-04-30"), approvedById: SYS, dueDate: "2024-04-30", description: "Assess current fleet and establish EV procurement framework and standards." },
+      { projectId: pEvFleet.id, name: "Phase 1 Delivery (2,500 EVs)", effortDays: 90, progress: 100, status: "submitted", submittedAt: new Date("2024-12-31"), dueDate: "2024-12-31", description: "Deliver and register first 2,500 electric vehicles to priority ministries." },
+      { projectId: pEvFleet.id, name: "Phase 2 Delivery (3,000 EVs)", effortDays: 90, progress: 55, status: "in_progress", dueDate: "2025-12-31", description: "Deliver second batch of 3,000 EVs to remaining agencies." },
+      { projectId: pEvFleet.id, name: "Phase 3 Delivery (3,000 EVs)", effortDays: 90, progress: 0, status: "pending", dueDate: "2027-06-30", description: "Final delivery completing 100% fleet electrification." },
+
+      // Charging Infrastructure (pCharging) — 3
+      { projectId: pCharging.id, name: "Site Survey & Design", effortDays: 30, progress: 100, status: "approved", approvedAt: new Date("2024-06-30"), approvedById: SYS, dueDate: "2024-06-30", description: "Survey all 300 government facility sites and complete charging station design." },
+      { projectId: pCharging.id, name: "Phase 1 Installation (400 stations)", effortDays: 75, progress: 78, status: "in_progress", dueDate: "2025-06-30", description: "Install first 400 charging stations at priority government locations." },
+      { projectId: pCharging.id, name: "Phase 2 Installation (800 stations)", effortDays: 75, progress: 0, status: "pending", dueDate: "2026-12-31", description: "Complete installation of remaining 800 stations." },
+      { projectId: pCharging.id, name: "Smart Grid Integration", effortDays: 30, progress: 0, status: "pending", dueDate: "2027-06-30", description: "Integrate all stations with smart grid for demand management." },
+
+      // AI Speed Cameras (pCameras) — 2
+      { projectId: pCameras.id, name: "Camera Procurement & Site Preparation", effortDays: 45, progress: 100, status: "approved", approvedAt: new Date("2024-09-30"), approvedById: SYS, dueDate: "2024-09-30", description: "Procure 800 AI cameras and prepare installation sites." },
+      { projectId: pCameras.id, name: "Installation & Live Enforcement", effortDays: 90, progress: 50, status: "in_progress", dueDate: "2025-09-30", description: "Install all cameras and activate automated penalty issuance." },
+      { projectId: pCameras.id, name: "AI Behaviour Analytics Integration", effortDays: 45, progress: 0, status: "pending", dueDate: "2026-06-30", description: "Enable AI-based distracted driving and seatbelt detection." },
+
+      // Road Engineering (pRoadEng) — 2
+      { projectId: pRoadEng.id, name: "Black Spot Assessment & Design", effortDays: 45, progress: 100, status: "approved", approvedAt: new Date("2024-12-31"), approvedById: SYS, dueDate: "2024-12-31", description: "Assess 450 black spots and produce engineering improvement designs." },
+      { projectId: pRoadEng.id, name: "Phase 1 Improvements (200 sites)", effortDays: 90, progress: 20, status: "in_progress", dueDate: "2025-12-31", description: "Complete road engineering improvements at first 200 black spot sites." },
+      { projectId: pRoadEng.id, name: "Phase 2 Improvements (250 sites)", effortDays: 90, progress: 0, status: "pending", dueDate: "2026-12-31", description: "Complete remaining 250 black spot improvements." },
     ])
     .returning();
 
   // ─────────────────────────────────────────────────────────────
   // Evidence (for submitted/approved milestones)
   // ─────────────────────────────────────────────────────────────
-  const withEvidence = milestones.filter(m => m.status === "approved" || m.status === "submitted").slice(0, 12);
-  for (const m of withEvidence) {
+  const evidenceMilestones = milestones.filter(
+    (m) => m.status === "approved" || m.status === "submitted"
+  );
+
+  for (const m of evidenceMilestones) {
     await db.insert(spmoEvidenceTable).values([
-      { milestoneId: m.id, fileName: `completion-report-${m.id}.pdf`, contentType: "application/pdf", objectPath: `spmo/evidence/milestone-${m.id}/completion-report.pdf`, uploadedById: SYSTEM_USER_ID, uploadedByName: "System Admin", description: "Completion and verification report", aiValidated: true, aiScore: 85 + Math.floor(Math.random() * 12), aiReasoning: "Evidence demonstrates clear completion of milestone deliverables with supporting documentation." },
-      { milestoneId: m.id, fileName: `photo-evidence-${m.id}.zip`, contentType: "application/zip", objectPath: `spmo/evidence/milestone-${m.id}/photos.zip`, uploadedById: SYSTEM_USER_ID, uploadedByName: "System Admin", description: "Photo evidence package", aiValidated: true, aiScore: 78 + Math.floor(Math.random() * 15), aiReasoning: "Photo documentation provided with appropriate metadata and timestamps." },
+      {
+        milestoneId: m.id,
+        fileName: `completion-report-${m.id}.pdf`,
+        contentType: "application/pdf",
+        objectPath: `spmo/evidence/milestone-${m.id}/completion-report.pdf`,
+        uploadedById: SYS,
+        uploadedByName: "Programme Management Office",
+        description: "Milestone completion report with supporting documentation",
+        aiValidated: true,
+        aiScore: 82 + Math.floor(Math.random() * 15),
+        aiReasoning: "Evidence demonstrates clear milestone completion with comprehensive supporting documentation and sign-offs.",
+      },
+      {
+        milestoneId: m.id,
+        fileName: `photo-evidence-${m.id}.zip`,
+        contentType: "application/zip",
+        objectPath: `spmo/evidence/milestone-${m.id}/photos.zip`,
+        uploadedById: SYS,
+        uploadedByName: "Programme Management Office",
+        description: "Photo evidence and field verification package",
+        aiValidated: true,
+        aiScore: 76 + Math.floor(Math.random() * 16),
+        aiReasoning: "Photo documentation provided with appropriate metadata and timestamps verifying field completion.",
+      },
     ]);
   }
 
   // ─────────────────────────────────────────────────────────────
-  // KPIs
+  // Strategic KPIs (4, linked to pillars)
   // ─────────────────────────────────────────────────────────────
   await db.insert(spmoKpisTable).values([
-    { projectId: p0.id, name: "Citizens Enrolled (Digital ID)", type: "outcome", unit: "citizens", target: 3000000, actual: 1250000, baseline: 0, status: "on_track", description: "Number of citizens with active digital identity." },
-    { projectId: p4.id, name: "SME Loans Disbursed", type: "output", unit: "loans", target: 1000, actual: 720, baseline: 0, status: "on_track", description: "Number of guaranteed SME loans disbursed through partner banks." },
-    { projectId: p6.id, name: "Patients Reached (Mobile Units)", type: "outcome", unit: "patients", target: 250000, actual: 198000, baseline: 0, status: "on_track", description: "Total patient consultations delivered via mobile medical units." },
-    { projectId: p8.id, name: "Road Construction Progress", type: "output", unit: "km", target: 150, actual: 82, baseline: 0, status: "at_risk", description: "Kilometres of highway base layer completed." },
-    { projectId: p2.id, name: "Ministry API Integrations Live", type: "output", unit: "ministries", target: 15, actual: 5, baseline: 0, status: "at_risk", description: "Number of ministries with live data platform integrations." },
-    { name: "Programme Milestone Approval Rate", type: "process", unit: "%", target: 90, actual: 62, baseline: 0, status: "off_track", description: "Percentage of submitted milestones approved within 14 days." },
-    { projectId: p4.id, name: "Jobs Created (SME Programme)", type: "impact", unit: "jobs", target: 5000, actual: 2840, baseline: 0, status: "on_track", description: "Estimated new jobs created by SME loan recipients." },
+    {
+      type: "strategic",
+      pillarId: p1.id,
+      name: "Digital Service Adoption Rate",
+      description: "Percentage of eligible government transactions conducted digitally.",
+      unit: "%",
+      baseline: 38,
+      target: 90,
+      actual: 64,
+      status: "on_track",
+    },
+    {
+      type: "strategic",
+      pillarId: p2.id,
+      name: "Process Automation Coverage",
+      description: "Percentage of government administrative processes that are fully automated.",
+      unit: "%",
+      baseline: 12,
+      target: 60,
+      actual: 31,
+      status: "at_risk",
+    },
+    {
+      type: "strategic",
+      pillarId: p3.id,
+      name: "Citizen Satisfaction Index",
+      description: "Composite citizen satisfaction score across all government digital services (0–100).",
+      unit: "score",
+      baseline: 61,
+      target: 88,
+      actual: 74,
+      status: "on_track",
+    },
+    {
+      type: "strategic",
+      pillarId: p4.id,
+      name: "Government Carbon Footprint Reduction",
+      description: "Percentage reduction in government operations carbon emissions vs 2023 baseline.",
+      unit: "%",
+      baseline: 0,
+      target: 40,
+      actual: 18,
+      status: "on_track",
+    },
   ]);
 
   // ─────────────────────────────────────────────────────────────
-  // Risks
+  // Operational KPIs (8, linked to projects)
+  // ─────────────────────────────────────────────────────────────
+  await db.insert(spmoKpisTable).values([
+    {
+      type: "operational",
+      projectId: pSignals.id,
+      name: "AI Signals Commissioned",
+      description: "Number of AI-adaptive traffic signals installed and operational.",
+      unit: "signals",
+      baseline: 0,
+      target: 2400,
+      actual: 1600,
+      status: "on_track",
+    },
+    {
+      type: "operational",
+      projectId: pIot.id,
+      name: "IoT Sensors Live",
+      description: "Number of active traffic IoT sensors transmitting real-time data.",
+      unit: "sensors",
+      baseline: 0,
+      target: 12000,
+      actual: 4800,
+      status: "at_risk",
+    },
+    {
+      type: "operational",
+      projectId: pFinance.id,
+      name: "Finance Module Entities Live",
+      description: "Number of government entities fully live on the new finance system.",
+      unit: "entities",
+      baseline: 0,
+      target: 28,
+      actual: 19,
+      status: "on_track",
+    },
+    {
+      type: "operational",
+      projectId: pPortalUx.id,
+      name: "Services Migrated to New Portal",
+      description: "Number of government services live on the redesigned citizen portal.",
+      unit: "services",
+      baseline: 0,
+      target: 200,
+      actual: 112,
+      status: "on_track",
+    },
+    {
+      type: "operational",
+      projectId: pMobileApp.id,
+      name: "Mobile App Active Users",
+      description: "Monthly active users on the National Government Mobile App.",
+      unit: "users",
+      baseline: 0,
+      target: 2000000,
+      actual: 385000,
+      status: "off_track",
+    },
+    {
+      type: "operational",
+      projectId: pEvFleet.id,
+      name: "EVs Delivered & Registered",
+      description: "Electric vehicles delivered, registered, and in operational service.",
+      unit: "vehicles",
+      baseline: 0,
+      target: 8500,
+      actual: 3950,
+      status: "on_track",
+    },
+    {
+      type: "operational",
+      projectId: pCameras.id,
+      name: "Speed Cameras Operational",
+      description: "AI speed cameras installed and issuing automated penalties.",
+      unit: "cameras",
+      baseline: 0,
+      target: 800,
+      actual: 390,
+      status: "at_risk",
+    },
+    {
+      type: "operational",
+      projectId: pDataLake.id,
+      name: "Government Entities Connected",
+      description: "Entities with live data feeds flowing into the Government Data Lake.",
+      unit: "entities",
+      baseline: 0,
+      target: 32,
+      actual: 14,
+      status: "on_track",
+    },
+  ]);
+
+  // ─────────────────────────────────────────────────────────────
+  // Risks (4) + Mitigations (4)
   // ─────────────────────────────────────────────────────────────
   const risks = await db
     .insert(spmoRisksTable)
     .values([
-      { title: "Biometric Data Privacy Compliance", description: "Risk of non-compliance with new national data protection legislation affecting the citizen identity system rollout.", category: "regulatory", probability: "medium", impact: "critical", riskScore: 8, status: "open", owner: "Sarah Al-Rashid", projectId: p0.id },
-      { title: "Highway Construction Cost Overrun", description: "Material and fuel cost inflation is threatening the Phase 1 budget by an estimated 12-15%.", category: "financial", probability: "high", impact: "high", riskScore: 9, status: "open", owner: "Eng. Walid Nassar", projectId: p8.id },
-      { title: "Ministry API Adoption Delay", description: "Low technical capacity in several ministries is delaying API integration beyond planned schedule.", category: "operational", probability: "high", impact: "medium", riskScore: 6, status: "open", owner: "Dina Khoury", projectId: p2.id },
-      { title: "SME Loan Default Rate Increase", description: "Economic slowdown may push loan default rates above 8% threshold, straining the guarantee fund.", category: "financial", probability: "medium", impact: "high", riskScore: 6, status: "mitigated", owner: "Maha Salim", projectId: p4.id },
-      { title: "Mobile Clinic Supply Chain Disruption", description: "Medical supply shortages for remote districts could reduce service levels in Q4 2025.", category: "operational", probability: "low", impact: "medium", riskScore: 2, status: "closed", owner: "Dr. Samira Wahbi", projectId: p6.id },
-      { title: "Cybersecurity Breach — Payment Gateway", description: "The payment gateway is a high-value target; a breach could undermine public trust in digital government services.", category: "technical", probability: "low", impact: "critical", riskScore: 4, status: "open", owner: "Youssef Malik", projectId: p1.id },
+      {
+        projectId: pEvFleet.id,
+        title: "EV Supply Chain Delays",
+        description: "Global EV battery supply chain constraints may delay Phase 2 and 3 vehicle deliveries by 6–9 months.",
+        category: "operational",
+        probability: "high",
+        impact: "high",
+        riskScore: 9,
+        owner: "Sultan Al-Anzi",
+        status: "open",
+      },
+      {
+        projectId: pHr.id,
+        title: "ERP Payroll Parallel Run Failure",
+        description: "Payroll data migration errors could result in incorrect salary payments for 45,000 employees.",
+        category: "technical",
+        probability: "medium",
+        impact: "critical",
+        riskScore: 8,
+        owner: "Saleh Al-Mutairi",
+        status: "open",
+      },
+      {
+        projectId: pPortalUx.id,
+        title: "Cybersecurity Breach on Citizen Portal",
+        description: "The high-profile citizen portal is a target for nation-state and criminal hackers; a breach would damage public trust.",
+        category: "technical",
+        probability: "low",
+        impact: "critical",
+        riskScore: 4,
+        owner: "Amal Al-Rashidi",
+        status: "open",
+      },
+      {
+        projectId: pCharging.id,
+        title: "Grid Capacity Constraint for EV Charging",
+        description: "Utility grid upgrades may not be completed in time to support the full charging station network load.",
+        category: "regulatory",
+        probability: "medium",
+        impact: "medium",
+        riskScore: 4,
+        owner: "Noura Al-Subaie",
+        status: "mitigated",
+      },
     ])
     .returning();
 
   await db.insert(spmoMitigationsTable).values([
-    { riskId: risks[0].id, description: "Engage DPA legal counsel and update privacy impact assessment", dueDate: "2025-08-31", status: "in_progress" },
-    { riskId: risks[1].id, description: "Activate 10% contingency reserve and renegotiate material contracts", dueDate: "2025-09-30", status: "in_progress" },
-    { riskId: risks[1].id, description: "Conduct value engineering review of Phase 1 specifications", dueDate: "2025-08-15", status: "planned" },
-    { riskId: risks[2].id, description: "Provide dedicated technical assistance teams to lagging ministries", dueDate: "2025-10-31", status: "in_progress" },
-    { riskId: risks[3].id, description: "Implement enhanced credit scoring model and increase collateral requirements", dueDate: "2025-06-30", status: "completed" },
+    {
+      riskId: risks[0].id,
+      description: "Diversify EV suppliers — add two additional OEM partners to the approved vendor list.",
+      dueDate: "2025-06-30",
+      status: "in_progress",
+    },
+    {
+      riskId: risks[0].id,
+      description: "Pre-order Phase 3 vehicles 12 months earlier to buffer against lead time increases.",
+      dueDate: "2025-09-30",
+      status: "planned",
+    },
+    {
+      riskId: risks[1].id,
+      description: "Engage specialist payroll testing firm for 3-month dedicated parallel run validation.",
+      dueDate: "2025-10-31",
+      status: "in_progress",
+    },
+    {
+      riskId: risks[3].id,
+      description: "Coordinate with national utility to fast-track grid upgrades at 50 priority locations.",
+      dueDate: "2025-05-31",
+      status: "completed",
+    },
   ]);
 
   // ─────────────────────────────────────────────────────────────
   // Budget Entries
   // ─────────────────────────────────────────────────────────────
   await db.insert(spmoBudgetTable).values([
-    { projectId: p0.id, pillarId: digitalPillar.id, period: "2025-Q1", allocated: 500000, spent: 487000, currency: "USD", category: "technology", label: "Biometric hardware procurement" },
-    { projectId: p1.id, pillarId: digitalPillar.id, period: "2025-Q1", allocated: 200000, spent: 185000, currency: "USD", category: "technology", label: "Payment platform licensing" },
-    { projectId: p4.id, pillarId: economicPillar.id, period: "2025-Q1", allocated: 2000000, spent: 1850000, currency: "USD", category: "grants", label: "Q1 loan guarantees issued" },
-    { projectId: p6.id, pillarId: socialPillar.id, period: "2025-Q1", allocated: 3000000, spent: 3120000, currency: "USD", category: "equipment", label: "Mobile unit procurement" },
-    { projectId: p8.id, pillarId: infraPillar.id, period: "2025-Q1", allocated: 8000000, spent: 7650000, currency: "USD", category: "construction", label: "ESIA and land acquisition" },
-    { projectId: p0.id, pillarId: digitalPillar.id, period: "2025-Q2", allocated: 600000, spent: 610000, currency: "USD", category: "technology", label: "System development Phase 1" },
-    { projectId: p2.id, pillarId: digitalPillar.id, period: "2025-Q2", allocated: 750000, spent: 680000, currency: "USD", category: "technology", label: "API development team" },
-    { projectId: p4.id, pillarId: economicPillar.id, period: "2025-Q2", allocated: 3000000, spent: 2950000, currency: "USD", category: "grants", label: "Q2 loan guarantees" },
-    { projectId: p6.id, pillarId: socialPillar.id, period: "2025-Q2", allocated: 2500000, spent: 2380000, currency: "USD", category: "personnel", label: "Medical staff salaries" },
-    { projectId: p8.id, pillarId: infraPillar.id, period: "2025-Q2", allocated: 12000000, spent: 11200000, currency: "USD", category: "construction", label: "Base layer construction start" },
-    { projectId: p0.id, pillarId: digitalPillar.id, period: "2025-Q3", allocated: 700000, spent: 420000, currency: "USD", category: "technology", label: "National rollout Phase 1" },
-    { projectId: p1.id, pillarId: digitalPillar.id, period: "2025-Q3", allocated: 500000, spent: 280000, currency: "USD", category: "technology", label: "UAT and testing" },
-    { projectId: p4.id, pillarId: economicPillar.id, period: "2025-Q3", allocated: 4000000, spent: 3100000, currency: "USD", category: "grants", label: "Q3 loan guarantees" },
-    { projectId: p6.id, pillarId: socialPillar.id, period: "2025-Q3", allocated: 2000000, spent: 1850000, currency: "USD", category: "operations", label: "District deployment operations" },
-    { projectId: p8.id, pillarId: infraPillar.id, period: "2025-Q3", allocated: 15000000, spent: 9800000, currency: "USD", category: "construction", label: "Highway construction Q3" },
+    // Digital Excellence
+    { projectId: pSignals.id, pillarId: p1.id, period: "2025-Q1", allocated: 45000000, spent: 41000000, currency: "SAR", category: "technology", description: "Batch 2 signal hardware procurement" },
+    { projectId: pIot.id, pillarId: p1.id, period: "2025-Q1", allocated: 38000000, spent: 31500000, currency: "SAR", category: "technology", description: "IoT sensor installation Phase 2" },
+    { projectId: pDataLake.id, pillarId: p1.id, period: "2025-Q1", allocated: 18000000, spent: 14200000, currency: "SAR", category: "technology", description: "Data lake cloud infrastructure" },
+    { projectId: pBiPlatform.id, pillarId: p1.id, period: "2025-Q1", allocated: 12000000, spent: 9800000, currency: "SAR", category: "technology", description: "BI platform development" },
+
+    // Operational Efficiency
+    { projectId: pFinance.id, pillarId: p2.id, period: "2025-Q1", allocated: 42000000, spent: 38900000, currency: "SAR", category: "technology", description: "Finance module go-live support" },
+    { projectId: pHr.id, pillarId: p2.id, period: "2025-Q1", allocated: 28000000, spent: 19600000, currency: "SAR", category: "technology", description: "HR data migration and configuration" },
+    { projectId: pProcMod.id, pillarId: p2.id, period: "2025-Q1", allocated: 18000000, spent: 9900000, currency: "SAR", category: "technology", description: "E-tendering module development" },
+
+    // Customer Experience
+    { projectId: pPortalUx.id, pillarId: p3.id, period: "2025-Q1", allocated: 35000000, spent: 32200000, currency: "SAR", category: "technology", description: "Portal services migration batch 2" },
+    { projectId: pMobileApp.id, pillarId: p3.id, period: "2025-Q1", allocated: 22000000, spent: 14300000, currency: "SAR", category: "technology", description: "Mobile app beta development" },
+
+    // Sustainability
+    { projectId: pEvFleet.id, pillarId: p4.id, period: "2025-Q1", allocated: 120000000, spent: 109200000, currency: "SAR", category: "equipment", description: "Phase 2 EV fleet delivery" },
+    { projectId: pCharging.id, pillarId: p4.id, period: "2025-Q1", allocated: 32000000, spent: 27200000, currency: "SAR", category: "construction", description: "Charging station Phase 1 installation" },
+    { projectId: pCameras.id, pillarId: p4.id, period: "2025-Q1", allocated: 25000000, spent: 20500000, currency: "SAR", category: "equipment", description: "AI speed camera installation" },
+    { projectId: pRoadEng.id, pillarId: p4.id, period: "2025-Q1", allocated: 18000000, spent: 11700000, currency: "SAR", category: "construction", description: "Black spot Phase 1 engineering works" },
+
+    // Q2 entries
+    { projectId: pSignals.id, pillarId: p1.id, period: "2025-Q2", allocated: 50000000, spent: 0, currency: "SAR", category: "technology", description: "Batch 2 signal installation completion" },
+    { projectId: pEvFleet.id, pillarId: p4.id, period: "2025-Q2", allocated: 85000000, spent: 0, currency: "SAR", category: "equipment", description: "Phase 2 EV fleet continuation" },
+    { projectId: pFinance.id, pillarId: p2.id, period: "2025-Q2", allocated: 18000000, spent: 0, currency: "SAR", category: "technology", description: "Advanced reporting implementation" },
+  ]);
+
+  // ─────────────────────────────────────────────────────────────
+  // Procurement Records
+  // ─────────────────────────────────────────────────────────────
+  await db.insert(spmoProcurementTable).values([
+    {
+      projectId: pSignals.id,
+      title: "AI Traffic Signal Hardware & Software — Phase 2",
+      stage: "awarded",
+      vendor: "Siemens Mobility Arabia",
+      contractValue: 155000000,
+      currency: "SAR",
+      notes: "Contract awarded after competitive tender. Includes 5-year maintenance SLA.",
+      awardDate: "2024-11-15",
+      completionDate: "2025-06-30",
+    },
+    {
+      projectId: pEvFleet.id,
+      title: "Phase 2 Electric Vehicle Fleet Supply",
+      stage: "evaluation",
+      vendor: null,
+      contractValue: null,
+      currency: "SAR",
+      notes: "RFP issued to 4 shortlisted OEMs. Technical evaluation in progress.",
+      awardDate: null,
+      completionDate: null,
+    },
+    {
+      projectId: pFinance.id,
+      title: "ERP Finance System Integration Consultancy",
+      stage: "completed",
+      vendor: "Deloitte Middle East",
+      contractValue: 42000000,
+      currency: "SAR",
+      notes: "All integration deliverables accepted. Project formally closed.",
+      awardDate: "2024-03-01",
+      completionDate: "2024-12-31",
+    },
+    {
+      projectId: pCharging.id,
+      title: "EV Charging Station Installation — Phase 1",
+      stage: "awarded",
+      vendor: "ABB Electrification KSA",
+      contractValue: 68000000,
+      currency: "SAR",
+      notes: "Turnkey contract covering supply, installation, and 3-year operations.",
+      awardDate: "2024-07-01",
+      completionDate: "2025-06-30",
+    },
+    {
+      projectId: pIot.id,
+      title: "IoT Traffic Sensor Supply & Installation",
+      stage: "rfp_issued",
+      vendor: null,
+      contractValue: null,
+      currency: "SAR",
+      notes: "RFP issued for Phase 2 sensors (8,000 units). Proposals due 2025-04-30.",
+      awardDate: null,
+      completionDate: null,
+    },
+    {
+      projectId: pPortalUx.id,
+      title: "Citizen Portal Development & Delivery Partner",
+      stage: "completed",
+      vendor: "Accenture Arabia",
+      contractValue: 88000000,
+      currency: "SAR",
+      notes: "Phase 1 portal migration complete. Phase 2 extension under negotiation.",
+      awardDate: "2024-01-15",
+      completionDate: "2024-12-31",
+    },
   ]);
 
   // ─────────────────────────────────────────────────────────────
@@ -202,26 +862,104 @@ async function seed() {
   // ─────────────────────────────────────────────────────────────
   const now = new Date();
   const ago = (d: number) => new Date(now.getTime() - d * 24 * 60 * 60 * 1000);
-  const mByName = (name: string) => milestones.find(m => m.name.includes(name));
+
+  const submittedMilestones = milestones.filter((m) => m.status === "submitted");
+  const recentApprovedMilestones = milestones.filter((m) => m.status === "approved").slice(-3);
 
   await db.insert(spmoActivityLogTable).values([
-    { actorId: SYSTEM_USER_ID, actorName: "Dr. Samira Wahbi", action: "submitted", entityType: "milestone", entityId: mByName("District Deployment")?.id ?? 0, entityName: "District Deployment (30 districts)", details: {}, createdAt: ago(2) },
-    { actorId: SYSTEM_USER_ID, actorName: "Dina Khoury", action: "submitted", entityType: "milestone", entityId: mByName("First 5 Ministries")?.id ?? 0, entityName: "First 5 Ministries Connected", details: {}, createdAt: ago(3) },
-    { actorId: SYSTEM_USER_ID, actorName: "System Admin", action: "approved", entityType: "milestone", entityId: mByName("Medical Staff")?.id ?? 0, entityName: "Medical Staff Recruitment & Training", details: {}, createdAt: ago(5) },
-    { actorId: SYSTEM_USER_ID, actorName: "Youssef Malik", action: "submitted", entityType: "milestone", entityId: mByName("Payment API")?.id ?? 0, entityName: "Payment API Development", details: {}, createdAt: ago(7) },
-    { actorId: SYSTEM_USER_ID, actorName: "Walid Nassar", action: "uploaded_evidence", entityType: "milestone", entityId: mByName("Land Acquisition")?.id ?? 0, entityName: "Land Acquisition (Phase 1)", details: { fileName: "land-acquisition-report.pdf" }, createdAt: ago(8) },
-    { actorId: SYSTEM_USER_ID, actorName: "Rania Ibrahim", action: "updated", entityType: "milestone", entityId: mByName("National Rollout")?.id ?? 0, entityName: "National Rollout Phase 1", details: { progress: 68 }, createdAt: ago(1) },
-    { actorId: SYSTEM_USER_ID, actorName: "System Admin", action: "created", entityType: "pillar", entityId: digitalPillar.id, entityName: "Digital Transformation", details: {}, createdAt: ago(30) },
-    { actorId: SYSTEM_USER_ID, actorName: "System Admin", action: "created", entityType: "pillar", entityId: economicPillar.id, entityName: "Economic Development", details: {}, createdAt: ago(30) },
+    ...(submittedMilestones[0] ? [{
+      actorId: SYS,
+      actorName: "Programme Management Office",
+      action: "submitted" as const,
+      entityType: "milestone",
+      entityId: submittedMilestones[0].id,
+      entityName: submittedMilestones[0].name,
+      details: {},
+      createdAt: ago(1),
+    }] : []),
+    ...(submittedMilestones[1] ? [{
+      actorId: SYS,
+      actorName: "Programme Management Office",
+      action: "submitted" as const,
+      entityType: "milestone",
+      entityId: submittedMilestones[1].id,
+      entityName: submittedMilestones[1].name,
+      details: {},
+      createdAt: ago(2),
+    }] : []),
+    ...(recentApprovedMilestones[0] ? [{
+      actorId: SYS,
+      actorName: "Ahmed Al-Rashid",
+      action: "approved" as const,
+      entityType: "milestone",
+      entityId: recentApprovedMilestones[0].id,
+      entityName: recentApprovedMilestones[0].name,
+      details: {},
+      createdAt: ago(3),
+    }] : []),
+    {
+      actorId: SYS,
+      actorName: "Fatima Al-Harbi",
+      action: "updated" as const,
+      entityType: "initiative",
+      entityId: iErp.id,
+      entityName: iErp.name,
+      details: { field: "status", newValue: "active" },
+      createdAt: ago(4),
+    },
+    {
+      actorId: SYS,
+      actorName: "System Administrator",
+      action: "created" as const,
+      entityType: "risk",
+      entityId: risks[0].id,
+      entityName: risks[0].title,
+      details: {},
+      createdAt: ago(5),
+    },
+    {
+      actorId: SYS,
+      actorName: "Khalid Al-Zahrani",
+      action: "uploaded_evidence" as const,
+      entityType: "milestone",
+      entityId: milestones[0].id,
+      entityName: milestones[0].name,
+      details: { fileCount: 2 },
+      createdAt: ago(6),
+    },
+    {
+      actorId: SYS,
+      actorName: "Omar Al-Sheikh",
+      action: "ran_ai_assessment" as const,
+      entityType: "programme",
+      entityId: 0,
+      entityName: "National Transformation Programme",
+      details: { overallHealth: "good" },
+      createdAt: ago(7),
+    },
+    {
+      actorId: SYS,
+      actorName: "Sara Al-Mutairi",
+      action: "created" as const,
+      entityType: "project",
+      entityId: pMobileApp.id,
+      entityName: pMobileApp.name,
+      details: {},
+      createdAt: ago(8),
+    },
   ]);
 
-  console.log("✓ SPMO seed data complete");
-  console.log(`  Pillars: 4`);
-  console.log(`  Initiatives: 8`);
-  console.log(`  Projects: ${projects.length}`);
-  console.log(`  Milestones: ${milestones.length}`);
-  console.log(`  Risks: ${risks.length}`);
-  console.log(`  Budget entries: 15`);
+  console.log("Seed complete.");
+  console.log(`  4 pillars, 6 initiatives, 14 projects, ${milestones.length} milestones`);
+  console.log(`  ${evidenceMilestones.length} milestones with evidence attached`);
+  console.log("  4 strategic KPIs, 8 operational KPIs");
+  console.log("  4 risks, 4 mitigations");
+  console.log("  6 procurement records");
 }
 
-seed().catch(console.error).finally(() => process.exit());
+seed()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error("Seed failed:", err);
+    process.exit(1);
+  });

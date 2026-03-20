@@ -11,11 +11,14 @@ import {
   spmoRisksTable,
   spmoMitigationsTable,
   spmoBudgetTable,
+  spmoProcurementTable,
+  spmoProgrammeConfigTable,
   spmoActivityLogTable,
   type InsertSpmoInitiative,
   type InsertSpmoProject,
   type InsertSpmoMilestone,
   type InsertSpmoMitigation,
+  type InsertSpmoProcurement,
 } from "@workspace/db";
 import {
   CreateSpmoPillarBody,
@@ -69,6 +72,12 @@ import {
   ListSpmoBudgetQueryParams,
   ListSpmoActivityLogQueryParams,
   RunSpmoAiValidateEvidenceBody,
+  ListSpmoProcurementQueryParams,
+  CreateSpmoProcurementBody,
+  UpdateSpmoProcurementParams,
+  UpdateSpmoProcurementBody,
+  DeleteSpmoProcurementParams,
+  UpdateSpmoProgrammeConfigBody,
 } from "@workspace/api-zod";
 import {
   calcProgrammeProgress,
@@ -1791,6 +1800,158 @@ Return ONLY valid JSON, no markdown or explanation.`,
     req.log.error({ err: e }, "AI evidence validation failed");
     res.status(503).json({ error: "AI service temporarily unavailable" });
   }
+});
+
+// ─────────────────────────────────────────────────────────────
+// Procurement
+// ─────────────────────────────────────────────────────────────
+router.get("/spmo/procurement", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const qp = ListSpmoProcurementQueryParams.safeParse(req.query);
+  if (!qp.success) {
+    res.status(400).json({ error: qp.error.message });
+    return;
+  }
+
+  const query = db.select().from(spmoProcurementTable).orderBy(desc(spmoProcurementTable.createdAt));
+  const rows = qp.data.projectId
+    ? await query.where(eq(spmoProcurementTable.projectId, qp.data.projectId))
+    : await query;
+
+  res.json({ procurement: rows });
+});
+
+router.post("/spmo/procurement", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const parsed = CreateSpmoProcurementBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { awardDate: ad, completionDate: cd, ...rest } = parsed.data;
+  const insert: InsertSpmoProcurement = {
+    ...rest,
+    ...(ad !== undefined && { awardDate: dateToStr(ad) }),
+    ...(cd !== undefined && { completionDate: dateToStr(cd) }),
+  };
+
+  const [row] = await db.insert(spmoProcurementTable).values(insert).returning();
+  const user = getAuthUser(req);
+  await logSpmoActivity(userId, getUserDisplayName(user), "created", "procurement", row.id, row.title);
+  res.status(201).json(row);
+});
+
+router.put("/spmo/procurement/:id", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const params = UpdateSpmoProcurementParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const parsed = UpdateSpmoProcurementBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { awardDate: ad, completionDate: cd, ...rest } = parsed.data;
+  const [row] = await db
+    .update(spmoProcurementTable)
+    .set({
+      ...rest,
+      ...(ad !== undefined && { awardDate: dateToStr(ad) }),
+      ...(cd !== undefined && { completionDate: dateToStr(cd) }),
+    })
+    .where(eq(spmoProcurementTable.id, params.data.id))
+    .returning();
+
+  if (!row) {
+    res.status(404).json({ error: "Procurement record not found" });
+    return;
+  }
+
+  const user = getAuthUser(req);
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "procurement", row.id, row.title);
+  res.json(row);
+});
+
+router.delete("/spmo/procurement/:id", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const params = DeleteSpmoProcurementParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [row] = await db
+    .delete(spmoProcurementTable)
+    .where(eq(spmoProcurementTable.id, params.data.id))
+    .returning();
+
+  if (!row) {
+    res.status(404).json({ error: "Procurement record not found" });
+    return;
+  }
+
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Programme Config
+// ─────────────────────────────────────────────────────────────
+router.get("/spmo/programme-config", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const [config] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  if (!config) {
+    res.json({
+      id: 1,
+      programmeName: "National Transformation Programme",
+      vision: null,
+      mission: null,
+      reportingCurrency: "SAR",
+      fiscalYearStart: 1,
+    });
+    return;
+  }
+  res.json(config);
+});
+
+router.put("/spmo/programme-config", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const user = getAuthUser(req);
+  if (user?.role !== "admin") {
+    res.status(403).json({ error: "Admin role required" });
+    return;
+  }
+
+  const parsed = UpdateSpmoProgrammeConfigBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const existing = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  let row;
+  if (existing.length === 0) {
+    [row] = await db.insert(spmoProgrammeConfigTable).values({ id: 1, ...parsed.data }).returning();
+  } else {
+    [row] = await db.update(spmoProgrammeConfigTable).set(parsed.data).where(eq(spmoProgrammeConfigTable.id, 1)).returning();
+  }
+  res.json(row);
 });
 
 export default router;
