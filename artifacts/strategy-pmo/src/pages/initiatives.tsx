@@ -1,20 +1,151 @@
-import { useListSpmoInitiatives } from "@workspace/api-client-react";
+import { useState } from "react";
+import {
+  useListSpmoInitiatives,
+  useListSpmoPillars,
+  useCreateSpmoInitiative,
+  useUpdateSpmoInitiative,
+  useDeleteSpmoInitiative,
+} from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
-import { Loader2, Plus, Filter } from "lucide-react";
+import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
+import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+
+const STATUSES = ["active", "on_hold", "completed", "cancelled"] as const;
+
+type InitiativeForm = {
+  name: string;
+  description: string;
+  pillarId: string;
+  ownerName: string;
+  weight: string;
+  status: string;
+  startDate: string;
+  targetDate: string;
+};
+
+const emptyForm = (): InitiativeForm => ({
+  name: "",
+  description: "",
+  pillarId: "",
+  ownerName: "",
+  weight: "50",
+  status: "active",
+  startDate: "",
+  targetDate: "",
+});
 
 export default function Initiatives() {
   const { data, isLoading } = useListSpmoInitiatives();
+  const { data: pillarsData } = useListSpmoPillars();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState<InitiativeForm>(emptyForm());
+  const { toast } = useToast();
+  const qc = useQueryClient();
 
-  if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  const createMutation = useCreateSpmoInitiative();
+  const updateMutation = useUpdateSpmoInitiative();
+  const deleteMutation = useDeleteSpmoInitiative();
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["/api/spmo/initiatives"] });
+    qc.invalidateQueries({ queryKey: ["/api/spmo/programme"] });
+  };
+
+  function openCreate() {
+    setEditId(null);
+    setForm(emptyForm());
+    setModalOpen(true);
+  }
+
+  function openEdit(initiative: NonNullable<typeof data>["initiatives"][number]) {
+    setEditId(initiative.id);
+    setForm({
+      name: initiative.name,
+      description: initiative.description ?? "",
+      pillarId: String(initiative.pillarId),
+      ownerName: initiative.ownerName ?? "",
+      weight: String(initiative.weight),
+      status: initiative.status,
+      startDate: initiative.startDate ?? "",
+      targetDate: initiative.targetDate ?? "",
+    });
+    setModalOpen(true);
+  }
+
+  function handleDelete(id: number, name: string) {
+    if (!confirm(`Delete initiative "${name}"? This cannot be undone.`)) return;
+    deleteMutation.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          toast({ title: "Deleted", description: `"${name}" removed.` });
+          invalidate();
+        },
+      }
+    );
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const payload = {
+      name: form.name,
+      description: form.description || null,
+      pillarId: parseInt(form.pillarId),
+      ownerId: "user",
+      ownerName: form.ownerName || null,
+      weight: parseFloat(form.weight) || 0,
+      status: form.status,
+      startDate: form.startDate || null,
+      targetDate: form.targetDate || null,
+    };
+
+    if (editId !== null) {
+      updateMutation.mutate(
+        { id: editId, data: payload },
+        {
+          onSuccess: () => {
+            toast({ title: "Updated", description: `"${form.name}" updated.` });
+            setModalOpen(false);
+            invalidate();
+          },
+          onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update." }),
+        }
+      );
+    } else {
+      createMutation.mutate(
+        { data: payload as never },
+        {
+          onSuccess: () => {
+            toast({ title: "Created", description: `"${form.name}" added.` });
+            setModalOpen(false);
+            invalidate();
+          },
+          onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to create." }),
+        }
+      );
+    }
+  }
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+
+  if (isLoading)
+    return (
+      <div className="p-8 flex justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
 
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader title="Initiatives" description="Manage and track strategic initiatives.">
-        <button className="flex items-center gap-2 bg-secondary text-secondary-foreground border border-border px-4 py-2 rounded-lg font-semibold hover:bg-secondary/80 transition-colors">
-          <Filter className="w-4 h-4" /> Filter
-        </button>
-        <button className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors">
+        <button
+          onClick={openCreate}
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+        >
           <Plus className="w-4 h-4" /> New Initiative
         </button>
       </PageHeader>
@@ -26,39 +157,160 @@ export default function Initiatives() {
               <tr>
                 <th className="px-6 py-4 font-semibold">Initiative Name</th>
                 <th className="px-6 py-4 font-semibold">Status</th>
-                <th className="px-6 py-4 font-semibold w-64">Progress</th>
+                <th className="px-6 py-4 font-semibold w-48">Progress</th>
                 <th className="px-6 py-4 font-semibold">Owner</th>
                 <th className="px-6 py-4 font-semibold">Target Date</th>
                 <th className="px-6 py-4 font-semibold text-right">Projects</th>
+                <th className="px-6 py-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {data?.initiatives.map((init) => (
-                <tr key={init.id} className="hover:bg-secondary/20 transition-colors cursor-pointer group">
+                <tr key={init.id} className="hover:bg-secondary/20 transition-colors group">
                   <td className="px-6 py-4">
-                    <div className="font-semibold text-foreground group-hover:text-primary transition-colors">{init.name}</div>
+                    <div className="font-semibold text-foreground">{init.name}</div>
                     <div className="text-xs text-muted-foreground mt-1 truncate max-w-xs">{init.description}</div>
                   </td>
                   <td className="px-6 py-4">
                     <StatusBadge status={init.status} />
                   </td>
                   <td className="px-6 py-4">
-                    <ProgressBar progress={init.progress} className="w-full" />
+                    <ProgressBar progress={init.progress ?? 0} className="w-full" />
                   </td>
-                  <td className="px-6 py-4 font-medium text-foreground/80">{init.ownerName || 'Unassigned'}</td>
+                  <td className="px-6 py-4 font-medium text-foreground/80">{init.ownerName || "—"}</td>
                   <td className="px-6 py-4 text-muted-foreground">
-                    {init.targetDate ? format(new Date(init.targetDate), 'MMM d, yyyy') : '-'}
+                    {init.targetDate ? format(new Date(init.targetDate), "MMM d, yyyy") : "—"}
                   </td>
-                  <td className="px-6 py-4 text-right font-bold">{init.projectCount}</td>
+                  <td className="px-6 py-4 text-right font-bold">{init.projectCount ?? 0}</td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => openEdit(init)}
+                        className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(init.id, init.name)}
+                        className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
           {data?.initiatives.length === 0 && (
-            <div className="p-8 text-center text-muted-foreground">No initiatives found.</div>
+            <div className="p-12 text-center text-muted-foreground">
+              No initiatives yet. Click "New Initiative" to add one.
+            </div>
           )}
         </div>
       </Card>
+
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editId ? "Edit Initiative" : "New Initiative"}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <FormField label="Name" required>
+            <input
+              className={inputClass}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="e.g. Digital Identity Programme"
+              required
+            />
+          </FormField>
+
+          <FormField label="Pillar" required>
+            <select
+              className={selectClass}
+              value={form.pillarId}
+              onChange={(e) => setForm({ ...form, pillarId: e.target.value })}
+              required
+            >
+              <option value="">Select a pillar...</option>
+              {pillarsData?.pillars.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </FormField>
+
+          <FormField label="Description">
+            <textarea
+              className={inputClass}
+              rows={3}
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Brief description of this initiative..."
+            />
+          </FormField>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Owner Name">
+              <input
+                className={inputClass}
+                value={form.ownerName}
+                onChange={(e) => setForm({ ...form, ownerName: e.target.value })}
+                placeholder="e.g. Sarah Al-Rashid"
+              />
+            </FormField>
+            <FormField label="Status">
+              <select
+                className={selectClass}
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value })}
+              >
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s.replace("_", " ")}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+
+          <FormField label={`Weight (${form.weight}%)`}>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              className="w-full accent-primary"
+              value={form.weight}
+              onChange={(e) => setForm({ ...form, weight: e.target.value })}
+            />
+          </FormField>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Start Date">
+              <input
+                type="date"
+                className={inputClass}
+                value={form.startDate}
+                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+              />
+            </FormField>
+            <FormField label="Target Date">
+              <input
+                type="date"
+                className={inputClass}
+                value={form.targetDate}
+                onChange={(e) => setForm({ ...form, targetDate: e.target.value })}
+              />
+            </FormField>
+          </div>
+
+          <FormActions loading={isSaving} label={editId ? "Update Initiative" : "Create Initiative"} onCancel={() => setModalOpen(false)} />
+        </form>
+      </Modal>
     </div>
   );
 }

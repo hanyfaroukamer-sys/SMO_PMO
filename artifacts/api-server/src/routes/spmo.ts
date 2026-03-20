@@ -1608,7 +1608,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
       return;
     }
 
-    const parsed = JSON.parse(textContent.text) as {
+    const rawText = textContent.text.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
+    const parsed = JSON.parse(rawText) as {
       overallHealth: string;
       summary: string;
       pillarInsights: Array<{ pillarId: number; pillarName: string; insight: string; sentiment: string }>;
@@ -1706,7 +1707,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
       return;
     }
 
-    const aiResult = JSON.parse(textContent.text) as {
+    const rawText2 = textContent.text.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
+    const aiResult = JSON.parse(rawText2) as {
       overallScore: number;
       verdict: string;
       reasoning: string;
