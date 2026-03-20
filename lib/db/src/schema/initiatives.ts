@@ -11,6 +11,11 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./auth";
 
+export const approvalActionEnum = pgEnum("approval_action", [
+  "approved",
+  "rejected",
+]);
+
 export const initiativeStatusEnum = pgEnum("initiative_status", [
   "draft",
   "active",
@@ -66,6 +71,19 @@ export const milestonesTable = pgTable("milestones", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const approvalsTable = pgTable("approvals", {
+  id: serial("id").primaryKey(),
+  milestoneId: integer("milestone_id")
+    .notNull()
+    .references(() => milestonesTable.id, { onDelete: "cascade" }),
+  reviewerId: text("reviewer_id")
+    .notNull()
+    .references(() => usersTable.id),
+  action: approvalActionEnum("action").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const fileAttachmentsTable = pgTable("file_attachments", {
   id: serial("id").primaryKey(),
   milestoneId: integer("milestone_id")
@@ -99,9 +117,16 @@ export const insertFileAttachmentSchema = createInsertSchema(
   fileAttachmentsTable
 ).omit({ id: true, createdAt: true });
 
+export const insertApprovalSchema = createInsertSchema(approvalsTable).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type Initiative = typeof initiativesTable.$inferSelect;
 export type InsertInitiative = z.infer<typeof insertInitiativeSchema>;
 export type Milestone = typeof milestonesTable.$inferSelect;
 export type InsertMilestone = z.infer<typeof insertMilestoneSchema>;
 export type FileAttachment = typeof fileAttachmentsTable.$inferSelect;
 export type InsertFileAttachment = z.infer<typeof insertFileAttachmentSchema>;
+export type Approval = typeof approvalsTable.$inferSelect;
+export type InsertApproval = z.infer<typeof insertApprovalSchema>;

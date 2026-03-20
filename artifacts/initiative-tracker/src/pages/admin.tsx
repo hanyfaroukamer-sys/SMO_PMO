@@ -1,4 +1,5 @@
 import { useListUsers, useUpdateUserRole } from "@workspace/api-client-react";
+import { UpdateRoleRequestRole } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Shield, ShieldAlert, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -10,12 +11,12 @@ export default function Admin() {
   const updateRoleMut = useUpdateUserRole();
   const queryClient = useQueryClient();
 
-  const handleRoleChange = async (userId: string, newRole: any) => {
+  const handleRoleChange = async (userId: string, newRole: UpdateRoleRequestRole) => {
     try {
       await updateRoleMut.mutateAsync({ id: userId, data: { role: newRole } });
       toast.success("Role updated successfully");
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-    } catch (e: any) {
+    } catch {
       toast.error("Failed to update role");
     }
   };
@@ -71,7 +72,7 @@ export default function Admin() {
                       <select
                         className="bg-transparent font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-primary focus:outline-none cursor-pointer py-1"
                         value={user.role}
-                        onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                        onChange={(e) => handleRoleChange(user.id, e.target.value as UpdateRoleRequestRole)}
                         disabled={updateRoleMut.isPending}
                       >
                         <option value="admin">Admin</option>

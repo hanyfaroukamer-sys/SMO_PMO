@@ -4,12 +4,15 @@ import {
   milestonesTable,
   initiativesTable,
   fileAttachmentsTable,
+  approvalsTable,
   usersTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { ObjectStorageService } from "../lib/objectStorage";
 
 const router: IRouter = Router();
+const objectStorageService = new ObjectStorageService();
 
 // ---------- Helpers ----------
 
@@ -348,6 +351,12 @@ router.post("/milestones/:id/approve", async (req, res) => {
       .where(eq(milestonesTable.id, id))
       .returning();
 
+    await db.insert(approvalsTable).values({
+      milestoneId: id,
+      reviewerId: req.user.id,
+      action: "approved",
+    });
+
     const approverName = [req.user.firstName, req.user.lastName]
       .filter(Boolean)
       .join(" ") || null;
@@ -417,6 +426,13 @@ router.post("/milestones/:id/reject", async (req, res) => {
       .where(eq(milestonesTable.id, id))
       .returning();
 
+    await db.insert(approvalsTable).values({
+      milestoneId: id,
+      reviewerId: req.user.id,
+      action: "rejected",
+      comment: parsed.data.comment ?? null,
+    });
+
     res.json({ ...updated, weight: Number(updated.weight) });
   } catch (err) {
     req.log.error(err);
@@ -450,6 +466,14 @@ router.post("/milestones/:id/attachments", async (req, res) => {
     return;
   }
 
+  const initiative = await getInitiativeOwner(milestone.initiativeId);
+  const role = req.user.role;
+
+  if (role !== "admin" && initiative?.ownerId !== req.user.id) {
+    res.status(403).json({ error: "Forbidden — only the initiative owner or an admin can add attachments" });
+    return;
+  }
+
   const parsed = addAttachmentSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -457,6 +481,15 @@ router.post("/milestones/:id/attachments", async (req, res) => {
   }
 
   try {
+    try {
+      await objectStorageService.trySetObjectEntityAclPolicy(parsed.data.objectPath, {
+        owner: req.user.id,
+        visibility: "private",
+      });
+    } catch (aclErr) {
+      req.log.warn({ err: aclErr }, "Could not set ACL on uploaded object; proceeding");
+    }
+
     const [created] = await db
       .insert(fileAttachmentsTable)
       .values({
