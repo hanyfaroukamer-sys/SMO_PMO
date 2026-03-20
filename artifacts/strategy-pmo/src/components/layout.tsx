@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { 
+import {
   LayoutDashboard,
   Network,
   Briefcase,
@@ -12,12 +12,10 @@ import {
   ShieldAlert,
   BellRing,
   ScrollText,
-  Menu,
   LogOut,
   User as UserIcon,
   ChevronsLeft,
   ChevronsRight,
-  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetCurrentAuthUser } from "@workspace/api-client-react";
@@ -36,6 +34,24 @@ const navItems = [
   { title: "Activity Log",     href: "/activity",     icon: ScrollText       },
 ];
 
+function Logo({ collapsed }: { collapsed: boolean }) {
+  return (
+    <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
+      <div
+        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-display font-extrabold text-white text-base"
+        style={{ background: "linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%)" }}
+      >
+        S
+      </div>
+      {!collapsed && (
+        <span className="font-display font-bold text-[15px] tracking-tight whitespace-nowrap text-sidebar-foreground">
+          StrategyPMO
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { data: authData } = useGetCurrentAuthUser();
@@ -44,97 +60,103 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
-      {/* Sidebar */}
-      <aside 
+      {/* Sidebar — 210px expanded, 52px collapsed */}
+      <aside
         className={cn(
-          "bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 flex flex-col z-20",
-          collapsed ? "w-[80px]" : "w-[240px]"
+          "bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 flex flex-col z-20 shrink-0",
+          collapsed ? "w-[52px]" : "w-[210px]"
         )}
       >
-        <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border/50">
-          {!collapsed && (
-            <div className="flex items-center gap-2 overflow-hidden">
-              <div className="w-8 h-8 rounded bg-primary flex items-center justify-center shrink-0">
-                <Target className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="font-display font-bold text-base tracking-tight whitespace-nowrap">StrategyPMO</span>
-            </div>
-          )}
-          {collapsed && (
-            <div className="w-full flex justify-center">
-              <div className="w-8 h-8 rounded bg-primary flex items-center justify-center">
-                <Target className="w-5 h-5 text-primary-foreground" />
-              </div>
-            </div>
-          )}
+        {/* Logo header */}
+        <div className="h-14 flex items-center px-3 border-b border-sidebar-border/40">
+          <Logo collapsed={collapsed} />
         </div>
 
-        <div className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5 scrollbar-hide">
+        {/* Nav items */}
+        <nav className="flex-1 overflow-y-auto py-3 px-1.5 space-y-0.5 scrollbar-hide">
           {navItems.map((item) => {
-            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+            const isActive =
+              location === item.href ||
+              (item.href !== "/" && location.startsWith(item.href));
             return (
-              <Link 
-                key={item.href} 
+              <Link
+                key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group text-sm",
-                  isActive 
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium shadow-sm shadow-black/20" 
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  "flex items-center gap-2.5 rounded-lg transition-all duration-150 group text-[13px] font-medium",
+                  collapsed ? "justify-center p-2.5" : "px-2.5 py-2",
+                  isActive
+                    ? "bg-sidebar-accent text-white"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
                 )}
                 title={collapsed ? item.title : undefined}
               >
-                <item.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/50 group-hover:text-sidebar-accent-foreground")} />
-                {!collapsed && <span className="truncate">{item.title}</span>}
+                <item.icon
+                  className={cn(
+                    "w-4 h-4 shrink-0 transition-colors",
+                    isActive
+                      ? "text-white"
+                      : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground"
+                  )}
+                />
+                {!collapsed && <span className="truncate leading-none">{item.title}</span>}
               </Link>
             );
           })}
-        </div>
+        </nav>
 
-        <div className="p-3 border-t border-sidebar-border/50 bg-sidebar-accent/10">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-full bg-sidebar-accent border border-sidebar-border flex items-center justify-center overflow-hidden shrink-0">
-              {user?.profileImageUrl ? (
-                <img src={user.profileImageUrl} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <UserIcon className="w-4 h-4 text-sidebar-foreground/50" />
-              )}
-            </div>
-            {!collapsed && (
-              <div className="flex flex-col overflow-hidden">
-                <span className="text-xs font-semibold truncate">{user?.firstName} {user?.lastName}</span>
-                <span className="text-xs text-sidebar-foreground/60 uppercase tracking-wider" style={{ fontSize: "10px" }}>{user?.role || 'User'}</span>
+        {/* User footer */}
+        <div className="border-t border-sidebar-border/40 p-2 space-y-1.5">
+          {!collapsed && (
+            <div className="flex items-center gap-2 px-1 py-1">
+              <div className="w-7 h-7 rounded-full bg-sidebar-accent border border-sidebar-border flex items-center justify-center overflow-hidden shrink-0">
+                {user?.profileImageUrl ? (
+                  <img src={user.profileImageUrl} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <UserIcon className="w-3.5 h-3.5 text-sidebar-foreground/50" />
+                )}
               </div>
-            )}
-          </div>
-          
-          <div className={cn("flex", collapsed ? "flex-col gap-2" : "justify-between items-center")}>
-            <button 
+              <div className="flex flex-col overflow-hidden flex-1 min-w-0">
+                <span className="text-xs font-semibold truncate leading-tight text-sidebar-foreground">
+                  {user?.firstName} {user?.lastName}
+                </span>
+                <span className="text-[10px] text-sidebar-foreground/50 uppercase tracking-wider leading-tight">
+                  {user?.role || "User"}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className={cn("flex gap-1", collapsed ? "flex-col" : "items-center")}>
+            <button
               onClick={() => setCollapsed(!collapsed)}
-              className="p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
+              className="p-2 rounded-lg hover:bg-sidebar-accent/60 text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors"
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              {collapsed ? <ChevronsRight className="w-4 h-4 mx-auto" /> : <ChevronsLeft className="w-4 h-4" />}
+              {collapsed ? (
+                <ChevronsRight className="w-3.5 h-3.5 mx-auto" />
+              ) : (
+                <ChevronsLeft className="w-3.5 h-3.5" />
+              )}
             </button>
-            <a 
-              href="/api/logout" 
+            <a
+              href="/api/logout"
               className={cn(
-                "p-1.5 rounded-md hover:bg-destructive/20 text-sidebar-foreground/50 hover:text-destructive transition-colors flex items-center justify-center gap-2",
-                collapsed && "w-full"
+                "p-2 rounded-lg hover:bg-destructive/20 text-sidebar-foreground/40 hover:text-destructive transition-colors flex items-center justify-center gap-1.5",
+                !collapsed && "flex-1"
               )}
               title="Sign out"
             >
-              <LogOut className="w-4 h-4" />
-              {!collapsed && <span className="text-xs font-medium">Sign Out</span>}
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
+              {!collapsed && <span className="text-xs font-medium leading-none">Sign Out</span>}
             </a>
           </div>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 bg-background relative overflow-y-auto">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none" />
-        <div className="flex-1 relative z-10 p-6 md:p-8 max-w-[1600px] mx-auto w-full">
+      {/* Main content */}
+      <main className="flex-1 flex flex-col min-w-0 bg-background overflow-y-auto">
+        <div className="flex-1 p-6 md:p-8 max-w-[1600px] mx-auto w-full">
           {children}
         </div>
       </main>
