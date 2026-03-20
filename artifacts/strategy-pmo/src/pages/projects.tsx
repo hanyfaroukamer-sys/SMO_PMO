@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   useListSpmoProjects,
   useListSpmoInitiatives,
+  useListSpmoPillars,
   useCreateSpmoProject,
   useUpdateSpmoProject,
   useDeleteSpmoProject,
@@ -17,7 +18,7 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, CheckCircle2, Send } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, CheckCircle2, Send, X } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -38,28 +39,15 @@ type ProjectForm = {
   targetDate: string;
 };
 
-type MilestoneForm = {
-  name: string;
-  description: string;
-  weight: string;
-  progress: string;
-  status: string;
-  dueDate: string;
-};
-
 const emptyProject = (): ProjectForm => ({
   name: "", description: "", initiativeId: "", ownerName: "",
   weight: "50", status: "active", budget: "", startDate: "", targetDate: "",
 });
 
-const emptyMilestone = (): MilestoneForm => ({
-  name: "", description: "", weight: "25", progress: "0",
-  status: "pending", dueDate: "",
-});
-
 export default function Projects() {
   const { data, isLoading } = useListSpmoProjects();
   const { data: initiativesData } = useListSpmoInitiatives();
+  const { data: pillarsData } = useListSpmoPillars();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<ProjectForm>(emptyProject());
@@ -82,7 +70,7 @@ export default function Projects() {
     setModalOpen(true);
   }
 
-  function openEdit(project: NonNullable<typeof data>["projects"][number]) {
+  function openEdit(project: SpmoProjectWithProgress) {
     setEditId(project.id);
     setForm({
       name: project.name,
@@ -157,9 +145,16 @@ export default function Projects() {
   if (isLoading)
     return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
+  const pillars = pillarsData?.pillars ?? [];
+  const initiatives = initiativesData?.initiatives ?? [];
+  const projects = data?.projects ?? [];
+
+  const getPillarColor = (pillarId: number) =>
+    pillars.find((p) => p.id === pillarId)?.color ?? "#6366f1";
+
   return (
     <div className="space-y-6 animate-in fade-in">
-      <PageHeader title="Projects" description="Track project delivery, budgets, and milestones.">
+      <PageHeader title="Projects & Milestones" description="Grouped by initiative — track delivery, budgets, and milestones.">
         <button
           onClick={openCreate}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors shadow-sm"
@@ -168,18 +163,84 @@ export default function Projects() {
         </button>
       </PageHeader>
 
-      <div className="space-y-4">
-        {data?.projects.map((proj) => (
-          <ProjectRow
-            key={proj.id}
-            project={proj}
-            expanded={expandedProject === proj.id}
-            onToggle={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
-            onEdit={() => openEdit(proj)}
-            onDelete={() => handleDelete(proj.id, proj.name)}
-          />
+      {/* Grouped by Initiative */}
+      <div className="space-y-8">
+        {initiatives.map((initiative) => {
+          const pillarColor = getPillarColor(initiative.pillarId);
+          const pillarName = pillars.find((p) => p.id === initiative.pillarId)?.name ?? "";
+          const initProjects = projects.filter((p) => p.initiativeId === initiative.id);
+          if (initProjects.length === 0) return null;
+
+          const initProgress = (initiative as unknown as { progress?: number }).progress ?? 0;
+
+          return (
+            <div key={initiative.id} className="rounded-2xl border border-border overflow-hidden shadow-sm">
+              {/* Coloured left border (as top stripe in header) */}
+              <div
+                className="px-6 py-4 flex items-center gap-4 bg-card border-b border-border"
+                style={{ borderLeft: `4px solid ${pillarColor}` }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: pillarColor }}>
+                    {pillarName}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-bold text-lg">{initiative.name}</h3>
+                    <StatusBadge status={initiative.status} />
+                    <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">
+                      {initProjects.length} project{initProjects.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="w-32">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-muted-foreground">Progress</span>
+                      <span className="font-bold" style={{ color: pillarColor }}>{Math.round(initProgress)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${Math.min(100, initProgress)}%`, backgroundColor: pillarColor }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Projects */}
+              <div className="divide-y divide-border/50 bg-secondary/10">
+                {initProjects.map((proj) => (
+                  <ProjectRow
+                    key={proj.id}
+                    project={proj}
+                    pillarColor={pillarColor}
+                    expanded={expandedProject === proj.id}
+                    onToggle={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
+                    onEdit={() => openEdit(proj)}
+                    onDelete={() => handleDelete(proj.id, proj.name)}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Projects not in any matched initiative */}
+        {projects.filter((p) => !initiatives.some((i) => i.id === p.initiativeId)).map((proj) => (
+          <Card key={proj.id} noPadding className="overflow-hidden">
+            <ProjectRow
+              project={proj}
+              pillarColor="#6366f1"
+              expanded={expandedProject === proj.id}
+              onToggle={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
+              onEdit={() => openEdit(proj)}
+              onDelete={() => handleDelete(proj.id, proj.name)}
+            />
+          </Card>
         ))}
-        {data?.projects.length === 0 && (
+
+        {projects.length === 0 && (
           <Card className="p-12 text-center text-muted-foreground">
             No projects yet. Click "New Project" to create one.
           </Card>
@@ -196,7 +257,7 @@ export default function Projects() {
           <FormField label="Initiative" required>
             <select className={selectClass} value={form.initiativeId} onChange={(e) => setForm({ ...form, initiativeId: e.target.value })} required>
               <option value="">Select an initiative...</option>
-              {initiativesData?.initiatives.map((i) => (
+              {initiatives.map((i) => (
                 <option key={i.id} value={i.id}>{i.name}</option>
               ))}
             </select>
@@ -218,7 +279,7 @@ export default function Projects() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Budget (USD)">
+            <FormField label="Budget (SAR)">
               <input type="number" className={inputClass} value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="0" min="0" />
             </FormField>
             <FormField label={`Weight (${form.weight}%)`}>
@@ -242,53 +303,57 @@ export default function Projects() {
   );
 }
 
-// ─── Project Row with expandable milestone list ───────────────────────────────
-
 function ProjectRow({
   project,
+  pillarColor,
   expanded,
   onToggle,
   onEdit,
   onDelete,
 }: {
   project: SpmoProjectWithProgress;
+  pillarColor: string;
   expanded: boolean;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
-    <Card noPadding className="overflow-hidden">
-      {/* Header row */}
+    <div>
       <div
-        className="flex items-center gap-4 p-5 cursor-pointer hover:bg-secondary/20 transition-colors"
+        className="flex items-center gap-4 px-6 py-4 cursor-pointer hover:bg-secondary/20 transition-colors"
         onClick={onToggle}
       >
+        <div className="w-1.5 h-8 rounded-full shrink-0" style={{ backgroundColor: pillarColor }} />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-1">
+          <div className="flex items-center gap-3 mb-1 flex-wrap">
+            <h4 className="font-bold text-base">{project.name}</h4>
             <StatusBadge status={project.status} />
-            <h3 className="font-bold text-lg truncate">{project.name}</h3>
+            {project.weight > 0 && (
+              <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded text-muted-foreground">
+                {project.weight}% weight
+              </span>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground truncate">{project.description}</p>
-        </div>
-
-        <div className="flex items-center gap-6 shrink-0">
-          <div className="hidden md:block w-40">
+          <div className="w-48">
             <ProgressBar progress={project.progress ?? 0} />
           </div>
-          <div className="text-right">
-            <div className="text-xs text-muted-foreground font-medium">Budget</div>
-            <div className="font-bold text-sm">{formatCurrency(project.budget ?? 0)}</div>
+        </div>
+
+        <div className="flex items-center gap-4 shrink-0">
+          <div className="hidden md:block text-right">
+            <div className="text-xs text-muted-foreground">Budget</div>
+            <div className="font-bold text-sm font-mono">{formatCurrency(project.budget ?? 0)}</div>
           </div>
           <div className="text-right">
-            <div className="text-xs text-muted-foreground font-medium">Milestones</div>
+            <div className="text-xs text-muted-foreground">Milestones</div>
             <div className="font-bold text-sm">{project.milestoneCount ?? 0}</div>
           </div>
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-            <button onClick={onEdit} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
+            <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
               <Pencil className="w-4 h-4" />
             </button>
-            <button onClick={onDelete} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
+            <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
@@ -296,19 +361,13 @@ function ProjectRow({
         </div>
       </div>
 
-      {/* Milestones section */}
-      {expanded && <MilestoneSection projectId={project.id} />}
-    </Card>
+      {expanded && <MilestoneSection projectId={project.id} pillarColor={pillarColor} />}
+    </div>
   );
 }
 
-// ─── Milestone Section ─────────────────────────────────────────────────────────
-
-function MilestoneSection({ projectId }: { projectId: number }) {
+function MilestoneSection({ projectId, pillarColor }: { projectId: number; pillarColor: string }) {
   const { data, isLoading } = useListSpmoMilestones(projectId);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState<MilestoneForm>(emptyMilestone());
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -317,6 +376,9 @@ function MilestoneSection({ projectId }: { projectId: number }) {
   const deleteMutation = useDeleteSpmoMilestone();
   const submitMutation = useSubmitSpmoMilestone();
 
+  const milestones = data?.milestones ?? [];
+  const totalEffort = milestones.reduce((s, m) => s + (m.effortDays ?? 0), 0);
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: [`/api/spmo/projects/${projectId}/milestones`] });
     qc.invalidateQueries({ queryKey: ["/api/spmo/projects"] });
@@ -324,23 +386,22 @@ function MilestoneSection({ projectId }: { projectId: number }) {
     qc.invalidateQueries({ queryKey: ["/api/spmo/pending-approvals"] });
   };
 
-  function openCreate() {
-    setEditId(null);
-    setForm(emptyMilestone());
-    setModalOpen(true);
+  function handleInlineProgressUpdate(id: number, progress: number) {
+    updateMutation.mutate({ id, data: { progress } }, {
+      onSuccess: () => invalidate(),
+    });
   }
 
-  function openEdit(m: NonNullable<typeof data>["milestones"][number]) {
-    setEditId(m.id);
-    setForm({
-      name: m.name,
-      description: m.description ?? "",
-      weight: String(m.weight),
-      progress: String(m.progress),
-      status: m.status,
-      dueDate: m.dueDate ?? "",
+  function handleInlineEffortUpdate(id: number, effort: number, name: string) {
+    updateMutation.mutate({ id, data: { effortDays: effort } }, {
+      onSuccess: () => invalidate(),
     });
-    setModalOpen(true);
+  }
+
+  function handleInlineNameUpdate(id: number, name: string) {
+    updateMutation.mutate({ id, data: { name } }, {
+      onSuccess: () => invalidate(),
+    });
   }
 
   function handleDelete(id: number, name: string) {
@@ -353,43 +414,20 @@ function MilestoneSection({ projectId }: { projectId: number }) {
     });
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const payload = {
-      name: form.name,
-      description: form.description || undefined,
-      weight: parseFloat(form.weight) || 0,
-      progress: parseInt(form.progress) || 0,
-      status: form.status as "pending" | "in_progress",
-      dueDate: form.dueDate || undefined,
+  function handleAddMilestone() {
+    const createPayload: CreateSpmoMilestoneRequest = {
+      name: "New Milestone",
+      effortDays: 5,
+      weight: 5,
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
     };
-
-    if (editId !== null) {
-      updateMutation.mutate({ id: editId, data: payload }, {
-        onSuccess: () => {
-          toast({ title: "Updated", description: `"${form.name}" updated.` });
-          setModalOpen(false);
-          invalidate();
-        },
-        onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update." }),
-      });
-    } else {
-      const createMilestonePayload: CreateSpmoMilestoneRequest = {
-        name: form.name,
-        description: form.description || undefined,
-        weight: parseFloat(form.weight) || 0,
-        effortDays: 0,
-        dueDate: form.dueDate,
-      };
-      createMutation.mutate({ id: projectId, data: createMilestonePayload }, {
-        onSuccess: () => {
-          toast({ title: "Created", description: `"${form.name}" added.` });
-          setModalOpen(false);
-          invalidate();
-        },
-        onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to create." }),
-      });
-    }
+    createMutation.mutate({ id: projectId, data: createPayload }, {
+      onSuccess: () => {
+        toast({ title: "Milestone added" });
+        invalidate();
+      },
+      onError: () => toast({ variant: "destructive", title: "Failed to add milestone" }),
+    });
   }
 
   function handleSubmitForApproval(id: number, name: string) {
@@ -405,133 +443,238 @@ function MilestoneSection({ projectId }: { projectId: number }) {
     });
   }
 
-  const isSaving = createMutation.isPending || updateMutation.isPending;
-
-  const statusColor: Record<string, string> = {
-    approved: "text-green-600",
-    submitted: "text-blue-600",
-    in_progress: "text-amber-600",
-    rejected: "text-red-600",
-    pending: "text-muted-foreground",
-  };
-
   return (
-    <div className="border-t border-border bg-secondary/20">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border/50">
-        <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Milestones</h4>
+    <div className="border-t border-border bg-secondary/10">
+      <div className="px-6 py-3 flex items-center justify-between border-b border-border/50 bg-secondary/30">
+        <div className="flex items-center gap-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Milestones</h4>
+          <span className="text-xs text-muted-foreground">MILESTONE</span>
+          <span className="text-xs text-muted-foreground ml-4">PROGRESS</span>
+          <span className="text-xs text-muted-foreground ml-4">EFFORT (days)</span>
+          <span className="text-xs text-muted-foreground ml-4">WT%</span>
+        </div>
         <button
-          onClick={openCreate}
-          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+          onClick={handleAddMilestone}
+          disabled={createMutation.isPending}
+          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline disabled:opacity-50"
         >
-          <Plus className="w-3.5 h-3.5" /> Add Milestone
+          <Plus className="w-3.5 h-3.5" /> Add
         </button>
       </div>
 
       {isLoading ? (
         <div className="p-6 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : (
-        <div className="divide-y divide-border/50">
-          {data?.milestones.map((m) => (
-            <div key={m.id} className="flex items-center gap-4 px-5 py-3 hover:bg-secondary/30 transition-colors group">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm font-semibold ${statusColor[m.status] ?? ""}`}>{m.name}</span>
-                  <StatusBadge status={m.status} />
-                </div>
-                {m.dueDate && (
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Due: {format(new Date(m.dueDate), "MMM d, yyyy")}
-                  </div>
-                )}
-              </div>
+        <div className="divide-y divide-border/30">
+          {milestones.map((m) => {
+            const autoWeight = totalEffort > 0 ? Math.round((m.effortDays ?? 0) / totalEffort * 100) : 0;
+            const isApproved = m.status === "approved";
 
-              <div className="flex items-center gap-4 shrink-0">
-                <div className="w-32">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-muted-foreground">Progress</span>
-                    <span className="font-bold">{m.progress}%</span>
-                  </div>
-                  <div className="h-1.5 bg-border rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(m.progress, 100)}%` }} />
-                  </div>
-                </div>
+            return (
+              <div key={m.id} className="px-6 py-3 group">
+                <div className="flex items-center gap-4">
+                  <div
+                    className="w-1 h-10 rounded-full shrink-0 opacity-60"
+                    style={{ backgroundColor: pillarColor }}
+                  />
 
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {(m.status === "pending" || m.status === "in_progress" || m.status === "rejected") && (
-                    <button
-                      onClick={() => handleSubmitForApproval(m.id, m.name)}
-                      disabled={submitMutation.isPending}
-                      className="p-1.5 rounded-lg hover:bg-blue-50 text-muted-foreground hover:text-blue-600 transition-colors"
-                      title="Submit for approval"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  )}
-                  {m.status === "approved" && (
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  )}
-                  <button onClick={() => openEdit(m)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDelete(m.id, m.name)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {/* Name */}
+                  <div className="flex-1 min-w-0">
+                    {isApproved ? (
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                        <span className="text-sm font-semibold text-success">{m.name}</span>
+                      </div>
+                    ) : (
+                      <InlineEdit
+                        value={m.name}
+                        onSave={(v) => handleInlineNameUpdate(m.id, v)}
+                        className="text-sm font-semibold"
+                      />
+                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <StatusBadge status={m.status} />
+                      {m.dueDate && (
+                        <span className="text-xs text-muted-foreground">
+                          Due {format(new Date(m.dueDate), "MMM d")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress */}
+                  <div className="w-40 shrink-0">
+                    {isApproved ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-success/20 rounded-full overflow-hidden">
+                          <div className="h-full bg-success rounded-full" style={{ width: "100%" }} />
+                        </div>
+                        <span className="text-xs font-bold text-success w-8 text-right">100%</span>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={m.progress ?? 0}
+                            className="flex-1 accent-primary h-1"
+                            style={{ accentColor: pillarColor }}
+                            onChange={(e) => handleInlineProgressUpdate(m.id, parseInt(e.target.value))}
+                            disabled={isApproved}
+                          />
+                          <span className="text-xs font-bold w-8 text-right">{m.progress ?? 0}%</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Effort */}
+                  <div className="w-20 shrink-0">
+                    {isApproved ? (
+                      <span className="text-sm text-muted-foreground">{m.effortDays ?? 0}d</span>
+                    ) : (
+                      <InlineNumberEdit
+                        value={m.effortDays ?? 0}
+                        onSave={(v) => handleInlineEffortUpdate(m.id, v, m.name)}
+                        suffix="d"
+                        min={0}
+                      />
+                    )}
+                  </div>
+
+                  {/* Auto-weight */}
+                  <div className="w-12 text-center shrink-0">
+                    <span className="text-xs font-bold text-muted-foreground">{autoWeight}%</span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {!isApproved && m.status !== "submitted" && (
+                      <button
+                        onClick={() => handleSubmitForApproval(m.id, m.name)}
+                        disabled={submitMutation.isPending}
+                        className="p-1.5 rounded-lg hover:bg-blue-50 text-muted-foreground hover:text-blue-600 transition-colors"
+                        title="Submit for approval"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    )}
+                    {!isApproved && (
+                      <button
+                        onClick={() => handleDelete(m.id, m.name)}
+                        className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Delete"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
+            );
+          })}
+
+          {milestones.length === 0 && (
+            <div className="px-6 py-6 text-center text-sm text-muted-foreground">
+              No milestones yet.{" "}
+              <button onClick={handleAddMilestone} className="text-primary hover:underline font-medium">
+                Add one
+              </button>
             </div>
-          ))}
-          {data?.milestones.length === 0 && (
-            <div className="p-6 text-center text-sm text-muted-foreground">No milestones yet.</div>
           )}
         </div>
       )}
-
-      {/* Milestone form modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? "Edit Milestone" : "New Milestone"}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <FormField label="Milestone Name" required>
-            <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Biometric Pilot (500 users)" required />
-          </FormField>
-
-          <FormField label="Description">
-            <textarea className={inputClass} rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What does completion of this milestone mean?" />
-          </FormField>
-
-          <FormField label="Due Date" required>
-            <input type="date" className={inputClass} value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} required />
-          </FormField>
-
-          {editId !== null && (
-            <>
-              <FormField label="Status">
-                <select className={selectClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                  {MILESTONE_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-                </select>
-              </FormField>
-
-              <FormField label={`Progress: ${form.progress}%`}>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  className="w-full accent-primary"
-                  value={form.progress}
-                  onChange={(e) => setForm({ ...form, progress: e.target.value })}
-                />
-                <div className="h-2 bg-border rounded-full overflow-hidden mt-2">
-                  <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${form.progress}%` }} />
-                </div>
-              </FormField>
-            </>
-          )}
-
-          <FormField label={`Weight (${form.weight}%)`}>
-            <input type="range" min="0" max="100" className="w-full accent-primary" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} />
-          </FormField>
-
-          <FormActions loading={isSaving} label={editId ? "Update Milestone" : "Create Milestone"} onCancel={() => setModalOpen(false)} />
-        </form>
-      </Modal>
     </div>
+  );
+}
+
+function InlineEdit({
+  value,
+  onSave,
+  className = "",
+}: {
+  value: string;
+  onSave: (v: string) => void;
+  className?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        className={`${inputClass} py-0.5 px-1 text-sm w-full`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft.trim() && draft !== value) onSave(draft.trim());
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") { setDraft(value); setEditing(false); }
+        }}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={`${className} cursor-pointer hover:underline`}
+      onClick={() => { setDraft(value); setEditing(true); }}
+      title="Click to edit"
+    >
+      {value}
+    </span>
+  );
+}
+
+function InlineNumberEdit({
+  value,
+  onSave,
+  suffix = "",
+  min = 0,
+}: {
+  value: number;
+  onSave: (v: number) => void;
+  suffix?: string;
+  min?: number;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value));
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="number"
+        min={min}
+        className={`${inputClass} py-0.5 px-1 text-sm w-full`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          const n = parseFloat(draft);
+          if (!isNaN(n) && n !== value) onSave(n);
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") { setDraft(String(value)); setEditing(false); }
+        }}
+      />
+    );
+  }
+
+  return (
+    <span
+      className="text-sm cursor-pointer hover:underline font-mono"
+      onClick={() => { setDraft(String(value)); setEditing(true); }}
+      title="Click to edit"
+    >
+      {value}{suffix}
+    </span>
   );
 }

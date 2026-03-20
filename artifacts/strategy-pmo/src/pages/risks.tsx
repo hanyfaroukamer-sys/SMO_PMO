@@ -20,6 +20,7 @@ const PROB_IMPACT_VALUES = ["low", "medium", "high", "critical"] as const;
 type ProbImpact = "low" | "medium" | "high" | "critical";
 
 const SCORE_MAP: Record<ProbImpact, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+const LABEL_MAP: Record<ProbImpact, string> = { low: "Low", medium: "Medium", high: "High", critical: "Critical" };
 
 type RiskForm = {
   title: string;
@@ -41,11 +42,25 @@ const emptyRisk = (): RiskForm => ({
 
 const emptyMitigation = (): MitigationForm => ({ description: "", status: "planned" });
 
-const riskColor = (score: number) =>
-  score >= 16 ? "text-destructive bg-destructive/10 border-destructive/30"
-  : score >= 9  ? "text-orange-600 bg-orange-50 border-orange-200"
-  : score >= 4  ? "text-warning bg-warning/10 border-warning/30"
-  : "text-muted-foreground bg-secondary border-border";
+function riskBorderColor(score: number) {
+  if (score >= 12) return "#dc2626";
+  if (score >= 6) return "#d97706";
+  if (score >= 3) return "#2563eb";
+  return "#6b7280";
+}
+
+function riskColorClass(score: number) {
+  if (score >= 12) return "border-destructive/30 bg-destructive/5";
+  if (score >= 6) return "border-warning/30 bg-warning/5";
+  return "";
+}
+
+function heatmapColor(count: number) {
+  if (count === 0) return "bg-card text-muted-foreground/30 border-border/50";
+  if (count === 1) return "bg-amber-50 text-amber-700 border-amber-200";
+  if (count === 2) return "bg-amber-100 text-amber-800 border-amber-300";
+  return "bg-red-100 text-red-700 border-red-300";
+}
 
 export default function Risks() {
   const { data, isLoading } = useListSpmoRisks();
@@ -109,24 +124,17 @@ export default function Risks() {
           setRiskModal(false);
           invalidate();
         },
-        onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update risk." }),
+        onError: () => toast({ variant: "destructive", title: "Error" }),
       });
     } else {
-      const createRiskPayload: CreateSpmoRiskRequest = {
-        title: riskForm.title,
-        description: riskForm.description || undefined,
-        probability: riskForm.probability,
-        impact: riskForm.impact,
-        status: riskForm.status as "open" | "mitigated" | "accepted" | "closed",
-        owner: riskForm.owner || undefined,
-      };
+      const createRiskPayload: CreateSpmoRiskRequest = payload;
       createMutation.mutate({ data: createRiskPayload }, {
         onSuccess: () => {
-          toast({ title: "Risk logged", description: `"${riskForm.title}" added to register.` });
+          toast({ title: "Risk logged" });
           setRiskModal(false);
           invalidate();
         },
-        onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to log risk." }),
+        onError: () => toast({ variant: "destructive", title: "Error" }),
       });
     }
   }
@@ -136,7 +144,11 @@ export default function Risks() {
   if (isLoading)
     return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
-  const sorted = [...(data?.risks ?? [])].sort((a, b) => b.riskScore - a.riskScore);
+  const risks = data?.risks ?? [];
+  const sorted = [...risks].sort((a, b) => b.riskScore - a.riskScore);
+
+  const PROB_LEVELS: ProbImpact[] = ["low", "medium", "high", "critical"];
+  const IMPACT_LEVELS: ProbImpact[] = ["low", "medium", "high", "critical"];
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -149,10 +161,79 @@ export default function Risks() {
         </button>
       </PageHeader>
 
+      {/* Heat Map */}
+      {risks.length > 0 && (
+        <Card>
+          <h3 className="font-bold text-base mb-4">Risk Heat Map</h3>
+          <div className="flex gap-4">
+            {/* Y-axis label */}
+            <div className="flex flex-col justify-around text-xs text-muted-foreground font-semibold" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", height: 200 }}>
+              ← Probability →
+            </div>
+
+            <div className="flex-1">
+              {/* Grid */}
+              <div className="grid grid-rows-4 gap-1" style={{ gridTemplateRows: "repeat(4, 1fr)" }}>
+                {[...PROB_LEVELS].reverse().map((prob) => (
+                  <div key={prob} className="grid grid-cols-4 gap-1">
+                    {IMPACT_LEVELS.map((impact) => {
+                      const cellRisks = risks.filter(
+                        (r) => r.probability === prob && r.impact === impact
+                      );
+                      return (
+                        <div
+                          key={impact}
+                          className={`min-h-[48px] rounded-lg border p-1.5 text-xs ${heatmapColor(cellRisks.length)}`}
+                        >
+                          {cellRisks.length > 0 && (
+                            <div>
+                              <div className="font-bold mb-1">{cellRisks.length}</div>
+                              {cellRisks.slice(0, 2).map((r) => (
+                                <div key={r.id} className="truncate text-[9px] leading-tight">{r.title}</div>
+                              ))}
+                              {cellRisks.length > 2 && (
+                                <div className="text-[9px] opacity-60">+{cellRisks.length - 2} more</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              {/* X-axis labels */}
+              <div className="grid grid-cols-4 gap-1 mt-1">
+                {IMPACT_LEVELS.map((l) => (
+                  <div key={l} className="text-center text-xs text-muted-foreground font-medium capitalize">{LABEL_MAP[l]}</div>
+                ))}
+              </div>
+              <div className="text-center text-xs text-muted-foreground font-semibold mt-1">← Impact →</div>
+            </div>
+
+            {/* Y-axis labels */}
+            <div className="flex flex-col-reverse justify-around text-xs text-muted-foreground font-medium" style={{ height: 200 }}>
+              {PROB_LEVELS.map((l) => (
+                <div key={l} className="capitalize text-right">{LABEL_MAP[l]}</div>
+              ))}
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div className="flex gap-4 mt-3 text-xs">
+            <span className="flex items-center gap-1.5"><span className="w-4 h-3 rounded bg-card border border-border" /> None</span>
+            <span className="flex items-center gap-1.5"><span className="w-4 h-3 rounded bg-amber-50 border border-amber-200" /> 1</span>
+            <span className="flex items-center gap-1.5"><span className="w-4 h-3 rounded bg-amber-100 border border-amber-300" /> 2</span>
+            <span className="flex items-center gap-1.5"><span className="w-4 h-3 rounded bg-red-100 border border-red-300" /> 3+</span>
+          </div>
+        </Card>
+      )}
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {(["open", "mitigated", "accepted", "closed"] as const).map((s) => {
-          const count = data?.risks.filter((r) => r.status === s).length ?? 0;
+          const count = risks.filter((r) => r.status === s).length;
           return (
             <Card key={s} className="text-center py-4">
               <div className="text-2xl font-bold font-display">{count}</div>
@@ -164,50 +245,55 @@ export default function Risks() {
 
       {/* Risk list */}
       <div className="space-y-3">
-        {sorted.map((risk) => (
-          <Card key={risk.id} noPadding className="overflow-hidden">
-            <div
-              className="flex items-center gap-4 p-4 cursor-pointer hover:bg-secondary/20 transition-colors"
-              onClick={() => setExpandedRisk(expandedRisk === risk.id ? null : risk.id)}
-            >
-              <div className={`shrink-0 w-14 h-14 rounded-xl border-2 flex flex-col items-center justify-center font-bold ${riskColor(risk.riskScore)}`}>
-                <span className="text-xl leading-none">{risk.riskScore}</span>
-                <span className="text-[9px] uppercase tracking-wider opacity-70">score</span>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-bold text-foreground">{risk.title}</h3>
-                  <StatusBadge status={risk.status} />
+        {sorted.map((risk) => {
+          const borderColor = riskBorderColor(risk.riskScore);
+          return (
+            <Card key={risk.id} noPadding className={`overflow-hidden ${riskColorClass(risk.riskScore)}`}>
+              <div
+                className="flex items-center gap-4 p-4 cursor-pointer hover:bg-black/5 transition-colors"
+                style={{ borderLeft: `4px solid ${borderColor}` }}
+                onClick={() => setExpandedRisk(expandedRisk === risk.id ? null : risk.id)}
+              >
+                <div className="flex flex-col items-center justify-center w-14 h-14 rounded-xl shrink-0 border-2 bg-background"
+                  style={{ borderColor, color: borderColor }}
+                >
+                  <span className="text-xl font-bold leading-none">{risk.riskScore}</span>
+                  <span className="text-[9px] uppercase tracking-wider opacity-70">score</span>
                 </div>
-                <p className="text-sm text-muted-foreground line-clamp-1">{risk.description}</p>
-                {risk.owner && <span className="text-xs text-muted-foreground mt-1 block">Owner: {risk.owner}</span>}
-              </div>
 
-              <div className="flex items-center gap-4 shrink-0">
-                <div className="text-center hidden md:block">
-                  <div className="text-sm font-bold capitalize">{risk.probability} × {risk.impact}</div>
-                  <div className="text-[10px] text-muted-foreground uppercase">P × I</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="font-bold text-foreground">{risk.title}</h3>
+                    <StatusBadge status={risk.status} />
+                  </div>
+                  <p className="text-sm text-muted-foreground line-clamp-1">{risk.description}</p>
+                  <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                    {risk.owner && <span>Owner: <strong className="text-foreground">{risk.owner}</strong></span>}
+                    <span className="capitalize">{LABEL_MAP[risk.probability as ProbImpact]} probability × {LABEL_MAP[risk.impact as ProbImpact]} impact</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+
+                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                   <button onClick={() => openEdit(risk)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                     <Pencil className="w-4 h-4" />
                   </button>
                   <button onClick={() => handleDelete(risk.id, risk.title)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
                     <Trash2 className="w-4 h-4" />
                   </button>
+                  <div onClick={(e) => { e.stopPropagation(); setExpandedRisk(expandedRisk === risk.id ? null : risk.id); }}>
+                    {expandedRisk === risk.id
+                      ? <ChevronUp className="w-5 h-5 text-muted-foreground cursor-pointer" />
+                      : <ChevronDown className="w-5 h-5 text-muted-foreground cursor-pointer" />}
+                  </div>
                 </div>
-                {expandedRisk === risk.id
-                  ? <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                  : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
               </div>
-            </div>
 
-            {expandedRisk === risk.id && <MitigationSection riskId={risk.id} mitigations={risk.mitigations ?? []} />}
-          </Card>
-        ))}
+              {expandedRisk === risk.id && <MitigationSection riskId={risk.id} mitigations={risk.mitigations ?? []} />}
+            </Card>
+          );
+        })}
 
-        {data?.risks.length === 0 && (
+        {risks.length === 0 && (
           <Card className="p-12 text-center text-muted-foreground flex flex-col items-center">
             <ShieldAlert className="w-12 h-12 mb-4 opacity-20" />
             <p>No risks logged yet.</p>
@@ -219,34 +305,22 @@ export default function Risks() {
       <Modal open={riskModal} onClose={() => setRiskModal(false)} title={editId ? "Edit Risk" : "Log New Risk"}>
         <form onSubmit={handleRiskSubmit} className="space-y-4">
           <FormField label="Risk Title" required>
-            <input
-              className={inputClass}
-              value={riskForm.title}
-              onChange={(e) => setRiskForm({ ...riskForm, title: e.target.value })}
-              placeholder="e.g. System Integration Failure"
-              required
-            />
+            <input className={inputClass} value={riskForm.title} onChange={(e) => setRiskForm({ ...riskForm, title: e.target.value })} placeholder="e.g. System Integration Failure" required />
           </FormField>
 
           <FormField label="Description">
-            <textarea
-              className={inputClass}
-              rows={3}
-              value={riskForm.description}
-              onChange={(e) => setRiskForm({ ...riskForm, description: e.target.value })}
-              placeholder="Describe the risk and its potential impact..."
-            />
+            <textarea className={inputClass} rows={3} value={riskForm.description} onChange={(e) => setRiskForm({ ...riskForm, description: e.target.value })} placeholder="Describe the risk and its potential impact..." />
           </FormField>
 
           <div className="grid grid-cols-3 gap-4">
             <FormField label="Probability">
               <select className={selectClass} value={riskForm.probability} onChange={(e) => setRiskForm({ ...riskForm, probability: e.target.value as ProbImpact })}>
-                {PROB_IMPACT_VALUES.map((v) => <option key={v} value={v} className="capitalize">{v}</option>)}
+                {PROB_IMPACT_VALUES.map((v) => <option key={v} value={v} className="capitalize">{LABEL_MAP[v]}</option>)}
               </select>
             </FormField>
             <FormField label="Impact">
               <select className={selectClass} value={riskForm.impact} onChange={(e) => setRiskForm({ ...riskForm, impact: e.target.value as ProbImpact })}>
-                {PROB_IMPACT_VALUES.map((v) => <option key={v} value={v} className="capitalize">{v}</option>)}
+                {PROB_IMPACT_VALUES.map((v) => <option key={v} value={v} className="capitalize">{LABEL_MAP[v]}</option>)}
               </select>
             </FormField>
             <FormField label="Status">
@@ -257,22 +331,17 @@ export default function Risks() {
           </div>
 
           <FormField label="Risk Owner">
-            <input
-              className={inputClass}
-              value={riskForm.owner}
-              onChange={(e) => setRiskForm({ ...riskForm, owner: e.target.value })}
-              placeholder="e.g. Ahmed Al-Mansouri"
-            />
+            <input className={inputClass} value={riskForm.owner} onChange={(e) => setRiskForm({ ...riskForm, owner: e.target.value })} placeholder="e.g. Ahmed Al-Mansouri" />
           </FormField>
 
           <div className="p-3 bg-secondary/50 rounded-lg border border-border text-sm">
-            Risk Score = Probability × Impact ={" "}
+            Risk Score = {LABEL_MAP[riskForm.probability]} × {LABEL_MAP[riskForm.impact]} ={" "}
             <strong>{SCORE_MAP[riskForm.probability] * SCORE_MAP[riskForm.impact]}</strong>
             {" "}
-            {SCORE_MAP[riskForm.probability] * SCORE_MAP[riskForm.impact] >= 16 ? "Critical"
-              : SCORE_MAP[riskForm.probability] * SCORE_MAP[riskForm.impact] >= 9 ? "High"
-              : SCORE_MAP[riskForm.probability] * SCORE_MAP[riskForm.impact] >= 4 ? "Medium"
-              : "Low"}
+            ({SCORE_MAP[riskForm.probability] * SCORE_MAP[riskForm.impact] >= 12 ? "Critical"
+              : SCORE_MAP[riskForm.probability] * SCORE_MAP[riskForm.impact] >= 6 ? "High"
+              : SCORE_MAP[riskForm.probability] * SCORE_MAP[riskForm.impact] >= 3 ? "Medium"
+              : "Low"})
           </div>
 
           <FormActions loading={isSaving} label={editId ? "Update Risk" : "Log Risk"} onCancel={() => setRiskModal(false)} />
@@ -281,8 +350,6 @@ export default function Risks() {
     </div>
   );
 }
-
-// ─── Mitigation section ────────────────────────────────────────────────────────
 
 function MitigationSection({
   riskId,
@@ -326,17 +393,14 @@ function MitigationSection({
         },
       });
     } else {
-      const createMitigationPayload: CreateSpmoMitigationRequest = {
-        description: form.description,
-        status,
-      };
+      const createMitigationPayload: CreateSpmoMitigationRequest = { description: form.description, status };
       createMutation.mutate({ id: riskId, data: createMitigationPayload }, {
         onSuccess: () => {
           toast({ title: "Mitigation added" });
           setModalOpen(false);
           invalidate();
         },
-        onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to add mitigation." }),
+        onError: () => toast({ variant: "destructive", title: "Error" }),
       });
     }
   }
@@ -349,10 +413,7 @@ function MitigationSection({
         <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           <ShieldCheck className="w-4 h-4" /> Mitigations ({mitigations.length})
         </h4>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-        >
+        <button onClick={openCreate} className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
           <Plus className="w-3.5 h-3.5" /> Add Mitigation
         </button>
       </div>
@@ -375,14 +436,7 @@ function MitigationSection({
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? "Edit Mitigation" : "Add Mitigation"} maxWidth="max-w-md">
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField label="Mitigation Action" required>
-            <textarea
-              className={inputClass}
-              rows={3}
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Describe the mitigation action..."
-              required
-            />
+            <textarea className={inputClass} rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the mitigation action..." required />
           </FormField>
           <FormField label="Status">
             <select className={selectClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>

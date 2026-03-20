@@ -50,15 +50,17 @@ export function ProgressBar({ progress, status, className, showLabel = true }: {
   );
 }
 
-export function Card({ className, children, noPadding = false, style }: { className?: string, children: ReactNode, noPadding?: boolean, style?: React.CSSProperties }) {
+export function Card({ className, children, noPadding = false, style, onClick }: { className?: string, children: ReactNode, noPadding?: boolean, style?: React.CSSProperties, onClick?: () => void }) {
   return (
     <div
       className={cn(
         "bg-card border border-card-border rounded-xl shadow-sm overflow-hidden",
         !noPadding && "p-5 md:p-6",
+        onClick && "cursor-pointer",
         className
       )}
       style={style}
+      onClick={onClick}
     >
       {children}
     </div>

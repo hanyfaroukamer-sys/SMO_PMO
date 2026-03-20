@@ -1,6 +1,8 @@
 import { useState } from "react";
 import {
   useListSpmoBudget,
+  useListSpmoInitiatives,
+  useListSpmoProjects,
   useCreateSpmoBudgetEntry,
   useUpdateSpmoBudgetEntry,
   useDeleteSpmoBudgetEntry,
@@ -8,7 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Wallet, TrendingUp, CircleDollarSign, BarChart2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -42,6 +44,8 @@ const emptyForm = (): EntryForm => ({
 
 export default function Budget() {
   const { data, isLoading } = useListSpmoBudget();
+  const { data: initiativesData } = useListSpmoInitiatives();
+  const { data: projectsData } = useListSpmoProjects();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<EntryForm>(emptyForm());
@@ -89,9 +93,7 @@ export default function Budget() {
     const fiscalQuarter = form.fiscalQuarter ? parseInt(form.fiscalQuarter) : undefined;
     const period = fiscalYear && fiscalQuarter
       ? `FY${fiscalYear} Q${fiscalQuarter}`
-      : fiscalYear
-        ? `FY${fiscalYear}`
-        : new Date().getFullYear().toString();
+      : fiscalYear ? `FY${fiscalYear}` : new Date().getFullYear().toString();
 
     if (editId !== null) {
       updateMutation.mutate({ id: editId, data: {
@@ -108,7 +110,7 @@ export default function Budget() {
           setModalOpen(false);
           invalidate();
         },
-        onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update entry." }),
+        onError: () => toast({ variant: "destructive", title: "Error" }),
       });
     } else {
       const createPayload: CreateSpmoBudgetEntryRequest = {
@@ -122,11 +124,11 @@ export default function Budget() {
       };
       createMutation.mutate({ data: createPayload }, {
         onSuccess: () => {
-          toast({ title: "Entry added", description: `${form.category} budget entry created.` });
+          toast({ title: "Entry added" });
           setModalOpen(false);
           invalidate();
         },
-        onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to add entry." }),
+        onError: () => toast({ variant: "destructive", title: "Error" }),
       });
     }
   }
@@ -135,6 +137,12 @@ export default function Budget() {
 
   if (isLoading)
     return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+
+  const totalAllocated = data?.totalAllocated ?? 0;
+  const totalSpent = data?.totalSpent ?? 0;
+  const remaining = totalAllocated - totalSpent;
+  const utilizationPct = data?.utilizationPct ?? 0;
+  const burnRate = totalAllocated > 0 ? utilizationPct : 0;
 
   const chartData =
     data?.entries.reduce((acc: Array<{ name: string; Allocated: number; Spent: number }>, entry) => {
@@ -148,7 +156,11 @@ export default function Budget() {
       return acc;
     }, []) ?? [];
 
-  const utilizationPct = data?.utilizationPct ?? 0;
+  const initiatives = initiativesData?.initiatives ?? [];
+  const projects = projectsData?.projects ?? [];
+
+  const totalInitBudget = initiatives.reduce((s, i) => s + ((i as unknown as { budget?: number }).budget ?? 0), 0);
+  const totalProjBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -161,19 +173,45 @@ export default function Budget() {
         </button>
       </PageHeader>
 
-      {/* Summary KPI cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-secondary/20">
-          <div className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">Total Allocated</div>
-          <div className="text-3xl font-display font-bold">{formatCurrency(data?.totalAllocated ?? 0)}</div>
+      {/* 4 Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+        <Card className="hover:-translate-y-1 transition-transform">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Wallet className="w-5 h-5 text-primary" />
+            </div>
+            <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Allocated</div>
+          </div>
+          <div className="text-3xl font-display font-bold">{formatCurrency(totalAllocated)}</div>
         </Card>
-        <Card className="bg-secondary/20">
-          <div className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">Total Spent</div>
-          <div className="text-3xl font-display font-bold text-primary">{formatCurrency(data?.totalSpent ?? 0)}</div>
+        <Card className="hover:-translate-y-1 transition-transform">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center">
+              <CircleDollarSign className="w-5 h-5 text-destructive" />
+            </div>
+            <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Spent</div>
+          </div>
+          <div className="text-3xl font-display font-bold text-destructive">{formatCurrency(totalSpent)}</div>
         </Card>
-        <Card className={utilizationPct > 100 ? "bg-destructive/10 border-destructive/30" : "bg-secondary/20"}>
-          <div className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">Utilization</div>
-          <div className={`text-3xl font-display font-bold ${utilizationPct > 100 ? "text-destructive" : ""}`}>
+        <Card className="hover:-translate-y-1 transition-transform">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-success" />
+            </div>
+            <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Remaining</div>
+          </div>
+          <div className={`text-3xl font-display font-bold ${remaining < 0 ? "text-destructive" : "text-success"}`}>
+            {formatCurrency(remaining)}
+          </div>
+        </Card>
+        <Card className={`hover:-translate-y-1 transition-transform ${utilizationPct > 90 ? "border-destructive/30" : ""}`}>
+          <div className="flex items-center gap-3 mb-2">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${utilizationPct > 90 ? "bg-destructive/10" : "bg-warning/10"}`}>
+              <BarChart2 className={`w-5 h-5 ${utilizationPct > 90 ? "text-destructive" : "text-warning"}`} />
+            </div>
+            <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Burn Rate</div>
+          </div>
+          <div className={`text-3xl font-display font-bold ${utilizationPct > 90 ? "text-destructive" : ""}`}>
             {utilizationPct.toFixed(1)}%
           </div>
         </Card>
@@ -181,9 +219,9 @@ export default function Budget() {
 
       {/* Chart */}
       {chartData.length > 0 && (
-        <Card style={{ height: 380 }}>
-          <h3 className="font-bold text-lg mb-6">Spend by Category</h3>
-          <ResponsiveContainer width="100%" height="88%">
+        <Card style={{ height: 360 }}>
+          <h3 className="font-bold text-lg mb-4">Spend by Category</h3>
+          <ResponsiveContainer width="100%" height="85%">
             <BarChart data={chartData} margin={{ top: 0, right: 0, left: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6b7280" }} dy={10} />
@@ -193,7 +231,7 @@ export default function Budget() {
                 formatter={(val: number) => formatCurrency(val)}
                 contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
               />
-              <Legend wrapperStyle={{ paddingTop: "20px" }} />
+              <Legend wrapperStyle={{ paddingTop: "16px" }} />
               <Bar dataKey="Allocated" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="Spent" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -201,10 +239,98 @@ export default function Budget() {
         </Card>
       )}
 
-      {/* Entries table */}
+      {/* Initiatives Budget Table */}
+      {initiatives.length > 0 && (
+        <Card noPadding className="overflow-hidden">
+          <div className="p-4 border-b border-border bg-secondary/50 flex items-center justify-between">
+            <h3 className="font-bold">Initiatives Budget</h3>
+            <span className="text-sm text-muted-foreground">{initiatives.length} initiatives</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-muted-foreground uppercase bg-secondary/30 border-b border-border">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Name</th>
+                  <th className="px-5 py-3 font-semibold text-right">Alloc (M SAR)</th>
+                  <th className="px-5 py-3 font-semibold text-right">Weight</th>
+                  <th className="px-5 py-3 font-semibold text-right">Progress</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {initiatives.map((initiative) => {
+                  const budget = (initiative as unknown as { budget?: number }).budget ?? 0;
+                  const progress = (initiative as unknown as { progress?: number }).progress ?? 0;
+                  const weight = totalInitBudget > 0 ? (budget / totalInitBudget * 100).toFixed(1) : "—";
+                  return (
+                    <tr key={initiative.id} className="hover:bg-secondary/20 transition-colors">
+                      <td className="px-5 py-3 font-semibold">{initiative.name}</td>
+                      <td className="px-5 py-3 text-right font-mono">
+                        {(budget / 1_000_000).toFixed(1)}M
+                      </td>
+                      <td className="px-5 py-3 text-right text-muted-foreground">
+                        {weight}{totalInitBudget > 0 ? "%" : ""}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <span className="font-bold">{Math.round(progress)}%</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Projects Budget Table */}
+      {projects.length > 0 && (
+        <Card noPadding className="overflow-hidden">
+          <div className="p-4 border-b border-border bg-secondary/50 flex items-center justify-between">
+            <h3 className="font-bold">Projects Budget</h3>
+            <span className="text-sm text-muted-foreground">{projects.length} projects · SAR {(totalProjBudget / 1_000_000).toFixed(0)}M total</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-muted-foreground uppercase bg-secondary/30 border-b border-border">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Name</th>
+                  <th className="px-5 py-3 font-semibold">Owner</th>
+                  <th className="px-5 py-3 font-semibold text-right">Budget (M SAR)</th>
+                  <th className="px-5 py-3 font-semibold text-right">Weight</th>
+                  <th className="px-5 py-3 font-semibold text-right">Progress</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {projects.map((project) => {
+                  const budget = project.budget ?? 0;
+                  const progress = project.progress ?? 0;
+                  const weight = totalProjBudget > 0 ? (budget / totalProjBudget * 100).toFixed(1) : "—";
+                  return (
+                    <tr key={project.id} className="hover:bg-secondary/20 transition-colors">
+                      <td className="px-5 py-3 font-semibold">{project.name}</td>
+                      <td className="px-5 py-3 text-muted-foreground">{project.ownerName || "—"}</td>
+                      <td className="px-5 py-3 text-right font-mono">
+                        {(budget / 1_000_000).toFixed(1)}M
+                      </td>
+                      <td className="px-5 py-3 text-right text-muted-foreground">
+                        {weight}{totalProjBudget > 0 ? "%" : ""}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <span className="font-bold">{Math.round(progress)}%</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Detailed Entries Table */}
       <Card noPadding className="overflow-hidden">
         <div className="p-4 border-b border-border bg-secondary/50 flex items-center justify-between">
-          <h3 className="font-bold">All Budget Entries</h3>
+          <h3 className="font-bold">Budget Entries</h3>
           <span className="text-sm text-muted-foreground">{data?.entries.length ?? 0} entries</span>
         </div>
         <div className="overflow-x-auto">
@@ -222,25 +348,25 @@ export default function Budget() {
             </thead>
             <tbody className="divide-y divide-border">
               {data?.entries.map((entry) => {
-                const remaining = entry.allocated - entry.spent;
+                const rem = entry.allocated - entry.spent;
                 return (
                   <tr key={entry.id} className="hover:bg-secondary/20 transition-colors group">
                     <td className="px-5 py-3 font-semibold">{entry.category}</td>
                     <td className="px-5 py-3 text-muted-foreground max-w-xs truncate">{entry.description || "—"}</td>
                     <td className="px-5 py-3 text-right font-mono">{formatCurrency(entry.allocated)}</td>
                     <td className="px-5 py-3 text-right font-mono">{formatCurrency(entry.spent)}</td>
-                    <td className={`px-5 py-3 text-right font-mono font-bold ${remaining < 0 ? "text-destructive" : ""}`}>
-                      {formatCurrency(remaining)}
+                    <td className={`px-5 py-3 text-right font-mono font-bold ${rem < 0 ? "text-destructive" : ""}`}>
+                      {formatCurrency(rem)}
                     </td>
                     <td className="px-5 py-3 text-center text-muted-foreground">
                       {entry.fiscalYear ? `FY${entry.fiscalYear}${entry.fiscalQuarter ? ` Q${entry.fiscalQuarter}` : ""}` : "—"}
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-                        <button onClick={() => openEdit(entry)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
+                        <button onClick={() => openEdit(entry)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(entry.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
+                        <button onClick={() => handleDelete(entry.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -260,61 +386,27 @@ export default function Budget() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? "Edit Budget Entry" : "New Budget Entry"}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField label="Category" required>
-            <select
-              className={selectClass}
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
-            >
+            <select className={selectClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
               {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </FormField>
 
           <FormField label="Description">
-            <input
-              className={inputClass}
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="e.g. Cloud infrastructure licences Q1"
-            />
+            <input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="e.g. Cloud infrastructure licences Q1" />
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Allocated (USD)" required>
-              <input
-                type="number"
-                className={inputClass}
-                value={form.allocated}
-                onChange={(e) => setForm({ ...form, allocated: e.target.value })}
-                placeholder="0"
-                min="0"
-                step="any"
-                required
-              />
+              <input type="number" className={inputClass} value={form.allocated} onChange={(e) => setForm({ ...form, allocated: e.target.value })} placeholder="0" min="0" step="any" required />
             </FormField>
             <FormField label="Spent (USD)">
-              <input
-                type="number"
-                className={inputClass}
-                value={form.spent}
-                onChange={(e) => setForm({ ...form, spent: e.target.value })}
-                placeholder="0"
-                min="0"
-                step="any"
-              />
+              <input type="number" className={inputClass} value={form.spent} onChange={(e) => setForm({ ...form, spent: e.target.value })} placeholder="0" min="0" step="any" />
             </FormField>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Fiscal Year">
-              <input
-                type="number"
-                className={inputClass}
-                value={form.fiscalYear}
-                onChange={(e) => setForm({ ...form, fiscalYear: e.target.value })}
-                placeholder="2026"
-                min="2000"
-                max="2100"
-              />
+              <input type="number" className={inputClass} value={form.fiscalYear} onChange={(e) => setForm({ ...form, fiscalYear: e.target.value })} placeholder="2026" min="2000" max="2100" />
             </FormField>
             <FormField label="Fiscal Quarter">
               <select className={selectClass} value={form.fiscalQuarter} onChange={(e) => setForm({ ...form, fiscalQuarter: e.target.value })}>
