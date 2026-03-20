@@ -1,8 +1,8 @@
-# Workspace
+# Initiative Tracker — Workspace
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Full-stack Initiative Tracker built on a pnpm monorepo. Features Replit Auth (OIDC with PKCE), three user roles (admin, project-manager, approver), milestone-based progress tracking (`calcProgress`), file uploads via Replit Object Storage, and a React + Vite frontend.
 
 ## Stack
 
@@ -12,85 +12,96 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
+- **Auth**: Replit Auth (OIDC/PKCE) via `openid-client` v6 on server; `@workspace/replit-auth-web` on frontend
+- **Object storage**: Replit Object Storage (GCS-backed) — presigned URL upload flow
+- **Frontend**: React 18 + Vite, Tailwind CSS v4, TanStack Query, Wouter, Radix UI, Framer Motion, Sonner
+- **Validation**: Zod (v3 catalog), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+- **Build**: esbuild (CJS bundle for api-server)
+
+## Roles
+
+- `admin` — full access, role management
+- `project-manager` — create/manage their own initiatives and milestones, submit for approval
+- `approver` — approve or reject submitted milestones
+
+Default role for new users: `project-manager`
+
+## calcProgress Logic
+
+Progress = (sum of approved milestone weights / sum of all milestone weights) × 100
+
+Implemented server-side in `artifacts/api-server/src/routes/initiatives.ts`.
 
 ## Structure
 
 ```text
 artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+├── artifacts/
+│   ├── api-server/            # Express 5 API server (port from $PORT env, default 8080)
+│   └── initiative-tracker/    # React + Vite frontend (port from $PORT env)
+├── lib/
+│   ├── api-spec/              # OpenAPI 3.1 spec + Orval codegen config
+│   ├── api-client-react/      # Generated React Query hooks + custom fetch (credentials: include)
+│   ├── api-zod/               # Generated Zod schemas
+│   ├── db/                    # Drizzle ORM schema + DB connection
+│   ├── replit-auth-web/       # useAuth() hook for React frontend
+│   └── object-storage-web/    # File upload utilities (Uppy-based)
+├── scripts/                   # Utility scripts
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── tsconfig.json              # Root TS project references
+└── package.json
 ```
+
+## DB Schema
+
+- `users` — id (Replit sub), email, firstName, lastName, profileImageUrl, role (admin|project-manager|approver), createdAt/updatedAt
+- `sessions` — id (UUID), data (JSONB), expiresAt
+- `initiatives` — id, title, description, status, priority, ownerId (→ users), startDate, targetDate, createdAt/updatedAt
+- `milestones` — id, initiativeId, title, description, status (pending|in_progress|submitted|approved|rejected), weight (numeric), dueDate, approvedById, rejectionReason, createdAt/updatedAt
+- `fileAttachments` — id, milestoneId, uploadedById, fileName, objectPath, contentType, createdAt
+
+## API Routes (all under `/api`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /auth/user | Get current user |
+| GET | /auth/login | Start OIDC login |
+| GET | /auth/callback | OIDC callback |
+| GET | /auth/logout | Logout |
+| POST | /auth/mobile/token | Mobile token exchange |
+| GET | /initiatives | List all initiatives (with progress) |
+| POST | /initiatives | Create initiative (admin/PM only) |
+| GET | /initiatives/:id | Get initiative detail + milestones |
+| PUT | /initiatives/:id | Update initiative |
+| DELETE | /initiatives/:id | Delete initiative |
+| POST | /initiatives/:id/milestones | Create milestone |
+| PUT | /milestones/:id | Update milestone |
+| DELETE | /milestones/:id | Delete milestone |
+| POST | /milestones/:id/submit | Submit for approval |
+| POST | /milestones/:id/approve | Approve milestone (admin/approver) |
+| POST | /milestones/:id/reject | Reject milestone (admin/approver) |
+| POST | /milestones/:id/attachments | Add file attachment |
+| GET | /users | List all users (admin only) |
+| PUT | /users/:id/role | Update user role (admin only) |
+| POST | /storage/uploads/request-url | Request presigned upload URL |
 
 ## TypeScript & Composite Projects
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references.
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+- **Always typecheck from the root** — run `pnpm run typecheck`
+- **`emitDeclarationOnly`** — no JS emit during typecheck; bundling via esbuild/tsx/vite
 
 ## Root Scripts
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+- `pnpm run build` — typecheck then recursive build
+- `pnpm run typecheck` — `tsc --build --emitDeclarationOnly`
 
-## Packages
+## Development
 
-### `artifacts/api-server` (`@workspace/api-server`)
-
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+- API server: `pnpm --filter @workspace/api-server run dev` (port 8080)
+- Frontend: `pnpm --filter @workspace/initiative-tracker run dev`
+- DB push: `pnpm --filter @workspace/db run push`
+- Codegen: `pnpm --filter @workspace/api-spec run codegen`

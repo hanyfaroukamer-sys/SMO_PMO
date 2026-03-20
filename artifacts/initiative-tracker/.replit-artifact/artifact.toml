@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Initiative Tracker"
+version = "1.0.0"
+id = "artifacts/initiative-tracker"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18102
+
+[services.development]
+run = "pnpm --filter @workspace/initiative-tracker run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/initiative-tracker", "run", "build" ]
+publicDir = "artifacts/initiative-tracker/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18102"
+BASE_PATH = "/"

@@ -1,0 +1,15 @@
+packages:
+  "framer-motion": "For page transitions, smooth modal animations, and list staggering."
+  "date-fns": "For elegant date formatting in the dashboard and detail views."
+  "react-hook-form": "For robust, performant form state management."
+  "@hookform/resolvers": "For integrating Zod validation with react-hook-form."
+  "sonner": "For beautiful, modern toast notifications."
+
+images:
+  - path: "artifacts/initiative-tracker/public/images/auth-bg.png"
+    description: "Abstract, elegant corporate background with soft waves and geometric shapes in deep indigo and slate, very subtle and professional."
+    aspect_ratio: "16:9"
+
+notes:
+  - "Assuming @workspace/replit-auth-web provides useAuth() returning { user, isAuthenticated, login, logout, isLoading }"
+  - "Assuming @workspace/api-client-react provides the TanStack Query hooks generated from the OpenAPI spec."
