@@ -7,6 +7,7 @@ import { Toaster } from "sonner";
 import { AppLayout } from "@/components/layout";
 import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
+import MyInitiatives from "@/pages/my-initiatives";
 import InitiativeDetail from "@/pages/initiative-detail";
 import Admin from "@/pages/admin";
 import NotFound from "@/pages/not-found";
@@ -62,7 +63,7 @@ function Router() {
         {() => <ProtectedRoute component={Dashboard} />}
       </Route>
       <Route path="/my-initiatives">
-        {() => <ProtectedRoute component={Dashboard} />}
+        {() => <ProtectedRoute component={MyInitiatives} />}
       </Route>
       <Route path="/initiatives/:id">
         {() => <ProtectedRoute component={InitiativeDetail} />}

@@ -59,8 +59,14 @@ artifacts-monorepo/
 - `users` — id (Replit sub), email, firstName, lastName, profileImageUrl, role (admin|project-manager|approver), createdAt/updatedAt
 - `sessions` — id (UUID), data (JSONB), expiresAt
 - `initiatives` — id, title, description, status, priority, ownerId (→ users), startDate, targetDate, createdAt/updatedAt
-- `milestones` — id, initiativeId, title, description, status (pending|in_progress|submitted|approved|rejected), weight (numeric), dueDate, approvedById, rejectionReason, createdAt/updatedAt
-- `fileAttachments` — id, milestoneId, uploadedById, fileName, objectPath, contentType, createdAt
+- `milestones` — id, initiativeId, title, description, status (pending|in_progress|submitted|approved|rejected), weight (numeric), dueDate, approvedById, approvedAt, rejectionReason, createdAt/updatedAt
+- `approvals` — id, milestoneId, reviewerId (→ users), action (approved|rejected), comment, createdAt — full approval history
+- `upload_intents` — id, userId, milestoneId, objectPath, expiresAt, usedAt, createdAt — upload intent binding (prevents path spoofing)
+- `file_attachments` — id, milestoneId, uploadedById, fileName, objectPath, contentType, createdAt
+
+## User Management
+
+Users are provisioned automatically via Replit OIDC on first login (no manual create/delete). Admins can update roles via the Admin panel (`PUT /api/users/:id/role`). There is no user creation or deletion endpoint, consistent with OIDC-provisioned auth.
 
 ## API Routes (all under `/api`)
 
@@ -85,7 +91,8 @@ artifacts-monorepo/
 | POST | /milestones/:id/attachments | Add file attachment |
 | GET | /users | List all users (admin only) |
 | PUT | /users/:id/role | Update user role (admin only) |
-| POST | /storage/uploads/request-url | Request presigned upload URL |
+| POST | /storage/uploads/request-url | Request presigned upload URL (auth + milestone ownership required) |
+| GET | /storage/objects/* | Serve private attachment (auth + role/ownership check via DB) |
 
 ## TypeScript & Composite Projects
 
