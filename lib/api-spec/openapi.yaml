@@ -971,6 +971,10 @@ components:
 
     UpdateMilestoneRequest:
       type: object
+      description: >
+        Update content fields of a milestone. Status transitions must use dedicated
+        endpoints (submit, approve, reject). Setting status via this endpoint is
+        not allowed to prevent privilege escalation.
       properties:
         title:
           type: string
@@ -984,9 +988,6 @@ components:
         dueDate:
           type: string
           format: date
-        status:
-          type: string
-          enum: [pending, in_progress, submitted, approved, rejected]
 
     ApprovalRequest:
       type: object

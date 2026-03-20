@@ -5,8 +5,11 @@
  * Initiative Tracker API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { UpdateMilestoneRequestStatus } from "./updateMilestoneRequestStatus";
 
+/**
+ * Update content fields of a milestone. Status transitions must use dedicated endpoints (submit, approve, reject). Setting status via this endpoint is not allowed to prevent privilege escalation.
+
+ */
 export interface UpdateMilestoneRequest {
   /** @minLength 1 */
   title?: string;
@@ -17,5 +20,4 @@ export interface UpdateMilestoneRequest {
    */
   weight?: number;
   dueDate?: Date;
-  status?: UpdateMilestoneRequestStatus;
 }

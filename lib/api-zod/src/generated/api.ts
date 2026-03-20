@@ -438,19 +438,20 @@ export const UpdateMilestoneParams = zod.object({
 export const updateMilestoneBodyWeightMin = 0;
 export const updateMilestoneBodyWeightMax = 100;
 
-export const UpdateMilestoneBody = zod.object({
-  title: zod.string().min(1).optional(),
-  description: zod.string().optional(),
-  weight: zod
-    .number()
-    .min(updateMilestoneBodyWeightMin)
-    .max(updateMilestoneBodyWeightMax)
-    .optional(),
-  dueDate: zod.date().optional(),
-  status: zod
-    .enum(["pending", "in_progress", "submitted", "approved", "rejected"])
-    .optional(),
-});
+export const UpdateMilestoneBody = zod
+  .object({
+    title: zod.string().min(1).optional(),
+    description: zod.string().optional(),
+    weight: zod
+      .number()
+      .min(updateMilestoneBodyWeightMin)
+      .max(updateMilestoneBodyWeightMax)
+      .optional(),
+    dueDate: zod.date().optional(),
+  })
+  .describe(
+    "Update content fields of a milestone. Status transitions must use dedicated endpoints (submit, approve, reject). Setting status via this endpoint is not allowed to prevent privilege escalation.\n",
+  );
 
 export const updateMilestoneResponseWeightMin = 0;
 export const updateMilestoneResponseWeightMax = 100;

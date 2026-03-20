@@ -39,7 +39,6 @@ export * from "./updateInitiativeRequest";
 export * from "./updateInitiativeRequestPriority";
 export * from "./updateInitiativeRequestStatus";
 export * from "./updateMilestoneRequest";
-export * from "./updateMilestoneRequestStatus";
 export * from "./updateRoleRequest";
 export * from "./updateRoleRequestRole";
 export * from "./uploadUrlRequest";

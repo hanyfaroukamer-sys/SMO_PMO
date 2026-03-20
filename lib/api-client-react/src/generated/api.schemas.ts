@@ -264,17 +264,10 @@ export interface CreateMilestoneRequest {
   dueDate?: string;
 }
 
-export type UpdateMilestoneRequestStatus =
-  (typeof UpdateMilestoneRequestStatus)[keyof typeof UpdateMilestoneRequestStatus];
+/**
+ * Update content fields of a milestone. Status transitions must use dedicated endpoints (submit, approve, reject). Setting status via this endpoint is not allowed to prevent privilege escalation.
 
-export const UpdateMilestoneRequestStatus = {
-  pending: "pending",
-  in_progress: "in_progress",
-  submitted: "submitted",
-  approved: "approved",
-  rejected: "rejected",
-} as const;
-
+ */
 export interface UpdateMilestoneRequest {
   /** @minLength 1 */
   title?: string;
@@ -285,7 +278,6 @@ export interface UpdateMilestoneRequest {
    */
   weight?: number;
   dueDate?: string;
-  status?: UpdateMilestoneRequestStatus;
 }
 
 export interface ApprovalRequest {

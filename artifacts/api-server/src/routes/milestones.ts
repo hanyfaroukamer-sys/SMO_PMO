@@ -165,9 +165,6 @@ const updateMilestoneSchema = z.object({
   description: z.string().optional(),
   weight: z.number().min(0).max(100).optional(),
   dueDate: z.string().optional().nullable(),
-  status: z
-    .enum(["pending", "in_progress", "submitted", "approved", "rejected"])
-    .optional(),
 });
 
 router.put("/milestones/:id", async (req, res) => {
