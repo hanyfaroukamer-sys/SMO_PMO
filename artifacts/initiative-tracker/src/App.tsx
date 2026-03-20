@@ -1,3 +1,4 @@
+import React from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -19,7 +20,7 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProtectedRoute({ component: Component, requiredRole }: { component: any, requiredRole?: string }) {
+function ProtectedRoute({ component: Component, requiredRole }: { component: React.ComponentType, requiredRole?: string }) {
   const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {

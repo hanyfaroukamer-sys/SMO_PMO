@@ -1,8 +1,10 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+export type BadgeVariant = "default" | "secondary" | "destructive" | "outline" | "success" | "warning";
+
 export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: "default" | "secondary" | "destructive" | "outline" | "success" | "warning";
+  variant?: BadgeVariant;
 }
 
 function Badge({ className, variant = "default", ...props }: BadgeProps) {

@@ -8,23 +8,26 @@ import {
   useApproveMilestone,
   useRejectMilestone,
   useAddAttachment,
-  useDeleteMilestone
+  useDeleteMilestone,
+  type MilestoneWithAttachments,
+  type FileAttachment,
 } from "@workspace/api-client-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useUpload } from "@/hooks/use-upload";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import type { BadgeVariant } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus, Calendar, User, Trash2, FileText, CheckCircle2, XCircle, Clock, Upload, Loader2, PlayCircle } from "lucide-react";
+import { ArrowLeft, Plus, Calendar, User, Trash2, FileText, CheckCircle2, XCircle, Clock, Upload, Loader2, PlayCircle, Target } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 
-const statusColors: Record<string, any> = {
+const statusColors: Record<string, BadgeVariant> = {
   pending: "secondary",
   in_progress: "default",
   submitted: "warning",
@@ -40,7 +43,6 @@ export default function InitiativeDetail() {
   const [isAddMilestoneOpen, setIsAddMilestoneOpen] = useState(false);
   const queryClient = useQueryClient();
   const deleteInitMutation = useDeleteInitiative();
-  const [, setLocation] = useState<any>(null); // For redirect after delete
 
   if (isLoading) return <div className="p-12 text-center text-slate-500">Loading initiative details...</div>;
   if (!initiative) return <div className="p-12 text-center text-red-500">Initiative not found</div>;
@@ -59,8 +61,9 @@ export default function InitiativeDetail() {
       await deleteInitMutation.mutateAsync({ id: initId });
       toast.success("Initiative deleted");
       window.location.href = "/";
-    } catch (e: any) {
-      toast.error("Failed to delete");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to delete";
+      toast.error(msg);
     }
   };
 
@@ -156,7 +159,8 @@ export default function InitiativeDetail() {
             initiative.milestones.map((milestone) => (
               <MilestoneCard 
                 key={milestone.id} 
-                milestone={milestone} 
+                milestone={milestone}
+                initiativeId={initId}
                 isAdmin={isAdmin} 
                 isOwner={isOwner} 
                 isApprover={isApprover} 
@@ -176,7 +180,16 @@ export default function InitiativeDetail() {
   );
 }
 
-function MilestoneCard({ milestone, isAdmin, isOwner, isApprover, isPM }: any) {
+interface MilestoneCardProps {
+  milestone: MilestoneWithAttachments;
+  initiativeId: number;
+  isAdmin: boolean;
+  isOwner: boolean;
+  isApprover: boolean;
+  isPM: boolean;
+}
+
+function MilestoneCard({ milestone, initiativeId, isAdmin, isOwner, isApprover, isPM }: MilestoneCardProps) {
   const queryClient = useQueryClient();
   const [isRejectOpen, setIsRejectOpen] = useState(false);
   const submitMut = useSubmitMilestone();
@@ -190,15 +203,16 @@ function MilestoneCard({ milestone, isAdmin, isOwner, isApprover, isPM }: any) {
   const canDelete = isAdmin || (isPM && isOwner);
   const canUpload = (isAdmin || (isPM && isOwner)) && milestone.status !== 'approved';
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: [`/api/initiatives/${milestone.initiativeId}`] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: [`/api/initiatives/${initiativeId}`] });
 
-  const handleAction = async (action: string, promise: Promise<any>) => {
+  const handleAction = async (action: string, promise: Promise<unknown>) => {
     try {
       await promise;
       toast.success(`Milestone ${action}`);
       invalidate();
-    } catch (e: any) {
-      toast.error(`Failed to ${action}: ${e.message}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : action;
+      toast.error(`Failed to ${action}: ${msg}`);
     }
   };
 
@@ -213,10 +227,11 @@ function MilestoneCard({ milestone, isAdmin, isOwner, isApprover, isPM }: any) {
       });
       toast.success("File attached successfully");
       invalidate();
-    } catch (e) {
-      toast.error("Upload failed");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      toast.error(`Upload failed: ${msg}`);
     }
-    e.target.value = ''; // reset
+    e.target.value = '';
   };
 
   return (
@@ -229,7 +244,7 @@ function MilestoneCard({ milestone, isAdmin, isOwner, isApprover, isPM }: any) {
         <div className="flex flex-col md:flex-row justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <Badge variant={statusColors[milestone.status]}>
+              <Badge variant={statusColors[milestone.status] ?? "default"}>
                 {milestone.status.replace("_", " ")}
               </Badge>
               <span className="text-sm font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
@@ -314,11 +329,11 @@ function MilestoneCard({ milestone, isAdmin, isOwner, isApprover, isPM }: any) {
       {/* Attachments Section */}
       <div className="bg-slate-50 border-t border-slate-100 p-4 px-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex flex-wrap gap-2">
-          {milestone.attachments?.length > 0 ? (
-            milestone.attachments.map((att: any) => (
+          {milestone.attachments.length > 0 ? (
+            milestone.attachments.map((att: FileAttachment) => (
               <a 
                 key={att.id} 
-                href={`/api${att.objectPath}`} 
+                href={`/api/storage/objects/${att.objectPath.replace(/^\/objects\//, "")}`}
                 target="_blank" 
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 bg-white border border-slate-200 shadow-sm rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-primary hover:text-primary transition-colors"
@@ -358,12 +373,18 @@ function MilestoneCard({ milestone, isAdmin, isOwner, isApprover, isPM }: any) {
   );
 }
 
-function AddMilestoneDialog({ open, onOpenChange, initiativeId }: any) {
+interface AddMilestoneDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initiativeId: number;
+}
+
+function AddMilestoneDialog({ open, onOpenChange, initiativeId }: AddMilestoneDialogProps) {
   const queryClient = useQueryClient();
   const createMut = useCreateMilestone();
   const [data, setData] = useState({ title: "", description: "", weight: 10, dueDate: "" });
 
-  const onSubmit = async (e: any) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await createMut.mutateAsync({ id: initiativeId, data: { ...data, dueDate: data.dueDate || undefined } });
@@ -371,10 +392,11 @@ function AddMilestoneDialog({ open, onOpenChange, initiativeId }: any) {
       queryClient.invalidateQueries({ queryKey: [`/api/initiatives/${initiativeId}`] });
       onOpenChange(false);
       setData({ title: "", description: "", weight: 10, dueDate: "" });
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to add milestone";
+      toast.error(msg);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title="Add Milestone">
@@ -406,11 +428,18 @@ function AddMilestoneDialog({ open, onOpenChange, initiativeId }: any) {
   );
 }
 
-function RejectDialog({ open, onOpenChange, milestoneId, onSuccess }: any) {
+interface RejectDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  milestoneId: number;
+  onSuccess: () => void;
+}
+
+function RejectDialog({ open, onOpenChange, milestoneId, onSuccess }: RejectDialogProps) {
   const [comment, setComment] = useState("");
   const rejectMut = useRejectMilestone();
 
-  const onSubmit = async (e: any) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await rejectMut.mutateAsync({ id: milestoneId, data: { comment } });
@@ -418,10 +447,11 @@ function RejectDialog({ open, onOpenChange, milestoneId, onSuccess }: any) {
       onSuccess();
       onOpenChange(false);
       setComment("");
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to reject";
+      toast.error(msg);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title="Reject Milestone">
@@ -436,5 +466,5 @@ function RejectDialog({ open, onOpenChange, milestoneId, onSuccess }: any) {
         </div>
       </form>
     </Dialog>
-  )
+  );
 }

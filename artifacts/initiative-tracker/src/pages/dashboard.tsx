@@ -1,24 +1,33 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useListInitiatives, useCreateInitiative } from "@workspace/api-client-react";
+import { useListInitiatives, useCreateInitiative, InitiativeStatus, InitiativePriority } from "@workspace/api-client-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
-import { Target, Plus, Calendar, Activity, BarChart3 } from "lucide-react";
+import { Target, Plus, Calendar, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import type { BadgeVariant } from "@/components/ui/badge";
 
-const statusColors: Record<string, "default" | "secondary" | "success" | "warning" | "destructive"> = {
+const statusColors: Record<string, BadgeVariant> = {
   draft: "secondary",
   active: "default",
   completed: "success",
   on_hold: "warning",
   cancelled: "destructive",
 };
+
+interface CreateFormData {
+  title: string;
+  description: string;
+  status: InitiativeStatus;
+  priority: NonNullable<InitiativePriority>;
+  targetDate: string;
+}
 
 export default function Dashboard() {
   const { data: listData, isLoading } = useListInitiatives();
@@ -84,7 +93,7 @@ export default function Dashboard() {
             <Link key={init.id} href={`/initiatives/${init.id}`}>
               <div className="glass-card p-6 rounded-2xl h-full flex flex-col cursor-pointer group">
                 <div className="flex justify-between items-start mb-4">
-                  <Badge variant={statusColors[init.status] || "default"} className="capitalize">
+                  <Badge variant={statusColors[init.status] ?? "default"} className="capitalize">
                     {init.status.replace("_", " ")}
                   </Badge>
                   {init.priority && (
@@ -137,11 +146,11 @@ export default function Dashboard() {
 function CreateInitiativeDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
   const queryClient = useQueryClient();
   const createMutation = useCreateInitiative();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<CreateFormData>({
     title: "",
     description: "",
-    status: "draft" as any,
-    priority: "medium" as any,
+    status: "draft",
+    priority: "medium",
     targetDate: "",
   });
 
@@ -158,8 +167,9 @@ function CreateInitiativeDialog({ open, onOpenChange }: { open: boolean, onOpenC
       queryClient.invalidateQueries({ queryKey: ["/api/initiatives"] });
       onOpenChange(false);
       setFormData({ title: "", description: "", status: "draft", priority: "medium", targetDate: "" });
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create initiative");
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Failed to create initiative";
+      toast.error(msg);
     }
   };
 
@@ -190,7 +200,7 @@ function CreateInitiativeDialog({ open, onOpenChange }: { open: boolean, onOpenC
             <select 
               className="flex h-12 w-full rounded-xl border-2 border-slate-200 bg-white px-4 text-sm focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
               value={formData.priority}
-              onChange={e => setFormData({...formData, priority: e.target.value as any})}
+              onChange={e => setFormData({...formData, priority: e.target.value as NonNullable<InitiativePriority>})}
             >
               <option value="low">Low</option>
               <option value="medium">Medium</option>
