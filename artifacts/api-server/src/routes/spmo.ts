@@ -363,18 +363,15 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
   const withProgress = await Promise.all(
     rows.map(async (i) => {
       const stats = await initiativeProgress(i.id);
-      const baseStatus: StatusResult = computeInitiativeStatus(
+      const computedStatus: StatusResult = computeInitiativeStatus(
         stats.progress,
         i.startDate,
         i.targetDate,
         i.budget,
         stats.budgetSpent,
         stats.rawProgress,
+        stats.childProjects,
       );
-      const computedStatus: StatusResult =
-        stats.allProjectsDelayed && stats.projectCount > 0
-          ? { ...baseStatus, status: "delayed", reason: `All ${stats.projectCount} project${stats.projectCount > 1 ? "s" : ""} under this initiative are delayed. ${baseStatus.reason}` }
-          : baseStatus;
       return { ...i, ...stats, computedStatus, healthStatus: computedStatus.status };
     })
   );
@@ -434,6 +431,15 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
   }
 
   const stats = await initiativeProgress(initiative.id);
+  const computedStatus: StatusResult = computeInitiativeStatus(
+    stats.progress,
+    initiative.startDate,
+    initiative.targetDate,
+    initiative.budget,
+    stats.budgetSpent,
+    stats.rawProgress,
+    stats.childProjects,
+  );
   const projects = await db
     .select()
     .from(spmoProjectsTable)
@@ -442,11 +448,12 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
   const projectsWithProgress = await Promise.all(
     projects.map(async (p) => {
       const ps = await projectProgress(p.id);
-      return { ...p, ...ps };
+      const projStatus: StatusResult = computeStatus(ps.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, ps.rawProgress);
+      return { ...p, ...ps, computedStatus: projStatus, healthStatus: projStatus.status };
     })
   );
 
-  res.json({ ...initiative, ...stats, projects: projectsWithProgress });
+  res.json({ ...initiative, ...stats, computedStatus, healthStatus: computedStatus.status, projects: projectsWithProgress });
 });
 
 router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {

@@ -36,10 +36,28 @@ function ComputedStatusBadge({ cs }: { cs: SpmoStatusResult | undefined }) {
   if (!cs) return null;
   const { label, cls } = HEALTH_BADGE_MAP[cs.status];
   return (
-    <div className="flex items-center gap-1.5">
-      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>
-      {cs.status !== "completed" && (
-        <span className="text-[10px] text-muted-foreground font-mono">SPI {cs.spi.toFixed(2)}</span>
+    <div className="relative group inline-flex flex-col gap-0.5">
+      <div className="inline-flex items-center gap-1.5">
+        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>
+        {cs.status !== "completed" && (
+          <span className="text-[10px] text-muted-foreground font-mono">SPI {cs.spi.toFixed(2)}</span>
+        )}
+        <div className="absolute bottom-full left-0 mb-1 z-50 hidden group-hover:block pointer-events-none">
+          <div className="bg-popover border border-border rounded-lg shadow-xl px-3 py-2 text-xs text-foreground w-72 whitespace-normal leading-relaxed">
+            <div className="font-semibold mb-1">{label}</div>
+            <div className="text-muted-foreground">{cs.reason}</div>
+            {cs.burnGap !== 0 && (
+              <div className={`mt-1 ${cs.burnGap > 0 ? "text-warning" : "text-success"}`}>
+                Budget burn gap: {cs.burnGap > 0 ? "+" : ""}{cs.burnGap}pts
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      {cs.delayedChildren && cs.delayedChildren.length > 0 && (
+        <div className="text-[10px] text-destructive/80 leading-tight">
+          ⚠ Delayed: {cs.delayedChildren.join(", ")}
+        </div>
       )}
     </div>
   );

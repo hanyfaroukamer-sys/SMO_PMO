@@ -435,6 +435,7 @@ export interface SpmoStatusResult {
   reason: string;
   spi: number;
   burnGap: number;
+  delayedChildren?: string[];
 }
 
 export type SpmoProjectWithProgress = SpmoProject & {
