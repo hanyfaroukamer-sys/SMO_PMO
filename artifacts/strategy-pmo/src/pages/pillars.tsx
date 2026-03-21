@@ -34,6 +34,8 @@ export default function Pillars() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<PillarForm>(emptyForm());
+  const [siblingWeightEdits, setSiblingWeightEdits] = useState<Record<number, string>>({});
+  const [savingSiblingId, setSavingSiblingId] = useState<number | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -49,6 +51,7 @@ export default function Pillars() {
   function openCreate() {
     setEditId(null);
     setForm(emptyForm());
+    setSiblingWeightEdits({});
     setModalOpen(true);
   }
 
@@ -61,7 +64,27 @@ export default function Pillars() {
       color: pillar.color ?? COLORS[0],
       sortOrder: String(pillar.sortOrder ?? 0),
     });
+    setSiblingWeightEdits({});
     setModalOpen(true);
+  }
+
+  function saveSiblingPillarWeight(siblingId: number, val: string) {
+    const w = Math.round(parseFloat(val));
+    if (isNaN(w) || w < 0 || w > 100) return;
+    const original = (data?.pillars ?? []).find(p => p.id === siblingId)?.weight;
+    if (w === original) return;
+    setSavingSiblingId(siblingId);
+    updateMutation.mutate({ id: siblingId, data: { weight: w } }, {
+      onSuccess: () => {
+        setSavingSiblingId(null);
+        setSiblingWeightEdits(prev => { const next = { ...prev }; delete next[siblingId]; return next; });
+        invalidate();
+      },
+      onError: () => {
+        setSavingSiblingId(null);
+        toast({ variant: "destructive", title: "Error", description: "Failed to update sibling weight." });
+      },
+    });
   }
 
   function handleDelete(id: number, name: string) {
@@ -264,14 +287,30 @@ export default function Pillars() {
           {pillarWeightUnder && (
             <div className="text-xs bg-warning/10 border border-warning/20 rounded-lg px-3 py-2.5 space-y-2">
               <p className="font-semibold text-warning">⚠ Weights sum to {Math.round(pillarWeightTotal)}% — must reach exactly 100% before saving.</p>
-              <p className="text-muted-foreground">Increase the weight of another pillar to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(pillarWeightTotal)}%</span>:</p>
+              <p className="text-muted-foreground">Adjust another pillar below to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(pillarWeightTotal)}%</span>:</p>
               <ul className="divide-y divide-border/40">
-                {siblingPillars.map(p => (
-                  <li key={p.id} className="flex items-center justify-between py-1">
-                    <span className="text-foreground truncate max-w-[60%]">{p.name}</span>
-                    <span className="font-mono font-bold text-foreground">{p.weight}%</span>
-                  </li>
-                ))}
+                {siblingPillars.map(p => {
+                  const localVal = siblingWeightEdits[p.id] ?? String(p.weight);
+                  const isSavingThis = savingSiblingId === p.id;
+                  return (
+                    <li key={p.id} className="flex items-center justify-between gap-2 py-1.5">
+                      <span className="text-foreground truncate flex-1">{p.name}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <input
+                          type="number" min="0" max="100"
+                          value={localVal}
+                          onChange={e => setSiblingWeightEdits(prev => ({ ...prev, [p.id]: e.target.value }))}
+                          onBlur={() => saveSiblingPillarWeight(p.id, localVal)}
+                          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveSiblingPillarWeight(p.id, localVal); } }}
+                          disabled={isSavingThis}
+                          className="w-14 text-right px-1.5 py-0.5 bg-background border border-border rounded text-xs font-mono disabled:opacity-50"
+                        />
+                        <span className="text-muted-foreground">%</span>
+                        {isSavingThis && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
