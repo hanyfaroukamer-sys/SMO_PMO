@@ -700,6 +700,16 @@ function ProjectRow({
         </div>
 
         <div className="flex items-center gap-4 shrink-0">
+          {(project.startDate || project.targetDate) && (
+            <div className="hidden lg:block text-right">
+              <div className="text-xs text-muted-foreground">Dates</div>
+              <div className="text-xs font-mono text-foreground whitespace-nowrap">
+                {project.startDate ? new Date(project.startDate).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "—"}
+                {" – "}
+                {project.targetDate ? new Date(project.targetDate).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "—"}
+              </div>
+            </div>
+          )}
           <div className="hidden md:block text-right">
             <div className="text-xs text-muted-foreground">Budget</div>
             <div className="font-bold text-sm font-mono">{formatCurrency(project.budget ?? 0)}</div>
