@@ -25,7 +25,7 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, Building2 } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -409,6 +409,12 @@ export default function Projects() {
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader title="Projects & Milestones" description="Grouped by initiative — track delivery, budgets, and milestones.">
+        <a
+          href={`${import.meta.env.BASE_URL}departments`}
+          className="flex items-center gap-2 border border-slate-200 text-slate-600 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+        >
+          <Building2 className="w-4 h-4" /> Departments
+        </a>
         <button
           onClick={openCreate}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors shadow-sm"

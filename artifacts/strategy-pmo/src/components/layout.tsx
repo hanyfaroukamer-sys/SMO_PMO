@@ -3,9 +3,6 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
   Network,
-  Layers,
-  Target,
-  Building2,
   Briefcase,
   CheckSquare,
   LineChart,
@@ -26,9 +23,6 @@ import { useGetCurrentAuthUser } from "@workspace/api-client-react";
 const navItems = [
   { title: "Dashboard",        href: "/",             icon: LayoutDashboard },
   { title: "Strategy Map",     href: "/strategy-map", icon: Network          },
-  { title: "Pillars",          href: "/pillars",      icon: Layers           },
-  { title: "Initiatives",      href: "/initiatives",  icon: Target           },
-  { title: "Departments",      href: "/departments",  icon: Building2        },
   { title: "Projects",         href: "/projects",     icon: Briefcase        },
   { title: "Progress Proof",   href: "/progress",     icon: CheckSquare      },
   { title: "KPIs",             href: "/kpis",         icon: LineChart        },

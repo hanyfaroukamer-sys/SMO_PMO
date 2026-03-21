@@ -9,8 +9,6 @@ import { AuthGuard } from "@/components/auth-guard";
 // Pages
 import Dashboard from "@/pages/dashboard";
 import StrategyMap from "@/pages/strategy-map";
-import Pillars from "@/pages/pillars";
-import Initiatives from "@/pages/initiatives";
 import Departments from "@/pages/departments";
 import DepartmentPortfolio from "@/pages/department-portfolio";
 import Projects from "@/pages/projects";
@@ -39,8 +37,6 @@ function Router() {
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/strategy-map" component={StrategyMap} />
-          <Route path="/pillars" component={Pillars} />
-          <Route path="/initiatives" component={Initiatives} />
           <Route path="/departments" component={Departments} />
           <Route path="/departments/:id/portfolio" component={DepartmentPortfolio} />
           <Route path="/projects" component={Projects} />
