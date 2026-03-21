@@ -1066,6 +1066,7 @@ export const createSpmoProjectBodyWeightMax = 100;
 
 export const CreateSpmoProjectBody = zod.object({
   initiativeId: zod.number(),
+  departmentId: zod.number().optional().nullable(),
   name: zod.string().min(1),
   description: zod.string().optional(),
   ownerId: zod.string(),
@@ -1182,6 +1183,7 @@ export const UpdateSpmoProjectBody = zod.object({
   name: zod.string().optional(),
   description: zod.string().optional(),
   ownerId: zod.string().optional(),
+  departmentId: zod.number().optional().nullable(),
   startDate: zod.date().optional(),
   targetDate: zod.date().optional(),
   weight: zod.number().optional(),
@@ -2199,4 +2201,81 @@ export const RunSpmoAiValidateEvidenceResponse = zod.object({
   verdict: zod.enum(["strong", "adequate", "weak", "insufficient"]),
   reasoning: zod.string(),
   suggestions: zod.array(zod.string()),
+});
+
+// ─────────────────────────────────────────────────────────────
+// DEPARTMENTS
+// ─────────────────────────────────────────────────────────────
+
+export const ListSpmoDepartmentsResponse = zod.object({
+  departments: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      color: zod.string(),
+      sortOrder: zod.number(),
+      createdAt: zod.date(),
+      updatedAt: zod.date(),
+      projectCount: zod.number(),
+      progress: zod.number(),
+    }),
+  ),
+});
+
+export const CreateSpmoDepartmentBody = zod.object({
+  name: zod.string().min(1),
+  description: zod.string().optional(),
+  color: zod.string().optional(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateSpmoDepartmentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSpmoDepartmentBody = zod.object({
+  name: zod.string().optional(),
+  description: zod.string().optional(),
+  color: zod.string().optional(),
+  sortOrder: zod.number().optional(),
+});
+
+export const DeleteSpmoDepartmentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetSpmoDepartmentPortfolioParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetSpmoDepartmentPortfolioResponse = zod.object({
+  department: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    description: zod.string().nullable(),
+    color: zod.string(),
+  }),
+  projects: zod.array(
+    zod.object({
+      id: zod.number(),
+      initiativeId: zod.number(),
+      departmentId: zod.number().nullable(),
+      name: zod.string(),
+      description: zod.string().nullable(),
+      ownerName: zod.string().nullable(),
+      startDate: zod.date(),
+      targetDate: zod.date(),
+      weight: zod.number(),
+      budget: zod.number(),
+      budgetSpent: zod.number(),
+      status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+      progress: zod.number(),
+      milestoneCount: zod.number(),
+      approvedMilestones: zod.number(),
+      pendingApprovals: zod.number(),
+      initiativeName: zod.string().optional(),
+      pillarName: zod.string().optional(),
+    }),
+  ),
 });

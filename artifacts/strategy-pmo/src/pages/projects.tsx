@@ -3,6 +3,7 @@ import {
   useListSpmoProjects,
   useListSpmoInitiatives,
   useListSpmoPillars,
+  useListSpmoDepartments,
   useCreateSpmoProject,
   useUpdateSpmoProject,
   useDeleteSpmoProject,
@@ -279,6 +280,7 @@ type ProjectForm = {
   name: string;
   description: string;
   initiativeId: string;
+  departmentId: string;
   ownerName: string;
   weight: string;
   status: string;
@@ -288,7 +290,7 @@ type ProjectForm = {
 };
 
 const emptyProject = (): ProjectForm => ({
-  name: "", description: "", initiativeId: "", ownerName: "",
+  name: "", description: "", initiativeId: "", departmentId: "", ownerName: "",
   weight: "50", status: "active", budget: "", startDate: "", targetDate: "",
 });
 
@@ -296,6 +298,7 @@ export default function Projects() {
   const { data, isLoading } = useListSpmoProjects();
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: pillarsData } = useListSpmoPillars();
+  const { data: departmentsData } = useListSpmoDepartments();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<ProjectForm>(emptyProject());
@@ -324,6 +327,7 @@ export default function Projects() {
       name: project.name,
       description: project.description ?? "",
       initiativeId: String(project.initiativeId),
+      departmentId: project.departmentId != null ? String(project.departmentId) : "",
       ownerName: project.ownerName ?? "",
       weight: String(project.weight),
       status: project.status,
@@ -350,6 +354,7 @@ export default function Projects() {
       name: form.name,
       description: form.description || undefined,
       initiativeId: parseInt(form.initiativeId),
+      departmentId: form.departmentId ? parseInt(form.departmentId) : null,
       ownerId: "user",
       ownerName: form.ownerName || undefined,
       weight: parseFloat(form.weight) || 0,
@@ -395,6 +400,7 @@ export default function Projects() {
 
   const pillars = pillarsData?.pillars ?? [];
   const initiatives = initiativesData?.initiatives ?? [];
+  const departments = departmentsData?.departments ?? [];
   const projects = data?.projects ?? [];
 
   const getPillarColor = (pillarId: number) =>
@@ -510,6 +516,21 @@ export default function Projects() {
               ))}
             </select>
           </FormField>
+
+          {departments.length > 0 && (
+            <FormField label="Department">
+              <select
+                className={selectClass}
+                value={form.departmentId}
+                onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+              >
+                <option value="">No department</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </FormField>
+          )}
 
           <FormField label="Description">
             <textarea className={inputClass} rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description..." />

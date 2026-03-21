@@ -14,11 +14,13 @@ import {
   spmoProcurementTable,
   spmoProgrammeConfigTable,
   spmoActivityLogTable,
+  spmoDepartmentsTable,
   type InsertSpmoInitiative,
   type InsertSpmoProject,
   type InsertSpmoMilestone,
   type InsertSpmoMitigation,
   type InsertSpmoProcurement,
+  type InsertSpmoDepartment,
 } from "@workspace/db";
 import {
   CreateSpmoPillarBody,
@@ -78,6 +80,11 @@ import {
   UpdateSpmoProcurementBody,
   DeleteSpmoProcurementParams,
   UpdateSpmoConfigBody,
+  CreateSpmoDepartmentBody,
+  UpdateSpmoDepartmentBody,
+  UpdateSpmoDepartmentParams,
+  DeleteSpmoDepartmentParams,
+  GetSpmoDepartmentPortfolioParams,
 } from "@workspace/api-zod";
 import {
   calcProgrammeProgress,
@@ -1961,6 +1968,199 @@ router.put("/spmo/programme-config", async (req, res): Promise<void> => {
     [row] = await db.update(spmoProgrammeConfigTable).set(parsed.data).where(eq(spmoProgrammeConfigTable.id, 1)).returning();
   }
   res.json(row);
+});
+
+// ─────────────────────────────────────────────────────────────
+// DEPARTMENTS
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/departments", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const departments = await db
+    .select()
+    .from(spmoDepartmentsTable)
+    .orderBy(asc(spmoDepartmentsTable.sortOrder), asc(spmoDepartmentsTable.name));
+
+  // For each department, compute project count and average progress
+  const withStats = await Promise.all(
+    departments.map(async (dept) => {
+      const projects = await db
+        .select()
+        .from(spmoProjectsTable)
+        .where(eq(spmoProjectsTable.departmentId, dept.id));
+
+      let totalProgress = 0;
+      for (const p of projects) {
+        const stats = await projectProgress(p.id);
+        totalProgress += stats.progress;
+      }
+      const progress = projects.length > 0 ? totalProgress / projects.length : 0;
+
+      return {
+        ...dept,
+        projectCount: projects.length,
+        progress: Math.round(progress * 10) / 10,
+      };
+    }),
+  );
+
+  res.json({ departments: withStats });
+});
+
+router.post("/spmo/departments", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const user = getAuthUser(req);
+  if (user?.role !== "admin") {
+    res.status(403).json({ error: "Admin role required" });
+    return;
+  }
+
+  const parsed = CreateSpmoDepartmentBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const insert: InsertSpmoDepartment = {
+    name: parsed.data.name,
+    description: parsed.data.description ?? null,
+    color: parsed.data.color ?? "#3B82F6",
+    sortOrder: parsed.data.sortOrder ?? 0,
+  };
+
+  const [dept] = await db.insert(spmoDepartmentsTable).values(insert).returning();
+  await logSpmoActivity(userId, getUserDisplayName(user), "created", "department", dept.id, dept.name);
+  res.status(201).json(dept);
+});
+
+router.put("/spmo/departments/:id", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const user = getAuthUser(req);
+  if (user?.role !== "admin") {
+    res.status(403).json({ error: "Admin role required" });
+    return;
+  }
+
+  const params = UpdateSpmoDepartmentParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const parsed = UpdateSpmoDepartmentBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [dept] = await db
+    .update(spmoDepartmentsTable)
+    .set({ ...parsed.data, updatedAt: new Date() })
+    .where(eq(spmoDepartmentsTable.id, params.data.id))
+    .returning();
+
+  if (!dept) {
+    res.status(404).json({ error: "Department not found" });
+    return;
+  }
+
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "department", dept.id, dept.name);
+  res.json(dept);
+});
+
+router.delete("/spmo/departments/:id", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const user = getAuthUser(req);
+  if (user?.role !== "admin") {
+    res.status(403).json({ error: "Admin role required" });
+    return;
+  }
+
+  const params = DeleteSpmoDepartmentParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  // Null out departmentId on projects before deleting (ON DELETE SET NULL handles this via FK)
+  const [dept] = await db
+    .delete(spmoDepartmentsTable)
+    .where(eq(spmoDepartmentsTable.id, params.data.id))
+    .returning();
+
+  if (!dept) {
+    res.status(404).json({ error: "Department not found" });
+    return;
+  }
+
+  await logSpmoActivity(userId, getUserDisplayName(user), "deleted", "department", dept.id, dept.name);
+  res.json({ success: true });
+});
+
+router.get("/spmo/departments/:id/portfolio", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const params = GetSpmoDepartmentPortfolioParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [dept] = await db
+    .select()
+    .from(spmoDepartmentsTable)
+    .where(eq(spmoDepartmentsTable.id, params.data.id));
+
+  if (!dept) {
+    res.status(404).json({ error: "Department not found" });
+    return;
+  }
+
+  // Get all projects tagged to this department
+  const projects = await db
+    .select()
+    .from(spmoProjectsTable)
+    .where(eq(spmoProjectsTable.departmentId, dept.id));
+
+  // Enrich with progress stats + initiative/pillar names
+  const enriched = await Promise.all(
+    projects.map(async (p) => {
+      const stats = await projectProgress(p.id);
+
+      // Get initiative name + pillar name
+      const [initiative] = await db
+        .select({ name: spmoInitiativesTable.name, pillarId: spmoInitiativesTable.pillarId })
+        .from(spmoInitiativesTable)
+        .where(eq(spmoInitiativesTable.id, p.initiativeId));
+
+      let pillarName: string | undefined;
+      if (initiative?.pillarId) {
+        const [pillar] = await db
+          .select({ name: spmoPillarsTable.name })
+          .from(spmoPillarsTable)
+          .where(eq(spmoPillarsTable.id, initiative.pillarId));
+        pillarName = pillar?.name;
+      }
+
+      return {
+        ...p,
+        ...stats,
+        initiativeName: initiative?.name,
+        pillarName,
+      };
+    }),
+  );
+
+  res.json({ department: dept, projects: enriched });
 });
 
 export default router;

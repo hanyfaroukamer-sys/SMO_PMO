@@ -100,6 +100,12 @@ import type {
   UploadUrlRequest,
   UploadUrlResponse,
   UserWithRole,
+  SpmoDepartment,
+  SpmoDepartmentWithStats,
+  ListSpmoDepartments200,
+  CreateSpmaDepartmentRequest,
+  UpdateSpmaDepartmentRequest,
+  GetSpmaDepartmentPortfolio200,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -6562,4 +6568,325 @@ export const useRunSpmoAiValidateEvidence = <
   TContext
 > => {
   return useMutation(getRunSpmoAiValidateEvidenceMutationOptions(options));
+};
+
+// ─────────────────────────────────────────────────────────────
+// DEPARTMENTS — list
+// ─────────────────────────────────────────────────────────────
+export const getListSpmoDepartmentsUrl = () => `/api/spmo/departments`;
+
+export const listSpmoDepartments = async (
+  options?: RequestInit,
+): Promise<ListSpmoDepartments200> =>
+  customFetch<ListSpmoDepartments200>(getListSpmoDepartmentsUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+export const getListSpmoDepartmentsQueryKey = () =>
+  [`/api/spmo/departments`] as const;
+
+export const getListSpmoDepartmentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoDepartments>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoDepartments>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey =
+    queryOptions?.queryKey ?? getListSpmoDepartmentsQueryKey();
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listSpmoDepartments>>
+  > = ({ signal }) => listSpmoDepartments({ signal, ...requestOptions });
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoDepartments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export function useListSpmoDepartments<
+  TData = Awaited<ReturnType<typeof listSpmoDepartments>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoDepartments>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoDepartmentsQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+// ─────────────────────────────────────────────────────────────
+// DEPARTMENTS — portfolio (projects per department)
+// ─────────────────────────────────────────────────────────────
+export const getGetSpmaDepartmentPortfolioUrl = (id: number) =>
+  `/api/spmo/departments/${id}/portfolio`;
+
+export const getSpmaDepartmentPortfolio = async (
+  id: number,
+  options?: RequestInit,
+): Promise<GetSpmaDepartmentPortfolio200> =>
+  customFetch<GetSpmaDepartmentPortfolio200>(
+    getGetSpmaDepartmentPortfolioUrl(id),
+    { ...options, method: "GET" },
+  );
+
+export const getGetSpmaDepartmentPortfolioQueryKey = (id: number) =>
+  [`/api/spmo/departments/${id}/portfolio`] as const;
+
+export const getGetSpmaDepartmentPortfolioQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSpmaDepartmentPortfolio>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSpmaDepartmentPortfolio>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSpmaDepartmentPortfolioQueryKey(id);
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSpmaDepartmentPortfolio>>
+  > = ({ signal }) =>
+    getSpmaDepartmentPortfolio(id, { signal, ...requestOptions });
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSpmaDepartmentPortfolio>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export function useGetSpmaDepartmentPortfolio<
+  TData = Awaited<ReturnType<typeof getSpmaDepartmentPortfolio>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSpmaDepartmentPortfolio>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSpmaDepartmentPortfolioQueryOptions(id, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+// ─────────────────────────────────────────────────────────────
+// DEPARTMENTS — create
+// ─────────────────────────────────────────────────────────────
+export const getCreateSpmaDepartmentUrl = () => `/api/spmo/departments`;
+
+export const createSpmaDepartment = async (
+  createSpmaDepartmentRequest: CreateSpmaDepartmentRequest,
+  options?: RequestInit,
+): Promise<SpmoDepartment> =>
+  customFetch<SpmoDepartment>(getCreateSpmaDepartmentUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSpmaDepartmentRequest),
+  });
+
+export const getCreateSpmaDepartmentMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmaDepartment>>,
+    TError,
+    { data: BodyType<CreateSpmaDepartmentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSpmaDepartment>>,
+  TError,
+  { data: BodyType<CreateSpmaDepartmentRequest> },
+  TContext
+> => {
+  const mutationKey = ["createSpmaDepartment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSpmaDepartment>>,
+    { data: BodyType<CreateSpmaDepartmentRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+    return createSpmaDepartment(data, requestOptions);
+  };
+  return { mutationFn, ...mutationOptions };
+};
+
+export const useCreateSpmaDepartment = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSpmaDepartment>>,
+    TError,
+    { data: BodyType<CreateSpmaDepartmentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const mutationOptions = getCreateSpmaDepartmentMutationOptions(options);
+  return useMutation(mutationOptions);
+};
+
+// ─────────────────────────────────────────────────────────────
+// DEPARTMENTS — update
+// ─────────────────────────────────────────────────────────────
+export const getUpdateSpmaDepartmentUrl = (id: number) =>
+  `/api/spmo/departments/${id}`;
+
+export const updateSpmaDepartment = async (
+  id: number,
+  updateSpmaDepartmentRequest: UpdateSpmaDepartmentRequest,
+  options?: RequestInit,
+): Promise<SpmoDepartment> =>
+  customFetch<SpmoDepartment>(getUpdateSpmaDepartmentUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSpmaDepartmentRequest),
+  });
+
+export const getUpdateSpmaDepartmentMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmaDepartment>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmaDepartmentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSpmaDepartment>>,
+  TError,
+  { id: number; data: BodyType<UpdateSpmaDepartmentRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateSpmaDepartment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSpmaDepartment>>,
+    { id: number; data: BodyType<UpdateSpmaDepartmentRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+    return updateSpmaDepartment(id, data, requestOptions);
+  };
+  return { mutationFn, ...mutationOptions };
+};
+
+export const useUpdateSpmaDepartment = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmaDepartment>>,
+    TError,
+    { id: number; data: BodyType<UpdateSpmaDepartmentRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const mutationOptions = getUpdateSpmaDepartmentMutationOptions(options);
+  return useMutation(mutationOptions);
+};
+
+// ─────────────────────────────────────────────────────────────
+// DEPARTMENTS — delete
+// ─────────────────────────────────────────────────────────────
+export const getDeleteSpmaDepartmentUrl = (id: number) =>
+  `/api/spmo/departments/${id}`;
+
+export const deleteSpmaDepartment = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> =>
+  customFetch<void>(getDeleteSpmaDepartmentUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+
+export const getDeleteSpmaDepartmentMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmaDepartment>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSpmaDepartment>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteSpmaDepartment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSpmaDepartment>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+    return deleteSpmaDepartment(id, requestOptions);
+  };
+  return { mutationFn, ...mutationOptions };
+};
+
+export const useDeleteSpmaDepartment = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSpmaDepartment>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const mutationOptions = getDeleteSpmaDepartmentMutationOptions(options);
+  return useMutation(mutationOptions);
 };

@@ -84,6 +84,30 @@ export type InsertSpmoInitiative = z.infer<typeof insertSpmoInitiativeSchema>;
 export type SpmoInitiative = typeof spmoInitiativesTable.$inferSelect;
 
 // ─────────────────────────────────────────────
+// DEPARTMENTS (cross-cutting ownership tag)
+// ─────────────────────────────────────────────
+export const spmoDepartmentsTable = pgTable("spmo_departments", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").notNull().default("#3B82F6"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export const insertSpmoDepartmentSchema = createInsertSchema(
+  spmoDepartmentsTable
+).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertSpmoDepartment = z.infer<typeof insertSpmoDepartmentSchema>;
+export type SpmoDepartment = typeof spmoDepartmentsTable.$inferSelect;
+
+// ─────────────────────────────────────────────
 // PROJECTS (Level 3: under an Initiative)
 // ─────────────────────────────────────────────
 export const spmoProjectsTable = pgTable("spmo_projects", {
@@ -91,6 +115,8 @@ export const spmoProjectsTable = pgTable("spmo_projects", {
   initiativeId: integer("initiative_id")
     .notNull()
     .references(() => spmoInitiativesTable.id, { onDelete: "cascade" }),
+  departmentId: integer("department_id")
+    .references(() => spmoDepartmentsTable.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   description: text("description"),
   ownerId: text("owner_id").notNull(),

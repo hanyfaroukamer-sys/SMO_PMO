@@ -404,6 +404,8 @@ export const SpmoProjectStatus = {
 export interface SpmoProject {
   id: number;
   initiativeId: number;
+  /** @nullable */
+  departmentId: number | null;
   name: string;
   /** @nullable */
   description: string | null;
@@ -996,6 +998,8 @@ export const CreateSpmoProjectRequestStatus = {
 
 export interface CreateSpmoProjectRequest {
   initiativeId: number;
+  /** @nullable */
+  departmentId?: number | null;
   /** @minLength 1 */
   name: string;
   description?: string;
@@ -1025,6 +1029,8 @@ export interface UpdateSpmoProjectRequest {
   name?: string;
   description?: string;
   ownerId?: string;
+  /** @nullable */
+  departmentId?: number | null;
   startDate?: string;
   targetDate?: string;
   weight?: number;
@@ -1363,4 +1369,68 @@ export type ListSpmoProcurement200 = {
 
 export type DeleteSpmoProcurement200 = {
   success: boolean;
+};
+
+// ─────────────────────────────────────────────────────────────
+// DEPARTMENTS
+// ─────────────────────────────────────────────────────────────
+
+export interface SpmoDepartment {
+  id: number;
+  name: string;
+  /** @nullable */
+  description: string | null;
+  color: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SpmoDepartmentWithStats = SpmoDepartment & {
+  projectCount: number;
+  progress: number;
+};
+
+export type ListSpmoDepartments200 = {
+  departments: SpmoDepartmentWithStats[];
+};
+
+export interface CreateSpmaDepartmentRequest {
+  name: string;
+  description?: string;
+  color?: string;
+  sortOrder?: number;
+}
+
+export interface UpdateSpmaDepartmentRequest {
+  name?: string;
+  description?: string;
+  color?: string;
+  sortOrder?: number;
+}
+
+export type SpmaDepartmentPortfolioProject = {
+  id: number;
+  initiativeId: number;
+  departmentId: number | null;
+  name: string;
+  description: string | null;
+  ownerName: string | null;
+  startDate: string;
+  targetDate: string;
+  weight: number;
+  budget: number;
+  budgetSpent: number;
+  status: SpmoProjectStatus;
+  progress: number;
+  milestoneCount: number;
+  approvedMilestones: number;
+  pendingApprovals: number;
+  initiativeName?: string;
+  pillarName?: string;
+};
+
+export type GetSpmaDepartmentPortfolio200 = {
+  department: SpmoDepartment;
+  projects: SpmaDepartmentPortfolioProject[];
 };
