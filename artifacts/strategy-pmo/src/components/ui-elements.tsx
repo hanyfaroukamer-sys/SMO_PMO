@@ -54,7 +54,7 @@ export function Card({ className, children, noPadding = false, style, onClick }:
   return (
     <div
       className={cn(
-        "bg-card border border-card-border rounded-xl shadow-sm overflow-hidden",
+        "bg-card border border-card-border rounded-[14px] shadow-sm overflow-hidden",
         !noPadding && "p-5 md:p-6",
         onClick && "cursor-pointer",
         className

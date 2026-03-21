@@ -122,6 +122,41 @@ export default function ProgressProof() {
         </div>
       </Card>
 
+      {/* Filter Pills */}
+      <div className="flex flex-wrap items-center gap-2">
+        {(
+          [
+            { key: "all" as FilterKey,         label: "All" },
+            { key: "submitted" as FilterKey,   label: "Pending" },
+            { key: "blocked100" as FilterKey,  label: "100% Blocked" },
+            { key: "no_evidence" as FilterKey, label: "No Evidence" },
+            { key: "approved" as FilterKey,    label: "Approved" },
+            { key: "rejected" as FilterKey,    label: "Rejected" },
+          ]
+        ).map((pill) => {
+          const isActive = filter === pill.key;
+          return (
+            <button
+              key={pill.key}
+              onClick={() => setFilter(pill.key)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                isActive
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+              }`}
+            >
+              {pill.label}
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                isActive ? "bg-white/20 text-white" : "bg-secondary text-muted-foreground"
+              }`}>{counts[pill.key]}</span>
+            </button>
+          );
+        })}
+        <span className="ml-auto text-xs text-muted-foreground font-medium">
+          {filteredItems.length} milestone{filteredItems.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
       {/* Milestone Cards Grid */}
       {filteredItems.length === 0 ? (
         <Card className="text-center py-16">

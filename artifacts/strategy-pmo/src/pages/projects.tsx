@@ -901,12 +901,12 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
 
                   {/* Actions */}
                   <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {!isApproved && m.status !== "submitted" && (
+                    {!isApproved && m.status !== "submitted" && canSubmit && (
                       <button
                         onClick={() => handleSubmitForApproval(m.id, m.name)}
-                        disabled={submitMutation.isPending || !canSubmit}
+                        disabled={submitMutation.isPending}
                         className="p-1.5 rounded-lg hover:bg-blue-50 text-muted-foreground hover:text-blue-600 transition-colors disabled:opacity-40"
-                        title={canSubmit ? "Submit for approval" : "Progress must be 100% and evidence must be attached"}
+                        title="Submit for approval"
                       >
                         <Send className="w-4 h-4" />
                       </button>

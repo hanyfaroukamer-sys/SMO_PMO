@@ -143,7 +143,7 @@ export default function Procurement() {
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader
-        title="Procurement Tracker"
+        title="Procurement Pipeline"
         description={`${allRecords.length} records · ${formatCurrency(totalValue)} total contract value`}
       >
         <button
@@ -211,7 +211,7 @@ export default function Procurement() {
               <div className="flex flex-col gap-2 p-2 min-h-[120px]">
                 {stageRecords.length === 0 && (
                   <div className="flex-1 flex items-center justify-center py-8 text-xs text-muted-foreground/40 italic">
-                    No records in this stage
+                    No projects
                   </div>
                 )}
                 {stageRecords.map((rec) => (
