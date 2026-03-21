@@ -153,8 +153,6 @@ export default function StrategyMap() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {pillars.map((pillar) => {
           const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);
-          const totalWeight = pillarInitiatives.reduce((s, i) => s + (i.weight ?? 0), 0);
-          const weightWarning = pillarInitiatives.length > 0 && Math.abs(totalWeight - 100) > 1;
 
           return (
             <div
@@ -196,11 +194,6 @@ export default function StrategyMap() {
                   />
                 </div>
 
-                {weightWarning && (
-                  <p className="text-xs text-warning font-medium mt-2">
-                    ⚠ Initiative weights sum to {Math.round(totalWeight)}% (expected 100%)
-                  </p>
-                )}
               </div>
 
               {/* Initiatives List */}

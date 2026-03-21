@@ -116,6 +116,7 @@ export default function Pillars() {
     .reduce((s, p) => s + (p.weight ?? 0), 0);
   const pillarWeightTotal = siblingPillarWeight + (parseFloat(form.weight) || 0);
   const pillarWeightError = pillarWeightTotal > 100;
+  const pillarWeightUnder = !pillarWeightError && pillarWeightTotal > 0 && pillarWeightTotal < 100;
 
   if (isLoading)
     return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -259,6 +260,11 @@ export default function Pillars() {
           {pillarWeightError && (
             <p className="text-destructive text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
               ⚠ Pillar weights cannot exceed 100%. Reduce this pillar's weight or adjust others first.
+            </p>
+          )}
+          {pillarWeightUnder && (
+            <p className="text-warning text-xs bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
+              ⚠ Pillar weights currently sum to {Math.round(pillarWeightTotal)}% — they should total 100%.
             </p>
           )}
           <FormActions loading={isSaving} disabled={pillarWeightError} label={editId ? "Update Pillar" : "Create Pillar"} onCancel={() => setModalOpen(false)} />

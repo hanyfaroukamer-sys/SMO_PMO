@@ -413,6 +413,7 @@ export default function Projects() {
     .reduce((s, p) => s + (p.weight ?? 0), 0);
   const projectWeightTotal = siblingProjectWeight + (parseFloat(form.weight) || 0);
   const projectWeightError = !!form.initiativeId && projectWeightTotal > 100;
+  const projectWeightUnder = !!form.initiativeId && !projectWeightError && projectWeightTotal > 0 && projectWeightTotal < 100;
 
   if (isLoading)
     return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -660,6 +661,11 @@ export default function Projects() {
           {projectWeightError && (
             <p className="text-destructive text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
               ⚠ Project weights in this initiative cannot exceed 100%. Reduce this weight or adjust siblings first.
+            </p>
+          )}
+          {projectWeightUnder && (
+            <p className="text-warning text-xs bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
+              ⚠ Project weights in this initiative currently sum to {Math.round(projectWeightTotal)}% — they should total 100%.
             </p>
           )}
           <FormActions loading={isSaving} disabled={projectWeightError} label={editId ? "Update Project" : "Create Project"} onCancel={() => setModalOpen(false)} />

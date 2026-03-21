@@ -148,6 +148,7 @@ export default function Initiatives() {
     .reduce((s, i) => s + (i.weight ?? 0), 0);
   const initiativeWeightTotal = siblingInitiativeWeight + (parseFloat(form.weight) || 0);
   const initiativeWeightError = !!form.pillarId && initiativeWeightTotal > 100;
+  const initiativeWeightUnder = !!form.pillarId && !initiativeWeightError && initiativeWeightTotal > 0 && initiativeWeightTotal < 100;
 
   if (isLoading)
     return (
@@ -334,6 +335,11 @@ export default function Initiatives() {
           {initiativeWeightError && (
             <p className="text-destructive text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
               ⚠ Initiative weights in this pillar cannot exceed 100%. Reduce this weight or adjust siblings first.
+            </p>
+          )}
+          {initiativeWeightUnder && (
+            <p className="text-warning text-xs bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
+              ⚠ Initiative weights in this pillar currently sum to {Math.round(initiativeWeightTotal)}% — they should total 100%.
             </p>
           )}
           <FormActions loading={isSaving} disabled={initiativeWeightError} label={editId ? "Update Initiative" : "Create Initiative"} onCancel={() => setModalOpen(false)} />
