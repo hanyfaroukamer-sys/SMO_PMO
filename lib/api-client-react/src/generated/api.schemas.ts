@@ -1319,6 +1319,12 @@ export type ListSpmoPendingApprovals200 = {
   items: SpmoPendingApprovalItem[];
 };
 
+export type SpmoAllMilestoneItem = SpmoPendingApprovalItem;
+
+export type ListSpmoAllMilestones200 = {
+  items: SpmoAllMilestoneItem[];
+};
+
 export type ListSpmoKpisParams = {
   type?: ListSpmoKpisType;
   projectId?: number;

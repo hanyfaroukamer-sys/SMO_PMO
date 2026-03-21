@@ -731,6 +731,31 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
   res.status(201).json(milestone);
 });
 
+router.get("/spmo/milestones/all", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const allMilestones = await db
+    .select()
+    .from(spmoMilestonesTable)
+    .orderBy(desc(spmoMilestonesTable.updatedAt));
+
+  const items = await Promise.all(
+    allMilestones.map(async (m) => {
+      const evidence = await db.select().from(spmoEvidenceTable).where(eq(spmoEvidenceTable.milestoneId, m.id));
+      const [project] = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.id, m.projectId));
+      if (!project) return null;
+      const [initiative] = await db.select().from(spmoInitiativesTable).where(eq(spmoInitiativesTable.id, project.initiativeId));
+      if (!initiative) return null;
+      const [pillar] = await db.select().from(spmoPillarsTable).where(eq(spmoPillarsTable.id, initiative.pillarId));
+      if (!pillar) return null;
+      return { milestone: { ...m, evidence }, project, initiative, pillar };
+    })
+  );
+
+  res.json({ items: items.filter(Boolean) });
+});
+
 router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;

@@ -106,6 +106,8 @@ import type {
   CreateSpmaDepartmentRequest,
   UpdateSpmaDepartmentRequest,
   GetSpmaDepartmentPortfolio200,
+  ListSpmoAllMilestones200,
+  SpmoAllMilestoneItem,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -4479,6 +4481,63 @@ export function useListSpmoPendingApprovals<
     queryKey: QueryKey;
   };
 
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List ALL milestones programme-wide (Progress Proof Centre data)
+ */
+
+export const getListSpmoAllMilestonesUrl = () => `/api/spmo/milestones/all`;
+
+export const listSpmoAllMilestones = async (
+  options?: SecondParameter<typeof customFetch>,
+  signal?: AbortSignal,
+): Promise<ListSpmoAllMilestones200> => {
+  return customFetch<ListSpmoAllMilestones200>(getListSpmoAllMilestonesUrl(), {
+    ...options,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getListSpmoAllMilestonesQueryKey = () => [getListSpmoAllMilestonesUrl()] as const;
+
+export const getListSpmoAllMilestonesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSpmoAllMilestones>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listSpmoAllMilestones>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getListSpmoAllMilestonesQueryKey();
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSpmoAllMilestones>>> = ({
+    signal,
+  }) => listSpmoAllMilestones(requestOptions, signal);
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSpmoAllMilestones>>,
+    TError,
+    TData
+  >;
+};
+
+export type ListSpmoAllMilestonesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSpmoAllMilestones>>
+>;
+export type ListSpmoAllMilestonesQueryError = ErrorType<unknown>;
+
+export function useListSpmoAllMilestones<
+  TData = Awaited<ReturnType<typeof listSpmoAllMilestones>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listSpmoAllMilestones>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSpmoAllMilestonesQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
   return { ...query, queryKey: queryOptions.queryKey };
 }
 

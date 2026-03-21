@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import {
+  useListSpmoAllMilestones,
   useListSpmoPendingApprovals,
   useRunSpmoAiValidateEvidence,
   useApproveSpmoMilestone,
@@ -39,12 +40,12 @@ const FILTER_CONFIG: Array<{
 
 export default function ProgressProof() {
   const [filter, setFilter] = useState<FilterKey>("submitted");
-  const { data, isLoading } = useListSpmoPendingApprovals();
+  const { data, isLoading } = useListSpmoAllMilestones();
 
   if (isLoading)
     return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
-  const allItems = data?.items ?? [];
+  const allItems = (data?.items ?? []) as SpmoPendingApprovalItem[];
 
   const counts: Record<FilterKey, number> = {
     all:         allItems.length,
@@ -97,6 +98,30 @@ export default function ProgressProof() {
         })}
       </div>
 
+      {/* Evidence Stats Bar */}
+      <Card className="py-3 px-6">
+        <div className="flex flex-wrap items-center gap-6 divide-x divide-border">
+          <div className="pr-6">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Evidence Files</span>
+            <div className="text-2xl font-display font-bold text-primary mt-0.5">
+              {allItems.reduce((s, i) => s + (i.milestone.evidence?.length ?? 0), 0)}
+            </div>
+          </div>
+          <div className="pl-6 pr-6">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Approval Rate</span>
+            <div className="text-2xl font-display font-bold text-success mt-0.5">
+              {counts.all > 0 ? Math.round((counts.approved / counts.all) * 100) : 0}%
+            </div>
+          </div>
+          <div className="pl-6">
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Showing</span>
+            <div className="text-2xl font-display font-bold text-foreground mt-0.5">
+              {filteredItems.length} <span className="text-sm font-normal text-muted-foreground">milestone{filteredItems.length !== 1 ? "s" : ""}</span>
+            </div>
+          </div>
+        </div>
+      </Card>
+
       {/* Milestone Cards Grid */}
       {filteredItems.length === 0 ? (
         <Card className="text-center py-16">
@@ -126,6 +151,7 @@ function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
   const addEvidence = useAddSpmoEvidence();
 
   const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["/api/spmo/milestones/all"] });
     qc.invalidateQueries({ queryKey: ["/api/spmo/pending-approvals"] });
     qc.invalidateQueries({ queryKey: ["/api/spmo/programme"] });
     qc.invalidateQueries({ queryKey: ["/api/spmo/projects"] });

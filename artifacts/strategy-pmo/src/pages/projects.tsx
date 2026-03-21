@@ -23,9 +23,10 @@ import {
   type SpmoEvidence,
   type SpmoMilestoneWithEvidence,
 } from "@workspace/api-client-react";
+import { GanttChart } from "@/components/gantt-chart";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -299,6 +300,9 @@ export default function Projects() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<ProjectForm>(emptyProject());
   const [expandedProject, setExpandedProject] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "gantt">("list");
+  const [pillarFilter, setPillarFilter] = useState<number | "all">("all");
+  const [departmentFilter, setDepartmentFilter] = useState<number | "all">("all");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -405,16 +409,75 @@ export default function Projects() {
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader title="Projects & Milestones" description="Grouped by initiative — track delivery, budgets, and milestones.">
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> + Project
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex rounded-lg border border-border bg-secondary overflow-hidden">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              title="List view"
+            >
+              <LayoutList className="w-3.5 h-3.5" /> List
+            </button>
+            <button
+              onClick={() => setViewMode("gantt")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "gantt" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              title="Gantt chart"
+            >
+              <GanttChartSquare className="w-3.5 h-3.5" /> Gantt
+            </button>
+          </div>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> + Project
+          </button>
+        </div>
       </PageHeader>
 
-      {/* Grouped by Initiative */}
-      <div className="space-y-8">
+      {/* Gantt filter bar */}
+      {viewMode === "gantt" && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pillar</label>
+            <select
+              className={`${selectClass} py-1.5 text-xs w-44`}
+              value={pillarFilter === "all" ? "all" : String(pillarFilter)}
+              onChange={(e) => setPillarFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+            >
+              <option value="all">All Pillars</option>
+              {(pillars as Array<{id: number; name: string}>).map((p) => (
+                <option key={p.id} value={String(p.id)}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</label>
+            <select
+              className={`${selectClass} py-1.5 text-xs w-44`}
+              value={departmentFilter === "all" ? "all" : String(departmentFilter)}
+              onChange={(e) => setDepartmentFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+            >
+              <option value="all">All Departments</option>
+              {(departments as Array<{id: number; name: string}>).map((d) => (
+                <option key={d.id} value={String(d.id)}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+          <span className="ml-auto text-xs text-muted-foreground">
+            Showing projects with milestone markers · hover bars/diamonds for details
+          </span>
+        </div>
+      )}
+
+      {/* Gantt view */}
+      {viewMode === "gantt" && (
+        <GanttChart pillarFilter={pillarFilter} departmentFilter={departmentFilter} />
+      )}
+
+      {/* List view — Grouped by Initiative */}
+      {viewMode === "list" && <div className="space-y-8">
         {initiatives.map((initiative) => {
           const pillarColor = getPillarColor(initiative.pillarId);
           const pillarName = pillars.find((p) => p.id === initiative.pillarId)?.name ?? "";
@@ -495,7 +558,7 @@ export default function Projects() {
             No projects yet. Click "New Project" to create one.
           </Card>
         )}
-      </div>
+      </div>}
 
       {/* Project Form Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? "Edit Project" : "New Project"}>

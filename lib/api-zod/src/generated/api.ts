@@ -1623,6 +1623,99 @@ export const ListSpmoPendingApprovalsResponse = zod.object({
 });
 
 /**
+ * @summary List ALL milestones programme-wide with evidence/project/initiative/pillar context
+ */
+export const ListSpmoAllMilestonesResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      milestone: zod
+        .object({
+          id: zod.number(),
+          projectId: zod.number(),
+          name: zod.string(),
+          description: zod.string().nullable(),
+          weight: zod.number(),
+          effortDays: zod.number().nullable(),
+          progress: zod.number(),
+          status: zod.enum(["pending", "in_progress", "submitted", "approved", "rejected"]),
+          dueDate: zod.date().nullable(),
+          submittedAt: zod.date().nullable(),
+          approvedAt: zod.date().nullable(),
+          approvedById: zod.string().nullable(),
+          rejectedAt: zod.date().nullable(),
+          rejectedById: zod.string().nullable(),
+          rejectionReason: zod.string().nullable(),
+          createdAt: zod.date(),
+          updatedAt: zod.date(),
+        })
+        .and(
+          zod.object({
+            evidence: zod.array(
+              zod.object({
+                id: zod.number(),
+                milestoneId: zod.number(),
+                fileName: zod.string(),
+                contentType: zod.string().nullable(),
+                objectPath: zod.string(),
+                uploadedById: zod.string(),
+                uploadedByName: zod.string().nullable(),
+                description: zod.string().nullable(),
+                aiValidated: zod.boolean(),
+                aiScore: zod.number().nullable(),
+                aiReasoning: zod.string().nullable(),
+                createdAt: zod.date(),
+              }),
+            ),
+          }),
+        ),
+      project: zod.object({
+        id: zod.number(),
+        initiativeId: zod.number(),
+        departmentId: zod.number().nullable(),
+        name: zod.string(),
+        description: zod.string().nullable(),
+        ownerId: zod.string(),
+        ownerName: zod.string().nullable(),
+        startDate: zod.date(),
+        targetDate: zod.date(),
+        weight: zod.number(),
+        budget: zod.number(),
+        budgetSpent: zod.number(),
+        status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      }),
+      initiative: zod.object({
+        id: zod.number(),
+        pillarId: zod.number(),
+        name: zod.string(),
+        description: zod.string().nullable(),
+        ownerId: zod.string(),
+        ownerName: zod.string().nullable(),
+        startDate: zod.date(),
+        targetDate: zod.date(),
+        weight: zod.number(),
+        status: zod.enum(["active", "on_hold", "completed", "cancelled"]),
+        sortOrder: zod.number(),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      }),
+      pillar: zod.object({
+        id: zod.number(),
+        name: zod.string(),
+        description: zod.string().nullable(),
+        weight: zod.number(),
+        color: zod.string(),
+        iconName: zod.string(),
+        sortOrder: zod.number(),
+        createdAt: zod.date(),
+        updatedAt: zod.date(),
+      }),
+    }),
+  ),
+});
+
+/**
  * @summary List all KPIs
  */
 export const ListSpmoKpisQueryParams = zod.object({
