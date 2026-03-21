@@ -111,9 +111,8 @@ export default function Pillars() {
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
-  const siblingPillarWeight = (data?.pillars ?? [])
-    .filter(p => p.id !== editId)
-    .reduce((s, p) => s + (p.weight ?? 0), 0);
+  const siblingPillars = (data?.pillars ?? []).filter(p => p.id !== editId);
+  const siblingPillarWeight = siblingPillars.reduce((s, p) => s + (p.weight ?? 0), 0);
   const pillarWeightTotal = siblingPillarWeight + (parseFloat(form.weight) || 0);
   const pillarWeightError = pillarWeightTotal > 100;
   const pillarWeightUnder = !pillarWeightError && pillarWeightTotal > 0 && pillarWeightTotal < 100;
@@ -263,11 +262,20 @@ export default function Pillars() {
             </p>
           )}
           {pillarWeightUnder && (
-            <p className="text-warning text-xs bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
-              ⚠ Pillar weights currently sum to {Math.round(pillarWeightTotal)}% — they should total 100%.
-            </p>
+            <div className="text-xs bg-warning/10 border border-warning/20 rounded-lg px-3 py-2.5 space-y-2">
+              <p className="font-semibold text-warning">⚠ Weights sum to {Math.round(pillarWeightTotal)}% — must reach exactly 100% before saving.</p>
+              <p className="text-muted-foreground">Increase the weight of another pillar to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(pillarWeightTotal)}%</span>:</p>
+              <ul className="divide-y divide-border/40">
+                {siblingPillars.map(p => (
+                  <li key={p.id} className="flex items-center justify-between py-1">
+                    <span className="text-foreground truncate max-w-[60%]">{p.name}</span>
+                    <span className="font-mono font-bold text-foreground">{p.weight}%</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-          <FormActions loading={isSaving} disabled={pillarWeightError} label={editId ? "Update Pillar" : "Create Pillar"} onCancel={() => setModalOpen(false)} />
+          <FormActions loading={isSaving} disabled={pillarWeightError || pillarWeightUnder} label={editId ? "Update Pillar" : "Create Pillar"} onCancel={() => setModalOpen(false)} />
         </form>
       </Modal>
     </div>

@@ -408,9 +408,8 @@ export default function Projects() {
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const selectedInitiativeId = parseInt(form.initiativeId) || 0;
-  const siblingProjectWeight = (data?.projects ?? [])
-    .filter(p => p.initiativeId === selectedInitiativeId && p.id !== editId)
-    .reduce((s, p) => s + (p.weight ?? 0), 0);
+  const siblingProjects = (data?.projects ?? []).filter(p => p.initiativeId === selectedInitiativeId && p.id !== editId);
+  const siblingProjectWeight = siblingProjects.reduce((s, p) => s + (p.weight ?? 0), 0);
   const projectWeightTotal = siblingProjectWeight + (parseFloat(form.weight) || 0);
   const projectWeightError = !!form.initiativeId && projectWeightTotal > 100;
   const projectWeightUnder = !!form.initiativeId && !projectWeightError && projectWeightTotal > 0 && projectWeightTotal < 100;
@@ -664,11 +663,20 @@ export default function Projects() {
             </p>
           )}
           {projectWeightUnder && (
-            <p className="text-warning text-xs bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
-              ⚠ Project weights in this initiative currently sum to {Math.round(projectWeightTotal)}% — they should total 100%.
-            </p>
+            <div className="text-xs bg-warning/10 border border-warning/20 rounded-lg px-3 py-2.5 space-y-2">
+              <p className="font-semibold text-warning">⚠ Weights sum to {Math.round(projectWeightTotal)}% — must reach exactly 100% before saving.</p>
+              <p className="text-muted-foreground">Increase the weight of another project in this initiative to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(projectWeightTotal)}%</span>:</p>
+              <ul className="divide-y divide-border/40">
+                {siblingProjects.map(p => (
+                  <li key={p.id} className="flex items-center justify-between py-1">
+                    <span className="text-foreground truncate max-w-[60%]">{p.name}</span>
+                    <span className="font-mono font-bold text-foreground">{p.weight}%</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-          <FormActions loading={isSaving} disabled={projectWeightError} label={editId ? "Update Project" : "Create Project"} onCancel={() => setModalOpen(false)} />
+          <FormActions loading={isSaving} disabled={projectWeightError || projectWeightUnder} label={editId ? "Update Project" : "Create Project"} onCancel={() => setModalOpen(false)} />
         </form>
       </Modal>
     </div>

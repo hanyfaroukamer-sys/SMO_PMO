@@ -143,9 +143,8 @@ export default function Initiatives() {
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const selectedPillarId = parseInt(form.pillarId) || 0;
-  const siblingInitiativeWeight = (data?.initiatives ?? [])
-    .filter(i => i.pillarId === selectedPillarId && i.id !== editId)
-    .reduce((s, i) => s + (i.weight ?? 0), 0);
+  const siblingInitiatives = (data?.initiatives ?? []).filter(i => i.pillarId === selectedPillarId && i.id !== editId);
+  const siblingInitiativeWeight = siblingInitiatives.reduce((s, i) => s + (i.weight ?? 0), 0);
   const initiativeWeightTotal = siblingInitiativeWeight + (parseFloat(form.weight) || 0);
   const initiativeWeightError = !!form.pillarId && initiativeWeightTotal > 100;
   const initiativeWeightUnder = !!form.pillarId && !initiativeWeightError && initiativeWeightTotal > 0 && initiativeWeightTotal < 100;
@@ -338,11 +337,20 @@ export default function Initiatives() {
             </p>
           )}
           {initiativeWeightUnder && (
-            <p className="text-warning text-xs bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
-              ⚠ Initiative weights in this pillar currently sum to {Math.round(initiativeWeightTotal)}% — they should total 100%.
-            </p>
+            <div className="text-xs bg-warning/10 border border-warning/20 rounded-lg px-3 py-2.5 space-y-2">
+              <p className="font-semibold text-warning">⚠ Weights sum to {Math.round(initiativeWeightTotal)}% — must reach exactly 100% before saving.</p>
+              <p className="text-muted-foreground">Increase the weight of another initiative in this pillar to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(initiativeWeightTotal)}%</span>:</p>
+              <ul className="divide-y divide-border/40">
+                {siblingInitiatives.map(i => (
+                  <li key={i.id} className="flex items-center justify-between py-1">
+                    <span className="text-foreground truncate max-w-[60%]">{i.name}</span>
+                    <span className="font-mono font-bold text-foreground">{i.weight}%</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-          <FormActions loading={isSaving} disabled={initiativeWeightError} label={editId ? "Update Initiative" : "Create Initiative"} onCancel={() => setModalOpen(false)} />
+          <FormActions loading={isSaving} disabled={initiativeWeightError || initiativeWeightUnder} label={editId ? "Update Initiative" : "Create Initiative"} onCancel={() => setModalOpen(false)} />
         </form>
       </Modal>
     </div>
