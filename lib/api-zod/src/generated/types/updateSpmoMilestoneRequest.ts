@@ -17,6 +17,7 @@ export interface UpdateSpmoMilestoneRequest {
    * @maximum 100
    */
   progress?: number;
+  startDate?: Date;
   dueDate?: Date;
   status?: UpdateSpmoMilestoneRequestStatus;
 }

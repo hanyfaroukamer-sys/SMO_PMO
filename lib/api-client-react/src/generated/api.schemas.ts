@@ -476,6 +476,8 @@ export interface SpmoMilestone {
   progress: number;
   status: SpmoMilestoneStatus;
   /** @nullable */
+  startDate: string | null;
+  /** @nullable */
   dueDate: string | null;
   /** @nullable */
   submittedAt: string | null;
@@ -1073,6 +1075,7 @@ export interface CreateSpmoMilestoneRequest {
    */
   weight: number;
   effortDays: number;
+  startDate?: string;
   dueDate: string;
 }
 
@@ -1094,6 +1097,7 @@ export interface UpdateSpmoMilestoneRequest {
    * @maximum 100
    */
   progress?: number;
+  startDate?: string;
   dueDate?: string;
   status?: UpdateSpmoMilestoneRequestStatus;
 }

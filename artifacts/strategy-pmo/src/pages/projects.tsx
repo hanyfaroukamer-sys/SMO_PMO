@@ -819,6 +819,8 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
   const { toast } = useToast();
   const qc = useQueryClient();
   const [expandedEvidence, setExpandedEvidence] = useState<number | null>(null);
+  const [siblingWeightEdits, setSiblingWeightEdits] = useState<Record<number, string>>({});
+  const [savingSiblingId, setSavingSiblingId] = useState<number | null>(null);
 
   const createMutation = useCreateSpmoMilestone();
   const updateMutation = useUpdateSpmoMilestone();
@@ -826,7 +828,9 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
   const submitMutation = useSubmitSpmoMilestone();
 
   const milestones = data?.milestones ?? [];
-  const totalEffort = milestones.reduce((s, m) => s + (m.effortDays ?? 0), 0);
+  const totalWeight = milestones.reduce((s: number, m) => s + (m.weight ?? 0), 0);
+  const milestoneWeightError = totalWeight > 100;
+  const milestoneWeightWarning = !milestoneWeightError && Math.round(totalWeight) !== 100 && milestones.length > 0;
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: [`/api/spmo/projects/${projectId}/milestones`] });
@@ -841,8 +845,14 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
     });
   }
 
-  function handleInlineEffortUpdate(id: number, effort: number, name: string) {
+  function handleInlineEffortUpdate(id: number, effort: number) {
     updateMutation.mutate({ id, data: { effortDays: effort } }, {
+      onSuccess: () => invalidate(),
+    });
+  }
+
+  function handleInlineStartDateUpdate(id: number, startDate: string) {
+    updateMutation.mutate({ id, data: { startDate } }, {
       onSuccess: () => invalidate(),
     });
   }
@@ -851,6 +861,39 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
     updateMutation.mutate({ id, data: { dueDate } }, {
       onSuccess: () => invalidate(),
     });
+  }
+
+  function handleInlineWeightUpdate(id: number, weight: number) {
+    updateMutation.mutate({ id, data: { weight } }, {
+      onSuccess: () => {
+        invalidate();
+        setSiblingWeightEdits({});
+      },
+      onError: (err: unknown) => {
+        const msg = err instanceof Error ? err.message : "Weight update failed";
+        toast({ variant: "destructive", title: "Cannot save weight", description: msg });
+      },
+    });
+  }
+
+  async function saveSiblingWeight(id: number) {
+    const raw = siblingWeightEdits[id];
+    if (raw === undefined) return;
+    const val = parseFloat(raw);
+    if (isNaN(val) || val < 0 || val > 100) return;
+    const current = milestones.find((m) => m.id === id);
+    if (current && Math.abs((current.weight ?? 0) - val) < 0.01) return;
+    setSavingSiblingId(id);
+    try {
+      await updateMutation.mutateAsync({ id, data: { weight: val } });
+      invalidate();
+      setSiblingWeightEdits((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed";
+      toast({ variant: "destructive", title: "Weight save failed", description: msg });
+    } finally {
+      setSavingSiblingId(null);
+    }
   }
 
   function handleInlineNameUpdate(id: number, name: string) {
@@ -870,10 +913,12 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
   }
 
   function handleAddMilestone() {
+    const currentTotal = milestones.reduce((s, m) => s + (m.weight ?? 0), 0);
+    const defaultWeight = Math.max(0, Math.min(10, Math.floor(100 - currentTotal)));
     const createPayload: CreateSpmoMilestoneRequest = {
       name: "New Milestone",
       effortDays: 5,
-      weight: 5,
+      weight: defaultWeight,
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
     };
     createMutation.mutate({ id: projectId, data: createPayload }, {
@@ -881,7 +926,10 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
         toast({ title: "Milestone added" });
         invalidate();
       },
-      onError: () => toast({ variant: "destructive", title: "Failed to add milestone" }),
+      onError: (err: unknown) => {
+        const msg = err instanceof Error ? err.message : "Failed to add milestone";
+        toast({ variant: "destructive", title: "Failed to add milestone", description: msg });
+      },
     });
   }
 
@@ -913,9 +961,12 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
           <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Effort</span>
         </div>
         <div className="w-24 shrink-0 text-center">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Start Date</span>
+        </div>
+        <div className="w-24 shrink-0 text-center">
           <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Due Date</span>
         </div>
-        <div className="w-10 shrink-0 text-center">
+        <div className="w-16 shrink-0 text-center">
           <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Wt%</span>
         </div>
         <div className="w-12 shrink-0" />
@@ -928,12 +979,52 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
         </button>
       </div>
 
+      {/* Weight summary row */}
+      {milestones.length > 0 && (
+        <div className={`px-6 py-2 border-b border-border/30 tabular-nums ${milestoneWeightError ? "bg-destructive/5" : milestoneWeightWarning ? "bg-warning/5" : "bg-success/5"}`}>
+          <div className={`flex items-center justify-between text-[11px] font-semibold ${milestoneWeightError ? "text-destructive" : milestoneWeightWarning ? "text-warning" : "text-success"}`}>
+            <span>
+              {milestoneWeightError
+                ? `⚠ Total milestone weight ${Math.round(totalWeight)}% exceeds 100% — reduce weights below`
+                : milestoneWeightWarning
+                ? `△ Total milestone weight ${Math.round(totalWeight)}% — edit weights below to reach 100%`
+                : `✓ Milestone weights total ${Math.round(totalWeight)}%`}
+            </span>
+            <span className="w-20 text-right shrink-0">{Math.max(0, Math.round(100 - totalWeight))}% left</span>
+          </div>
+          {(milestoneWeightError || milestoneWeightWarning) && (
+            <div className="mt-2 space-y-1.5">
+              {milestones.map((sib) => (
+                <div key={sib.id} className="flex items-center gap-3">
+                  <span className="flex-1 text-[11px] text-foreground truncate">{sib.name}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      className="w-14 text-xs border border-border rounded px-1.5 py-0.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums text-right"
+                      value={siblingWeightEdits[sib.id] ?? String(Math.round(sib.weight ?? 0))}
+                      onChange={(e) => setSiblingWeightEdits((prev) => ({ ...prev, [sib.id]: e.target.value }))}
+                      onBlur={() => saveSiblingWeight(sib.id)}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                      disabled={savingSiblingId === sib.id}
+                    />
+                    <span className="text-[11px] text-muted-foreground">%</span>
+                    {savingSiblingId === sib.id && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="p-6 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : (
         <div>
           {(milestones as SpmoMilestoneWithEvidence[]).map((m) => {
-            const autoWeight = totalEffort > 0 ? Math.round((m.effortDays ?? 0) / totalEffort * 100) : 0;
             const isApproved = m.status === "approved";
             const evidenceList = (m.evidence ?? []) as SpmoEvidence[];
             const hasEvidence = evidenceList.length > 0;
@@ -1015,9 +1106,24 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                     ) : (
                       <InlineNumberEdit
                         value={m.effortDays ?? 0}
-                        onSave={(v) => handleInlineEffortUpdate(m.id, v, m.name)}
+                        onSave={(v) => handleInlineEffortUpdate(m.id, v)}
                         suffix="d"
                         min={0}
+                      />
+                    )}
+                  </div>
+
+                  {/* Start Date — editable */}
+                  <div className="w-24 shrink-0 text-center">
+                    {isApproved ? (
+                      <span className="text-xs text-muted-foreground">
+                        {m.startDate ? format(new Date(m.startDate + "T00:00:00"), "MMM d, yyyy") : "—"}
+                      </span>
+                    ) : (
+                      <InlineDateEdit
+                        value={m.startDate ?? ""}
+                        onSave={(v) => handleInlineStartDateUpdate(m.id, v)}
+                        placeholder="Set start"
                       />
                     )}
                   </div>
@@ -1036,9 +1142,18 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                     )}
                   </div>
 
-                  {/* Auto-weight */}
-                  <div className="w-10 text-center shrink-0">
-                    <span className="text-xs font-bold text-muted-foreground">{autoWeight}%</span>
+                  {/* Weight — editable inline */}
+                  <div className="w-16 text-center shrink-0">
+                    {isApproved ? (
+                      <span className="text-xs font-bold tabular-nums">{Math.round(m.weight ?? 0)}%</span>
+                    ) : (
+                      <InlineNumberEdit
+                        value={Math.round(m.weight ?? 0)}
+                        onSave={(v) => handleInlineWeightUpdate(m.id, v)}
+                        suffix="%"
+                        min={0}
+                      />
+                    )}
                   </div>
 
                   {/* Evidence badge + toggle */}
@@ -1233,7 +1348,7 @@ function InlineNumberEdit({
   );
 }
 
-function InlineDateEdit({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+function InlineDateEdit({ value, onSave, placeholder }: { value: string; onSave: (v: string) => void; placeholder?: string }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
@@ -1259,7 +1374,7 @@ function InlineDateEdit({ value, onSave }: { value: string; onSave: (v: string) 
 
   const display = value
     ? format(new Date(value + "T00:00:00"), "MMM d, yyyy")
-    : "Set date";
+    : (placeholder ?? "Set date");
 
   return (
     <span

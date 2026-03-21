@@ -814,9 +814,20 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
     return;
   }
 
+  const siblings = await db
+    .select()
+    .from(spmoMilestonesTable)
+    .where(eq(spmoMilestonesTable.projectId, params.data.id));
+  const siblingWeightSum = siblings.reduce((s, m) => s + (m.weight ?? 0), 0);
+  if (siblingWeightSum + parsed.data.weight > 100) {
+    res.status(400).json({ error: `Milestone weights would exceed 100% (siblings already use ${Math.round(siblingWeightSum)}%)` });
+    return;
+  }
+
   const insertMilestone: InsertSpmoMilestone = {
     ...parsed.data,
     projectId: params.data.id,
+    startDate: parsed.data.startDate ? dateToStr(parsed.data.startDate) : undefined,
     dueDate: dateToStr(parsed.data.dueDate),
   };
   const [milestone] = await db
@@ -870,9 +881,32 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const { dueDate: mdd, ...restMilestoneUpdate } = parsed.data;
+  if (parsed.data.weight !== undefined) {
+    const [current] = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id));
+    if (!current) {
+      res.status(404).json({ error: "Milestone not found" });
+      return;
+    }
+    const siblings = await db
+      .select()
+      .from(spmoMilestonesTable)
+      .where(
+        and(
+          eq(spmoMilestonesTable.projectId, current.projectId),
+          sql`${spmoMilestonesTable.id} != ${params.data.id}`
+        )
+      );
+    const siblingWeightSum = siblings.reduce((s, m) => s + (m.weight ?? 0), 0);
+    if (siblingWeightSum + parsed.data.weight > 100) {
+      res.status(400).json({ error: `Milestone weights would exceed 100% (siblings use ${Math.round(siblingWeightSum)}%)` });
+      return;
+    }
+  }
+
+  const { dueDate: mdd, startDate: msd, ...restMilestoneUpdate } = parsed.data;
   const updateMilestone = {
     ...restMilestoneUpdate,
+    ...(msd !== undefined && { startDate: dateToStr(msd) }),
     ...(mdd !== undefined && { dueDate: dateToStr(mdd) }),
   };
   const [milestone] = await db

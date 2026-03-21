@@ -16,5 +16,6 @@ export interface CreateSpmoMilestoneRequest {
    */
   weight: number;
   effortDays: number;
+  startDate?: Date;
   dueDate: Date;
 }

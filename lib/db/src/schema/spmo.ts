@@ -168,6 +168,7 @@ export const spmoMilestonesTable = pgTable("spmo_milestones", {
   })
     .notNull()
     .default("pending"),
+  startDate: date("start_date"),
   dueDate: date("due_date"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
   approvedAt: timestamp("approved_at", { withTimezone: true }),

@@ -1305,6 +1305,7 @@ export const CreateSpmoMilestoneBody = zod.object({
     .min(createSpmoMilestoneBodyWeightMin)
     .max(createSpmoMilestoneBodyWeightMax),
   effortDays: zod.number(),
+  startDate: zod.coerce.date().optional(),
   dueDate: zod.coerce.date(),
 });
 
@@ -1328,6 +1329,7 @@ export const UpdateSpmoMilestoneBody = zod.object({
     .min(updateSpmoMilestoneBodyProgressMin)
     .max(updateSpmoMilestoneBodyProgressMax)
     .optional(),
+  startDate: zod.coerce.date().optional(),
   dueDate: zod.coerce.date().optional(),
   status: zod.enum(["pending", "in_progress"]).optional(),
 });
@@ -1351,6 +1353,7 @@ export const UpdateSpmoMilestoneResponse = zod.object({
     "approved",
     "rejected",
   ]),
+  startDate: zod.coerce.date().nullable(),
   dueDate: zod.coerce.date().nullable(),
   submittedAt: zod.coerce.date().nullable(),
   approvedAt: zod.coerce.date().nullable(),
