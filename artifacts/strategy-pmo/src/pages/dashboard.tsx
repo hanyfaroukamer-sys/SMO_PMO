@@ -39,9 +39,6 @@ function ComputedStatusBadge({ cs }: { cs: SpmoStatusResult | undefined }) {
     <div className="relative group inline-flex flex-col gap-0.5">
       <div className="inline-flex items-center gap-1.5">
         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>
-        {cs.status !== "completed" && (
-          <span className="text-[10px] text-muted-foreground font-mono">SPI {cs.spi.toFixed(2)}</span>
-        )}
         <div className="absolute bottom-full left-0 mb-1 z-50 hidden group-hover:block pointer-events-none">
           <div className="bg-popover border border-border rounded-lg shadow-xl px-3 py-2 text-xs text-foreground w-72 whitespace-normal leading-relaxed">
             <div className="font-semibold mb-1">{label}</div>

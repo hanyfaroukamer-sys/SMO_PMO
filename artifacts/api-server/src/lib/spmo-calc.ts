@@ -401,18 +401,18 @@ function computeStatusCore(
 
   // RULE 6: On Track — SPI ≥ 0.90 AND burn gap < 15
   if (spi >= t.onTrackSpi && burnGap < t.burnTolerance) {
-    return { status: "on_track", reason: `SPI ${r2(spi)} — on schedule.`, spi: r2(spi), burnGap: Math.round(burnGap) };
+    return { status: "on_track", reason: `On schedule — ${Math.round(actualProgress)}% complete, ${Math.round(elapsedPct)}% of time elapsed.`, spi: r2(spi), burnGap: Math.round(burnGap) };
   }
 
   // RULE 7: At Risk — SPI 0.70–0.90 or budget issue
   if (spi >= t.atRiskSpi) {
     let reason: string;
     if (burnGap >= t.burnTolerance) {
-      reason = `Budget: ${Math.round(burnPct)}% spent vs ${Math.round(actualProgress)}% progress (+${Math.round(burnGap)}pt gap). SPI ${r2(spi)}.`;
+      reason = `Budget concern: ${Math.round(burnPct)}% spent vs ${Math.round(actualProgress)}% progress (+${Math.round(burnGap)}pt gap).`;
     } else if (isApprovalBottleneck) {
-      reason = `Approval bottleneck: ${Math.round(approvalDelta)}pt blocked. SPI ${r2(spi)}.`;
+      reason = `Approval bottleneck: ${Math.round(approvalDelta)}pt blocked — progress may be understated.`;
     } else {
-      reason = `SPI ${r2(spi)} — expected ~${Math.round(elapsedPct)}%, actual ${Math.round(actualProgress)}%.`;
+      reason = `Slightly behind: expected ~${Math.round(elapsedPct)}% complete, actual ${Math.round(actualProgress)}%.`;
     }
     return { status: "at_risk", reason, spi: r2(spi), burnGap: Math.round(burnGap) };
   }
@@ -420,11 +420,11 @@ function computeStatusCore(
   // RULE 8: Delayed — SPI < 0.70
   let reason: string;
   if (burnGap >= 25) {
-    reason = `Critical: SPI ${r2(spi)}, budget overburn ${Math.round(burnGap)}pt. Intervention required.`;
+    reason = `Critical: budget overburn ${Math.round(burnGap)}pt and ${Math.round(elapsedPct - actualProgress)}pt behind schedule. Intervention required.`;
   } else if (isApprovalBottleneck && spi >= 0.55) {
-    reason = `SPI ${r2(spi)} with ${Math.round(approvalDelta)}pt blocked by approval bottleneck.`;
+    reason = `${Math.round(approvalDelta)}pt blocked by approval bottleneck — delivery at risk.`;
   } else {
-    reason = `SPI ${r2(spi)} — ${Math.round(elapsedPct - actualProgress)}pt behind schedule. Recovery unlikely without replanning.`;
+    reason = `${Math.round(elapsedPct - actualProgress)}pt behind schedule (expected ~${Math.round(elapsedPct)}%, actual ${Math.round(actualProgress)}%). Recovery unlikely without replanning.`;
   }
   return { status: "delayed", reason, spi: r2(spi), burnGap: Math.round(burnGap) };
 }
@@ -488,12 +488,12 @@ export function computeInitiativeStatus(
     const parts: string[] = [];
     if (delayed.length > 0) {
       parts.push("Delayed: " + delayed.map(p =>
-        `${p.name} (SPI ${p.computedStatus.spi}, ${Math.round(p.weight)}% wt)`
+        `${p.name} (${Math.round(p.weight)}% wt)`
       ).join(", "));
     }
     if (atRisk.length > 0) {
       parts.push("At risk: " + atRisk.map(p =>
-        `${p.name} (SPI ${p.computedStatus.spi})`
+        `${p.name}`
       ).join(", "));
     }
     if (parts.length > 0) {
