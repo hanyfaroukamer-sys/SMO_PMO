@@ -363,7 +363,7 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
   const withProgress = await Promise.all(
     rows.map(async (i) => {
       const stats = await initiativeProgress(i.id);
-      const computedStatus: StatusResult = computeInitiativeStatus(
+      const baseStatus: StatusResult = computeInitiativeStatus(
         stats.progress,
         i.startDate,
         i.targetDate,
@@ -371,6 +371,10 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
         stats.budgetSpent,
         stats.rawProgress,
       );
+      const computedStatus: StatusResult =
+        stats.allProjectsDelayed && stats.projectCount > 0
+          ? { ...baseStatus, status: "delayed", reason: `All ${stats.projectCount} project${stats.projectCount > 1 ? "s" : ""} under this initiative are delayed. ${baseStatus.reason}` }
+          : baseStatus;
       return { ...i, ...stats, computedStatus, healthStatus: computedStatus.status };
     })
   );

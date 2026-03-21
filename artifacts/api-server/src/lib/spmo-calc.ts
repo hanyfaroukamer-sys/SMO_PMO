@@ -96,6 +96,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
   approvedMilestones: number;
   totalMilestones: number;
   budgetSpent: number;
+  allProjectsDelayed: boolean;
 }> {
   const projects = await db
     .select()
@@ -103,19 +104,21 @@ async function initiativeProgress(initiativeId: number): Promise<{
     .where(eq(spmoProjectsTable.initiativeId, initiativeId));
 
   if (projects.length === 0) {
-    return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0 };
+    return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, allProjectsDelayed: false };
   }
 
   const projectStats = await Promise.all(
     projects.map(async (p) => {
       const s = await projectProgress(p.id);
-      return { value: s.progress, rawValue: s.rawProgress, weight: p.budget ?? 0, ...s, budgetSpent: p.budgetSpent ?? 0 };
+      const projStatus = computeStatus(s.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, s.rawProgress);
+      return { value: s.progress, rawValue: s.rawProgress, weight: p.budget ?? 0, ...s, budgetSpent: p.budgetSpent ?? 0, projStatus };
     })
   );
 
   const totalApproved = projectStats.reduce((s, p) => s + p.approvedMilestones, 0);
   const totalMilestones = projectStats.reduce((s, p) => s + p.milestoneCount, 0);
   const totalBudgetSpent = projectStats.reduce((s, p) => s + p.budgetSpent, 0);
+  const allProjectsDelayed = projectStats.every((p) => p.projStatus.status === "delayed");
 
   const rawItems = projectStats.map((p) => ({ value: p.rawValue, weight: p.weight }));
 
@@ -126,6 +129,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
     approvedMilestones: totalApproved,
     totalMilestones,
     budgetSpent: totalBudgetSpent,
+    allProjectsDelayed,
   };
 }
 
