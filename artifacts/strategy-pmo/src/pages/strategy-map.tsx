@@ -10,7 +10,18 @@ import {
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass } from "@/components/modal";
 import { Loader2, Network, ChevronRight, Cpu, Settings, Users, Leaf, Pencil } from "lucide-react";
+
 import { useToast } from "@/hooks/use-toast";
+
+function calcPlannedProgress(startDate: string | null | undefined, endDate: string | null | undefined): number {
+  if (!startDate || !endDate) return 0;
+  const today = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const total = Math.max(end.getTime() - start.getTime(), 1);
+  const elapsed = today.getTime() - start.getTime();
+  return Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
+}
 
 const PILLAR_ICONS: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
   Cpu, Settings, Users, Leaf, Network,
@@ -174,7 +185,7 @@ export default function StrategyMap() {
                     <div className="text-3xl font-display font-bold" style={{ color: pillar.color }}>
                       {Math.round(pillar.progress)}%
                     </div>
-                    <div className="text-xs text-muted-foreground">{pillar.weight}% weight</div>
+                    <div className="text-xs text-muted-foreground">actual progress</div>
                   </div>
                 </div>
 
@@ -199,6 +210,7 @@ export default function StrategyMap() {
                 ) : (
                   pillarInitiatives.map((initiative, idx) => {
                     const initiativeProjects = projects.filter((p) => p.initiativeId === initiative.id);
+                    const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
                     return (
                       <div key={initiative.id} className="px-6 py-3">
                         <div className="flex items-center gap-3">
@@ -212,7 +224,9 @@ export default function StrategyMap() {
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-semibold text-sm truncate">{initiative.name}</span>
                               <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-xs text-muted-foreground">{initiative.weight}%</span>
+                                {planned > 0 && (
+                                  <span className="text-xs text-muted-foreground">Plan {planned}%</span>
+                                )}
                                 <span className="text-xs font-bold" style={{ color: pillar.color }}>
                                   {Math.round(initiative.progress ?? 0)}%
                                 </span>
