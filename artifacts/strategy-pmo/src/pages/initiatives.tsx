@@ -142,6 +142,13 @@ export default function Initiatives() {
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
+  const selectedPillarId = parseInt(form.pillarId) || 0;
+  const siblingInitiativeWeight = (data?.initiatives ?? [])
+    .filter(i => i.pillarId === selectedPillarId && i.id !== editId)
+    .reduce((s, i) => s + (i.weight ?? 0), 0);
+  const initiativeWeightTotal = siblingInitiativeWeight + (parseFloat(form.weight) || 0);
+  const initiativeWeightError = !!form.pillarId && initiativeWeightTotal > 100;
+
   if (isLoading)
     return (
       <div className="p-8 flex justify-center">
@@ -288,7 +295,7 @@ export default function Initiatives() {
             </FormField>
           </div>
 
-          <FormField label={`Weight (${form.weight}%)`}>
+          <FormField label={`Weight: ${form.weight}%`}>
             <input
               type="range"
               min="0"
@@ -297,6 +304,12 @@ export default function Initiatives() {
               value={form.weight}
               onChange={(e) => setForm({ ...form, weight: e.target.value })}
             />
+            {form.pillarId && (
+              <div className={`flex justify-between text-[11px] mt-1.5 ${initiativeWeightError ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                <span>Others: {Math.round(siblingInitiativeWeight)}% + This: {parseFloat(form.weight) || 0}%</span>
+                <span>{initiativeWeightError ? `⚠ Total ${Math.round(initiativeWeightTotal)}%` : `${Math.max(0, Math.round(100 - siblingInitiativeWeight))}% left`}</span>
+              </div>
+            )}
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">
@@ -318,7 +331,12 @@ export default function Initiatives() {
             </FormField>
           </div>
 
-          <FormActions loading={isSaving} label={editId ? "Update Initiative" : "Create Initiative"} onCancel={() => setModalOpen(false)} />
+          {initiativeWeightError && (
+            <p className="text-destructive text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+              ⚠ Initiative weights in this pillar cannot exceed 100%. Reduce this weight or adjust siblings first.
+            </p>
+          )}
+          <FormActions loading={isSaving} disabled={initiativeWeightError} label={editId ? "Update Initiative" : "Create Initiative"} onCancel={() => setModalOpen(false)} />
         </form>
       </Modal>
     </div>

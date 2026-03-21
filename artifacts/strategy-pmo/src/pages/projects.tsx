@@ -407,6 +407,13 @@ export default function Projects() {
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
+  const selectedInitiativeId = parseInt(form.initiativeId) || 0;
+  const siblingProjectWeight = (data?.projects ?? [])
+    .filter(p => p.initiativeId === selectedInitiativeId && p.id !== editId)
+    .reduce((s, p) => s + (p.weight ?? 0), 0);
+  const projectWeightTotal = siblingProjectWeight + (parseFloat(form.weight) || 0);
+  const projectWeightError = !!form.initiativeId && projectWeightTotal > 100;
+
   if (isLoading)
     return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
@@ -630,8 +637,14 @@ export default function Projects() {
             <FormField label="Budget (SAR)">
               <input type="number" className={inputClass} value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="0" min="0" />
             </FormField>
-            <FormField label={`Weight (${form.weight}%)`}>
+            <FormField label={`Weight: ${form.weight}%`}>
               <input type="range" min="0" max="100" className="w-full accent-primary mt-2" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} />
+              {form.initiativeId && (
+                <div className={`flex justify-between text-[11px] mt-1.5 ${projectWeightError ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                  <span>Others: {Math.round(siblingProjectWeight)}% + This: {parseFloat(form.weight) || 0}%</span>
+                  <span>{projectWeightError ? `⚠ Total ${Math.round(projectWeightTotal)}%` : `${Math.max(0, Math.round(100 - siblingProjectWeight))}% left`}</span>
+                </div>
+              )}
             </FormField>
           </div>
 
@@ -644,7 +657,12 @@ export default function Projects() {
             </FormField>
           </div>
 
-          <FormActions loading={isSaving} label={editId ? "Update Project" : "Create Project"} onCancel={() => setModalOpen(false)} />
+          {projectWeightError && (
+            <p className="text-destructive text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+              ⚠ Project weights in this initiative cannot exceed 100%. Reduce this weight or adjust siblings first.
+            </p>
+          )}
+          <FormActions loading={isSaving} disabled={projectWeightError} label={editId ? "Update Project" : "Create Project"} onCancel={() => setModalOpen(false)} />
         </form>
       </Modal>
     </div>

@@ -111,6 +111,12 @@ export default function Pillars() {
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
+  const siblingPillarWeight = (data?.pillars ?? [])
+    .filter(p => p.id !== editId)
+    .reduce((s, p) => s + (p.weight ?? 0), 0);
+  const pillarWeightTotal = siblingPillarWeight + (parseFloat(form.weight) || 0);
+  const pillarWeightError = pillarWeightTotal > 100;
+
   if (isLoading)
     return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
@@ -212,6 +218,10 @@ export default function Pillars() {
                 value={form.weight}
                 onChange={(e) => setForm({ ...form, weight: e.target.value })}
               />
+              <div className={`flex justify-between text-[11px] mt-1.5 ${pillarWeightError ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                <span>Others: {Math.round(siblingPillarWeight)}% + This: {parseFloat(form.weight) || 0}%</span>
+                <span>{pillarWeightError ? `⚠ Total ${Math.round(pillarWeightTotal)}%` : `${Math.max(0, Math.round(100 - siblingPillarWeight))}% left`}</span>
+              </div>
             </FormField>
             <FormField label="Sort Order">
               <input
@@ -246,7 +256,12 @@ export default function Pillars() {
             </div>
           </FormField>
 
-          <FormActions loading={isSaving} label={editId ? "Update Pillar" : "Create Pillar"} onCancel={() => setModalOpen(false)} />
+          {pillarWeightError && (
+            <p className="text-destructive text-xs bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+              ⚠ Pillar weights cannot exceed 100%. Reduce this pillar's weight or adjust others first.
+            </p>
+          )}
+          <FormActions loading={isSaving} disabled={pillarWeightError} label={editId ? "Update Pillar" : "Create Pillar"} onCancel={() => setModalOpen(false)} />
         </form>
       </Modal>
     </div>

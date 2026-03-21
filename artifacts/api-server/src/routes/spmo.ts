@@ -233,6 +233,15 @@ router.post("/spmo/pillars", async (req, res): Promise<void> => {
     return;
   }
 
+  if (parsed.data.weight !== undefined) {
+    const allPillars = await db.select({ weight: spmoPillarsTable.weight }).from(spmoPillarsTable);
+    const siblingSum = allPillars.reduce((s, p) => s + (p.weight ?? 0), 0);
+    if (siblingSum + parsed.data.weight > 100) {
+      res.status(400).json({ error: `Pillar weights cannot exceed 100%. Existing pillars total ${Math.round(siblingSum)}%, adding ${Math.round(parsed.data.weight)}% would reach ${Math.round(siblingSum + parsed.data.weight)}%.` });
+      return;
+    }
+  }
+
   const [pillar] = await db.insert(spmoPillarsTable).values(parsed.data).returning();
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "pillar", pillar.id, pillar.name);
   res.status(201).json(pillar);
@@ -295,6 +304,15 @@ router.put("/spmo/pillars/:id", async (req, res): Promise<void> => {
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+
+  if (parsed.data.weight !== undefined) {
+    const allPillars = await db.select({ id: spmoPillarsTable.id, weight: spmoPillarsTable.weight }).from(spmoPillarsTable);
+    const siblingSum = allPillars.filter(p => p.id !== params.data.id).reduce((s, p) => s + (p.weight ?? 0), 0);
+    if (siblingSum + parsed.data.weight > 100) {
+      res.status(400).json({ error: `Pillar weights cannot exceed 100%. Other pillars total ${Math.round(siblingSum)}%, this pillar at ${Math.round(parsed.data.weight)}% would reach ${Math.round(siblingSum + parsed.data.weight)}%.` });
+      return;
+    }
   }
 
   const [pillar] = await db
@@ -401,6 +419,16 @@ router.post("/spmo/initiatives", async (req, res): Promise<void> => {
     startDate: dateToStr(parsed.data.startDate) as string,
     targetDate: dateToStr(parsed.data.targetDate) as string,
   };
+
+  if (parsed.data.weight !== undefined) {
+    const siblings = await db.select({ weight: spmoInitiativesTable.weight }).from(spmoInitiativesTable).where(eq(spmoInitiativesTable.pillarId, insertInitiative.pillarId));
+    const siblingSum = siblings.reduce((s, i) => s + (i.weight ?? 0), 0);
+    if (siblingSum + parsed.data.weight > 100) {
+      res.status(400).json({ error: `Initiative weights in this pillar cannot exceed 100%. Existing initiatives total ${Math.round(siblingSum)}%, adding ${Math.round(parsed.data.weight)}% would reach ${Math.round(siblingSum + parsed.data.weight)}%.` });
+      return;
+    }
+  }
+
   const [initiative] = await db
     .insert(spmoInitiativesTable)
     .values(insertInitiative)
@@ -485,6 +513,20 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     ...(sd !== undefined && { startDate: dateToStr(sd) as string }),
     ...(td !== undefined && { targetDate: dateToStr(td) as string }),
   };
+
+  if (parsed.data.weight !== undefined) {
+    const [existingInit] = await db.select({ pillarId: spmoInitiativesTable.pillarId }).from(spmoInitiativesTable).where(eq(spmoInitiativesTable.id, params.data.id));
+    if (existingInit) {
+      const pillarId = parsed.data.pillarId ?? existingInit.pillarId;
+      const siblings = await db.select({ id: spmoInitiativesTable.id, weight: spmoInitiativesTable.weight }).from(spmoInitiativesTable).where(eq(spmoInitiativesTable.pillarId, pillarId));
+      const siblingSum = siblings.filter(i => i.id !== params.data.id).reduce((s, i) => s + (i.weight ?? 0), 0);
+      if (siblingSum + parsed.data.weight > 100) {
+        res.status(400).json({ error: `Initiative weights in this pillar cannot exceed 100%. Other initiatives total ${Math.round(siblingSum)}%, this initiative at ${Math.round(parsed.data.weight)}% would reach ${Math.round(siblingSum + parsed.data.weight)}%.` });
+        return;
+      }
+    }
+  }
+
   const [initiative] = await db
     .update(spmoInitiativesTable)
     .set(updateInitiative)
@@ -588,6 +630,16 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
     startDate: dateToStr(parsed.data.startDate) as string,
     targetDate: dateToStr(parsed.data.targetDate) as string,
   };
+
+  if (parsed.data.weight !== undefined) {
+    const siblings = await db.select({ weight: spmoProjectsTable.weight }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, insertProject.initiativeId));
+    const siblingSum = siblings.reduce((s, p) => s + (p.weight ?? 0), 0);
+    if (siblingSum + parsed.data.weight > 100) {
+      res.status(400).json({ error: `Project weights in this initiative cannot exceed 100%. Existing projects total ${Math.round(siblingSum)}%, adding ${Math.round(parsed.data.weight)}% would reach ${Math.round(siblingSum + parsed.data.weight)}%.` });
+      return;
+    }
+  }
+
   const [project] = await db
     .insert(spmoProjectsTable)
     .values(insertProject)
@@ -655,6 +707,20 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
     ...(psd !== undefined && { startDate: dateToStr(psd) as string }),
     ...(ptd !== undefined && { targetDate: dateToStr(ptd) as string }),
   };
+
+  if (parsed.data.weight !== undefined) {
+    const [existingProject] = await db.select({ initiativeId: spmoProjectsTable.initiativeId }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, params.data.id));
+    if (existingProject) {
+      const initiativeId = existingProject.initiativeId;
+      const siblings = await db.select({ id: spmoProjectsTable.id, weight: spmoProjectsTable.weight }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, initiativeId));
+      const siblingSum = siblings.filter(p => p.id !== params.data.id).reduce((s, p) => s + (p.weight ?? 0), 0);
+      if (siblingSum + parsed.data.weight > 100) {
+        res.status(400).json({ error: `Project weights in this initiative cannot exceed 100%. Other projects total ${Math.round(siblingSum)}%, this project at ${Math.round(parsed.data.weight)}% would reach ${Math.round(siblingSum + parsed.data.weight)}%.` });
+        return;
+      }
+    }
+  }
+
   const [project] = await db
     .update(spmoProjectsTable)
     .set(updateProject)
