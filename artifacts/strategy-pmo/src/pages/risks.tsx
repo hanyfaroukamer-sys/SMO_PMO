@@ -43,6 +43,7 @@ type RiskForm = {
 type MitigationForm = {
   description: string;
   status: string;
+  dueDate: string;
 };
 
 const emptyRisk = (): RiskForm => ({
@@ -50,7 +51,7 @@ const emptyRisk = (): RiskForm => ({
   status: "open", owner: "", projectId: "",
 });
 
-const emptyMitigation = (): MitigationForm => ({ description: "", status: "planned" });
+const emptyMitigation = (): MitigationForm => ({ description: "", status: "planned", dueDate: "" });
 
 function riskBorderColor(score: number) {
   if (score >= 12) return "#dc2626";
@@ -408,12 +409,14 @@ export default function Risks() {
   );
 }
 
+type Mitigation = { id: number; description: string; status: string; dueDate?: string | Date | null };
+
 function MitigationSection({
   riskId,
   mitigations,
 }: {
   riskId: number;
-  mitigations: Array<{ id: number; description: string; status: string }>;
+  mitigations: Mitigation[];
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -432,17 +435,23 @@ function MitigationSection({
     setModalOpen(true);
   }
 
-  function openEdit(m: { id: number; description: string; status: string }) {
+  function openEdit(m: Mitigation) {
     setEditId(m.id);
-    setForm({ description: m.description, status: m.status });
+    const dueDateStr = m.dueDate
+      ? (m.dueDate instanceof Date
+          ? m.dueDate.toISOString().slice(0, 10)
+          : String(m.dueDate).slice(0, 10))
+      : "";
+    setForm({ description: m.description, status: m.status, dueDate: dueDateStr });
     setModalOpen(true);
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const status = form.status as "planned" | "in_progress" | "completed";
+    const dueDate = form.dueDate || undefined;
     if (editId !== null) {
-      updateMutation.mutate({ id: editId, data: { description: form.description, status } }, {
+      updateMutation.mutate({ id: editId, data: { description: form.description, status, dueDate } }, {
         onSuccess: () => {
           toast({ title: "Mitigation updated" });
           setModalOpen(false);
@@ -450,7 +459,7 @@ function MitigationSection({
         },
       });
     } else {
-      const createMitigationPayload: CreateSpmoMitigationRequest = { description: form.description, status };
+      const createMitigationPayload: CreateSpmoMitigationRequest = { description: form.description, status, dueDate };
       createMutation.mutate({ id: riskId, data: createMitigationPayload }, {
         onSuccess: () => {
           toast({ title: "Mitigation added" });
@@ -476,15 +485,27 @@ function MitigationSection({
       </div>
 
       <div className="divide-y divide-border/50 px-5">
-        {mitigations.map((m) => (
-          <div key={m.id} className="flex items-center gap-3 py-3 group">
-            <div className="flex-1 text-sm">{m.description}</div>
-            <StatusBadge status={m.status} />
-            <button onClick={() => openEdit(m)} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity" title="Edit">
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
+        {mitigations.map((m) => {
+          const dueDateDisplay = m.dueDate
+            ? (m.dueDate instanceof Date
+                ? m.dueDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                : new Date(m.dueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }))
+            : null;
+          return (
+            <div key={m.id} className="flex items-start gap-3 py-3 group">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm">{m.description}</p>
+                {dueDateDisplay && (
+                  <p className="text-xs text-muted-foreground mt-0.5">Due: <span className="font-semibold text-foreground">{dueDateDisplay}</span></p>
+                )}
+              </div>
+              <StatusBadge status={m.status} />
+              <button onClick={() => openEdit(m)} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" title="Edit">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          );
+        })}
         {mitigations.length === 0 && (
           <div className="py-4 text-sm text-muted-foreground text-center">No mitigations defined.</div>
         )}
@@ -495,13 +516,18 @@ function MitigationSection({
           <FormField label="Mitigation Action" required>
             <textarea className={inputClass} rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the mitigation action..." required />
           </FormField>
-          <FormField label="Status">
-            <select className={selectClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-              <option value="planned">Planned</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-            </select>
-          </FormField>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Status">
+              <select className={selectClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                <option value="planned">Planned</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </FormField>
+            <FormField label="Due Date">
+              <input type="date" className={inputClass} value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+            </FormField>
+          </div>
           <FormActions loading={isSaving} label={editId ? "Update" : "Add Mitigation"} onCancel={() => setModalOpen(false)} />
         </form>
       </Modal>

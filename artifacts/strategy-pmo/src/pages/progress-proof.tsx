@@ -27,13 +27,14 @@ const FILTER_CONFIG: Array<{
   icon: React.ComponentType<{ className?: string }>;
   colorClass: string;
   borderClass: string;
+  activeClass: string;
 }> = [
-  { key: "all",         label: "All",             icon: Target,        colorClass: "text-primary",          borderClass: "border-primary/20 bg-primary/5" },
-  { key: "approved",    label: "Approved",         icon: ThumbsUp,      colorClass: "text-success",          borderClass: "border-success/20 bg-success/5" },
-  { key: "submitted",   label: "Pending Review",   icon: Clock,         colorClass: "text-warning",          borderClass: "border-warning/20 bg-warning/5" },
-  { key: "rejected",    label: "Rejected",         icon: XCircle,       colorClass: "text-destructive",      borderClass: "border-destructive/20 bg-destructive/5" },
-  { key: "blocked100",  label: "100% Blocked",     icon: AlertCircle,   colorClass: "text-destructive",      borderClass: "border-destructive/20 bg-destructive/5" },
-  { key: "no_evidence", label: "No Evidence",      icon: FileX,         colorClass: "text-muted-foreground", borderClass: "border-border bg-secondary/50" },
+  { key: "all",         label: "Total Milestones",     icon: Target,        colorClass: "text-primary",          borderClass: "border-primary/20 bg-primary/5",           activeClass: "bg-primary text-primary-foreground border-primary" },
+  { key: "approved",    label: "Approved",              icon: ThumbsUp,      colorClass: "text-success",          borderClass: "border-success/20 bg-success/5",           activeClass: "bg-success text-white border-success" },
+  { key: "submitted",   label: "Pending",               icon: Clock,         colorClass: "text-warning",          borderClass: "border-warning/20 bg-warning/5",           activeClass: "bg-warning text-white border-warning" },
+  { key: "rejected",    label: "Rejected",              icon: XCircle,       colorClass: "text-destructive",      borderClass: "border-destructive/20 bg-destructive/5",   activeClass: "bg-destructive text-white border-destructive" },
+  { key: "blocked100",  label: "At 100% Unapproved",   icon: AlertCircle,   colorClass: "text-destructive",      borderClass: "border-destructive/20 bg-destructive/5",   activeClass: "bg-destructive text-white border-destructive" },
+  { key: "no_evidence", label: "Missing Evidence",      icon: FileX,         colorClass: "text-muted-foreground", borderClass: "border-border bg-secondary/50",            activeClass: "bg-slate-600 text-white border-slate-600" },
 ];
 
 export default function ProgressProof() {
@@ -71,35 +72,8 @@ export default function ProgressProof() {
         description="Review evidence and approve milestone completions."
       />
 
-      {/* Evidence Stats Bar */}
-      <Card className="py-4">
-        <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-border text-center">
-          <div>
-            <div className="text-2xl font-display font-bold text-success">{counts.approved}</div>
-            <div className="text-xs text-muted-foreground font-medium mt-0.5">Approved</div>
-          </div>
-          <div>
-            <div className="text-2xl font-display font-bold text-warning">{counts.submitted}</div>
-            <div className="text-xs text-muted-foreground font-medium mt-0.5">Awaiting Review</div>
-          </div>
-          <div>
-            <div className="text-2xl font-display font-bold text-muted-foreground">{counts.no_evidence}</div>
-            <div className="text-xs text-muted-foreground font-medium mt-0.5">Missing Evidence</div>
-          </div>
-          <div>
-            <div className="text-2xl font-display font-bold text-primary">
-              {allItems.reduce((s, i) => s + (i.milestone.evidence?.length ?? 0), 0)}
-            </div>
-            <div className="text-xs text-muted-foreground font-medium mt-0.5">Total Files</div>
-            <div className="text-[10px] font-semibold text-muted-foreground/60 mt-0.5">
-              {counts.all > 0 ? Math.round((counts.approved / counts.all) * 100) : 0}% approval rate
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Filter Pills */}
-      <div className="flex flex-wrap gap-2 items-center">
+      {/* 6 Summary Filter Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         {FILTER_CONFIG.map((fc) => {
           const Icon = fc.icon;
           const isActive = filter === fc.key;
@@ -107,23 +81,20 @@ export default function ProgressProof() {
             <button
               key={fc.key}
               onClick={() => setFilter(fc.key)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                isActive
-                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                  : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+              className={`text-left p-4 rounded-2xl border-2 transition-all shadow-sm hover:shadow-md ${
+                isActive ? `${fc.activeClass} shadow-md` : `${fc.borderClass} hover:border-current/40`
               }`}
             >
-              <Icon className="w-3.5 h-3.5" />
-              {fc.label}
-              <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                isActive ? "bg-white/20 text-white" : "bg-secondary text-muted-foreground"
-              }`}>{counts[fc.key]}</span>
+              <Icon className={`w-5 h-5 mb-3 ${isActive ? "opacity-90" : fc.colorClass}`} />
+              <div className={`text-3xl font-display font-bold leading-none mb-1.5 ${isActive ? "" : fc.colorClass}`}>
+                {counts[fc.key]}
+              </div>
+              <div className={`text-xs font-semibold leading-tight ${isActive ? "opacity-80" : "text-muted-foreground"}`}>
+                {fc.label}
+              </div>
             </button>
           );
         })}
-        <span className="ml-auto text-xs text-muted-foreground font-medium">
-          {filteredItems.length} milestone{filteredItems.length !== 1 ? "s" : ""}
-        </span>
       </div>
 
       {/* Milestone Cards Grid */}

@@ -9,8 +9,6 @@ import { AuthGuard } from "@/components/auth-guard";
 // Pages
 import Dashboard from "@/pages/dashboard";
 import StrategyMap from "@/pages/strategy-map";
-import Departments from "@/pages/departments";
-import DepartmentPortfolio from "@/pages/department-portfolio";
 import Projects from "@/pages/projects";
 import ProgressProof from "@/pages/progress-proof";
 import KPIs from "@/pages/kpis";
@@ -37,8 +35,6 @@ function Router() {
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/strategy-map" component={StrategyMap} />
-          <Route path="/departments" component={Departments} />
-          <Route path="/departments/:id/portfolio" component={DepartmentPortfolio} />
           <Route path="/projects" component={Projects} />
           <Route path="/progress" component={ProgressProof} />
           <Route path="/kpis" component={KPIs} />
