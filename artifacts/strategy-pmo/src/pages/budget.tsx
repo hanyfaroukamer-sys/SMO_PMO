@@ -86,17 +86,12 @@ function InlineNumberEdit({
         className="w-24 text-xs border border-primary rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { onSave(parseFloat(draft) || 0); setEditing(false); }}
         onKeyDown={(e) => {
           if (e.key === "Enter") { onSave(parseFloat(draft) || 0); setEditing(false); }
           if (e.key === "Escape") setEditing(false);
         }}
       />
-      <button className="p-1 rounded hover:bg-success/10 text-success" onClick={() => { onSave(parseFloat(draft) || 0); setEditing(false); }}>
-        <Check className="w-3 h-3" />
-      </button>
-      <button className="p-1 rounded hover:bg-destructive/10 text-destructive" onClick={() => setEditing(false)}>
-        <X className="w-3 h-3" />
-      </button>
     </span>
   );
 }

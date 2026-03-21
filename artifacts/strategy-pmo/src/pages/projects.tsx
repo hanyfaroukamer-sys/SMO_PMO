@@ -151,7 +151,7 @@ function EvidencePanel({
         </div>
       )}
       {isSubmitted && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border-b border-primary/20 text-primary text-xs font-bold">
+        <div className="flex items-center gap-2 px-3 py-2 bg-warning/10 border-b border-warning/20 text-warning text-xs font-bold">
           <Send className="w-3.5 h-3.5" /> Submitted for Approval — Awaiting review
         </div>
       )}
@@ -911,17 +911,15 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                     <span className="font-semibold">{evidenceList.length}</span>
                   </button>
 
-                  {/* Submit for Approval – visible button */}
-                  {!isApproved && m.status !== "submitted" && (
+                  {/* Submit for Approval – visible only when progress=100% AND evidence>0 */}
+                  {!isApproved && m.status !== "submitted" && canSubmit && (
                     <button
                       onClick={() => handleSubmitForApproval(m.id, m.name)}
-                      disabled={submitMutation.isPending || !canSubmit}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all shrink-0
-                        enabled:bg-primary enabled:text-primary-foreground enabled:border-primary enabled:hover:bg-primary/90
-                        disabled:bg-secondary disabled:text-muted-foreground disabled:border-border disabled:cursor-not-allowed"
-                      title={canSubmit ? "Submit for approval" : "Progress must be 100% and at least one evidence file attached"}
+                      disabled={submitMutation.isPending}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all shrink-0 bg-primary text-primary-foreground border-primary hover:bg-primary/90 disabled:opacity-60"
+                      title="Submit for approval"
                     >
-                      <Send className="w-3 h-3" /> Submit
+                      <Send className="w-3 h-3" /> Submit for Approval
                     </button>
                   )}
 
