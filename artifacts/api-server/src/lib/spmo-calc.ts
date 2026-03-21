@@ -469,7 +469,14 @@ export function computeInitiativeStatus(
     result.reason = `Contains ${delayed.length} delayed project${delayed.length > 1 ? "s" : ""}.`;
   }
 
-  // ESCALATION 2: >50% of budget weight in delayed projects → initiative delayed
+  // ESCALATION 2: All child projects delayed → initiative delayed
+  const activeProjCount = childProjects.filter(p => p.computedStatus.status !== "completed").length;
+  if (delayed.length > 0 && delayed.length === activeProjCount && result.status !== "delayed" && result.status !== "completed") {
+    result.status = "delayed";
+    result.reason = `All ${delayed.length} active project${delayed.length > 1 ? "s" : ""} under this initiative are delayed.`;
+  }
+
+  // ESCALATION 3: >50% of budget weight in delayed projects → initiative delayed
   const delayedWeight = delayed.reduce((s, p) => s + p.weight, 0);
   if (delayedWeight > 50 && result.status !== "delayed" && result.status !== "completed") {
     result.status = "delayed";
