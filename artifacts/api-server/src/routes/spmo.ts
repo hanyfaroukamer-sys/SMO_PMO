@@ -93,9 +93,10 @@ import {
   projectProgress,
   milestoneEffectiveProgress,
   computeRiskScore,
-  computeProjectHealth,
-  computeInitiativeHealth,
+  computeStatus,
+  computeInitiativeStatus,
   computeMilestoneHealth,
+  type StatusResult,
 } from "../lib/spmo-calc";
 import { logSpmoActivity } from "../lib/spmo-activity";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
@@ -362,8 +363,15 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
   const withProgress = await Promise.all(
     rows.map(async (i) => {
       const stats = await initiativeProgress(i.id);
-      const healthStatus = computeInitiativeHealth(i.status, i.targetDate);
-      return { ...i, ...stats, healthStatus };
+      const computedStatus: StatusResult = computeInitiativeStatus(
+        stats.progress,
+        i.startDate,
+        i.targetDate,
+        i.budget,
+        stats.budgetSpent,
+        stats.rawProgress,
+      );
+      return { ...i, ...stats, computedStatus, healthStatus: computedStatus.status };
     })
   );
 
@@ -531,8 +539,15 @@ router.get("/spmo/projects", async (req, res): Promise<void> => {
   const withProgress = await Promise.all(
     rows.map(async (p) => {
       const stats = await projectProgress(p.id);
-      const healthStatus = computeProjectHealth(p.status, p.targetDate, stats.approvedMilestones, stats.milestoneCount);
-      return { ...p, ...stats, healthStatus };
+      const computedStatus: StatusResult = computeStatus(
+        stats.progress,
+        p.startDate,
+        p.targetDate,
+        p.budget,
+        p.budgetSpent,
+        stats.rawProgress,
+      );
+      return { ...p, ...stats, computedStatus, healthStatus: computedStatus.status };
     })
   );
 

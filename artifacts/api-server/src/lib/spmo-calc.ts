@@ -45,9 +45,11 @@ function simpleAvg(values: number[]): number {
 // ─────────────────────────────────────────────────────────────
 // Project-level progress from its milestones
 // Weight = effortDays (falls back to equal weight if all 0)
+// Returns both gated progress (99% cap) and raw progress (no cap)
 // ─────────────────────────────────────────────────────────────
 async function projectProgress(projectId: number): Promise<{
   progress: number;
+  rawProgress: number;
   milestoneCount: number;
   approvedMilestones: number;
   pendingApprovals: number;
@@ -58,11 +60,15 @@ async function projectProgress(projectId: number): Promise<{
     .where(eq(spmoMilestonesTable.projectId, projectId));
 
   if (milestones.length === 0) {
-    return { progress: 0, milestoneCount: 0, approvedMilestones: 0, pendingApprovals: 0 };
+    return { progress: 0, rawProgress: 0, milestoneCount: 0, approvedMilestones: 0, pendingApprovals: 0 };
   }
 
-  const items = milestones.map((m) => ({
-    value: milestoneEffectiveProgress(m),
+  const gatedItems = milestones.map((m) => ({
+    value: milestoneEffectiveProgress(m),   // 99% cap
+    weight: m.effortDays ?? 0,
+  }));
+  const rawItems = milestones.map((m) => ({
+    value: m.progress ?? 0,                 // no cap
     weight: m.effortDays ?? 0,
   }));
 
@@ -70,7 +76,8 @@ async function projectProgress(projectId: number): Promise<{
   const pending = milestones.filter((m) => m.status === "submitted").length;
 
   return {
-    progress: weightedAvg(items),
+    progress: weightedAvg(gatedItems),
+    rawProgress: weightedAvg(rawItems),
     milestoneCount: milestones.length,
     approvedMilestones: approved,
     pendingApprovals: pending,
@@ -80,12 +87,15 @@ async function projectProgress(projectId: number): Promise<{
 // ─────────────────────────────────────────────────────────────
 // Initiative-level progress from its projects
 // Weight = project.budget (falls back to equal weight if all 0)
+// Returns gated + raw progress and aggregated budget spent
 // ─────────────────────────────────────────────────────────────
 async function initiativeProgress(initiativeId: number): Promise<{
   progress: number;
+  rawProgress: number;
   projectCount: number;
   approvedMilestones: number;
   totalMilestones: number;
+  budgetSpent: number;
 }> {
   const projects = await db
     .select()
@@ -93,24 +103,29 @@ async function initiativeProgress(initiativeId: number): Promise<{
     .where(eq(spmoProjectsTable.initiativeId, initiativeId));
 
   if (projects.length === 0) {
-    return { progress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0 };
+    return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0 };
   }
 
   const projectStats = await Promise.all(
     projects.map(async (p) => {
       const s = await projectProgress(p.id);
-      return { value: s.progress, weight: p.budget ?? 0, ...s };
+      return { value: s.progress, rawValue: s.rawProgress, weight: p.budget ?? 0, ...s, budgetSpent: p.budgetSpent ?? 0 };
     })
   );
 
   const totalApproved = projectStats.reduce((s, p) => s + p.approvedMilestones, 0);
   const totalMilestones = projectStats.reduce((s, p) => s + p.milestoneCount, 0);
+  const totalBudgetSpent = projectStats.reduce((s, p) => s + p.budgetSpent, 0);
+
+  const rawItems = projectStats.map((p) => ({ value: p.rawValue, weight: p.weight }));
 
   return {
     progress: weightedAvg(projectStats),
+    rawProgress: weightedAvg(rawItems),
     projectCount: projects.length,
     approvedMilestones: totalApproved,
     totalMilestones,
+    budgetSpent: totalBudgetSpent,
   };
 }
 
@@ -250,80 +265,196 @@ export function computeRiskScore(probability: string, impact: string): number {
 }
 
 // ─────────────────────────────────────────────────────────────
-// HEALTH STATUS — date-based rules
+// COMPUTED STATUS ENGINE
+// Status is always derived — never manually entered for projects/initiatives.
 //
-//  completed : entity is fully done (approved / completed status)
-//  delayed   : end date has already passed and not completed
-//  at_risk   : end date is within AT_RISK_DAYS days and not completed
-//  on_track  : everything else
+//  completed : progress >= 100 (all milestones approved)
+//  on_track  : schedule and budget within tolerances
+//  at_risk   : behind schedule or over budget but recoverable
+//  delayed   : materially behind or past end date
+//
+// Milestones keep manual status (pending/in_progress/submitted/approved/rejected).
 // ─────────────────────────────────────────────────────────────
 
 export type HealthStatus = "on_track" | "at_risk" | "delayed" | "completed";
 
-/** Window (calendar days) before the end date when status flips to "at_risk" */
-const AT_RISK_DAYS = 7;
-
-/**
- * Core date-based health computation.
- * Pass the end/due date as a YYYY-MM-DD string (or null if not set).
- */
-export function computeHealthByDate(
-  endDateStr: string | null | undefined,
-  isCompleted: boolean,
-): HealthStatus {
-  if (isCompleted) return "completed";
-  if (!endDateStr) return "on_track";
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const end = new Date(endDateStr);
-  end.setHours(0, 0, 0, 0);
-
-  if (end < today) return "delayed";
-
-  const daysLeft = Math.ceil((end.getTime() - today.getTime()) / 86_400_000);
-  if (daysLeft <= AT_RISK_DAYS) return "at_risk";
-
-  return "on_track";
+export interface StatusResult {
+  status: HealthStatus;
+  reason: string;
+  spi: number;      // schedule performance index (1.0 = on schedule)
+  burnGap: number;  // budget burn % minus progress % (positive = overspending)
 }
 
-/**
- * Milestone health:
- *  completed = status "approved"
- *  otherwise = date-based on dueDate
- */
+interface StatusThresholds {
+  onTrackSpi: number;        // SPI >= this AND burnGap < burnTolerance → on_track
+  atRiskSpi: number;         // SPI >= this (but below onTrackSpi) → at_risk
+  earlyPct: number;          // elapsed % below this = early stage window
+  burnTolerance: number;     // burn gap below this is acceptable
+  approvalDeltaTrigger: number; // raw-gated gap above this = approval bottleneck
+}
+
+const PROJECT_THRESHOLDS: StatusThresholds = {
+  onTrackSpi: 0.85,
+  atRiskSpi: 0.65,
+  earlyPct: 20,
+  burnTolerance: 20,
+  approvalDeltaTrigger: 3,
+};
+
+const INITIATIVE_THRESHOLDS: StatusThresholds = {
+  onTrackSpi: 0.80,
+  atRiskSpi: 0.55,
+  earlyPct: 15,
+  burnTolerance: 25,
+  approvalDeltaTrigger: 3,
+};
+
+function computeStatusCore(
+  actualProgress: number,
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+  budgetAllocated: number,
+  budgetSpent: number,
+  rawProgress: number | undefined,
+  t: StatusThresholds,
+): StatusResult {
+  // Edge case: dates not set
+  if (!startDate || !endDate) {
+    return { status: "on_track", reason: "Dates not set.", spi: 1, burnGap: 0 };
+  }
+
+  const today = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  const totalDays = Math.max((end.getTime() - start.getTime()) / 86_400_000, 1);
+  const elapsedDays = Math.max((today.getTime() - start.getTime()) / 86_400_000, 0);
+  const elapsedPct = Math.min((elapsedDays / totalDays) * 100, 150);
+
+  const spi = elapsedPct > 0 ? actualProgress / elapsedPct : 1;
+  const burnPct = budgetAllocated > 0 ? (budgetSpent / budgetAllocated) * 100 : 0;
+  const burnGap = budgetAllocated > 0 ? burnPct - actualProgress : 0;
+
+  const approvalDelta = rawProgress !== undefined ? rawProgress - actualProgress : 0;
+  const isApprovalBottleneck = approvalDelta > t.approvalDeltaTrigger;
+
+  const round = (n: number) => Math.round(n * 100) / 100;
+
+  // RULE 1: Completed
+  if (actualProgress >= 100) {
+    return { status: "completed", reason: "All milestones approved and complete.", spi: round(spi), burnGap: Math.round(burnGap) };
+  }
+
+  // RULE 2: Not yet started
+  if (elapsedPct <= 0) {
+    return { status: "on_track", reason: `Not yet started. Begins ${start.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`, spi: 1, burnGap: Math.round(burnGap) };
+  }
+
+  // RULE 3: Overdue — past end date
+  if (elapsedPct > 100 && actualProgress < 100) {
+    const overdueDays = Math.round(elapsedDays - totalDays);
+    return {
+      status: "delayed",
+      reason: `Past end date by ${overdueDays}d at ${Math.round(actualProgress)}% complete.`,
+      spi: round(spi),
+      burnGap: Math.round(burnGap),
+    };
+  }
+
+  // RULE 4: Near completion — let it finish
+  if (actualProgress >= 90) {
+    const bottleneckNote = isApprovalBottleneck ? ` Approval bottleneck suppressing ${Math.round(approvalDelta)}pts.` : "";
+    return { status: "on_track", reason: `${Math.round(actualProgress)}% complete — approaching finish.${bottleneckNote}`, spi: round(spi), burnGap: Math.round(burnGap) };
+  }
+
+  // RULE 5: Early stage tolerance
+  if (elapsedPct < t.earlyPct) {
+    if (spi < 0.3 && actualProgress < 5) {
+      return {
+        status: "at_risk",
+        reason: `${Math.round(elapsedPct)}% of time elapsed but only ${Math.round(actualProgress)}% complete — slow mobilisation.`,
+        spi: round(spi),
+        burnGap: Math.round(burnGap),
+      };
+    }
+    return { status: "on_track", reason: "Early stage — within normal mobilisation period.", spi: round(spi), burnGap: Math.round(burnGap) };
+  }
+
+  // RULE 6: Normal execution — on-track
+  if (spi >= t.onTrackSpi && burnGap < t.burnTolerance) {
+    return { status: "on_track", reason: `SPI ${round(spi)} — schedule and budget aligned.`, spi: round(spi), burnGap: Math.round(burnGap) };
+  }
+
+  // RULE 6 cont: at-risk band
+  if (spi >= t.atRiskSpi) {
+    let reason: string;
+    if (burnGap >= t.burnTolerance) {
+      reason = `Budget burn (${Math.round(burnPct)}%) exceeds progress (${Math.round(actualProgress)}%) by ${Math.round(burnGap)}pts.`;
+    } else if (isApprovalBottleneck) {
+      reason = `Approval bottleneck — ${Math.round(approvalDelta)}pts of progress pending sign-off. SPI ${round(spi)}.`;
+    } else {
+      reason = `SPI ${round(spi)} — behind schedule. Expected ${Math.round(elapsedPct)}%, achieved ${Math.round(actualProgress)}%.`;
+    }
+    return { status: "at_risk", reason, spi: round(spi), burnGap: Math.round(burnGap) };
+  }
+
+  // RULE 7: Materially delayed
+  let reason: string;
+  if (isApprovalBottleneck) {
+    reason = `SPI ${round(spi)} with approval bottleneck — ${Math.round(approvalDelta)}pts suppressed by pending approvals.`;
+  } else if (burnGap >= 30) {
+    reason = `Critical: SPI ${round(spi)} and budget overburn of ${Math.round(burnGap)}pts.`;
+  } else {
+    reason = `SPI ${round(spi)} — expected ${Math.round(elapsedPct)}% at this point, achieved ${Math.round(actualProgress)}%.`;
+  }
+  return { status: "delayed", reason, spi: round(spi), burnGap: Math.round(burnGap) };
+}
+
+/** Compute project status using SPI + burn gap + approval bottleneck detection */
+export function computeStatus(
+  actualProgress: number,
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+  budgetAllocated: number,
+  budgetSpent: number,
+  rawProgress?: number,
+): StatusResult {
+  return computeStatusCore(actualProgress, startDate, endDate, budgetAllocated, budgetSpent, rawProgress, PROJECT_THRESHOLDS);
+}
+
+/** Same as computeStatus but with looser thresholds for initiatives */
+export function computeInitiativeStatus(
+  actualProgress: number,
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+  budgetAllocated: number,
+  budgetSpent: number,
+  rawProgress?: number,
+): StatusResult {
+  return computeStatusCore(actualProgress, startDate, endDate, budgetAllocated, budgetSpent, rawProgress, INITIATIVE_THRESHOLDS);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Milestone health — still date-based (milestones are manual-status entities)
+// ─────────────────────────────────────────────────────────────
+
+/** Window (calendar days) before due date when milestone flips to "at_risk" */
+const MILESTONE_AT_RISK_DAYS = 7;
+
 export function computeMilestoneHealth(
   status: string,
   dueDate: string | null | undefined,
 ): HealthStatus {
-  return computeHealthByDate(dueDate, status === "approved");
-}
+  if (status === "approved") return "completed";
+  if (!dueDate) return "on_track";
 
-/**
- * Project health:
- *  completed = project status "completed" OR every milestone is approved
- *  otherwise = date-based on targetDate
- */
-export function computeProjectHealth(
-  projectStatus: string,
-  targetDate: string,
-  approvedMilestones: number,
-  milestoneCount: number,
-): HealthStatus {
-  const allApproved = milestoneCount > 0 && approvedMilestones === milestoneCount;
-  const isCompleted = projectStatus === "completed" || allApproved;
-  return computeHealthByDate(targetDate, isCompleted);
-}
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = new Date(dueDate);
+  end.setHours(0, 0, 0, 0);
 
-/**
- * Initiative health:
- *  completed = initiative status "completed"
- *  otherwise = date-based on targetDate
- */
-export function computeInitiativeHealth(
-  initiativeStatus: string,
-  targetDate: string,
-): HealthStatus {
-  return computeHealthByDate(targetDate, initiativeStatus === "completed");
+  if (end < today) return "delayed";
+  const daysLeft = Math.ceil((end.getTime() - today.getTime()) / 86_400_000);
+  if (daysLeft <= MILESTONE_AT_RISK_DAYS) return "at_risk";
+  return "on_track";
 }

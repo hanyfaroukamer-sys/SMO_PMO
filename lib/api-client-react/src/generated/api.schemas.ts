@@ -382,10 +382,13 @@ export interface SpmoInitiative {
 
 export type SpmoInitiativeWithProgress = SpmoInitiative & {
   progress: number;
+  rawProgress: number;
   projectCount: number;
   approvedMilestones: number;
   totalMilestones: number;
+  budgetSpent: number;
   healthStatus: SpmoHealthStatus;
+  computedStatus: SpmoStatusResult;
 };
 
 export type SpmoPillarDetail = SpmoPillarWithProgress & {
@@ -427,12 +430,21 @@ export interface SpmoProject {
 
 export type SpmoHealthStatus = "on_track" | "at_risk" | "delayed" | "completed";
 
+export interface SpmoStatusResult {
+  status: SpmoHealthStatus;
+  reason: string;
+  spi: number;
+  burnGap: number;
+}
+
 export type SpmoProjectWithProgress = SpmoProject & {
   progress: number;
+  rawProgress: number;
   milestoneCount: number;
   approvedMilestones: number;
   pendingApprovals: number;
   healthStatus: SpmoHealthStatus;
+  computedStatus: SpmoStatusResult;
 };
 
 export type SpmoInitiativeDetail = SpmoInitiativeWithProgress & {

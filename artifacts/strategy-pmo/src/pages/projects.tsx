@@ -23,6 +23,7 @@ import {
   type SpmoEvidence,
   type SpmoMilestoneWithEvidence,
   type SpmoHealthStatus,
+  type SpmoStatusResult,
 } from "@workspace/api-client-react";
 import { GanttChart } from "@/components/gantt-chart";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
@@ -500,8 +501,7 @@ export default function Projects() {
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
                     <h3 className="font-bold text-lg">{initiative.name}</h3>
-                    <StatusBadge status={initiative.status} />
-                    <HealthBadge status={initiative.healthStatus} />
+                    <ComputedStatusBadge cs={initiative.computedStatus} />
                     <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">
                       {initProjects.length} project{initProjects.length !== 1 ? "s" : ""}
                     </span>
@@ -601,11 +601,6 @@ export default function Projects() {
             <FormField label="Owner Name">
               <input className={inputClass} value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} placeholder="e.g. Rania Ibrahim" />
             </FormField>
-            <FormField label="Status">
-              <select className={selectClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
-              </select>
-            </FormField>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -658,8 +653,7 @@ function ProjectRow({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-1 flex-wrap">
             <h4 className="font-bold text-base">{project.name}</h4>
-            <StatusBadge status={project.status} />
-            <HealthBadge status={project.healthStatus} />
+            <ComputedStatusBadge cs={project.computedStatus} />
             {project.weight > 0 && (
               <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded text-muted-foreground">
                 {project.weight}% weight
@@ -984,17 +978,42 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
   );
 }
 
+const HEALTH_BADGE_MAP: Record<SpmoHealthStatus, { label: string; className: string }> = {
+  completed: { label: "Completed", className: "bg-success/10 text-success border border-success/30" },
+  on_track:  { label: "On Track",  className: "bg-primary/10 text-primary border border-primary/30" },
+  at_risk:   { label: "At Risk",   className: "bg-warning/10 text-warning border border-warning/30" },
+  delayed:   { label: "Delayed",   className: "bg-destructive/10 text-destructive border border-destructive/30" },
+};
+
 function HealthBadge({ status }: { status: SpmoHealthStatus | undefined }) {
   if (!status) return null;
-  const map: Record<SpmoHealthStatus, { label: string; className: string }> = {
-    completed: { label: "Completed",  className: "bg-success/10 text-success border border-success/30" },
-    on_track:  { label: "On Track",   className: "bg-primary/10 text-primary border border-primary/30" },
-    at_risk:   { label: "At Risk",    className: "bg-warning/10 text-warning border border-warning/30" },
-    delayed:   { label: "Delayed",    className: "bg-destructive/10 text-destructive border border-destructive/30" },
-  };
-  const { label, className } = map[status];
+  const { label, className } = HEALTH_BADGE_MAP[status];
   return (
     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${className}`}>{label}</span>
+  );
+}
+
+function ComputedStatusBadge({ cs }: { cs: SpmoStatusResult | undefined }) {
+  if (!cs) return null;
+  const { label, className } = HEALTH_BADGE_MAP[cs.status];
+  return (
+    <div className="relative group inline-flex items-center gap-1.5">
+      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${className}`}>{label}</span>
+      {cs.status !== "completed" && (
+        <span className="text-[10px] text-muted-foreground font-mono">SPI {cs.spi.toFixed(2)}</span>
+      )}
+      <div className="absolute bottom-full left-0 mb-1 z-50 hidden group-hover:block pointer-events-none">
+        <div className="bg-popover border border-border rounded-lg shadow-xl px-3 py-2 text-xs text-foreground w-64 whitespace-normal leading-relaxed">
+          <div className="font-semibold mb-1">{label}</div>
+          <div className="text-muted-foreground">{cs.reason}</div>
+          {cs.burnGap !== 0 && (
+            <div className={`mt-1 ${cs.burnGap > 0 ? "text-warning" : "text-success"}`}>
+              Budget burn gap: {cs.burnGap > 0 ? "+" : ""}{cs.burnGap}pts
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

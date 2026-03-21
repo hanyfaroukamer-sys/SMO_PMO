@@ -5,8 +5,9 @@ import {
   useListSpmoBudget,
   useRunSpmoAiAssessment,
   type SpmoHealthStatus,
+  type SpmoStatusResult,
 } from "@workspace/api-client-react";
-import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
+import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 
 import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, Wallet, ThumbsUp, Lightbulb, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
@@ -14,16 +15,24 @@ import { useState } from "react";
 import { Link } from "wouter";
 import type React from "react";
 
-function HealthBadge({ status }: { status: SpmoHealthStatus | undefined }) {
-  if (!status) return null;
-  const map: Record<SpmoHealthStatus, { label: string; cls: string }> = {
-    completed: { label: "Completed", cls: "bg-success/10 text-success border border-success/30" },
-    on_track:  { label: "On Track",  cls: "bg-primary/10 text-primary border border-primary/30" },
-    at_risk:   { label: "At Risk",   cls: "bg-warning/10 text-warning border border-warning/30" },
-    delayed:   { label: "Delayed",   cls: "bg-destructive/10 text-destructive border border-destructive/30" },
-  };
-  const { label, cls } = map[status];
-  return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>;
+const HEALTH_BADGE_MAP: Record<SpmoHealthStatus, { label: string; cls: string }> = {
+  completed: { label: "Completed", cls: "bg-success/10 text-success border border-success/30" },
+  on_track:  { label: "On Track",  cls: "bg-primary/10 text-primary border border-primary/30" },
+  at_risk:   { label: "At Risk",   cls: "bg-warning/10 text-warning border border-warning/30" },
+  delayed:   { label: "Delayed",   cls: "bg-destructive/10 text-destructive border border-destructive/30" },
+};
+
+function ComputedStatusBadge({ cs }: { cs: SpmoStatusResult | undefined }) {
+  if (!cs) return null;
+  const { label, cls } = HEALTH_BADGE_MAP[cs.status];
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>
+      {cs.status !== "completed" && (
+        <span className="text-[10px] text-muted-foreground font-mono">SPI {cs.spi.toFixed(2)}</span>
+      )}
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -54,7 +63,8 @@ export default function Dashboard() {
   const totalAllocated = budgetData?.totalAllocated ?? 0;
   const totalSpent = budgetData?.totalSpent ?? 0;
   const initiativesOnTrack = initiatives.filter((i) => {
-    return i.healthStatus === "on_track" || i.healthStatus === "completed";
+    const s = i.computedStatus?.status ?? i.healthStatus;
+    return s === "on_track" || s === "completed";
   }).length;
   const projectsNeedAttention = data.pillarSummaries.reduce((s, p) => s + p.pendingApprovals, 0);
 
@@ -213,13 +223,17 @@ export default function Dashboard() {
                   <div className="w-1.5 h-8 rounded-full shrink-0" style={{ backgroundColor: pillarColor }} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1 gap-2">
-                      <span className="font-semibold text-sm truncate">{initiative.name}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-semibold text-sm truncate block">{initiative.name}</span>
+                        {initiative.computedStatus?.reason && (
+                          <span className="text-[10px] text-muted-foreground truncate block">{initiative.computedStatus.reason}</span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-sm font-bold" style={{ color: pillarColor }}>
                           {Math.round(progress)}%
                         </span>
-                        <HealthBadge status={initiative.healthStatus} />
-                        <StatusBadge status={initiative.status} />
+                        <ComputedStatusBadge cs={initiative.computedStatus} />
                       </div>
                     </div>
                     <ProgressBar progress={progress} showLabel={false} />
@@ -263,7 +277,12 @@ export default function Dashboard() {
                   <div className="flex items-center gap-4 p-4 bg-secondary/40 rounded-xl border border-border">
                     <div className="shrink-0">
                       <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Overall Health</p>
-                      <StatusBadge status={aiMutation.data.overallHealth} />
+                      {(() => {
+                        const s = aiMutation.data.overallHealth as string;
+                        const entry = Object.entries(HEALTH_BADGE_MAP).find(([k]) => k === s);
+                        const { label, cls } = entry ? entry[1] : { label: s, cls: "bg-secondary text-foreground border border-border" };
+                        return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>;
+                      })()}
                     </div>
                     <p className="flex-1 text-sm leading-relaxed text-foreground/80">{aiMutation.data.summary}</p>
                   </div>
