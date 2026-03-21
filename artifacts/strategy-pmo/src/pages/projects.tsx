@@ -845,38 +845,33 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                   </div>
 
                   {/* Progress */}
-                  <div className="w-40 shrink-0">
+                  <div className="w-36 shrink-0">
                     {isApproved ? (
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-2 bg-success/20 rounded-full overflow-hidden">
                           <div className="h-full bg-success rounded-full" style={{ width: "100%" }} />
                         </div>
-                        <span className="text-xs font-bold text-success w-8 text-right">100%</span>
+                        <span className="text-xs font-bold text-success">100%</span>
                       </div>
                     ) : (
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={m.progress ?? 0}
-                            className="flex-1 accent-primary h-1"
-                            style={{ accentColor: pillarColor }}
-                            onChange={(e) => handleInlineProgressUpdate(m.id, parseInt(e.target.value))}
-                            disabled={isApproved}
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-border rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${m.progress ?? 0}%`, backgroundColor: pillarColor }}
                           />
+                        </div>
+                        <div className="flex items-center gap-0.5 shrink-0">
                           <input
                             type="number"
                             min="0"
                             max="100"
                             value={m.progress ?? 0}
-                            disabled={isApproved}
                             onChange={(e) => {
                               const v = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
                               handleInlineProgressUpdate(m.id, v);
                             }}
-                            className="w-12 text-xs font-bold text-right border border-border rounded px-1 py-0.5 bg-transparent focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                            className="w-10 text-xs font-bold text-right border border-border rounded px-1 py-0.5 bg-transparent focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                           <span className="text-xs text-muted-foreground">%</span>
                         </div>
