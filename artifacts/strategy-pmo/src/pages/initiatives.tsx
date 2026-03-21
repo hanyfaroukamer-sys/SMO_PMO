@@ -82,23 +82,29 @@ export default function Initiatives() {
     setModalOpen(true);
   }
 
-  function saveSiblingInitiativeWeight(siblingId: number, val: string) {
+  async function saveSiblingInitiativeWeight(siblingId: number, val: string) {
     const w = Math.round(parseFloat(val));
     if (isNaN(w) || w < 0 || w > 100) return;
-    const original = (data?.initiatives ?? []).find(i => i.id === siblingId)?.weight;
-    if (w === original) return;
+    const originalSibling = (data?.initiatives ?? []).find(i => i.id === siblingId)?.weight;
+    if (w === originalSibling) return;
     setSavingSiblingId(siblingId);
-    updateMutation.mutate({ id: siblingId, data: { weight: w } }, {
-      onSuccess: () => {
-        setSavingSiblingId(null);
-        setSiblingWeightEdits(prev => { const next = { ...prev }; delete next[siblingId]; return next; });
-        invalidate();
-      },
-      onError: () => {
-        setSavingSiblingId(null);
-        toast({ variant: "destructive", title: "Error", description: "Failed to update sibling weight." });
-      },
-    });
+    try {
+      if (editId !== null) {
+        const mainOriginal = (data?.initiatives ?? []).find(i => i.id === editId)?.weight;
+        const mainNew = Math.round(parseFloat(form.weight) || 0);
+        if (mainOriginal !== undefined && mainNew !== mainOriginal) {
+          await updateMutation.mutateAsync({ id: editId, data: { weight: mainNew } });
+          invalidate();
+        }
+      }
+      await updateMutation.mutateAsync({ id: siblingId, data: { weight: w } });
+      setSiblingWeightEdits(prev => { const next = { ...prev }; delete next[siblingId]; return next; });
+      invalidate();
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to update sibling weight." });
+    } finally {
+      setSavingSiblingId(null);
+    }
   }
 
   function handleDelete(id: number, name: string) {
@@ -327,12 +333,14 @@ export default function Initiatives() {
               value={form.weight}
               onChange={(e) => setForm({ ...form, weight: e.target.value })}
             />
-            {form.pillarId && (
-              <div className={`flex justify-between text-[11px] mt-1.5 ${initiativeWeightError ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                <span>Others: {Math.round(siblingInitiativeWeight)}% + This: {parseFloat(form.weight) || 0}%</span>
-                <span>{initiativeWeightError ? `⚠ Total ${Math.round(initiativeWeightTotal)}%` : `${Math.max(0, Math.round(100 - siblingInitiativeWeight))}% left`}</span>
-              </div>
-            )}
+            <div className={`flex items-center justify-between text-[11px] mt-1.5 min-h-[1rem] tabular-nums ${initiativeWeightError ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+              {form.pillarId ? (
+                <>
+                  <span>Others: {Math.round(siblingInitiativeWeight)}% + This: {parseFloat(form.weight) || 0}%</span>
+                  <span className="w-20 text-right shrink-0">{initiativeWeightError ? `⚠ Total ${Math.round(initiativeWeightTotal)}%` : `${Math.max(0, Math.round(100 - siblingInitiativeWeight))}% left`}</span>
+                </>
+              ) : <span className="italic">Select a pillar to see weight breakdown</span>}
+            </div>
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">

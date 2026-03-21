@@ -68,23 +68,29 @@ export default function Pillars() {
     setModalOpen(true);
   }
 
-  function saveSiblingPillarWeight(siblingId: number, val: string) {
+  async function saveSiblingPillarWeight(siblingId: number, val: string) {
     const w = Math.round(parseFloat(val));
     if (isNaN(w) || w < 0 || w > 100) return;
-    const original = (data?.pillars ?? []).find(p => p.id === siblingId)?.weight;
-    if (w === original) return;
+    const originalSibling = (data?.pillars ?? []).find(p => p.id === siblingId)?.weight;
+    if (w === originalSibling) return;
     setSavingSiblingId(siblingId);
-    updateMutation.mutate({ id: siblingId, data: { weight: w } }, {
-      onSuccess: () => {
-        setSavingSiblingId(null);
-        setSiblingWeightEdits(prev => { const next = { ...prev }; delete next[siblingId]; return next; });
-        invalidate();
-      },
-      onError: () => {
-        setSavingSiblingId(null);
-        toast({ variant: "destructive", title: "Error", description: "Failed to update sibling weight." });
-      },
-    });
+    try {
+      if (editId !== null) {
+        const mainOriginal = (data?.pillars ?? []).find(p => p.id === editId)?.weight;
+        const mainNew = Math.round(parseFloat(form.weight) || 0);
+        if (mainOriginal !== undefined && mainNew !== mainOriginal) {
+          await updateMutation.mutateAsync({ id: editId, data: { weight: mainNew } });
+          invalidate();
+        }
+      }
+      await updateMutation.mutateAsync({ id: siblingId, data: { weight: w } });
+      setSiblingWeightEdits(prev => { const next = { ...prev }; delete next[siblingId]; return next; });
+      invalidate();
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to update sibling weight." });
+    } finally {
+      setSavingSiblingId(null);
+    }
   }
 
   function handleDelete(id: number, name: string) {
@@ -241,9 +247,9 @@ export default function Pillars() {
                 value={form.weight}
                 onChange={(e) => setForm({ ...form, weight: e.target.value })}
               />
-              <div className={`flex justify-between text-[11px] mt-1.5 ${pillarWeightError ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+              <div className={`flex items-center justify-between text-[11px] mt-1.5 min-h-[1rem] tabular-nums ${pillarWeightError ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
                 <span>Others: {Math.round(siblingPillarWeight)}% + This: {parseFloat(form.weight) || 0}%</span>
-                <span>{pillarWeightError ? `⚠ Total ${Math.round(pillarWeightTotal)}%` : `${Math.max(0, Math.round(100 - siblingPillarWeight))}% left`}</span>
+                <span className="w-20 text-right shrink-0">{pillarWeightError ? `⚠ Total ${Math.round(pillarWeightTotal)}%` : `${Math.max(0, Math.round(100 - siblingPillarWeight))}% left`}</span>
               </div>
             </FormField>
             <FormField label="Sort Order">

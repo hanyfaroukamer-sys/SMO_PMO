@@ -354,23 +354,29 @@ export default function Projects() {
     setModalOpen(true);
   }
 
-  function saveSiblingProjectWeight(siblingId: number, val: string) {
+  async function saveSiblingProjectWeight(siblingId: number, val: string) {
     const w = Math.round(parseFloat(val));
     if (isNaN(w) || w < 0 || w > 100) return;
-    const original = (data?.projects ?? []).find(p => p.id === siblingId)?.weight;
-    if (w === original) return;
+    const originalSibling = (data?.projects ?? []).find(p => p.id === siblingId)?.weight;
+    if (w === originalSibling) return;
     setSavingSiblingId(siblingId);
-    updateMutation.mutate({ id: siblingId, data: { weight: w } }, {
-      onSuccess: () => {
-        setSavingSiblingId(null);
-        setSiblingWeightEdits(prev => { const next = { ...prev }; delete next[siblingId]; return next; });
-        invalidate();
-      },
-      onError: () => {
-        setSavingSiblingId(null);
-        toast({ variant: "destructive", title: "Error", description: "Failed to update sibling weight." });
-      },
-    });
+    try {
+      if (editId !== null) {
+        const mainOriginal = (data?.projects ?? []).find(p => p.id === editId)?.weight;
+        const mainNew = Math.round(parseFloat(form.weight) || 0);
+        if (mainOriginal !== undefined && mainNew !== mainOriginal) {
+          await updateMutation.mutateAsync({ id: editId, data: { weight: mainNew } });
+          invalidate();
+        }
+      }
+      await updateMutation.mutateAsync({ id: siblingId, data: { weight: w } });
+      setSiblingWeightEdits(prev => { const next = { ...prev }; delete next[siblingId]; return next; });
+      invalidate();
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to update sibling weight." });
+    } finally {
+      setSavingSiblingId(null);
+    }
   }
 
   function handleDelete(id: number, name: string) {
@@ -662,12 +668,14 @@ export default function Projects() {
             </FormField>
             <FormField label={`Weight: ${form.weight}%`}>
               <input type="range" min="0" max="100" className="w-full accent-primary mt-2" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} />
-              {form.initiativeId && (
-                <div className={`flex justify-between text-[11px] mt-1.5 ${projectWeightError ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-                  <span>Others: {Math.round(siblingProjectWeight)}% + This: {parseFloat(form.weight) || 0}%</span>
-                  <span>{projectWeightError ? `⚠ Total ${Math.round(projectWeightTotal)}%` : `${Math.max(0, Math.round(100 - siblingProjectWeight))}% left`}</span>
-                </div>
-              )}
+              <div className={`flex items-center justify-between text-[11px] mt-1.5 min-h-[1rem] tabular-nums ${projectWeightError ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                {form.initiativeId ? (
+                  <>
+                    <span>Others: {Math.round(siblingProjectWeight)}% + This: {parseFloat(form.weight) || 0}%</span>
+                    <span className="w-20 text-right shrink-0">{projectWeightError ? `⚠ Total ${Math.round(projectWeightTotal)}%` : `${Math.max(0, Math.round(100 - siblingProjectWeight))}% left`}</span>
+                  </>
+                ) : <span className="italic">Select an initiative to see weight breakdown</span>}
+              </div>
             </FormField>
           </div>
 
