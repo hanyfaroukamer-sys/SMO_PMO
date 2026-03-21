@@ -4,10 +4,9 @@ import { Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 function actionDotColor(action: string): string {
-  if (action.includes("approve") || action.includes("create")) return "bg-success";
-  if (action.includes("reject") || action.includes("delete")) return "bg-destructive";
-  if (action.includes("update") || action.includes("submit")) return "bg-primary";
-  return "bg-muted-foreground";
+  if (action.includes("approve")) return "bg-success";
+  if (action.includes("delete")) return "bg-destructive";
+  return "bg-primary";
 }
 
 function actionLabel(action: string): string {

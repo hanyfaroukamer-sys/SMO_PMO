@@ -862,7 +862,19 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                             onChange={(e) => handleInlineProgressUpdate(m.id, parseInt(e.target.value))}
                             disabled={isApproved}
                           />
-                          <span className="text-xs font-bold w-8 text-right">{m.progress ?? 0}%</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={m.progress ?? 0}
+                            disabled={isApproved}
+                            onChange={(e) => {
+                              const v = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                              handleInlineProgressUpdate(m.id, v);
+                            }}
+                            className="w-12 text-xs font-bold text-right border border-border rounded px-1 py-0.5 bg-transparent focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                          />
+                          <span className="text-xs text-muted-foreground">%</span>
                         </div>
                       </div>
                     )}
@@ -899,18 +911,22 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                     <span className="font-semibold">{evidenceList.length}</span>
                   </button>
 
-                  {/* Actions */}
+                  {/* Submit for Approval – visible button */}
+                  {!isApproved && m.status !== "submitted" && (
+                    <button
+                      onClick={() => handleSubmitForApproval(m.id, m.name)}
+                      disabled={submitMutation.isPending || !canSubmit}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all shrink-0
+                        enabled:bg-primary enabled:text-primary-foreground enabled:border-primary enabled:hover:bg-primary/90
+                        disabled:bg-secondary disabled:text-muted-foreground disabled:border-border disabled:cursor-not-allowed"
+                      title={canSubmit ? "Submit for approval" : "Progress must be 100% and at least one evidence file attached"}
+                    >
+                      <Send className="w-3 h-3" /> Submit
+                    </button>
+                  )}
+
+                  {/* Delete (hover) */}
                   <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {!isApproved && m.status !== "submitted" && canSubmit && (
-                      <button
-                        onClick={() => handleSubmitForApproval(m.id, m.name)}
-                        disabled={submitMutation.isPending}
-                        className="p-1.5 rounded-lg hover:bg-blue-50 text-muted-foreground hover:text-blue-600 transition-colors disabled:opacity-40"
-                        title="Submit for approval"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                    )}
                     {!isApproved && (
                       <button
                         onClick={() => handleDelete(m.id, m.name)}
