@@ -28,18 +28,30 @@ export function StatusBadge({ status, className }: { status: string, className?:
   );
 }
 
-export function ProgressBar({ progress, status, className, showLabel = true }: { progress: number, status?: string, className?: string, showLabel?: boolean }) {
+export function ProgressBar({ progress, planned, status, className, showLabel = true }: {
+  progress: number;
+  planned?: number;
+  status?: string;
+  className?: string;
+  showLabel?: boolean;
+}) {
   const effectiveProgress = status ? calcEffectiveProgress(progress, status) : progress;
   
   return (
     <div className={cn("w-full flex items-center gap-3", className)}>
-      <div className="flex-1 h-2.5 bg-secondary rounded-full overflow-hidden border border-border/50">
+      <div className="flex-1 relative h-2.5 bg-secondary rounded-full border border-border/50 overflow-hidden">
         <div 
           className="h-full bg-primary transition-all duration-500 ease-out relative"
           style={{ width: `${Math.min(100, Math.max(0, effectiveProgress))}%` }}
         >
           <div className="absolute inset-0 bg-gradient-to-r from-transparent to-white/20" />
         </div>
+        {planned !== undefined && planned > 0 && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-warning/80"
+            style={{ left: `${Math.min(100, planned)}%`, transform: "translateX(-50%)" }}
+          />
+        )}
       </div>
       {showLabel && (
         <span className="text-sm font-semibold text-foreground shrink-0 w-10 text-right">

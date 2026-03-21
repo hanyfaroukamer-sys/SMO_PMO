@@ -15,6 +15,16 @@ import { useState } from "react";
 import { Link } from "wouter";
 import type React from "react";
 
+function calcPlannedProgress(startDate: string | null | undefined, endDate: string | null | undefined): number {
+  if (!startDate || !endDate) return 0;
+  const today = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const totalDays = Math.max((end.getTime() - start.getTime()) / 86_400_000, 1);
+  const elapsedDays = Math.max((today.getTime() - start.getTime()) / 86_400_000, 0);
+  return Math.min(Math.round((elapsedDays / totalDays) * 100), 100);
+}
+
 const HEALTH_BADGE_MAP: Record<SpmoHealthStatus, { label: string; cls: string }> = {
   completed: { label: "Completed", cls: "bg-success/10 text-success border border-success/30" },
   on_track:  { label: "On Track",  cls: "bg-primary/10 text-primary border border-primary/30" },
@@ -152,7 +162,7 @@ export default function Dashboard() {
                     className="text-[10px] font-bold uppercase tracking-widest mb-1"
                     style={{ color: pillar.color }}
                   >
-                    Pillar · {pillar.weight}% weight
+                    Pillar
                   </div>
                   <h3 className="font-bold text-base">{pillar.name}</h3>
                 </div>
@@ -185,12 +195,12 @@ export default function Dashboard() {
                   <div className="space-y-1">
                     {pillarInitiatives.map((init) => {
                       const prog = init.progress ?? 0;
-                      const weight = init.weight ?? 0;
+                      const planned = calcPlannedProgress(init.startDate, init.targetDate);
                       return (
                         <div key={init.id} className="flex items-center gap-2 text-xs">
                           <span className="truncate text-foreground/80 flex-1">{init.name}</span>
                           <span className="font-bold shrink-0" style={{ color: pillar.color }}>{Math.round(prog)}%</span>
-                          {weight > 0 && <span className="text-muted-foreground shrink-0 text-[10px]">wt {weight}%</span>}
+                          {planned > 0 && <span className="text-muted-foreground shrink-0 text-[10px]">/ {planned}%</span>}
                         </div>
                       );
                     })}
@@ -218,6 +228,7 @@ export default function Dashboard() {
             {initiatives.map((initiative) => {
               const progress = initiative.progress ?? 0;
               const pillarColor = "#2563eb";
+              const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
               return (
                 <div key={initiative.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-secondary/30 transition-colors">
                   <div className="w-1.5 h-8 rounded-full shrink-0" style={{ backgroundColor: pillarColor }} />
@@ -229,14 +240,15 @@ export default function Dashboard() {
                           <span className="text-[10px] text-muted-foreground truncate block">{initiative.computedStatus.reason}</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-sm font-bold" style={{ color: pillarColor }}>
-                          {Math.round(progress)}%
-                        </span>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="text-right">
+                          <div className="text-sm font-bold" style={{ color: pillarColor }}>{Math.round(progress)}%</div>
+                          {planned > 0 && <div className="text-[10px] text-muted-foreground">plan {planned}%</div>}
+                        </div>
                         <ComputedStatusBadge cs={initiative.computedStatus} />
                       </div>
                     </div>
-                    <ProgressBar progress={progress} showLabel={false} />
+                    <ProgressBar progress={progress} planned={planned} showLabel={false} />
                   </div>
                 </div>
               );

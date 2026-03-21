@@ -275,6 +275,16 @@ function EvidencePanel({
 const PROJECT_STATUSES = ["active", "on_hold", "completed", "cancelled"] as const;
 const MILESTONE_STATUSES = ["pending", "in_progress", "submitted", "approved", "rejected"] as const;
 
+function calcPlannedProgress(startDate: string | null | undefined, endDate: string | null | undefined): number {
+  if (!startDate || !endDate) return 0;
+  const today = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const totalDays = Math.max((end.getTime() - start.getTime()) / 86_400_000, 1);
+  const elapsedDays = Math.max((today.getTime() - start.getTime()) / 86_400_000, 0);
+  return Math.min(Math.round((elapsedDays / totalDays) * 100), 100);
+}
+
 type ProjectForm = {
   name: string;
   description: string;
@@ -507,20 +517,33 @@ export default function Projects() {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="w-32">
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">Progress</span>
-                      <span className="font-bold" style={{ color: pillarColor }}>{Math.round(initProgress)}%</span>
+                {(() => {
+                  const initPlanned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
+                  return (
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="w-36">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-muted-foreground">
+                            <span className="font-bold" style={{ color: pillarColor }}>{Math.round(initProgress)}%</span>
+                            {initPlanned > 0 && <span className="ml-1 text-[10px] text-muted-foreground">/ plan {initPlanned}%</span>}
+                          </span>
+                        </div>
+                        <div className="relative h-1.5 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-700"
+                            style={{ width: `${Math.min(100, initProgress)}%`, backgroundColor: pillarColor }}
+                          />
+                          {initPlanned > 0 && (
+                            <div
+                              className="absolute top-0 bottom-0 w-0.5 bg-warning/80"
+                              style={{ left: `${Math.min(100, initPlanned)}%`, transform: "translateX(-50%)" }}
+                            />
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${Math.min(100, initProgress)}%`, backgroundColor: pillarColor }}
-                      />
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
 
               {/* Projects */}
@@ -660,8 +683,19 @@ function ProjectRow({
               </span>
             )}
           </div>
-          <div className="w-48">
-            <ProgressBar progress={project.progress ?? 0} />
+          <div className="w-52">
+            {(() => {
+              const planned = calcPlannedProgress(project.startDate, project.targetDate);
+              return (
+                <>
+                  <div className="flex justify-between text-[10px] mb-0.5 text-muted-foreground">
+                    <span>Actual <span className="font-semibold text-foreground">{Math.round(project.progress ?? 0)}%</span></span>
+                    {planned > 0 && <span>Plan <span className="font-semibold text-foreground">{planned}%</span></span>}
+                  </div>
+                  <ProgressBar progress={project.progress ?? 0} planned={planned} showLabel={false} />
+                </>
+              );
+            })()}
           </div>
         </div>
 
