@@ -5,6 +5,7 @@ import {
   spmoProjectsTable,
   spmoMilestonesTable,
   spmoEvidenceTable,
+  spmoProgrammeConfigTable,
   type SpmoPillar,
 } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
@@ -247,4 +248,95 @@ const RISK_LEVEL: Record<string, number> = {
 
 export function computeRiskScore(probability: string, impact: string): number {
   return (RISK_LEVEL[probability] ?? 2) * (RISK_LEVEL[impact] ?? 2);
+}
+
+// ─────────────────────────────────────────────────────────────
+// HEALTH STATUS (On Track / At Risk / Delayed)
+// ─────────────────────────────────────────────────────────────
+
+export type HealthStatus = "on_track" | "at_risk" | "delayed";
+
+export interface HealthThresholds {
+  projectAtRiskThreshold: number;
+  projectDelayedThreshold: number;
+  milestoneAtRiskThreshold: number;
+}
+
+const DEFAULT_THRESHOLDS: HealthThresholds = {
+  projectAtRiskThreshold: 5,
+  projectDelayedThreshold: 10,
+  milestoneAtRiskThreshold: 5,
+};
+
+export async function getHealthThresholds(): Promise<HealthThresholds> {
+  const [config] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  if (!config) return DEFAULT_THRESHOLDS;
+  return {
+    projectAtRiskThreshold: config.projectAtRiskThreshold ?? DEFAULT_THRESHOLDS.projectAtRiskThreshold,
+    projectDelayedThreshold: config.projectDelayedThreshold ?? DEFAULT_THRESHOLDS.projectDelayedThreshold,
+    milestoneAtRiskThreshold: config.milestoneAtRiskThreshold ?? DEFAULT_THRESHOLDS.milestoneAtRiskThreshold,
+  };
+}
+
+/**
+ * Returns what % complete something *should* be right now, based on start→end timeline.
+ * Returns 0 if today ≤ start, 100 if today ≥ end.
+ */
+export function computePlannedProgress(startDateStr: string, endDateStr: string): number {
+  const start = new Date(startDateStr).getTime();
+  const end = new Date(endDateStr).getTime();
+  if (isNaN(start) || isNaN(end) || end <= start) return 0;
+  const now = Date.now();
+  if (now <= start) return 0;
+  if (now >= end) return 100;
+  return ((now - start) / (end - start)) * 100;
+}
+
+/**
+ * Determines health status for a project.
+ * Delayed if actual lags planned by > projectDelayedThreshold %.
+ * At Risk  if actual lags planned by > projectAtRiskThreshold %.
+ */
+export function computeProjectHealth(
+  actualProgress: number,
+  startDate: string,
+  targetDate: string,
+  thresholds: HealthThresholds
+): HealthStatus {
+  const planned = computePlannedProgress(startDate, targetDate);
+  const deficit = planned - actualProgress;
+  if (deficit > thresholds.projectDelayedThreshold) return "delayed";
+  if (deficit > thresholds.projectAtRiskThreshold) return "at_risk";
+  return "on_track";
+}
+
+/**
+ * Determines health status for a milestone.
+ * Delayed if due date has passed and milestone is not approved.
+ * At Risk  if actual progress lags time-based planned by > milestoneAtRiskThreshold %.
+ * Uses the project's startDate as the milestone's implicit start.
+ */
+export function computeMilestoneHealth(
+  actualProgress: number,
+  status: string,
+  dueDate: string | null,
+  projectStartDate: string,
+  thresholds: HealthThresholds
+): HealthStatus {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (dueDate && status !== "approved") {
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+    if (due < today) return "delayed";
+  }
+
+  if (dueDate) {
+    const planned = computePlannedProgress(projectStartDate, dueDate);
+    const deficit = planned - actualProgress;
+    if (deficit > thresholds.milestoneAtRiskThreshold) return "at_risk";
+  }
+
+  return "on_track";
 }

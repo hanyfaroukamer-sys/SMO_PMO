@@ -93,6 +93,9 @@ import {
   projectProgress,
   milestoneEffectiveProgress,
   computeRiskScore,
+  getHealthThresholds,
+  computeProjectHealth,
+  computeMilestoneHealth,
 } from "../lib/spmo-calc";
 import { logSpmoActivity } from "../lib/spmo-activity";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
@@ -524,10 +527,13 @@ router.get("/spmo/projects", async (req, res): Promise<void> => {
     ? await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, qp.data.initiativeId))
     : await db.select().from(spmoProjectsTable);
 
+  const thresholds = await getHealthThresholds();
+
   const withProgress = await Promise.all(
     rows.map(async (p) => {
       const stats = await projectProgress(p.id);
-      return { ...p, ...stats };
+      const healthStatus = computeProjectHealth(stats.progress, p.startDate, p.targetDate, thresholds);
+      return { ...p, ...stats, healthStatus };
     })
   );
 
@@ -684,16 +690,22 @@ router.get("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
     return;
   }
 
+  const [project] = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.id, params.data.id));
+
   const milestones = await db
     .select()
     .from(spmoMilestonesTable)
     .where(eq(spmoMilestonesTable.projectId, params.data.id))
     .orderBy(asc(spmoMilestonesTable.createdAt));
 
+  const thresholds = await getHealthThresholds();
+  const projectStart = project?.startDate ?? new Date().toISOString().slice(0, 10);
+
   const withEvidence = await Promise.all(
     milestones.map(async (m) => {
       const evidence = await db.select().from(spmoEvidenceTable).where(eq(spmoEvidenceTable.milestoneId, m.id));
-      return { ...m, evidence };
+      const healthStatus = computeMilestoneHealth(m.progress ?? 0, m.status, m.dueDate, projectStart, thresholds);
+      return { ...m, evidence, healthStatus };
     })
   );
 
@@ -1963,6 +1975,9 @@ router.get("/spmo/programme-config", async (req, res): Promise<void> => {
       mission: null,
       reportingCurrency: "SAR",
       fiscalYearStart: 1,
+      projectAtRiskThreshold: 5,
+      projectDelayedThreshold: 10,
+      milestoneAtRiskThreshold: 5,
     });
     return;
   }

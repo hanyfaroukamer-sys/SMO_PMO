@@ -2225,6 +2225,9 @@ export const GetSpmoConfigResponse = zod.object({
   programmeName: zod.string(),
   vision: zod.string().nullish(),
   mission: zod.string().nullish(),
+  projectAtRiskThreshold: zod.number(),
+  projectDelayedThreshold: zod.number(),
+  milestoneAtRiskThreshold: zod.number(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
 });
@@ -2236,6 +2239,9 @@ export const UpdateSpmoConfigBody = zod.object({
   programmeName: zod.string().optional(),
   vision: zod.string().optional(),
   mission: zod.string().optional(),
+  projectAtRiskThreshold: zod.number().int().min(1).max(50).optional(),
+  projectDelayedThreshold: zod.number().int().min(1).max(50).optional(),
+  milestoneAtRiskThreshold: zod.number().int().min(1).max(50).optional(),
 });
 
 export const UpdateSpmoConfigResponse = zod.object({
@@ -2243,6 +2249,9 @@ export const UpdateSpmoConfigResponse = zod.object({
   programmeName: zod.string(),
   vision: zod.string().nullish(),
   mission: zod.string().nullish(),
+  projectAtRiskThreshold: zod.number(),
+  projectDelayedThreshold: zod.number(),
+  milestoneAtRiskThreshold: zod.number(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
 });

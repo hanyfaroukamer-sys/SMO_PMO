@@ -424,11 +424,14 @@ export interface SpmoProject {
   updatedAt: string;
 }
 
+export type SpmoHealthStatus = "on_track" | "at_risk" | "delayed";
+
 export type SpmoProjectWithProgress = SpmoProject & {
   progress: number;
   milestoneCount: number;
   approvedMilestones: number;
   pendingApprovals: number;
+  healthStatus: SpmoHealthStatus;
 };
 
 export type SpmoInitiativeDetail = SpmoInitiativeWithProgress & {
@@ -472,6 +475,7 @@ export interface SpmoMilestone {
   rejectedById: string | null;
   /** @nullable */
   rejectionReason: string | null;
+  healthStatus: SpmoHealthStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -815,6 +819,9 @@ export interface SpmoProgrammeConfig {
   programmeName: string;
   vision?: string | null;
   mission?: string | null;
+  projectAtRiskThreshold: number;
+  projectDelayedThreshold: number;
+  milestoneAtRiskThreshold: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -823,6 +830,9 @@ export interface UpdateSpmoProgrammeConfigRequest {
   programmeName?: string;
   vision?: string;
   mission?: string;
+  projectAtRiskThreshold?: number;
+  projectDelayedThreshold?: number;
+  milestoneAtRiskThreshold?: number;
 }
 
 export interface SpmoPendingApprovalItem {

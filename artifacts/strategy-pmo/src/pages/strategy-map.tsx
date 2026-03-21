@@ -32,6 +32,9 @@ export default function StrategyMap() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [visionText, setVisionText] = useState("");
   const [missionText, setMissionText] = useState("");
+  const [atRiskThreshold, setAtRiskThreshold] = useState(5);
+  const [delayedThreshold, setDelayedThreshold] = useState(10);
+  const [msAtRiskThreshold, setMsAtRiskThreshold] = useState(5);
 
   const updateConfig = useUpdateSpmoConfig();
 
@@ -40,13 +43,24 @@ export default function StrategyMap() {
   function openEditVision() {
     setVisionText(configData?.vision ?? "");
     setMissionText(configData?.mission ?? "");
+    setAtRiskThreshold(configData?.projectAtRiskThreshold ?? 5);
+    setDelayedThreshold(configData?.projectDelayedThreshold ?? 10);
+    setMsAtRiskThreshold(configData?.milestoneAtRiskThreshold ?? 5);
     setEditModalOpen(true);
   }
 
   function handleSaveVision(e: React.FormEvent) {
     e.preventDefault();
     updateConfig.mutate(
-      { data: { vision: visionText, mission: missionText } },
+      {
+        data: {
+          vision: visionText,
+          mission: missionText,
+          projectAtRiskThreshold: atRiskThreshold,
+          projectDelayedThreshold: delayedThreshold,
+          milestoneAtRiskThreshold: msAtRiskThreshold,
+        },
+      },
       {
         onSuccess: () => {
           toast({ title: "Vision & Mission updated" });
@@ -238,7 +252,7 @@ export default function StrategyMap() {
       )}
 
       {/* Edit Vision Modal */}
-      <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} title="Edit Vision & Mission">
+      <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} title="Edit Vision, Mission & Health Thresholds">
         <form onSubmit={handleSaveVision} className="space-y-4">
           <FormField label="Programme Vision">
             <textarea
@@ -258,6 +272,44 @@ export default function StrategyMap() {
               placeholder="Our mission is to..."
             />
           </FormField>
+          <div className="border-t border-border pt-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Health Status Thresholds (%)</p>
+            <div className="grid grid-cols-3 gap-3">
+              <FormField label="Project At Risk">
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  className={inputClass}
+                  value={atRiskThreshold}
+                  onChange={(e) => setAtRiskThreshold(Number(e.target.value))}
+                />
+              </FormField>
+              <FormField label="Project Delayed">
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  className={inputClass}
+                  value={delayedThreshold}
+                  onChange={(e) => setDelayedThreshold(Number(e.target.value))}
+                />
+              </FormField>
+              <FormField label="Milestone At Risk">
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  className={inputClass}
+                  value={msAtRiskThreshold}
+                  onChange={(e) => setMsAtRiskThreshold(Number(e.target.value))}
+                />
+              </FormField>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              A project/milestone is <span className="text-warning font-semibold">At Risk</span> when actual progress lags planned by more than the At Risk % threshold, and <span className="text-destructive font-semibold">Delayed</span> when it exceeds the Delayed % threshold.
+            </p>
+          </div>
           <FormActions loading={updateConfig.isPending} label="Save Changes" onCancel={() => setEditModalOpen(false)} />
         </form>
       </Modal>

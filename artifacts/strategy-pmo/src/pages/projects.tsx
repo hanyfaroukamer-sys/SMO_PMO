@@ -22,6 +22,7 @@ import {
   type CreateSpmoMilestoneRequest,
   type SpmoEvidence,
   type SpmoMilestoneWithEvidence,
+  type SpmoHealthStatus,
 } from "@workspace/api-client-react";
 import { GanttChart } from "@/components/gantt-chart";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
@@ -657,6 +658,7 @@ function ProjectRow({
           <div className="flex items-center gap-3 mb-1 flex-wrap">
             <h4 className="font-bold text-base">{project.name}</h4>
             <StatusBadge status={project.status} />
+            <HealthBadge status={project.healthStatus} />
             {project.weight > 0 && (
               <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded text-muted-foreground">
                 {project.weight}% weight
@@ -827,6 +829,7 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                     )}
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <StatusBadge status={m.status} />
+                      <HealthBadge status={m.healthStatus} />
                       {m.dueDate && (
                         <span className="text-xs text-muted-foreground">
                           Due {format(new Date(m.dueDate), "MMM d")}
@@ -956,6 +959,19 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
         </div>
       )}
     </div>
+  );
+}
+
+function HealthBadge({ status }: { status: SpmoHealthStatus | undefined }) {
+  if (!status) return null;
+  const map: Record<SpmoHealthStatus, { label: string; className: string }> = {
+    on_track: { label: "On Track", className: "bg-success/10 text-success border border-success/30" },
+    at_risk:  { label: "At Risk",  className: "bg-warning/10 text-warning border border-warning/30" },
+    delayed:  { label: "Delayed",  className: "bg-destructive/10 text-destructive border border-destructive/30" },
+  };
+  const { label, className } = map[status];
+  return (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${className}`}>{label}</span>
   );
 }
 

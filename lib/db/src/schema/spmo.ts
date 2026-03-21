@@ -413,6 +413,9 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   mission: text("mission"),
   reportingCurrency: text("reporting_currency").notNull().default("SAR"),
   fiscalYearStart: integer("fiscal_year_start").notNull().default(1),
+  projectAtRiskThreshold: integer("project_at_risk_threshold").notNull().default(5),
+  projectDelayedThreshold: integer("project_delayed_threshold").notNull().default(10),
+  milestoneAtRiskThreshold: integer("milestone_at_risk_threshold").notNull().default(5),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
