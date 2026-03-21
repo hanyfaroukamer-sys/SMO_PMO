@@ -302,10 +302,10 @@ const PROJECT_THRESHOLDS: StatusThresholds = {
 };
 
 const INITIATIVE_THRESHOLDS: StatusThresholds = {
-  onTrackSpi: 0.80,
-  atRiskSpi: 0.55,
-  earlyPct: 15,
-  burnTolerance: 25,
+  onTrackSpi: 0.85,
+  atRiskSpi: 0.65,
+  earlyPct: 20,
+  burnTolerance: 20,
   approvalDeltaTrigger: 3,
 };
 
