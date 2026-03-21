@@ -93,8 +93,8 @@ import {
   projectProgress,
   milestoneEffectiveProgress,
   computeRiskScore,
-  getHealthThresholds,
   computeProjectHealth,
+  computeInitiativeHealth,
   computeMilestoneHealth,
 } from "../lib/spmo-calc";
 import { logSpmoActivity } from "../lib/spmo-activity";
@@ -362,7 +362,8 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
   const withProgress = await Promise.all(
     rows.map(async (i) => {
       const stats = await initiativeProgress(i.id);
-      return { ...i, ...stats };
+      const healthStatus = computeInitiativeHealth(i.status, i.targetDate);
+      return { ...i, ...stats, healthStatus };
     })
   );
 
@@ -527,12 +528,10 @@ router.get("/spmo/projects", async (req, res): Promise<void> => {
     ? await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, qp.data.initiativeId))
     : await db.select().from(spmoProjectsTable);
 
-  const thresholds = await getHealthThresholds();
-
   const withProgress = await Promise.all(
     rows.map(async (p) => {
       const stats = await projectProgress(p.id);
-      const healthStatus = computeProjectHealth(stats.progress, p.startDate, p.targetDate, thresholds);
+      const healthStatus = computeProjectHealth(p.status, p.targetDate, stats.approvedMilestones, stats.milestoneCount);
       return { ...p, ...stats, healthStatus };
     })
   );
@@ -690,21 +689,16 @@ router.get("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
     return;
   }
 
-  const [project] = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.id, params.data.id));
-
   const milestones = await db
     .select()
     .from(spmoMilestonesTable)
     .where(eq(spmoMilestonesTable.projectId, params.data.id))
     .orderBy(asc(spmoMilestonesTable.createdAt));
 
-  const thresholds = await getHealthThresholds();
-  const projectStart = project?.startDate ?? new Date().toISOString().slice(0, 10);
-
   const withEvidence = await Promise.all(
     milestones.map(async (m) => {
       const evidence = await db.select().from(spmoEvidenceTable).where(eq(spmoEvidenceTable.milestoneId, m.id));
-      const healthStatus = computeMilestoneHealth(m.progress ?? 0, m.status, m.dueDate, projectStart, thresholds);
+      const healthStatus = computeMilestoneHealth(m.status, m.dueDate);
       return { ...m, evidence, healthStatus };
     })
   );

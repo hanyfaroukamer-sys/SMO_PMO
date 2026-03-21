@@ -498,9 +498,10 @@ export default function Projects() {
                   <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: pillarColor }}>
                     {pillarName}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <h3 className="font-bold text-lg">{initiative.name}</h3>
                     <StatusBadge status={initiative.status} />
+                    <HealthBadge status={initiative.healthStatus} />
                     <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">
                       {initProjects.length} project{initProjects.length !== 1 ? "s" : ""}
                     </span>
@@ -965,9 +966,10 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
 function HealthBadge({ status }: { status: SpmoHealthStatus | undefined }) {
   if (!status) return null;
   const map: Record<SpmoHealthStatus, { label: string; className: string }> = {
-    on_track: { label: "On Track", className: "bg-success/10 text-success border border-success/30" },
-    at_risk:  { label: "At Risk",  className: "bg-warning/10 text-warning border border-warning/30" },
-    delayed:  { label: "Delayed",  className: "bg-destructive/10 text-destructive border border-destructive/30" },
+    completed: { label: "Completed",  className: "bg-success/10 text-success border border-success/30" },
+    on_track:  { label: "On Track",   className: "bg-primary/10 text-primary border border-primary/30" },
+    at_risk:   { label: "At Risk",    className: "bg-warning/10 text-warning border border-warning/30" },
+    delayed:   { label: "Delayed",    className: "bg-destructive/10 text-destructive border border-destructive/30" },
   };
   const { label, className } = map[status];
   return (

@@ -4,13 +4,27 @@ import {
   useListSpmoInitiatives,
   useListSpmoBudget,
   useRunSpmoAiAssessment,
+  type SpmoHealthStatus,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
+
 import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, Wallet, ThumbsUp, Lightbulb, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Link } from "wouter";
 import type React from "react";
+
+function HealthBadge({ status }: { status: SpmoHealthStatus | undefined }) {
+  if (!status) return null;
+  const map: Record<SpmoHealthStatus, { label: string; cls: string }> = {
+    completed: { label: "Completed", cls: "bg-success/10 text-success border border-success/30" },
+    on_track:  { label: "On Track",  cls: "bg-primary/10 text-primary border border-primary/30" },
+    at_risk:   { label: "At Risk",   cls: "bg-warning/10 text-warning border border-warning/30" },
+    delayed:   { label: "Delayed",   cls: "bg-destructive/10 text-destructive border border-destructive/30" },
+  };
+  const { label, cls } = map[status];
+  return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>;
+}
 
 export default function Dashboard() {
   const { data, isLoading, error } = useGetSpmoOverview();
@@ -40,7 +54,7 @@ export default function Dashboard() {
   const totalAllocated = budgetData?.totalAllocated ?? 0;
   const totalSpent = budgetData?.totalSpent ?? 0;
   const initiativesOnTrack = initiatives.filter((i) => {
-    return i.progress >= 50 || i.status === "active";
+    return i.healthStatus === "on_track" || i.healthStatus === "completed";
   }).length;
   const projectsNeedAttention = data.pillarSummaries.reduce((s, p) => s + p.pendingApprovals, 0);
 
@@ -204,6 +218,7 @@ export default function Dashboard() {
                         <span className="text-sm font-bold" style={{ color: pillarColor }}>
                           {Math.round(progress)}%
                         </span>
+                        <HealthBadge status={initiative.healthStatus} />
                         <StatusBadge status={initiative.status} />
                       </div>
                     </div>

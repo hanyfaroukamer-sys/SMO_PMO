@@ -385,6 +385,7 @@ export type SpmoInitiativeWithProgress = SpmoInitiative & {
   projectCount: number;
   approvedMilestones: number;
   totalMilestones: number;
+  healthStatus: SpmoHealthStatus;
 };
 
 export type SpmoPillarDetail = SpmoPillarWithProgress & {
@@ -424,7 +425,7 @@ export interface SpmoProject {
   updatedAt: string;
 }
 
-export type SpmoHealthStatus = "on_track" | "at_risk" | "delayed";
+export type SpmoHealthStatus = "on_track" | "at_risk" | "delayed" | "completed";
 
 export type SpmoProjectWithProgress = SpmoProject & {
   progress: number;
