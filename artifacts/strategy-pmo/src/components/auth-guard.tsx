@@ -7,7 +7,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && (!data?.user || error)) {
-      window.location.href = "/api/login";
+      window.location.href = `/api/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`;
     }
   }, [isLoading, data, error]);
 
