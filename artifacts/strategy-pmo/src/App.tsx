@@ -15,6 +15,8 @@ import KPIs from "@/pages/kpis";
 import OpKPIs from "@/pages/op-kpis";
 import Budget from "@/pages/budget";
 import Procurement from "@/pages/procurement";
+import Departments from "@/pages/departments";
+import DepartmentPortfolio from "@/pages/department-portfolio";
 import Risks from "@/pages/risks";
 import Alerts from "@/pages/alerts";
 import ActivityLog from "@/pages/activity";
@@ -41,6 +43,8 @@ function Router() {
           <Route path="/op-kpis" component={OpKPIs} />
           <Route path="/budget" component={Budget} />
           <Route path="/procurement" component={Procurement} />
+          <Route path="/departments" component={Departments} />
+          <Route path="/departments/:id/portfolio" component={DepartmentPortfolio} />
           <Route path="/risks" component={Risks} />
           <Route path="/alerts" component={Alerts} />
           <Route path="/activity" component={ActivityLog} />

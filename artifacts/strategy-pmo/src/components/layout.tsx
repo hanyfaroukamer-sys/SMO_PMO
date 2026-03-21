@@ -16,6 +16,7 @@ import {
   User as UserIcon,
   ChevronsLeft,
   ChevronsRight,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetCurrentAuthUser } from "@workspace/api-client-react";
@@ -29,6 +30,7 @@ const navItems = [
   { title: "Op. KPIs",         href: "/op-kpis",      icon: Activity         },
   { title: "Budget",           href: "/budget",       icon: Wallet           },
   { title: "Procurement",      href: "/procurement",  icon: ShoppingCart     },
+  { title: "Departments",      href: "/departments",  icon: Building2        },
   { title: "Risks",            href: "/risks",        icon: ShieldAlert      },
   { title: "Alerts",           href: "/alerts",       icon: BellRing         },
   { title: "Activity Log",     href: "/activity",     icon: ScrollText       },
