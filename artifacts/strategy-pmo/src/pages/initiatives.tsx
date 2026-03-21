@@ -193,7 +193,7 @@ export default function Initiatives() {
                   </td>
                   <td className="px-6 py-4 text-right font-bold">{init.projectCount ?? 0}</td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex justify-end gap-2">
                       <button
                         onClick={() => openEdit(init)}
                         className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
