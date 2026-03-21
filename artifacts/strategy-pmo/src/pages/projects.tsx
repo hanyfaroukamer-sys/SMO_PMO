@@ -730,6 +730,12 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
     });
   }
 
+  function handleInlineDueDateUpdate(id: number, dueDate: string) {
+    updateMutation.mutate({ id, data: { dueDate } }, {
+      onSuccess: () => invalidate(),
+    });
+  }
+
   function handleInlineNameUpdate(id: number, name: string) {
     updateMutation.mutate({ id, data: { name } }, {
       onSuccess: () => invalidate(),
@@ -777,18 +783,29 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
 
   return (
     <div className="border-t border-border bg-secondary/10">
-      <div className="px-6 py-3 flex items-center justify-between border-b border-border/50 bg-secondary/30">
-        <div className="flex items-center gap-3">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Milestones</h4>
-          <span className="text-xs text-muted-foreground">MILESTONE</span>
-          <span className="text-xs text-muted-foreground ml-4">PROGRESS</span>
-          <span className="text-xs text-muted-foreground ml-4">EFFORT (days)</span>
-          <span className="text-xs text-muted-foreground ml-4">WT%</span>
+      {/* Column header — mirrors exact widths of the data rows below */}
+      <div className="px-6 py-2 flex items-center gap-4 border-b border-border/50 bg-secondary/30">
+        <div className="w-1 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Milestone</span>
         </div>
+        <div className="w-36 shrink-0">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Progress</span>
+        </div>
+        <div className="w-20 shrink-0">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Effort</span>
+        </div>
+        <div className="w-24 shrink-0 text-center">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Due Date</span>
+        </div>
+        <div className="w-10 shrink-0 text-center">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Wt%</span>
+        </div>
+        <div className="w-12 shrink-0" />
         <button
           onClick={handleAddMilestone}
           disabled={createMutation.isPending}
-          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline disabled:opacity-50 shrink-0"
         >
           <Plus className="w-3.5 h-3.5" /> Add
         </button>
@@ -814,7 +831,7 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                     style={{ backgroundColor: pillarColor }}
                   />
 
-                  {/* Name */}
+                  {/* Name + status badges */}
                   <div className="flex-1 min-w-0">
                     {isApproved ? (
                       <div className="flex items-center gap-2">
@@ -831,14 +848,9 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <StatusBadge status={m.status} />
                       <HealthBadge status={m.healthStatus} />
-                      {m.dueDate && (
-                        <span className="text-xs text-muted-foreground">
-                          Due {format(new Date(m.dueDate), "MMM d")}
-                        </span>
-                      )}
                       {(m.progress ?? 0) >= 100 && !hasEvidence && !isApproved && (
                         <span className="flex items-center gap-1 text-[10px] font-semibold text-warning bg-warning/10 border border-warning/20 rounded px-1.5 py-0.5">
-                          <AlertCircle className="w-3 h-3" /> Evidence required to submit
+                          <AlertCircle className="w-3 h-3" /> Evidence required
                         </span>
                       )}
                     </div>
@@ -893,8 +905,22 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                     )}
                   </div>
 
+                  {/* Due Date — editable */}
+                  <div className="w-24 shrink-0 text-center">
+                    {isApproved ? (
+                      <span className="text-xs text-muted-foreground">
+                        {m.dueDate ? format(new Date(m.dueDate + "T00:00:00"), "MMM d, yyyy") : "—"}
+                      </span>
+                    ) : (
+                      <InlineDateEdit
+                        value={m.dueDate ?? ""}
+                        onSave={(v) => handleInlineDueDateUpdate(m.id, v)}
+                      />
+                    )}
+                  </div>
+
                   {/* Auto-weight */}
-                  <div className="w-12 text-center shrink-0">
+                  <div className="w-10 text-center shrink-0">
                     <span className="text-xs font-bold text-muted-foreground">{autoWeight}%</span>
                   </div>
 
@@ -1057,6 +1083,45 @@ function InlineNumberEdit({
       title="Click to edit"
     >
       {value}{suffix}
+    </span>
+  );
+}
+
+function InlineDateEdit({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="date"
+        className={`${inputClass} py-0.5 px-1 text-xs w-full`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft && draft !== value) onSave(draft);
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") { setDraft(value); setEditing(false); }
+        }}
+      />
+    );
+  }
+
+  const display = value
+    ? format(new Date(value + "T00:00:00"), "MMM d, yyyy")
+    : "Set date";
+
+  return (
+    <span
+      className={`text-xs cursor-pointer hover:underline ${value ? "text-muted-foreground" : "text-primary"}`}
+      onClick={() => { setDraft(value); setEditing(true); }}
+      title="Click to edit due date"
+    >
+      {display}
     </span>
   );
 }
