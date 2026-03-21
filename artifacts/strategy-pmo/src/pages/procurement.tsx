@@ -68,7 +68,7 @@ export default function Procurement() {
 
   function getInitiativeName(projectId: number): string | undefined {
     const proj = projects.find((p) => p.id === projectId);
-    const initId = (proj as unknown as { initiativeId?: number })?.initiativeId;
+    const initId = proj?.initiativeId;
     if (!initId) return undefined;
     return initiatives.find((i) => i.id === initId)?.name;
   }

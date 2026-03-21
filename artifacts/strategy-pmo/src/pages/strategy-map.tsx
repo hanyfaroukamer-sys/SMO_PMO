@@ -200,7 +200,7 @@ export default function StrategyMap() {
                               <div className="flex items-center gap-2 shrink-0">
                                 <span className="text-xs text-muted-foreground">{initiative.weight}%</span>
                                 <span className="text-xs font-bold" style={{ color: pillar.color }}>
-                                  {Math.round((initiative as unknown as { progress?: number }).progress ?? 0)}%
+                                  {Math.round(initiative.progress ?? 0)}%
                                 </span>
                               </div>
                             </div>
@@ -208,7 +208,7 @@ export default function StrategyMap() {
                               <div
                                 className="h-full rounded-full"
                                 style={{
-                                  width: `${Math.min(100, (initiative as unknown as { progress?: number }).progress ?? 0)}%`,
+                                  width: `${Math.min(100, initiative.progress ?? 0)}%`,
                                   backgroundColor: pillar.color,
                                 }}
                               />

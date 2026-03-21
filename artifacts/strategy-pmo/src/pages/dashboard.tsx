@@ -40,8 +40,7 @@ export default function Dashboard() {
   const totalAllocated = budgetData?.totalAllocated ?? 0;
   const totalSpent = budgetData?.totalSpent ?? 0;
   const initiativesOnTrack = initiatives.filter((i) => {
-    const prog = (i as unknown as { progress?: number }).progress ?? 0;
-    return prog >= 50 || i.status === "active";
+    return i.progress >= 50 || i.status === "active";
   }).length;
   const projectsNeedAttention = data.pillarSummaries.reduce((s, p) => s + p.pendingApprovals, 0);
 
@@ -161,8 +160,8 @@ export default function Dashboard() {
                 return (
                   <div className="space-y-1">
                     {pillarInitiatives.map((init) => {
-                      const prog = (init as unknown as { progress?: number }).progress ?? 0;
-                      const weight = (init as unknown as { weight?: number }).weight ?? 0;
+                      const prog = init.progress ?? 0;
+                      const weight = init.weight ?? 0;
                       return (
                         <div key={init.id} className="flex items-center gap-2 text-xs">
                           <span className="truncate text-foreground/80 flex-1">{init.name}</span>
@@ -193,7 +192,7 @@ export default function Dashboard() {
               <div className="p-8 text-center text-muted-foreground">No initiatives yet.</div>
             )}
             {initiatives.map((initiative) => {
-              const progress = (initiative as unknown as { progress?: number }).progress ?? 0;
+              const progress = initiative.progress ?? 0;
               const pillarColor = "#2563eb";
               return (
                 <div key={initiative.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-secondary/30 transition-colors">

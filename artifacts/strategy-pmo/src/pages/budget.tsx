@@ -31,6 +31,11 @@ const CATEGORIES = [
   "Training", "Procurement", "Operations", "Contingency", "Other",
 ];
 
+type InitiativeWithBudget = SpmoInitiativeWithProgress & {
+  budget: number;
+  budgetSpent: number;
+};
+
 type EntryForm = {
   category: string;
   allocated: string;
@@ -215,7 +220,7 @@ export default function Budget() {
 
   const spentByInitiative: Map<number, number> = new Map();
   projects.forEach((p) => {
-    const initId = (p as unknown as { initiativeId?: number }).initiativeId;
+    const initId = p.initiativeId;
     if (initId != null) {
       spentByInitiative.set(initId, (spentByInitiative.get(initId) ?? 0) + (p.budgetSpent ?? 0));
     }
@@ -301,63 +306,77 @@ export default function Budget() {
       )}
 
       {/* Initiatives Budget Table — inline-editable */}
-      {initiatives.length > 0 && (
-        <Card noPadding className="overflow-hidden">
-          <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center justify-between">
-            <h3 className="font-bold text-sm">Initiatives Budget</h3>
-            <span className="text-xs text-muted-foreground">{initiatives.length} initiatives · Click Alloc to edit</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-muted-foreground uppercase border-b border-border">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Name</th>
-                  <th className="px-5 py-3 font-semibold text-right">Alloc (SAR)</th>
-                  <th className="px-5 py-3 font-semibold text-right">Spent (SAR)</th>
-                  <th className="px-5 py-3 font-semibold text-right">Weight</th>
-                  <th className="px-5 py-3 font-semibold text-right">Progress</th>
-                  <th className="px-5 py-3 font-semibold text-center">Health</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {(initiatives as SpmoInitiativeWithProgress[]).map((initiative) => {
-                  const budget = (initiative as unknown as { budget?: number }).budget ?? 0;
-                  const computedSpent = spentByInitiative.get(initiative.id) ?? 0;
-                  const progress = initiative.progress ?? 0;
-                  const health = initiativeHealth(progress);
-                  return (
-                    <tr key={initiative.id} className="hover:bg-secondary/20 transition-colors">
-                      <td className="px-5 py-3 font-semibold">{initiative.name}</td>
-                      <td className="px-5 py-3 text-right">
-                        <InlineNumberEdit
-                          value={budget}
-                          onSave={(v) => {
-                            updateInitiative.mutate({ id: initiative.id, data: { budget: v } }, {
-                              onSuccess: () => { toast({ title: "Allocation updated" }); invalidateInitiatives(); },
-                            });
-                          }}
-                        />
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <span className="font-mono text-sm text-destructive">{computedSpent > 0 ? formatCurrency(computedSpent) : "—"}</span>
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <span className="font-mono text-sm">{initiative.weight}%</span>
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <span className="font-bold">{Math.round(progress)}%</span>
-                      </td>
-                      <td className={`px-5 py-3 text-center font-semibold text-xs ${health.color}`}>
-                        {health.label}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+      {initiatives.length > 0 && (() => {
+        const typed = initiatives as InitiativeWithBudget[];
+        const totalInitiativeBudget = typed.reduce((s, i) => s + (i.budget ?? 0), 0);
+        return (
+          <Card noPadding className="overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center justify-between">
+              <h3 className="font-bold text-sm">Initiatives Budget</h3>
+              <span className="text-xs text-muted-foreground">{initiatives.length} initiatives · Click Alloc or Spent to edit</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-muted-foreground uppercase border-b border-border">
+                  <tr>
+                    <th className="px-5 py-3 font-semibold">Name</th>
+                    <th className="px-5 py-3 font-semibold text-right">Alloc (SAR)</th>
+                    <th className="px-5 py-3 font-semibold text-right">Spent (SAR)</th>
+                    <th className="px-5 py-3 font-semibold text-right">Weight</th>
+                    <th className="px-5 py-3 font-semibold text-right">Progress</th>
+                    <th className="px-5 py-3 font-semibold text-center">Health</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {typed.map((initiative) => {
+                    const budget = initiative.budget ?? 0;
+                    const budgetSpent = initiative.budgetSpent ?? 0;
+                    const computedWeight = totalInitiativeBudget > 0
+                      ? ((budget / totalInitiativeBudget) * 100).toFixed(1)
+                      : "—";
+                    const progress = initiative.progress ?? 0;
+                    const health = initiativeHealth(progress);
+                    return (
+                      <tr key={initiative.id} className="hover:bg-secondary/20 transition-colors">
+                        <td className="px-5 py-3 font-semibold">{initiative.name}</td>
+                        <td className="px-5 py-3 text-right">
+                          <InlineNumberEdit
+                            value={budget}
+                            onSave={(v) => {
+                              updateInitiative.mutate({ id: initiative.id, data: { budget: v } }, {
+                                onSuccess: () => { toast({ title: "Allocation updated" }); invalidateInitiatives(); },
+                              });
+                            }}
+                          />
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <InlineNumberEdit
+                            value={budgetSpent}
+                            onSave={(v) => {
+                              updateInitiative.mutate({ id: initiative.id, data: { budgetSpent: v } }, {
+                                onSuccess: () => { toast({ title: "Spent updated" }); invalidateInitiatives(); },
+                              });
+                            }}
+                          />
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <span className="font-mono text-sm">{computedWeight}%</span>
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <span className="font-bold">{Math.round(progress)}%</span>
+                        </td>
+                        <td className={`px-5 py-3 text-center font-semibold text-xs ${health.color}`}>
+                          {health.label}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* Projects Budget Table — inline-editable */}
       {projects.length > 0 && (

@@ -1,21 +1,25 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   useListSpmoPendingApprovals,
   useRunSpmoAiValidateEvidence,
   useApproveSpmoMilestone,
   useRejectSpmoMilestone,
+  useAddSpmoEvidence,
   type SpmoPendingApprovalItem,
   type SpmoEvidence,
+  type SpmoMilestoneWithEvidence,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
 import {
   Loader2, CheckCircle2, XCircle, FileText, Sparkles, ChevronRight,
-  Target, Clock, AlertCircle, FileX, ThumbsUp,
+  Target, Clock, AlertCircle, FileX, ThumbsUp, Upload,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 type FilterKey = "all" | "submitted" | "approved" | "rejected" | "blocked100" | "no_evidence";
+
+type ExtendedMilestone = SpmoMilestoneWithEvidence & { approvedByName?: string | null };
 
 const FILTER_CONFIG: Array<{
   key: FilterKey;
@@ -94,8 +98,8 @@ export default function ProgressProof() {
         </div>
       </Card>
 
-      {/* 6 Filter Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      {/* Filter Pills */}
+      <div className="flex flex-wrap gap-2 items-center">
         {FILTER_CONFIG.map((fc) => {
           const Icon = fc.icon;
           const isActive = filter === fc.key;
@@ -103,22 +107,22 @@ export default function ProgressProof() {
             <button
               key={fc.key}
               onClick={() => setFilter(fc.key)}
-              className={`text-left p-3 rounded-xl border transition-all ${fc.borderClass} ${
-                isActive ? "ring-2 ring-primary shadow-md" : "hover:shadow-sm"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                isActive
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
               }`}
             >
-              <Icon className={`w-4 h-4 ${fc.colorClass} mb-2`} />
-              <div className={`text-xl font-display font-bold ${fc.colorClass}`}>{counts[fc.key]}</div>
-              <div className="text-xs text-muted-foreground font-medium mt-0.5">{fc.label}</div>
+              <Icon className="w-3.5 h-3.5" />
+              {fc.label}
+              <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                isActive ? "bg-white/20 text-white" : "bg-secondary text-muted-foreground"
+              }`}>{counts[fc.key]}</span>
             </button>
           );
         })}
-      </div>
-
-      {/* Active filter label */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold">
-          {FILTER_CONFIG.find((f) => f.key === filter)?.label} — {filteredItems.length} milestone{filteredItems.length !== 1 ? "s" : ""}
+        <span className="ml-auto text-xs text-muted-foreground font-medium">
+          {filteredItems.length} milestone{filteredItems.length !== 1 ? "s" : ""}
         </span>
       </div>
 
@@ -143,15 +147,57 @@ export default function ProgressProof() {
 function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   const aiMutation = useRunSpmoAiValidateEvidence();
   const approveMutation = useApproveSpmoMilestone();
   const rejectMutation = useRejectSpmoMilestone();
+  const addEvidence = useAddSpmoEvidence();
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["/api/spmo/pending-approvals"] });
     qc.invalidateQueries({ queryKey: ["/api/spmo/programme"] });
     qc.invalidateQueries({ queryKey: ["/api/spmo/projects"] });
   };
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const urlRes = await fetch("/spmo/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ milestoneId: item.milestone.id }),
+      });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = (await urlRes.json()) as { uploadURL: string; objectPath: string };
+      const uploadRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      addEvidence.mutate(
+        { id: item.milestone.id, data: { fileName: file.name, contentType: file.type, objectPath } },
+        {
+          onSuccess: () => {
+            toast({ title: "Evidence uploaded", description: file.name });
+            invalidate();
+            setUploading(false);
+            if (fileRef.current) fileRef.current.value = "";
+          },
+          onError: () => {
+            toast({ variant: "destructive", title: "Failed to register evidence" });
+            setUploading(false);
+          },
+        }
+      );
+    } catch (err) {
+      toast({ variant: "destructive", title: "Upload failed", description: err instanceof Error ? err.message : "Unknown error" });
+      setUploading(false);
+    }
+  }
 
   const handleAI = () => {
     aiMutation.mutate({ data: { milestoneId: item.milestone.id } }, {
@@ -172,10 +218,11 @@ function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
     });
   };
 
+  const milestone = item.milestone as ExtendedMilestone;
   const pillarColor = item.pillar?.color ?? "#2563eb";
-  const progress = item.milestone.progress ?? 0;
-  const evidenceCount = item.milestone.evidence?.length ?? 0;
-  const isApproved = item.milestone.status === "approved";
+  const progress = milestone.progress ?? 0;
+  const evidenceCount = milestone.evidence?.length ?? 0;
+  const isApproved = milestone.status === "approved";
 
   return (
     <Card
@@ -193,26 +240,26 @@ function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
       </div>
 
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="font-bold text-base leading-snug">{item.milestone.name}</h3>
-        <StatusBadge status={item.milestone.status} />
+        <h3 className="font-bold text-base leading-snug">{milestone.name}</h3>
+        <StatusBadge status={milestone.status} />
       </div>
 
       <div className="flex items-center gap-3 mb-4 text-xs text-muted-foreground flex-wrap">
-        {item.milestone.effortDays != null && (
-          <span className="font-medium">Effort: <span className="font-bold text-foreground">{item.milestone.effortDays}d</span></span>
+        {milestone.effortDays != null && (
+          <span className="font-medium">Effort: <span className="font-bold text-foreground">{milestone.effortDays}d</span></span>
         )}
-        {(item.milestone as unknown as { weight?: number }).weight != null && (item.milestone as unknown as { weight?: number }).weight! > 0 && (
-          <span className="font-medium">Weight: <span className="font-bold text-foreground">{(item.milestone as unknown as { weight?: number }).weight}%</span></span>
+        {milestone.weight != null && milestone.weight > 0 && (
+          <span className="font-medium">Weight: <span className="font-bold text-foreground">{milestone.weight}%</span></span>
         )}
-        {item.milestone.status === "approved" && (item.milestone as unknown as { approvedByName?: string }).approvedByName && (
+        {milestone.status === "approved" && milestone.approvedByName && (
           <span className="flex items-center gap-1 text-success font-semibold">
             <CheckCircle2 className="w-3 h-3" />
-            Approved by {(item.milestone as unknown as { approvedByName?: string }).approvedByName}
+            Approved by {milestone.approvedByName}
           </span>
         )}
-        {item.milestone.status === "rejected" && (item.milestone as unknown as { rejectionReason?: string }).rejectionReason && (
+        {milestone.status === "rejected" && milestone.rejectionReason && (
           <span className="text-destructive font-medium">
-            Rejected: {(item.milestone as unknown as { rejectionReason?: string }).rejectionReason}
+            Rejected: {milestone.rejectionReason}
           </span>
         )}
       </div>
@@ -233,17 +280,28 @@ function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
 
       {/* Evidence list */}
       <div className="mb-4">
-        <h4 className="text-xs font-bold flex items-center gap-1.5 mb-2">
-          <FileText className="w-3.5 h-3.5 text-primary" />
-          Evidence ({evidenceCount})
-        </h4>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-xs font-bold flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5 text-primary" />
+            Evidence ({evidenceCount})
+          </h4>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary border border-primary/30 bg-primary/5 hover:bg-primary/10 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+            {uploading ? "Uploading…" : "Upload Evidence"}
+          </button>
+          <input ref={fileRef} type="file" className="hidden" onChange={handleFileUpload} />
+        </div>
         {evidenceCount === 0 ? (
           <div className="text-xs text-destructive p-2.5 bg-destructive/10 rounded-lg border border-destructive/20 font-medium">
             No evidence attached — milestone cannot be approved without evidence.
           </div>
         ) : (
           <div className="space-y-1.5">
-            {(item.milestone.evidence as SpmoEvidence[]).map((ev) => (
+            {(milestone.evidence as SpmoEvidence[]).map((ev) => (
               <div key={ev.id} className="flex items-center justify-between p-2 bg-secondary/30 border border-border rounded-lg text-xs group hover:border-primary/30 transition-colors">
                 <span className="font-medium truncate flex-1">{ev.fileName}</span>
                 <a
@@ -355,7 +413,7 @@ function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
           {aiMutation.data ? "Re-validate" : "AI Validate"}
         </button>
 
-        {item.milestone.status === "submitted" && (
+        {milestone.status === "submitted" && (
           <>
             <button
               onClick={handleReject}
