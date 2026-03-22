@@ -592,6 +592,8 @@ export interface SpmoKpi {
   /** @nullable */
   nextYearTarget?: number | null;
   /** @nullable */
+  target2030?: number | null;
+  /** @nullable */
   prevActual?: number | null;
   /** @nullable */
   prevActualDt?: string | null;
@@ -1213,6 +1215,7 @@ export interface CreateSpmoKpiRequest {
   ownerId?: string;
   ownerName?: string;
   nextYearTarget?: number;
+  target2030?: number;
   prevActual?: number;
   prevActualDt?: string;
   kpiType?: CreateSpmoKpiRequestKpiType;
@@ -1245,6 +1248,7 @@ export interface UpdateSpmoKpiRequest {
   ownerId?: string;
   ownerName?: string;
   nextYearTarget?: number;
+  target2030?: number;
   prevActual?: number;
   prevActualDt?: string;
   kpiType?: CreateSpmoKpiRequestKpiType;

@@ -29,6 +29,7 @@ type KpiForm = {
   actual: string;
   baseline: string;
   nextYearTarget: string;
+  target2030: string;
   initiativeId: string;
   kpiType: string;
   direction: string;
@@ -41,7 +42,7 @@ type KpiForm = {
 
 const emptyForm = (): KpiForm => ({
   name: "", description: "", unit: "", target: "100", actual: "0",
-  baseline: "0", nextYearTarget: "", initiativeId: "",
+  baseline: "0", nextYearTarget: "", target2030: "", initiativeId: "",
   kpiType: "rate", direction: "higher", measurementPeriod: "annual",
   periodStart: "", periodEnd: "", milestoneDue: "", milestoneDone: false,
 });
@@ -55,6 +56,7 @@ type Kpi = {
   target: number;
   actual: number;
   nextYearTarget?: number | null;
+  target2030?: number | null;
   initiativeId: number | null;
   ownerName?: string | null;
   prevActual?: number | null;
@@ -139,6 +141,7 @@ export default function OpKPIs() {
       actual: String(kpi.actual),
       baseline: String(kpi.baseline),
       nextYearTarget: kpi.nextYearTarget != null ? String(kpi.nextYearTarget) : "",
+      target2030: kpi.target2030 != null ? String(kpi.target2030) : "",
       initiativeId: kpi.initiativeId ? String(kpi.initiativeId) : "",
       kpiType: kpi.kpiType ?? "rate",
       direction: kpi.direction ?? "higher",
@@ -154,6 +157,7 @@ export default function OpKPIs() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const nyt = form.nextYearTarget ? parseFloat(form.nextYearTarget) : undefined;
+    const t2030 = form.target2030 ? parseFloat(form.target2030) : undefined;
     const shared = {
       name: form.name,
       description: form.description || undefined,
@@ -162,6 +166,7 @@ export default function OpKPIs() {
       actual: parseFloat(form.actual) || 0,
       baseline: parseFloat(form.baseline) || 0,
       nextYearTarget: nyt,
+      target2030: t2030,
       initiativeId: form.initiativeId ? parseInt(form.initiativeId) : undefined,
       kpiType: form.kpiType as CreateSpmoKpiRequest["kpiType"],
       direction: form.direction as CreateSpmoKpiRequest["direction"],
@@ -274,6 +279,7 @@ export default function OpKPIs() {
                         <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">vs Target</th>
                         <th className="px-4 py-3 font-semibold whitespace-nowrap">Assessment</th>
                         <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">{nextYear}<br /><span className="normal-case font-normal">(Target)</span></th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">2030<br /><span className="normal-case font-normal">(Target)</span></th>
                         <th className="px-4 py-3 w-20"></th>
                       </tr>
                     </thead>
@@ -326,6 +332,7 @@ export default function OpKPIs() {
                               </span>
                             </td>
                             <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.nextYearTarget, kpi.unit)}</td>
+                            <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.target2030, kpi.unit)}</td>
                             <td className="px-4 py-4">
                               {isAdmin && (
                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -412,15 +419,20 @@ export default function OpKPIs() {
               <FormField label="Unit" required>
                 <input className={inputClass} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required placeholder="e.g. sensors, %" />
               </FormField>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField label={`${prevYear} (Baseline)`}>
                   <input className={inputClass} type="number" value={form.baseline} onChange={(e) => setForm({ ...form, baseline: e.target.value })} placeholder="0" step="any" />
                 </FormField>
                 <FormField label={`${thisYear} Target`} required>
                   <input className={inputClass} type="number" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} required placeholder="100" step="any" />
                 </FormField>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <FormField label={`${nextYear} Target`}>
                   <input className={inputClass} type="number" value={form.nextYearTarget} onChange={(e) => setForm({ ...form, nextYearTarget: e.target.value })} placeholder="—" step="any" />
+                </FormField>
+                <FormField label="2030 Target">
+                  <input className={inputClass} type="number" value={form.target2030} onChange={(e) => setForm({ ...form, target2030: e.target.value })} placeholder="—" step="any" />
                 </FormField>
               </div>
               <FormField label="Actual (Current)" required>

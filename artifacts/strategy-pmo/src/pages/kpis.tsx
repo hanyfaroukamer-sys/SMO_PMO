@@ -18,7 +18,6 @@ import {
   ENGINE_STATUS_LABEL,
   ENGINE_STATUS_ICON,
   type KpiEngineInput,
-  type KpiEngineStatus,
 } from "@/lib/kpi-engine";
 
 type KpiForm = {
@@ -28,6 +27,8 @@ type KpiForm = {
   target: string;
   actual: string;
   baseline: string;
+  nextYearTarget: string;
+  target2030: string;
   pillarId: string;
   kpiType: string;
   direction: string;
@@ -40,34 +41,49 @@ type KpiForm = {
 
 const emptyForm = (): KpiForm => ({
   name: "", description: "", unit: "%",
-  target: "100", actual: "0", baseline: "0", pillarId: "",
+  target: "100", actual: "0", baseline: "0",
+  nextYearTarget: "", target2030: "", pillarId: "",
   kpiType: "rate", direction: "higher", measurementPeriod: "annual",
   periodStart: "", periodEnd: "", milestoneDue: "", milestoneDone: false,
 });
 
-const STATUS_BG: Record<KpiEngineStatus, string> = {
-  "exceeding": "bg-secondary border border-border",
-  "on-track": "bg-secondary border border-border",
-  "at-risk": "bg-secondary border border-border",
-  "critical": "bg-secondary border border-border",
-  "achieved": "bg-secondary border border-border",
-  "not-started": "bg-secondary border border-border",
+type Kpi = {
+  id: number;
+  name: string;
+  description?: string | null;
+  unit: string;
+  baseline: number;
+  target: number;
+  actual: number;
+  nextYearTarget?: number | null;
+  target2030?: number | null;
+  pillarId: number | null;
+  prevActual?: number | null;
+  prevActualDt?: string | null;
+  kpiType?: string | null;
+  direction?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  milestoneDue?: string | null;
+  milestoneDone?: boolean | null;
 };
 
-function GaugeCircle({ progress, color }: { progress: number; color: string }) {
-  const r = 28;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference - (Math.min(100, Math.max(0, progress)) / 100) * circumference;
+function fmt(val: number | null | undefined, unit: string) {
+  if (val == null) return "—";
+  return `${val.toLocaleString()} ${unit}`.trim();
+}
+
+function vsTarget(actual: number, target: number) {
+  if (target <= 0) return "—";
+  return `${Math.round((actual / target) * 100)}%`;
+}
+
+function MiniBar({ actual, target }: { actual: number; target: number }) {
+  const pct = target > 0 ? Math.min(100, Math.max(0, (actual / target) * 100)) : 0;
   return (
-    <svg width="72" height="72" viewBox="0 0 72 72">
-      <circle cx="36" cy="36" r={r} fill="none" stroke="currentColor" strokeWidth="6" className="text-secondary" />
-      <circle cx="36" cy="36" r={r} fill="none" stroke={color} strokeWidth="6"
-        strokeDasharray={circumference} strokeDashoffset={offset}
-        strokeLinecap="round" transform="rotate(-90 36 36)" className="transition-all duration-700" />
-      <text x="36" y="40" textAnchor="middle" fontSize="12" fontWeight="bold" fill={color}>
-        {Math.round(progress)}%
-      </text>
-    </svg>
+    <div className="w-20 h-1.5 bg-secondary rounded-full overflow-hidden">
+      <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+    </div>
   );
 }
 
@@ -86,17 +102,21 @@ export default function KPIs() {
   const deleteMutation = useDeleteSpmoKpi();
 
   const pillars = pillarsData?.pillars ?? [];
-  const getPillarById = (id: number | null | undefined) => pillars.find((p) => p.id === id);
+  const kpis: Kpi[] = (data?.kpis ?? []) as Kpi[];
+
+  const thisYear = new Date().getFullYear();
+  const prevYear = thisYear - 1;
+  const nextYear = thisYear + 1;
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/spmo/kpis"] });
 
-  function openCreate() {
+  function openCreate(presetPillarId?: number) {
     setEditId(null);
-    setForm(emptyForm());
+    setForm({ ...emptyForm(), pillarId: presetPillarId ? String(presetPillarId) : "" });
     setModalOpen(true);
   }
 
-  function openEdit(kpi: NonNullable<typeof data>["kpis"][number]) {
+  function openEdit(kpi: Kpi) {
     setEditId(kpi.id);
     setForm({
       name: kpi.name,
@@ -105,10 +125,12 @@ export default function KPIs() {
       target: String(kpi.target),
       actual: String(kpi.actual),
       baseline: String(kpi.baseline ?? 0),
+      nextYearTarget: kpi.nextYearTarget != null ? String(kpi.nextYearTarget) : "",
+      target2030: kpi.target2030 != null ? String(kpi.target2030) : "",
       pillarId: kpi.pillarId ? String(kpi.pillarId) : "",
       kpiType: kpi.kpiType ?? "rate",
       direction: kpi.direction ?? "higher",
-      measurementPeriod: kpi.measurementPeriod ?? "annual",
+      measurementPeriod: "annual",
       periodStart: kpi.periodStart ?? "",
       periodEnd: kpi.periodEnd ?? "",
       milestoneDue: kpi.milestoneDue ?? "",
@@ -126,6 +148,8 @@ export default function KPIs() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const nyt = form.nextYearTarget ? parseFloat(form.nextYearTarget) : undefined;
+    const t2030 = form.target2030 ? parseFloat(form.target2030) : undefined;
     const shared = {
       name: form.name,
       description: form.description || undefined,
@@ -133,6 +157,8 @@ export default function KPIs() {
       target: parseFloat(form.target) || 0,
       actual: parseFloat(form.actual) || 0,
       baseline: parseFloat(form.baseline) || 0,
+      nextYearTarget: nyt,
+      target2030: t2030,
       kpiType: form.kpiType as CreateSpmoKpiRequest["kpiType"],
       direction: form.direction as CreateSpmoKpiRequest["direction"],
       measurementPeriod: form.measurementPeriod as CreateSpmoKpiRequest["measurementPeriod"],
@@ -160,125 +186,151 @@ export default function KPIs() {
   }
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
-  const kpis = data?.kpis ?? [];
   const isMilestone = form.kpiType === "milestone";
 
+  const kpisByPillar = new Map<number | null, Kpi[]>();
+  for (const kpi of kpis) {
+    const list = kpisByPillar.get(kpi.pillarId) ?? [];
+    list.push(kpi);
+    kpisByPillar.set(kpi.pillarId, list);
+  }
+
+  const groups: Array<{ pillarId: number | null; kpis: Kpi[] }> = [];
+  for (const pillar of pillars) {
+    const list = kpisByPillar.get(pillar.id);
+    if (list && list.length > 0) groups.push({ pillarId: pillar.id, kpis: list });
+  }
+  const unlinked = kpisByPillar.get(null) ?? [];
+  if (unlinked.length > 0) groups.push({ pillarId: null, kpis: unlinked });
+
+  if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+
   return (
-    <div className="space-y-6 animate-in fade-in">
-      <PageHeader title="Strategic KPIs" description="Track strategic metrics linked to national transformation pillars.">
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <PageHeader title="Strategic KPIs" description="Grouped by pillar — baseline, targets, actuals and 2030 outlook.">
         {isAdmin && (
-          <button onClick={openCreate} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors">
+          <button onClick={() => openCreate()} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg font-semibold shadow-sm hover:bg-primary/90 transition-all">
             <Plus className="w-4 h-4" /> Add KPI
           </button>
         )}
       </PageHeader>
 
-      {isLoading ? (
-        <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+      {kpis.length === 0 ? (
+        <Card className="text-center py-16 text-muted-foreground">
+          <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-20" />
+          <p className="text-lg font-medium">No strategic KPIs defined yet.</p>
+          {isAdmin && <button onClick={() => openCreate()} className="mt-4 text-primary hover:underline text-sm font-medium">Add the first one</button>}
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {kpis.map((kpi) => {
-            const pillar = getPillarById(kpi.pillarId);
-            const color = pillar?.color ?? "#2563eb";
-            const pillarName = pillar?.name ?? "";
-
-            const engineInput: KpiEngineInput = {
-              kpiType: (kpi.kpiType as KpiEngineInput["kpiType"]) ?? "rate",
-              direction: (kpi.direction as KpiEngineInput["direction"]) ?? "higher",
-              target: kpi.target,
-              actual: kpi.actual,
-              baseline: kpi.baseline ?? null,
-              prevActual: kpi.prevActual ?? null,
-              prevActualDt: kpi.prevActualDt ?? null,
-              periodStart: kpi.periodStart ?? null,
-              periodEnd: kpi.periodEnd ?? null,
-              milestoneDue: kpi.milestoneDue ?? null,
-              milestoneDone: kpi.milestoneDone ?? false,
-              unit: kpi.unit,
-            };
-            const result = computeKpiStatus(engineInput);
-            const progress = kpi.target > 0 ? Math.min(100, (kpi.actual / kpi.target) * 100) : 0;
+        <div className="space-y-6">
+          {groups.map(({ pillarId, kpis: groupKpis }) => {
+            const pillar = pillars.find((p) => p.id === pillarId);
+            const color = pillar?.color ?? "#6366f1";
 
             return (
-              <Card
-                key={kpi.id}
-                className={`relative overflow-hidden group hover:shadow-md transition-shadow pl-5${isAdmin ? " cursor-pointer" : ""}`}
-                noPadding={false}
-                onClick={isAdmin ? () => openEdit(kpi) : undefined}
-              >
-                <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-xl" style={{ backgroundColor: color }} />
-                {isAdmin && (
-                  <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => openEdit(kpi)} className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete(kpi.id, kpi.name); }} className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-
-                <div className="flex items-start gap-4">
-                  {kpi.kpiType === "milestone" ? (
-                    <div className="w-[72px] h-[72px] flex items-center justify-center shrink-0">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg border-2`}
-                        style={{ borderColor: color, color }}>
-                        {kpi.milestoneDone ? "✓" : "○"}
-                      </div>
+              <div key={pillarId ?? "unlinked"} className="rounded-2xl border border-border overflow-hidden shadow-sm">
+                <div className="px-6 py-4 flex items-center gap-4 bg-card border-b border-border" style={{ borderLeft: `4px solid ${color}` }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h3 className="font-bold text-base">{pillar?.name ?? "Unlinked KPIs"}</h3>
+                      <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">{groupKpis.length} KPI{groupKpis.length !== 1 ? "s" : ""}</span>
                     </div>
-                  ) : (
-                    <GaugeCircle progress={progress} color={color} />
+                    {pillar?.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{pillar.description}</p>
+                    )}
+                  </div>
+                  {isAdmin && pillar && (
+                    <button onClick={() => openCreate(pillar.id)} className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-3 py-1.5 hover:bg-secondary transition-colors">
+                      <Plus className="w-3 h-3" /> Add KPI
+                    </button>
                   )}
-
-                  <div className="flex-1 min-w-0 pt-1">
-                    {pillarName && (
-                      <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color }}>{pillarName}</div>
-                    )}
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="text-xs bg-secondary border border-border rounded px-1.5 py-0.5 text-muted-foreground capitalize">
-                        {kpi.kpiType ?? "rate"}
-                      </span>
-                    </div>
-                    <h3 className="font-bold text-sm leading-tight pr-12">{kpi.name}</h3>
-                    {kpi.description && (
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{kpi.description}</p>
-                    )}
-
-                    <div className="mt-3 flex items-center gap-2 flex-wrap">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_BG[result.status]}`}>
-                        <span>{ENGINE_STATUS_ICON[result.status]}</span>
-                        {ENGINE_STATUS_LABEL[result.status]}
-                      </span>
-                      {result.performanceIndex > 0 && result.status !== "achieved" && result.status !== "not-started" && kpi.kpiType !== "milestone" && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3" />
-                          PI {result.performanceIndex.toFixed(2)}
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2 italic">{result.reason}</p>
-
-                    {kpi.kpiType !== "milestone" && (
-                      <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                        <span><span className="font-bold text-foreground">{kpi.actual}</span> / {kpi.target} {kpi.unit}</span>
-                      </div>
-                    )}
-                  </div>
                 </div>
-              </Card>
+
+                <div className="overflow-x-auto bg-card">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-muted-foreground uppercase bg-secondary/40 border-b border-border">
+                      <tr>
+                        <th className="px-6 py-3 font-semibold">KPI</th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">{prevYear}<br /><span className="normal-case font-normal">(Baseline)</span></th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">{thisYear}<br /><span className="normal-case font-normal">(Target)</span></th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">Actual</th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">vs Target</th>
+                        <th className="px-4 py-3 font-semibold whitespace-nowrap">Assessment</th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">{nextYear}<br /><span className="normal-case font-normal">(Target)</span></th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">2030<br /><span className="normal-case font-normal">(Target)</span></th>
+                        <th className="px-4 py-3 w-20"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {groupKpis.map((kpi) => {
+                        const engineInput: KpiEngineInput = {
+                          kpiType: (kpi.kpiType as KpiEngineInput["kpiType"]) ?? "rate",
+                          direction: (kpi.direction as KpiEngineInput["direction"]) ?? "higher",
+                          target: kpi.target,
+                          actual: kpi.actual,
+                          baseline: kpi.baseline ?? null,
+                          prevActual: kpi.prevActual ?? null,
+                          prevActualDt: kpi.prevActualDt ?? null,
+                          periodStart: kpi.periodStart ?? null,
+                          periodEnd: kpi.periodEnd ?? null,
+                          milestoneDue: kpi.milestoneDue ?? null,
+                          milestoneDone: kpi.milestoneDone ?? false,
+                          unit: kpi.unit,
+                        };
+                        const result = computeKpiStatus(engineInput);
+
+                        return (
+                          <tr key={kpi.id} className="hover:bg-secondary/20 transition-colors group">
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-sm">{kpi.name}</div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-xs text-muted-foreground capitalize bg-secondary/60 px-1.5 py-0.5 rounded">{kpi.kpiType ?? "rate"}</span>
+                              </div>
+                              {kpi.description && (
+                                <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{kpi.description}</div>
+                              )}
+                              {result.reason && (
+                                <div className="text-xs text-muted-foreground italic mt-0.5 line-clamp-1">{result.reason}</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.baseline, kpi.unit)}</td>
+                            <td className="px-4 py-4 text-right font-mono text-sm font-semibold whitespace-nowrap">{fmt(kpi.target, kpi.unit)}</td>
+                            <td className="px-4 py-4 text-right whitespace-nowrap">
+                              <div className="font-mono text-sm font-bold">{fmt(kpi.actual, kpi.unit)}</div>
+                              {kpi.kpiType !== "milestone" && <MiniBar actual={kpi.actual} target={kpi.target} />}
+                            </td>
+                            <td className="px-4 py-4 text-right font-mono text-sm font-semibold whitespace-nowrap" style={{ color }}>
+                              {kpi.kpiType === "milestone" ? (kpi.milestoneDone ? "✓ Done" : "Pending") : vsTarget(kpi.actual, kpi.target)}
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-secondary border border-border">
+                                <span>{ENGINE_STATUS_ICON[result.status]}</span>
+                                {ENGINE_STATUS_LABEL[result.status]}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.nextYearTarget, kpi.unit)}</td>
+                            <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.target2030, kpi.unit)}</td>
+                            <td className="px-4 py-4">
+                              {isAdmin && (
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => openEdit(kpi)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => handleDelete(kpi.id, kpi.name)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             );
           })}
-
-          {kpis.length === 0 && (
-            <div className="col-span-full p-12 text-center text-muted-foreground bg-card border border-dashed border-border rounded-xl">
-              No strategic KPIs defined yet. Click "Add KPI" to create one.
-            </div>
-          )}
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? "Edit KPI" : "New Strategic KPI"}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? "Edit Strategic KPI" : "New Strategic KPI"}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField label="KPI Name" required>
             <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Digital Services Adoption Rate" required />
@@ -343,19 +395,27 @@ export default function KPIs() {
                   <input type="date" className={inputClass} value={form.periodEnd} onChange={(e) => setForm({ ...form, periodEnd: e.target.value })} />
                 </FormField>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <FormField label="Baseline">
-                  <input type="number" className={inputClass} value={form.baseline} onChange={(e) => setForm({ ...form, baseline: e.target.value })} placeholder="0" step="any" />
-                </FormField>
-                <FormField label="Target" required>
-                  <input type="number" className={inputClass} value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} placeholder="100" step="any" required />
-                </FormField>
-                <FormField label="Actual">
-                  <input type="number" className={inputClass} value={form.actual} onChange={(e) => setForm({ ...form, actual: e.target.value })} placeholder="0" step="any" />
-                </FormField>
-              </div>
               <FormField label="Unit">
                 <input className={inputClass} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="%" />
+              </FormField>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label={`${prevYear} (Baseline)`}>
+                  <input type="number" className={inputClass} value={form.baseline} onChange={(e) => setForm({ ...form, baseline: e.target.value })} placeholder="0" step="any" />
+                </FormField>
+                <FormField label={`${thisYear} Target`} required>
+                  <input type="number" className={inputClass} value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} placeholder="100" step="any" required />
+                </FormField>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label={`${nextYear} Target`}>
+                  <input type="number" className={inputClass} value={form.nextYearTarget} onChange={(e) => setForm({ ...form, nextYearTarget: e.target.value })} placeholder="—" step="any" />
+                </FormField>
+                <FormField label="2030 Target">
+                  <input type="number" className={inputClass} value={form.target2030} onChange={(e) => setForm({ ...form, target2030: e.target.value })} placeholder="—" step="any" />
+                </FormField>
+              </div>
+              <FormField label="Actual (Current)">
+                <input type="number" className={inputClass} value={form.actual} onChange={(e) => setForm({ ...form, actual: e.target.value })} placeholder="0" step="any" />
               </FormField>
             </>
           )}
