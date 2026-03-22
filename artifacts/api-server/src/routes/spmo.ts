@@ -1280,7 +1280,19 @@ router.post("/spmo/kpis", async (req, res): Promise<void> => {
     return;
   }
 
-  const [kpi] = await db.insert(spmoKpisTable).values(parsed.data).returning();
+  const values = { ...parsed.data };
+  if (values.type === "operational" && values.initiativeId) {
+    const [initiative] = await db
+      .select()
+      .from(spmoInitiativesTable)
+      .where(eq(spmoInitiativesTable.id, values.initiativeId));
+    if (initiative) {
+      values.ownerId = initiative.ownerId;
+      values.ownerName = initiative.ownerName ?? undefined;
+    }
+  }
+
+  const [kpi] = await db.insert(spmoKpisTable).values(values).returning();
   const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "kpi", kpi.id, kpi.name);
   res.status(201).json(kpi);
@@ -1302,9 +1314,21 @@ router.put("/spmo/kpis/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const updateValues = { ...parsed.data };
+  if (updateValues.initiativeId) {
+    const [initiative] = await db
+      .select()
+      .from(spmoInitiativesTable)
+      .where(eq(spmoInitiativesTable.id, updateValues.initiativeId));
+    if (initiative) {
+      updateValues.ownerId = initiative.ownerId;
+      updateValues.ownerName = initiative.ownerName ?? undefined;
+    }
+  }
+
   const [kpi] = await db
     .update(spmoKpisTable)
-    .set(parsed.data)
+    .set(updateValues)
     .where(eq(spmoKpisTable.id, params.data.id))
     .returning();
 

@@ -8,7 +8,7 @@ import {
   type CreateSpmoInitiativeRequest,
   type UpdateSpmoInitiativeRequest,
 } from "@workspace/api-client-react";
-import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
+import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
@@ -222,7 +222,9 @@ export default function Initiatives() {
                     <div className="text-xs text-muted-foreground mt-1 truncate max-w-xs">{init.description}</div>
                   </td>
                   <td className="px-6 py-4">
-                    <StatusBadge status={init.status} />
+                    <span className="text-xs font-medium text-muted-foreground capitalize px-2 py-1 bg-secondary rounded-md">
+                      {init.status.replace(/_/g, " ")}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
                     <ProgressBar progress={init.progress ?? 0} className="w-full" />

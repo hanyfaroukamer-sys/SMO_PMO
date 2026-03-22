@@ -556,6 +556,12 @@ export interface SpmoKpi {
   projectId: number | null;
   /** @nullable */
   pillarId: number | null;
+  /** @nullable */
+  initiativeId: number | null;
+  /** @nullable */
+  ownerId?: string | null;
+  /** @nullable */
+  ownerName?: string | null;
   status: SpmoKpiStatus;
   createdAt: string;
   updatedAt: string;
@@ -1133,6 +1139,9 @@ export interface CreateSpmoKpiRequest {
   actual: number;
   projectId?: number;
   pillarId?: number;
+  initiativeId?: number;
+  ownerId?: string;
+  ownerName?: string;
 }
 
 export type UpdateSpmoKpiRequestStatus =
@@ -1152,6 +1161,9 @@ export interface UpdateSpmoKpiRequest {
   target?: number;
   actual?: number;
   status?: UpdateSpmoKpiRequestStatus;
+  initiativeId?: number;
+  ownerId?: string;
+  ownerName?: string;
 }
 
 export type CreateSpmoRiskRequestProbability =

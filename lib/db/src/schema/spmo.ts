@@ -243,6 +243,12 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
   actual: real("actual").notNull().default(0),
   projectId: integer("project_id"),
   pillarId: integer("pillar_id"),
+  initiativeId: integer("initiative_id").references(
+    () => spmoInitiativesTable.id,
+    { onDelete: "set null" }
+  ),
+  ownerId: text("owner_id"),
+  ownerName: text("owner_name"),
   status: text("status", { enum: ["on_track", "at_risk", "off_track"] })
     .notNull()
     .default("on_track"),

@@ -1741,6 +1741,9 @@ export const ListSpmoKpisResponse = zod.object({
       actual: zod.number(),
       projectId: zod.number().nullable(),
       pillarId: zod.number().nullable(),
+      initiativeId: zod.number().nullable(),
+      ownerId: zod.string().nullish(),
+      ownerName: zod.string().nullish(),
       status: zod.enum(["on_track", "at_risk", "off_track"]),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
@@ -1762,6 +1765,9 @@ export const CreateSpmoKpiBody = zod.object({
   actual: zod.number(),
   projectId: zod.number().optional(),
   pillarId: zod.number().optional(),
+  initiativeId: zod.number().optional(),
+  ownerId: zod.string().optional(),
+  ownerName: zod.string().optional(),
 });
 
 /**
@@ -1779,6 +1785,9 @@ export const UpdateSpmoKpiBody = zod.object({
   target: zod.number().optional(),
   actual: zod.number().optional(),
   status: zod.enum(["on_track", "at_risk", "off_track"]).optional(),
+  initiativeId: zod.number().optional(),
+  ownerId: zod.string().optional(),
+  ownerName: zod.string().optional(),
 });
 
 export const UpdateSpmoKpiResponse = zod.object({
@@ -1792,6 +1801,9 @@ export const UpdateSpmoKpiResponse = zod.object({
   actual: zod.number(),
   projectId: zod.number().nullable(),
   pillarId: zod.number().nullable(),
+  initiativeId: zod.number().nullable(),
+  ownerId: zod.string().nullish(),
+  ownerName: zod.string().nullish(),
   status: zod.enum(["on_track", "at_risk", "off_track"]),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),

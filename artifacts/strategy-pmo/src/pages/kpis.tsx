@@ -7,7 +7,7 @@ import {
   useDeleteSpmoKpi,
   type CreateSpmoKpiRequest,
 } from "@workspace/api-client-react";
-import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
+import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -156,10 +156,6 @@ export default function KPIs() {
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const kpis = data?.kpis ?? [];
 
-  const onTrack = kpis.filter((k) => k.status === "on_track").length;
-  const atRisk = kpis.filter((k) => k.status === "at_risk").length;
-  const offTrack = kpis.filter((k) => k.status === "off_track").length;
-
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader title="Strategic KPIs" description="Track strategic metrics linked to national transformation pillars.">
@@ -170,21 +166,6 @@ export default function KPIs() {
           <Plus className="w-4 h-4" /> Add KPI
         </button>
       </PageHeader>
-
-      {/* Summary row */}
-      {kpis.length > 0 && (
-        <div className="flex gap-4 text-sm">
-          <span className="flex items-center gap-1.5 bg-success/10 text-success px-3 py-1.5 rounded-full font-semibold">
-            <span className="w-2 h-2 rounded-full bg-success" /> {onTrack} On Track
-          </span>
-          <span className="flex items-center gap-1.5 bg-warning/10 text-warning px-3 py-1.5 rounded-full font-semibold">
-            <span className="w-2 h-2 rounded-full bg-warning" /> {atRisk} At Risk
-          </span>
-          <span className="flex items-center gap-1.5 bg-destructive/10 text-destructive px-3 py-1.5 rounded-full font-semibold">
-            <span className="w-2 h-2 rounded-full bg-destructive" /> {offTrack} Off Track
-          </span>
-        </div>
-      )}
 
       {isLoading ? (
         <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
@@ -240,7 +221,7 @@ export default function KPIs() {
                       <span className="text-xs text-muted-foreground">
                         <span className="font-bold text-foreground">{kpi.actual}</span> / {kpi.target} {kpi.unit}
                       </span>
-                      <StatusBadge status={kpi.status} />
+                      <span className="text-xs text-muted-foreground capitalize">{kpi.status.replace(/_/g, " ")}</span>
                     </div>
                   </div>
                 </div>
