@@ -1,8 +1,9 @@
-import { useListSpmoAlerts } from "@workspace/api-client-react";
+import { useListSpmoAlerts, type SpmoAlert } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
-import { Loader2, AlertTriangle, Info, AlertCircle, CheckCircle2, ShieldCheck } from "lucide-react";
+import { Loader2, AlertTriangle, Info, AlertCircle, CheckCircle2, ShieldCheck, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { Link } from "wouter";
 
 const SEVERITY_CONFIG = {
   critical: {
@@ -10,23 +11,54 @@ const SEVERITY_CONFIG = {
     border: "border-l-4 border-l-destructive",
     badge: "bg-destructive/10 text-destructive border border-destructive/20",
     iconColor: "text-destructive",
-    bg: "",
   },
   warning: {
     icon: AlertTriangle,
     border: "border-l-4 border-l-warning",
     badge: "bg-warning/10 text-warning-foreground border border-warning/20",
     iconColor: "text-warning",
-    bg: "",
   },
   info: {
     icon: Info,
     border: "border-l-4 border-l-primary",
     badge: "bg-primary/10 text-primary border border-primary/20",
     iconColor: "text-primary",
-    bg: "",
   },
 } as const;
+
+function getAlertLink(alert: SpmoAlert): string {
+  switch (alert.entityType) {
+    case "kpi":
+      return "/kpis";
+    case "risk":
+      return "/risks";
+    case "project":
+      return alert.entityId ? `/projects?project=${alert.entityId}` : "/projects";
+    case "milestone":
+      return alert.projectId ? `/projects?project=${alert.projectId}` : "/projects";
+    case "pillar":
+      return "/pillars";
+    case "initiative":
+      return "/initiatives";
+    case "programme":
+      return alert.category === "budget" ? "/budget" : "/";
+    default:
+      return "/";
+  }
+}
+
+function getAlertLinkLabel(entityType: string): string {
+  switch (entityType) {
+    case "kpi":        return "View KPIs";
+    case "risk":       return "View Risks";
+    case "project":    return "View Project";
+    case "milestone":  return "View Project";
+    case "pillar":     return "View Pillars";
+    case "initiative": return "View Initiatives";
+    case "programme":  return "View Budget";
+    default:           return "View";
+  }
+}
 
 export default function Alerts() {
   const isAdmin = useIsAdmin();
@@ -73,11 +105,13 @@ export default function Alerts() {
           const severity = (alert.severity ?? "info") as "critical" | "warning" | "info";
           const config = SEVERITY_CONFIG[severity] ?? SEVERITY_CONFIG.info;
           const Icon = config.icon;
+          const href = getAlertLink(alert);
+          const linkLabel = getAlertLinkLabel(alert.entityType);
 
           return (
             <Card key={alert.id} noPadding={false} className={`${config.border} hover:shadow-md transition-all`}>
               <div className="flex items-start gap-4">
-                <div className={`mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-secondary`}>
+                <div className="mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-secondary">
                   <Icon className={`w-5 h-5 ${config.iconColor}`} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -92,13 +126,27 @@ export default function Alerts() {
                       </span>
                     </div>
                   </div>
-                  <p className="text-sm text-foreground/80 leading-relaxed mb-2">{alert.description}</p>
-                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-                    <span className="bg-secondary px-2 py-0.5 rounded border border-border uppercase tracking-wider">
-                      {alert.category}
-                    </span>
-                    <span>·</span>
-                    <span>{alert.entityType}: {alert.entityName}</span>
+                  <p className="text-sm text-foreground/80 leading-relaxed mb-3">{alert.description}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                      <span className="bg-secondary px-2 py-0.5 rounded border border-border uppercase tracking-wider">
+                        {alert.category}
+                      </span>
+                      <span>·</span>
+                      <span>{alert.entityType}: {alert.entityName}</span>
+                    </div>
+                    <Link
+                      href={href}
+                      className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors shrink-0
+                        ${severity === "critical"
+                          ? "border-destructive/30 text-destructive bg-destructive/5 hover:bg-destructive/15"
+                          : severity === "warning"
+                          ? "border-warning/30 text-warning-foreground bg-warning/5 hover:bg-warning/15"
+                          : "border-primary/30 text-primary bg-primary/5 hover:bg-primary/15"
+                        }`}
+                    >
+                      {linkLabel} <ArrowRight className="w-3 h-3" />
+                    </Link>
                   </div>
                 </div>
               </div>

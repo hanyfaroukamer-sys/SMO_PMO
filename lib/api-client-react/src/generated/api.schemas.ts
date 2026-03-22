@@ -765,6 +765,8 @@ export interface SpmoAlert {
   /** @nullable */
   entityId: number | null;
   entityName: string;
+  /** For milestone alerts: the project this milestone belongs to */
+  projectId?: number | null;
   createdAt: string;
 }
 

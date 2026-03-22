@@ -1712,6 +1712,7 @@ router.get("/spmo/alerts", async (req, res): Promise<void> => {
     entityType: "programme" | "pillar" | "initiative" | "project" | "milestone" | "kpi" | "risk";
     entityId: number | null;
     entityName: string;
+    projectId?: number | null;
     createdAt: Date;
   }> = [];
 
@@ -1729,6 +1730,7 @@ router.get("/spmo/alerts", async (req, res): Promise<void> => {
         entityType: "milestone",
         entityId: m.id,
         entityName: m.name,
+        projectId: m.projectId,
         createdAt: m.submittedAt ?? now,
       });
     }
@@ -1743,6 +1745,7 @@ router.get("/spmo/alerts", async (req, res): Promise<void> => {
         entityType: "milestone",
         entityId: m.id,
         entityName: m.name,
+        projectId: m.projectId,
         createdAt: new Date(m.dueDate),
       });
     }
@@ -1758,6 +1761,7 @@ router.get("/spmo/alerts", async (req, res): Promise<void> => {
           entityType: "milestone",
           entityId: m.id,
           entityName: m.name,
+          projectId: m.projectId,
           createdAt: m.updatedAt,
         });
       }

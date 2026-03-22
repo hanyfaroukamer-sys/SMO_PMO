@@ -2134,6 +2134,7 @@ export const ListSpmoAlertsResponse = zod.object({
       ]),
       entityId: zod.number().nullable(),
       entityName: zod.string(),
+      projectId: zod.number().nullable().optional(),
       createdAt: zod.coerce.date(),
     }),
   ),
