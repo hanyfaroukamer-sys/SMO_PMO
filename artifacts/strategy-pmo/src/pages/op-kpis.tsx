@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   useListSpmoKpis,
   useListSpmoInitiatives,
+  useListSpmoPillars,
   useCreateSpmoKpi,
   useUpdateSpmoKpi,
   useDeleteSpmoKpi,
@@ -29,11 +30,10 @@ const emptyForm = (): KpiForm => ({
   status: "on_track", initiativeId: "",
 });
 
-function GaugeCircle({ progress }: { progress: number }) {
+function GaugeCircle({ progress, color }: { progress: number; color: string }) {
   const r = 24;
   const circumference = 2 * Math.PI * r;
   const offset = circumference - (Math.min(100, Math.max(0, progress)) / 100) * circumference;
-  const color = "hsl(var(--primary))";
 
   return (
     <svg width="60" height="60" viewBox="0 0 60 60">
@@ -61,6 +61,7 @@ function GaugeCircle({ progress }: { progress: number }) {
 export default function OpKPIs() {
   const { data, isLoading } = useListSpmoKpis({ type: "operational" });
   const { data: initiativesData } = useListSpmoInitiatives();
+  const { data: pillarsData } = useListSpmoPillars();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<KpiForm>(emptyForm());
@@ -72,9 +73,16 @@ export default function OpKPIs() {
   const deleteMutation = useDeleteSpmoKpi();
 
   const initiatives = initiativesData?.initiatives ?? [];
+  const pillars = pillarsData?.pillars ?? [];
 
   const getInitiative = (id: number | null | undefined) =>
     initiatives.find((i) => i.id === id);
+
+  const getInitiativeColor = (initiativeId: number | null | undefined) => {
+    const initiative = getInitiative(initiativeId);
+    if (!initiative) return "#6366f1";
+    return pillars.find((p) => p.id === initiative.pillarId)?.color ?? "#6366f1";
+  };
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["/api/spmo/kpis"] });
@@ -178,6 +186,7 @@ export default function OpKPIs() {
             const pct = kpi.target > 0 ? Math.min(100, (kpi.actual / kpi.target) * 100) : 0;
             const initiative = getInitiative(kpi.initiativeId);
             const ownerName = kpi.ownerName ?? initiative?.ownerName ?? null;
+            const ribbonColor = getInitiativeColor(kpi.initiativeId);
 
             return (
               <Card
@@ -186,7 +195,10 @@ export default function OpKPIs() {
                 noPadding={false}
                 onClick={() => openEdit(kpi)}
               >
-                <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-xl bg-primary/40" />
+                <div
+                  className="absolute left-0 top-0 h-full w-1.5 rounded-l-xl"
+                  style={{ backgroundColor: ribbonColor }}
+                />
 
                 <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                   <button onClick={() => openEdit(kpi)} className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
@@ -198,10 +210,10 @@ export default function OpKPIs() {
                 </div>
 
                 <div className="flex items-start gap-4">
-                  <GaugeCircle progress={pct} />
+                  <GaugeCircle progress={pct} color={ribbonColor} />
                   <div className="flex-1 min-w-0 pt-1">
                     {initiative && (
-                      <div className="text-xs font-bold uppercase tracking-wider mb-0.5 text-primary truncate">
+                      <div className="text-xs font-bold uppercase tracking-wider mb-0.5 truncate" style={{ color: ribbonColor }}>
                         {initiative.name}
                       </div>
                     )}
