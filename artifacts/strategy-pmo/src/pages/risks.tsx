@@ -88,7 +88,7 @@ export default function Risks() {
 
   const projects = projectsData?.projects ?? [];
   const initiatives = initiativesData?.initiatives ?? [];
-  const initiativeIndexMap = new Map(initiatives.map((ini, idx) => [ini.id, idx + 1]));
+  const initiativeCodeMap = new Map(initiatives.map((ini, idx) => [ini.id, ini.initiativeCode ?? String(idx + 1).padStart(2, "0")]));
 
   const createMutation = useCreateSpmoRisk();
   const updateMutation = useUpdateSpmoRisk();
@@ -175,9 +175,9 @@ export default function Risks() {
     const project = projects.find((p) => p.id === projectId);
     if (!project) return null;
     const initiative = initiatives.find((i) => i.id === project.initiativeId);
-    const iniNum = initiative ? String(initiativeIndexMap.get(initiative.id) ?? 0).padStart(2, "0") : "00";
+    const iniCode = initiative ? (initiativeCodeMap.get(initiative.id) ?? "--") : "--";
     const codePrefix = project.projectCode ? `${project.projectCode}: ` : "";
-    const iniPrefix = initiative ? `Initiative ${iniNum}: ` : "";
+    const iniPrefix = initiative ? `Initiative ${iniCode}: ` : "";
     return {
       projectName: `${codePrefix}${project.name}`,
       initiativeName: initiative ? `${iniPrefix}${initiative.name}` : "",

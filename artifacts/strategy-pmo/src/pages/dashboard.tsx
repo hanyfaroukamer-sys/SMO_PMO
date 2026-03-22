@@ -222,7 +222,7 @@ export default function Dashboard() {
   }).length;
   const projectsNeedAttention = data.pillarSummaries.reduce((s, p) => s + p.pendingApprovals, 0);
 
-  const initiativeIndexMap = new Map(initiatives.map((ini, idx) => [ini.id, idx + 1]));
+  const initiativeCodeMap = new Map(initiatives.map((ini, idx) => [ini.id, ini.initiativeCode ?? String(idx + 1).padStart(2, "0")]));
 
   const projectsByInitiative = new Map<number, SpmoProjectWithProgress[]>();
   for (const proj of projects) {
@@ -414,7 +414,7 @@ export default function Dashboard() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-semibold text-sm">
-                                    Initiative {String(initiativeIndexMap.get(initiative.id) ?? 0).padStart(2, "0")}: {initiative.name}
+                                    Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}
                                   </span>
                                   <ComputedStatusBadge cs={initiative.computedStatus} />
                                 </div>
@@ -469,7 +469,7 @@ export default function Dashboard() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1 gap-2">
                           <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-sm truncate block">Initiative {String(initiativeIndexMap.get(initiative.id) ?? 0).padStart(2, "0")}: {initiative.name}</span>
+                            <span className="font-semibold text-sm truncate block">Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}</span>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
                             <div className="text-right">

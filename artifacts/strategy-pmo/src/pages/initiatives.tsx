@@ -209,76 +209,92 @@ export default function Initiatives() {
         )}
       </PageHeader>
 
-      <Card noPadding className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b border-border">
-              <tr>
-                <th className="px-6 py-4 font-semibold">Initiative Name</th>
-                <th className="px-6 py-4 font-semibold">Status</th>
-                <th className="px-6 py-4 font-semibold w-48">Progress</th>
-                <th className="px-6 py-4 font-semibold">Owner</th>
-                <th className="px-6 py-4 font-semibold">Target Date</th>
-                <th className="px-6 py-4 font-semibold text-right">Projects</th>
-                <th className="px-6 py-4 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {data?.initiatives.map((init, idx) => (
-                <tr key={init.id} className="hover:bg-secondary/20 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="font-semibold text-foreground">
-                      {init.initiativeCode
-                        ? <><span className="font-mono text-muted-foreground">{init.initiativeCode}</span><span className="text-muted-foreground mx-1">:</span></>
-                        : <span className="font-mono text-muted-foreground">{String(idx + 1).padStart(2, "0")}:</span>
-                      }{" "}{init.name}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1 truncate max-w-xs">{init.description}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-xs font-medium text-muted-foreground capitalize px-2 py-1 bg-secondary rounded-md">
-                      {init.status.replace(/_/g, " ")}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <ProgressBar progress={init.progress ?? 0} className="w-full" />
-                  </td>
-                  <td className="px-6 py-4 font-medium text-foreground/80">{init.ownerName || "—"}</td>
-                  <td className="px-6 py-4 text-muted-foreground">
-                    {init.targetDate ? format(new Date(init.targetDate), "MMM d, yyyy") : "—"}
-                  </td>
-                  <td className="px-6 py-4 text-right font-bold">{init.projectCount ?? 0}</td>
-                  <td className="px-6 py-4 text-right">
-                    {isAdmin && (
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => openEdit(init)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
-                          title="Edit initiative"
-                        >
-                          <Pencil className="w-3.5 h-3.5" /> Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(init.id, init.name)}
-                          className="p-1.5 rounded-lg border border-border bg-secondary text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {data?.initiatives.length === 0 && (
-            <div className="p-12 text-center text-muted-foreground">
-              No initiatives yet. Click "New Initiative" to add one.
+      {(pillarsData?.pillars ?? []).length === 0 && (data?.initiatives.length ?? 0) === 0 && (
+        <Card>
+          <div className="p-12 text-center text-muted-foreground">No pillars or initiatives yet.</div>
+        </Card>
+      )}
+
+      {(pillarsData?.pillars ?? []).map((pillar) => {
+        const pillarInits = (data?.initiatives ?? []).filter((i) => i.pillarId === pillar.id);
+        if (pillarInits.length === 0) return null;
+        return (
+          <Card key={pillar.id} noPadding className="overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-3 border-b border-border bg-secondary/40">
+              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: pillar.color ?? "#6366f1" }} />
+              <span className="font-bold text-sm">{pillar.name}</span>
+              <span className="text-xs text-muted-foreground font-normal">
+                {pillarInits.length} initiative{pillarInits.length !== 1 ? "s" : ""}
+              </span>
             </div>
-          )}
-        </div>
-      </Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-muted-foreground uppercase bg-secondary/20 border-b border-border">
+                  <tr>
+                    <th className="px-6 py-3 font-semibold">Initiative</th>
+                    <th className="px-6 py-3 font-semibold">Status</th>
+                    <th className="px-6 py-3 font-semibold w-44">Progress</th>
+                    <th className="px-6 py-3 font-semibold">Owner</th>
+                    <th className="px-6 py-3 font-semibold">Target Date</th>
+                    <th className="px-6 py-3 font-semibold text-right">Projects</th>
+                    <th className="px-6 py-3 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {pillarInits.map((init) => (
+                    <tr key={init.id} className="hover:bg-secondary/20 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-foreground">
+                          {init.initiativeCode && (
+                            <><span className="font-mono text-muted-foreground">{init.initiativeCode}</span><span className="text-muted-foreground mx-1">:</span></>
+                          )}
+                          {init.name}
+                        </div>
+                        {init.description && (
+                          <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{init.description}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs font-medium text-muted-foreground capitalize px-2 py-1 bg-secondary rounded-md">
+                          {init.status.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <ProgressBar progress={init.progress ?? 0} className="w-full" />
+                      </td>
+                      <td className="px-6 py-4 font-medium text-foreground/80">{init.ownerName || "—"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">
+                        {init.targetDate ? format(new Date(init.targetDate), "MMM d, yyyy") : "—"}
+                      </td>
+                      <td className="px-6 py-4 text-right font-bold">{init.projectCount ?? 0}</td>
+                      <td className="px-6 py-4 text-right">
+                        {isAdmin && (
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => openEdit(init)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
+                              title="Edit initiative"
+                            >
+                              <Pencil className="w-3.5 h-3.5" /> Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(init.id, init.name)}
+                              className="p-1.5 rounded-lg border border-border bg-secondary text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        );
+      })}
 
       <Modal
         open={modalOpen}

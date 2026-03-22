@@ -485,7 +485,7 @@ export default function Projects() {
   const getPillarColor = (pillarId: number) =>
     pillars.find((p) => p.id === pillarId)?.color ?? "#6366f1";
 
-  const initiativeIndexMap = new Map(initiatives.map((ini, idx) => [ini.id, idx + 1]));
+  const initiativeCodeMap = new Map(initiatives.map((ini, idx) => [ini.id, ini.initiativeCode ?? String(idx + 1).padStart(2, "0")]));
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -588,7 +588,7 @@ export default function Projects() {
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
                     <h3 className="font-bold text-lg">
-                      Initiative {String(initiativeIndexMap.get(initiative.id) ?? 0).padStart(2, "0")}: {initiative.name}
+                      Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}
                     </h3>
                     <ComputedStatusBadge cs={initiative.computedStatus} />
                     <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">
@@ -701,7 +701,7 @@ export default function Projects() {
             <select className={selectClass} value={form.initiativeId} onChange={(e) => setForm({ ...form, initiativeId: e.target.value })} required>
               <option value="">Select an initiative...</option>
               {initiatives.map((i) => (
-                <option key={i.id} value={i.id}>Initiative {String(initiativeIndexMap.get(i.id) ?? 0).padStart(2, "0")}: {i.name}</option>
+                <option key={i.id} value={i.id}>Initiative {initiativeCodeMap.get(i.id) ?? "??"}: {i.name}</option>
               ))}
             </select>
           </FormField>
