@@ -29,7 +29,7 @@ import {
   type SpmoHealthStatus,
   type SpmoStatusResult,
 } from "@workspace/api-client-react";
-import { useResolveProjectDependencies } from "@/hooks/use-dependencies";
+import { useResolveProjectDependencies, useListDependencies, useDeleteDependency } from "@/hooks/use-dependencies";
 import { AddDependencyModal } from "@/components/add-dependency-modal";
 import { GanttChart } from "@/components/gantt-chart";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
@@ -346,6 +346,7 @@ export default function Projects() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const didDeepLink = useRef(false);
+  const deepLinkMilestoneId = useRef<number | null>(null);
 
   useEffect(() => {
     if (didDeepLink.current || !data?.projects?.length) return;
@@ -357,6 +358,11 @@ export default function Projects() {
     const exists = data.projects.some((p) => p.id === targetId);
     if (!exists) return;
     didDeepLink.current = true;
+    const rawMilestoneId = params.get("milestone");
+    if (rawMilestoneId) {
+      const mid = parseInt(rawMilestoneId, 10);
+      if (!isNaN(mid)) deepLinkMilestoneId.current = mid;
+    }
     setExpandedProject(targetId);
     setTimeout(() => {
       const el = document.getElementById(`project-${targetId}`);
@@ -727,6 +733,7 @@ export default function Projects() {
                                     });
                                   }}
                                   isAdmin={isAdmin}
+                                  targetMilestoneId={expandedProject === proj.id ? deepLinkMilestoneId.current : null}
                                 />
                               ))}
                             </div>
@@ -766,6 +773,7 @@ export default function Projects() {
                   });
                 }}
                 isAdmin={isAdmin}
+                targetMilestoneId={expandedProject === proj.id ? deepLinkMilestoneId.current : null}
               />
             </Card>
           ));
@@ -908,6 +916,7 @@ function ProjectRow({
   onDelete,
   onStatusOverride,
   isAdmin,
+  targetMilestoneId,
 }: {
   project: SpmoProjectWithProgress;
   pillarColor: string;
@@ -917,6 +926,7 @@ function ProjectRow({
   onDelete: () => void;
   onStatusOverride: (newStatus: string) => void;
   isAdmin: boolean;
+  targetMilestoneId?: number | null;
 }) {
   const isOnHold = project.status === "on_hold";
 
@@ -988,10 +998,11 @@ function ProjectRow({
           <div onClick={(e) => e.stopPropagation()}>
             <Link
               to={`/risks?project=${project.id}`}
-              className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors flex items-center"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-amber-600 hover:text-amber-700 hover:bg-amber-50 border border-amber-200 transition-colors"
               title="View project risks"
             >
-              <ShieldAlert className="w-4 h-4" />
+              <ShieldAlert className="w-3.5 h-3.5" />
+              Risks
             </Link>
           </div>
           {isAdmin && (
@@ -1027,7 +1038,7 @@ function ProjectRow({
 
       {expanded && (
         <>
-          <MilestoneSection projectId={project.id} pillarColor={pillarColor} isAdmin={isAdmin} />
+          <MilestoneSection projectId={project.id} pillarColor={pillarColor} isAdmin={isAdmin} targetMilestoneId={targetMilestoneId} />
           <WeeklyReportSection projectId={project.id} />
         </>
       )}
@@ -1054,10 +1065,13 @@ function computeProportionalWeights(items: { id: number; effortDays: number }[])
   return resultMap;
 }
 
-function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: number; pillarColor: string; isAdmin: boolean }) {
+function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }: { projectId: number; pillarColor: string; isAdmin: boolean; targetMilestoneId?: number | null }) {
   const { data, isLoading } = useListSpmoMilestones(projectId);
   const { data: depData } = useResolveProjectDependencies(projectId);
+  const { data: allDepsData } = useListDependencies();
+  const deleteDep = useDeleteDependency();
   const depResolutions = depData?.resolutions ?? {};
+  const allDeps = allDepsData?.dependencies ?? [];
   const { toast } = useToast();
   const qc = useQueryClient();
   const [expandedEvidence, setExpandedEvidence] = useState<number | null>(null);
@@ -1067,6 +1081,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
   const [effortWeightDialog, setEffortWeightDialog] = useState<{ open: boolean; pendingId: number | null; pendingEffort: number | null }>({ open: false, pendingId: null, pendingEffort: null });
   const [addDepForMilestoneId, setAddDepForMilestoneId] = useState<number | null>(null);
   const autoPopulatedRef = useRef(false);
+  const didScrollMilestone = useRef(false);
 
   const createMutation = useCreateSpmoMilestone();
   const updateMutation = useUpdateSpmoMilestone();
@@ -1096,6 +1111,22 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [milestones.length, milestones.map((m) => m.id).join(",")]);
+
+  useEffect(() => {
+    if (!targetMilestoneId || didScrollMilestone.current || isLoading || milestones.length === 0) return;
+    const exists = milestones.some((m) => m.id === targetMilestoneId);
+    if (!exists) return;
+    didScrollMilestone.current = true;
+    setTimeout(() => {
+      const el = document.getElementById(`milestone-${targetMilestoneId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("ring-2", "ring-primary", "ring-offset-1");
+        setTimeout(() => el.classList.remove("ring-2", "ring-primary", "ring-offset-1"), 3000);
+      }
+    }, 300);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetMilestoneId, isLoading, milestones.length]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: [`/api/spmo/projects/${projectId}/milestones`] });
@@ -1378,9 +1409,14 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
             const isBlocked = depRes?.status === "blocked";
             const blockerCount = depRes?.blockers?.filter((b) => !b.satisfied).length ?? 0;
             const hasDeps = (depRes?.blockers?.length ?? 0) > 0;
+            const milestoneDeps = allDeps.filter(
+              (d) =>
+                (d.sourceType === "milestone" && d.sourceId === m.id) ||
+                (d.targetType === "milestone" && d.targetId === m.id),
+            );
 
             return (
-              <div key={m.id} className={`group border-b border-border/30 last:border-b-0 ${isBlocked ? "bg-destructive/5" : ""}`}>
+              <div key={m.id} id={`milestone-${m.id}`} className={`group border-b border-border/30 last:border-b-0 transition-all ${isBlocked ? "bg-destructive/5" : ""}`}>
                 <div className="px-6 py-3 flex items-center gap-4">
                   <div
                     className="w-1 h-10 rounded-full shrink-0 opacity-60"
@@ -1589,6 +1625,59 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
                 {/* Evidence Panel */}
                 {evidenceOpen && (
                   <EvidencePanel milestone={m} onInvalidate={invalidate} />
+                )}
+
+                {/* Dependency Management — show when deps exist or admin hovers */}
+                {milestoneDeps.length > 0 && (
+                  <div className="px-6 pb-3 pt-1">
+                    <div className="rounded-lg border border-border/60 bg-secondary/20 divide-y divide-border/40">
+                      <div className="px-3 py-1.5 flex items-center gap-1.5">
+                        <GitMerge className="w-3 h-3 text-muted-foreground" />
+                        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Dependencies</span>
+                      </div>
+                      {milestoneDeps.map((dep) => {
+                        const isIncoming = dep.targetType === "milestone" && dep.targetId === m.id;
+                        return (
+                          <div key={dep.id} className="px-3 py-2 flex items-center gap-2 text-xs">
+                            <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${isIncoming ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
+                              {isIncoming ? "BLOCKED BY" : "BLOCKS"}
+                            </span>
+                            <span className="flex-1 text-foreground truncate">
+                              {isIncoming ? dep.sourceName : dep.targetName}
+                              <span className="text-muted-foreground ml-1">
+                                ({isIncoming ? dep.sourceProjectName : dep.targetProjectName})
+                              </span>
+                            </span>
+                            {dep.lagDays > 0 && (
+                              <span className="text-muted-foreground shrink-0">+{dep.lagDays}d lag</span>
+                            )}
+                            <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${dep.isHard ? "border-destructive/30 text-destructive bg-destructive/5" : "border-border text-muted-foreground"}`}>
+                              {dep.isHard ? "HARD" : "SOFT"}
+                            </span>
+                            {isAdmin && (
+                              <button
+                                onClick={() => {
+                                  if (!confirm("Remove this dependency?")) return;
+                                  deleteDep.mutate(dep.id, {
+                                    onSuccess: () => {
+                                      toast({ title: "Dependency removed" });
+                                      qc.invalidateQueries({ queryKey: ["/api/spmo/dependencies"] });
+                                      qc.invalidateQueries({ queryKey: [`/api/spmo/dependencies/resolve-project`, projectId] });
+                                    },
+                                    onError: () => toast({ variant: "destructive", title: "Failed to remove dependency" }),
+                                  });
+                                }}
+                                className="shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                title="Remove dependency"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
             );

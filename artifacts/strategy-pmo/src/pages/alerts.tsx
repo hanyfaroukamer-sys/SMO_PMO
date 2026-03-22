@@ -35,7 +35,9 @@ function getAlertLink(alert: SpmoAlert): string {
     case "project":
       return alert.entityId ? `/projects?project=${alert.entityId}` : "/projects";
     case "milestone":
-      return alert.projectId ? `/projects?project=${alert.projectId}` : "/projects";
+      return alert.projectId
+        ? `/projects?project=${alert.projectId}&milestone=${alert.entityId}`
+        : "/projects";
     case "pillar":
       return "/pillars";
     case "initiative":
