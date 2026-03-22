@@ -113,6 +113,7 @@ export type SpmoDepartment = typeof spmoDepartmentsTable.$inferSelect;
 // ─────────────────────────────────────────────
 export const spmoProjectsTable = pgTable("spmo_projects", {
   id: serial("id").primaryKey(),
+  depStatus: text("dep_status", { enum: ["blocked", "ready"] }).notNull().default("ready"),
   initiativeId: integer("initiative_id")
     .notNull()
     .references(() => spmoInitiativesTable.id, { onDelete: "cascade" }),
@@ -156,6 +157,7 @@ export type SpmoProject = typeof spmoProjectsTable.$inferSelect;
 // ─────────────────────────────────────────────
 export const spmoMilestonesTable = pgTable("spmo_milestones", {
   id: serial("id").primaryKey(),
+  depStatus: text("dep_status", { enum: ["blocked", "ready"] }).notNull().default("ready"),
   projectId: integer("project_id")
     .notNull()
     .references(() => spmoProjectsTable.id, { onDelete: "cascade" }),
@@ -529,3 +531,32 @@ export const insertSpmoProjectWeeklyReportSchema = createInsertSchema(
 ).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSpmoProjectWeeklyReport = z.infer<typeof insertSpmoProjectWeeklyReportSchema>;
 export type SpmoProjectWeeklyReport = typeof spmoProjectWeeklyReportsTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// DEPENDENCIES (cross-project milestone/project dependencies)
+// ─────────────────────────────────────────────
+export const spmoDependenciesTable = pgTable(
+  "spmo_dependencies",
+  {
+    id: serial("id").primaryKey(),
+    sourceType: text("source_type", { enum: ["milestone", "project"] }).notNull(),
+    sourceId: integer("source_id").notNull(),
+    sourceThreshold: real("source_threshold").notNull().default(100),
+    targetType: text("target_type", { enum: ["milestone", "project"] }).notNull(),
+    targetId: integer("target_id").notNull(),
+    depType: text("dep_type", { enum: ["ms-ms", "ms-proj", "proj-proj"] }).notNull(),
+    lagDays: integer("lag_days").notNull().default(0),
+    isHard: boolean("is_hard").notNull().default(true),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdById: text("created_by_id"),
+  },
+  (t) => [unique("uniq_dep_source_target").on(t.sourceId, t.targetId)],
+);
+
+export const insertSpmoDependencySchema = createInsertSchema(spmoDependenciesTable).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSpmoDependency = z.infer<typeof insertSpmoDependencySchema>;
+export type SpmoDependency = typeof spmoDependenciesTable.$inferSelect;

@@ -19,6 +19,7 @@ import {
   Building2,
   ShieldCheck,
   Upload,
+  GitMerge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetCurrentAuthUser } from "@workspace/api-client-react";
@@ -34,6 +35,7 @@ const navItems = [
   { title: "Procurement",      href: "/procurement",  icon: ShoppingCart,     adminOnly: true,  hidden: false },
   { title: "Departments",      href: "/departments",  icon: Building2,        adminOnly: false, hidden: false },
   { title: "Risks",            href: "/risks",        icon: ShieldAlert,      adminOnly: false, hidden: false },
+  { title: "Dependencies",     href: "/dependencies", icon: GitMerge,         adminOnly: false, hidden: false },
   { title: "Alerts",           href: "/alerts",       icon: BellRing,         adminOnly: true,  hidden: false },
   { title: "Activity Log",     href: "/activity",     icon: ScrollText,       adminOnly: true,  hidden: false },
   { title: "Import Strategy",  href: "/import",       icon: Upload,           adminOnly: true,  hidden: false },

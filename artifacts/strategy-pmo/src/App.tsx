@@ -24,6 +24,7 @@ import Admin from "@/pages/admin";
 import Pillars from "@/pages/pillars";
 import Initiatives from "@/pages/initiatives";
 import ImportPage from "@/pages/import";
+import Dependencies from "@/pages/dependencies";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +53,7 @@ function Router() {
           <Route path="/departments" component={Departments} />
           <Route path="/departments/:id/portfolio" component={DepartmentPortfolio} />
           <Route path="/risks" component={Risks} />
+          <Route path="/dependencies" component={Dependencies} />
           <Route path="/alerts" component={Alerts} />
           <Route path="/activity" component={ActivityLog} />
           <Route path="/import" component={ImportPage} />

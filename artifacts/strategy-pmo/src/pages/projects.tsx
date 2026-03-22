@@ -29,12 +29,14 @@ import {
   type SpmoHealthStatus,
   type SpmoStatusResult,
 } from "@workspace/api-client-react";
+import { useResolveProjectDependencies } from "@/hooks/use-dependencies";
+import { AddDependencyModal } from "@/components/add-dependency-modal";
 import { GanttChart } from "@/components/gantt-chart";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -921,6 +923,8 @@ function computeProportionalWeights(items: { id: number; effortDays: number }[])
 
 function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: number; pillarColor: string; isAdmin: boolean }) {
   const { data, isLoading } = useListSpmoMilestones(projectId);
+  const { data: depData } = useResolveProjectDependencies(projectId);
+  const depResolutions = depData?.resolutions ?? {};
   const { toast } = useToast();
   const qc = useQueryClient();
   const [expandedEvidence, setExpandedEvidence] = useState<number | null>(null);
@@ -928,6 +932,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
   const [savingSiblingId, setSavingSiblingId] = useState<number | null>(null);
   const [applyingAutoWeights, setApplyingAutoWeights] = useState(false);
   const [effortWeightDialog, setEffortWeightDialog] = useState<{ open: boolean; pendingId: number | null; pendingEffort: number | null }>({ open: false, pendingId: null, pendingEffort: null });
+  const [addDepForMilestoneId, setAddDepForMilestoneId] = useState<number | null>(null);
   const autoPopulatedRef = useRef(false);
 
   const createMutation = useCreateSpmoMilestone();
@@ -1236,13 +1241,17 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
             const hasEvidence = evidenceList.length > 0;
             const canSubmit = (m.progress ?? 0) >= 100 && hasEvidence;
             const evidenceOpen = expandedEvidence === m.id;
+            const depRes = depResolutions[m.id];
+            const isBlocked = depRes?.status === "blocked";
+            const blockerCount = depRes?.blockers?.filter((b) => !b.satisfied).length ?? 0;
+            const hasDeps = (depRes?.blockers?.length ?? 0) > 0;
 
             return (
-              <div key={m.id} className="group border-b border-border/30 last:border-b-0">
+              <div key={m.id} className={`group border-b border-border/30 last:border-b-0 ${isBlocked ? "bg-destructive/5" : ""}`}>
                 <div className="px-6 py-3 flex items-center gap-4">
                   <div
                     className="w-1 h-10 rounded-full shrink-0 opacity-60"
-                    style={{ backgroundColor: pillarColor }}
+                    style={{ backgroundColor: isBlocked ? "#ef4444" : pillarColor }}
                   />
 
                   {/* Name + status badges */}
@@ -1252,19 +1261,35 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
                         <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
                         <span className="text-sm font-semibold text-success">{m.name}</span>
                       </div>
+                    ) : isBlocked ? (
+                      <div className="flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-destructive shrink-0" />
+                        <span className="text-sm font-semibold text-destructive">{m.name}</span>
+                      </div>
                     ) : isAdmin ? (
-                      <InlineEdit
-                        value={m.name}
-                        onSave={(v) => handleInlineNameUpdate(m.id, v)}
-                        className="text-sm font-semibold"
-                      />
+                      <div className="flex items-center gap-2">
+                        {hasDeps && <GitMerge className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                        <InlineEdit
+                          value={m.name}
+                          onSave={(v) => handleInlineNameUpdate(m.id, v)}
+                          className="text-sm font-semibold"
+                        />
+                      </div>
                     ) : (
-                      <span className="text-sm font-semibold">{m.name}</span>
+                      <div className="flex items-center gap-2">
+                        {hasDeps && <GitMerge className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                        <span className="text-sm font-semibold">{m.name}</span>
+                      </div>
                     )}
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <StatusBadge status={m.status} />
                       <HealthBadge status={m.healthStatus} />
-                      {(m.progress ?? 0) >= 100 && !hasEvidence && !isApproved && (
+                      {isBlocked && blockerCount > 0 && (
+                        <span className="flex items-center gap-1 text-[10px] font-semibold text-destructive bg-destructive/10 border border-destructive/20 rounded px-1.5 py-0.5">
+                          <Lock className="w-3 h-3" /> {blockerCount} blocker{blockerCount !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                      {(m.progress ?? 0) >= 100 && !hasEvidence && !isApproved && !isBlocked && (
                         <span className="flex items-center gap-1 text-[10px] font-semibold text-warning bg-warning/10 border border-warning/20 rounded px-1.5 py-0.5">
                           <AlertCircle className="w-3 h-3" /> Evidence required
                         </span>
@@ -1280,6 +1305,16 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
                           <div className="h-full bg-success rounded-full" style={{ width: "100%" }} />
                         </div>
                         <span className="text-xs font-bold text-success">100%</span>
+                      </div>
+                    ) : isBlocked ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-destructive/20 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-destructive/40 rounded-full transition-all"
+                            style={{ width: `${m.progress ?? 0}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-bold text-destructive tabular-nums">{m.progress ?? 0}%</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
@@ -1395,9 +1430,16 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
                     </button>
                   )}
 
-                  {/* Delete (hover, admin only) */}
+                  {/* Delete + Link Dep (hover, admin only) */}
                   {isAdmin && (
                     <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => setAddDepForMilestoneId(m.id)}
+                        className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                        title="Add dependency"
+                      >
+                        <GitMerge className="w-4 h-4" />
+                      </button>
                       {!isApproved && (
                         <button
                           onClick={() => handleDelete(m.id, m.name)}
@@ -1432,6 +1474,9 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
         </div>
       )}
     </div>
+    {addDepForMilestoneId !== null && (
+      <AddDependencyModal onClose={() => setAddDepForMilestoneId(null)} />
+    )}
     </>
   );
 }

@@ -7,6 +7,7 @@ import milestonesRouter from "./milestones";
 import usersRouter from "./users";
 import spmoRouter from "./spmo";
 import importRouter from "./import";
+import dependenciesRouter from "./dependencies";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(milestonesRouter);
 router.use(usersRouter);
 router.use(spmoRouter);
 router.use(importRouter);
+router.use(dependenciesRouter);
 
 export default router;

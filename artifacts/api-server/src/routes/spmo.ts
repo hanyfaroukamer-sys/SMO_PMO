@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { eq, desc, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
+import { recalculateDownstreamStatuses } from "../lib/dep-engine";
 import {
   spmoPillarsTable,
   spmoInitiativesTable,
@@ -1080,6 +1081,10 @@ router.post("/spmo/milestones/:id/approve", async (req, res): Promise<void> => {
   }
 
   await logSpmoActivity(userId, getUserDisplayName(user), "approved", "milestone", milestone.id, milestone.name);
+
+  // Recalculate dep_status on all downstream dependencies
+  await recalculateDownstreamStatuses(milestone.id);
+
   res.json(milestone);
 });
 
