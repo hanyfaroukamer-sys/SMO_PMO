@@ -239,14 +239,14 @@ export default function Initiatives() {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => openEdit(init)}
-                          className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                          title="Edit"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
+                          title="Edit initiative"
                         >
-                          <Pencil className="w-4 h-4" />
+                          <Pencil className="w-3.5 h-3.5" /> Edit
                         </button>
                         <button
                           onClick={() => handleDelete(init.id, init.name)}
-                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          className="p-1.5 rounded-lg border border-border bg-secondary text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
