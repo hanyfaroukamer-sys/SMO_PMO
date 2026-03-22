@@ -44,7 +44,7 @@ type PillarGroup = {
 };
 
 const ROW_HEIGHT = 44;
-const HEADER_HEIGHT = 32;
+const HEADER_HEIGHT = 72;
 const LABEL_WIDTH = 220;
 const DIAMOND = 8;
 
@@ -192,7 +192,7 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
           {/* Month header */}
           <div className="flex border-b border-border bg-secondary/40" style={{ height: HEADER_HEIGHT }}>
             <div
-              className="shrink-0 border-r border-border bg-secondary/60 flex items-center px-4"
+              className="shrink-0 border-r border-border bg-secondary/60 flex items-end px-4 pb-2"
               style={{ width: LABEL_WIDTH }}
             >
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Project</span>
@@ -201,10 +201,15 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
               {monthHeaders.map((m, i) => (
                 <div
                   key={i}
-                  className="absolute top-0 bottom-0 flex items-center justify-center overflow-hidden border-r border-border/30"
+                  className="absolute top-0 bottom-0 flex items-end justify-center border-r border-border/30 pb-1.5 overflow-visible"
                   style={{ left: `${m.left * 100}%`, width: `${m.width * 100}%` }}
                 >
-                  <span className="text-[10px] font-semibold text-muted-foreground whitespace-nowrap px-1">{m.label}</span>
+                  <span
+                    className="text-[10px] font-semibold text-muted-foreground whitespace-nowrap"
+                    style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", lineHeight: 1 }}
+                  >
+                    {m.label}
+                  </span>
                 </div>
               ))}
               {/* Today line on header */}
