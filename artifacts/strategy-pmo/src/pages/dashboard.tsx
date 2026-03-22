@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { useState } from "react";
 import { Link } from "wouter";
 import type React from "react";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 function calcPlannedProgress(startDate: string | null | undefined, endDate: string | null | undefined): number {
   if (!startDate || !endDate) return 0;
@@ -193,6 +194,7 @@ export default function Dashboard() {
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: budgetData } = useListSpmoBudget();
   const { data: projectsData } = useListSpmoProjects();
+  const isAdmin = useIsAdmin();
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const aiMutation = useRunSpmoAiAssessment();
 
@@ -246,13 +248,15 @@ export default function Dashboard() {
         title="Programme Dashboard"
         description={`Weighted progress cascade · last updated ${format(new Date(data.lastUpdated), "MMM d, yyyy HH:mm")}`}
       >
-        <button
-          onClick={handleRunAi}
-          className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-primary text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm"
-        >
-          <Sparkles className="w-4 h-4" />
-          AI Assessment
-        </button>
+        {isAdmin && (
+          <button
+            onClick={handleRunAi}
+            className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-primary text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm"
+          >
+            <Sparkles className="w-4 h-4" />
+            AI Assessment
+          </button>
+        )}
       </PageHeader>
 
       {data.pillarSummaries.length === 0 && (
@@ -490,8 +494,8 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* AI Modal */}
-      {isAiModalOpen && (
+      {/* AI Modal — admin only */}
+      {isAdmin && isAiModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border border-border shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-border flex justify-between items-center">
