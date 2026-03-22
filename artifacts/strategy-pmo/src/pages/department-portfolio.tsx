@@ -1,15 +1,136 @@
 import { useLocation } from "wouter";
 import {
   useGetSpmaDepartmentPortfolio,
+  type SpmaDepartmentPortfolioProject,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
 import { Loader2, ArrowLeft, Building2, FolderOpen, TrendingUp, Target, ExternalLink } from "lucide-react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
 const fmtCurrency = (n: number) => {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
   return `$${n.toLocaleString()}`;
 };
+
+type StatusCategory = "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold";
+
+const STATUS_ORDER: StatusCategory[] = ["on_track", "at_risk", "delayed", "completed", "not_started", "on_hold"];
+
+const PIE_COLOURS: Record<StatusCategory, string> = {
+  on_track:    "#86efac",
+  completed:   "#16a34a",
+  at_risk:     "#f59e0b",
+  delayed:     "#ef4444",
+  on_hold:     "#9ca3af",
+  not_started: "#d1d5db",
+};
+
+const PIE_LABELS: Record<StatusCategory, string> = {
+  on_track:    "On Track",
+  completed:   "Completed",
+  at_risk:     "Risk of Delay",
+  delayed:     "Delayed",
+  on_hold:     "On Hold",
+  not_started: "Not Started",
+};
+
+function calcPlannedProgress(startDate: string | null | undefined, endDate: string | null | undefined): number {
+  if (!startDate || !endDate) return 0;
+  const today = new Date();
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const totalDays = Math.max((end.getTime() - start.getTime()) / 86_400_000, 1);
+  const elapsedDays = Math.max((today.getTime() - start.getTime()) / 86_400_000, 0);
+  return Math.min(Math.round((elapsedDays / totalDays) * 100), 100);
+}
+
+function classifyProject(p: SpmaDepartmentPortfolioProject): StatusCategory {
+  if (p.status === "completed" || p.progress >= 100) return "completed";
+  if (p.status === "on_hold") return "on_hold";
+  if (p.progress === 0) return "not_started";
+  if (p.targetDate) {
+    const today = new Date();
+    const target = new Date(p.targetDate);
+    if (target < today) return "delayed";
+    const planned = calcPlannedProgress(p.startDate, p.targetDate);
+    if (planned - p.progress > 15) return "at_risk";
+  }
+  return "on_track";
+}
+
+function DeptProjectStatusPieChart({ projects }: { projects: SpmaDepartmentPortfolioProject[] }) {
+  const counts: Record<StatusCategory, number> = {
+    on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0, on_hold: 0,
+  };
+  for (const p of projects) counts[classifyProject(p)]++;
+
+  const chartData = STATUS_ORDER
+    .filter((s) => counts[s] > 0)
+    .map((s) => ({ name: PIE_LABELS[s], value: counts[s], key: s }));
+
+  if (chartData.length === 0) return null;
+
+  const total = projects.length;
+
+  return (
+    <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm">
+      <h2 className="text-base font-display font-bold mb-4">Project Status Breakdown</h2>
+      <div className="flex flex-col sm:flex-row items-center gap-6">
+        <div className="relative w-52 h-52 shrink-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={58}
+                outerRadius={88}
+                paddingAngle={2}
+                dataKey="value"
+                strokeWidth={0}
+              >
+                {chartData.map((entry) => (
+                  <Cell key={entry.key} fill={PIE_COLOURS[entry.key as StatusCategory]} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value: number, name: string) => [`${value} project${value !== 1 ? "s" : ""}`, name]}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-3xl font-display font-bold leading-none">{total}</span>
+            <span className="text-[11px] text-muted-foreground mt-1">projects</span>
+          </div>
+        </div>
+
+        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-y-2.5 gap-x-6 w-full">
+          {STATUS_ORDER.map((s) => (
+            <div key={s} className="flex items-center gap-2.5">
+              <span
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{ backgroundColor: PIE_COLOURS[s], opacity: counts[s] === 0 ? 0.35 : 1 }}
+              />
+              <span className={`text-sm flex-1 ${counts[s] === 0 ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                {PIE_LABELS[s]}
+              </span>
+              <span className={`text-sm font-bold tabular-nums ${counts[s] === 0 ? "text-muted-foreground/40" : ""}`}>
+                {counts[s]}
+              </span>
+              {total > 0 && counts[s] > 0 && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {Math.round((counts[s] / total) * 100)}%
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type Props = {
   params: { id: string };
@@ -93,6 +214,9 @@ export default function DepartmentPortfolio({ params }: Props) {
           )}
         </Card>
       </div>
+
+      {/* Status Pie Chart */}
+      {projects.length > 0 && <DeptProjectStatusPieChart projects={projects} />}
 
       {/* Project list */}
       {projects.length === 0 ? (
