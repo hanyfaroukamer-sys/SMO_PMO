@@ -329,7 +329,7 @@ interface ImportData {
   mission?: string;
   pillars?: Array<{ name: string; color?: string; description?: string; matchAction: string; matchId?: number | null }>;
   initiatives?: Array<{ name: string; pillar: string; owner?: string; description?: string; budgetAllocated?: number | null; startDate?: string | null; endDate?: string | null; matchAction: string; matchId?: number | null }>;
-  projects?: Array<{ name: string; initiative: string; owner?: string; budgetAllocated?: number | null; budgetSpent?: number | null; startDate?: string | null; endDate?: string | null; milestones?: Array<{ name: string; progress?: number; effort?: number; dueDate?: string | null }>; matchAction: string; matchId?: number | null }>;
+  projects?: Array<{ name: string; projectCode?: string; initiative: string; owner?: string; budgetAllocated?: number | null; budgetSpent?: number | null; startDate?: string | null; endDate?: string | null; milestones?: Array<{ name: string; progress?: number; effort?: number; dueDate?: string | null }>; matchAction: string; matchId?: number | null }>;
   strategicKpis?: ImportKpiItem[];
   operationalKpis?: ImportKpiItem[];
 }
@@ -380,6 +380,10 @@ router.post("/spmo/import/save", async (req: Request, res: Response): Promise<vo
       }
     }
 
+    // Get current project count for auto-code generation
+    const existingProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable);
+    let nextCodeNum = existingProjects.length + 1;
+
     const projMap: Record<string, number> = {};
     for (const proj of data.projects ?? []) {
       if (!proj.name?.trim()) continue;
@@ -389,10 +393,14 @@ router.post("/spmo/import/save", async (req: Request, res: Response): Promise<vo
       const targetDate = proj.endDate || today;
       let projId: number;
       if (proj.matchAction === "update" && proj.matchId) {
-        await db.update(spmoProjectsTable).set({ name: proj.name, ownerName: proj.owner || null, budget: proj.budgetAllocated ?? 0, budgetSpent: proj.budgetSpent ?? 0, startDate, targetDate, updatedAt: new Date() }).where(eq(spmoProjectsTable.id, proj.matchId));
+        const updateFields: Record<string, unknown> = { name: proj.name, ownerName: proj.owner || null, budget: proj.budgetAllocated ?? 0, budgetSpent: proj.budgetSpent ?? 0, startDate, targetDate, updatedAt: new Date() };
+        if (proj.projectCode) updateFields.projectCode = proj.projectCode;
+        await db.update(spmoProjectsTable).set(updateFields).where(eq(spmoProjectsTable.id, proj.matchId));
         projId = proj.matchId;
       } else {
-        const [created] = await db.insert(spmoProjectsTable).values({ initiativeId, name: proj.name, ownerId: userId, ownerName: proj.owner || null, budget: proj.budgetAllocated ?? 0, budgetSpent: proj.budgetSpent ?? 0, startDate, targetDate }).returning({ id: spmoProjectsTable.id });
+        const projectCode = proj.projectCode?.trim() || `P${String(nextCodeNum).padStart(2, "0")}`;
+        nextCodeNum++;
+        const [created] = await db.insert(spmoProjectsTable).values({ initiativeId, name: proj.name, projectCode, ownerId: userId, ownerName: proj.owner || null, budget: proj.budgetAllocated ?? 0, budgetSpent: proj.budgetSpent ?? 0, startDate, targetDate }).returning({ id: spmoProjectsTable.id });
         projId = created.id;
       }
       projMap[proj.name] = projId;

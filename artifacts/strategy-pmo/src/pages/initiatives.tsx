@@ -215,10 +215,10 @@ export default function Initiatives() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {data?.initiatives.map((init) => (
+              {data?.initiatives.map((init, idx) => (
                 <tr key={init.id} className="hover:bg-secondary/20 transition-colors group">
                   <td className="px-6 py-4">
-                    <div className="font-semibold text-foreground">{init.name}</div>
+                    <div className="font-semibold text-foreground">Initiative {String(idx + 1).padStart(2, "0")}: {init.name}</div>
                     <div className="text-xs text-muted-foreground mt-1 truncate max-w-xs">{init.description}</div>
                   </td>
                   <td className="px-6 py-4">

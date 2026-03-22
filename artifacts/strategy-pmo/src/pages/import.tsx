@@ -32,6 +32,7 @@ interface ImportInitiative {
 
 interface ImportProject {
   name: string;
+  projectCode: string;
   initiative: string;
   owner: string;
   budgetAllocated: number | null;
@@ -373,13 +374,16 @@ function ReviewStep({
 
         {tab === "projects" && (
           <div className="space-y-2">
-            <div className="grid grid-cols-[auto_1fr_1fr_1fr_1fr_auto] gap-2 px-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              <div className="w-20">Status</div><div>Name</div><div>Initiative</div><div>Owner</div><div>Budget (M)</div><div className="w-8" />
+            <div className="grid grid-cols-[auto_1fr_auto_1fr_1fr_1fr_auto] gap-2 px-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              <div className="w-20">Status</div><div>Name</div><div className="w-20">Code</div><div>Initiative</div><div>Owner</div><div>Budget (M)</div><div className="w-8" />
             </div>
             {data.projects.map((proj, i) => (
-              <div key={i} className="grid grid-cols-[auto_1fr_1fr_1fr_1fr_auto] gap-2 items-center px-2 py-2 rounded-lg hover:bg-muted/30 border border-border/50">
+              <div key={i} className="grid grid-cols-[auto_1fr_auto_1fr_1fr_1fr_auto] gap-2 items-center px-2 py-2 rounded-lg hover:bg-muted/30 border border-border/50">
                 <div className="w-20"><MatchBadge action={proj.matchAction} /></div>
                 <InlineText value={proj.name} onChange={v => { const arr = [...data.projects]; arr[i] = { ...proj, name: v }; update({ projects: arr }); }} placeholder="Project name" />
+                <div className="w-20">
+                  <InlineText value={proj.projectCode ?? ""} onChange={v => { const arr = [...data.projects]; arr[i] = { ...proj, projectCode: v }; update({ projects: arr }); }} placeholder="P01" />
+                </div>
                 <select value={proj.initiative} onChange={e => { const arr = [...data.projects]; arr[i] = { ...proj, initiative: e.target.value }; update({ projects: arr }); }}
                   className="text-sm bg-transparent border-0 border-b border-transparent hover:border-border focus:border-primary outline-none py-0.5 transition-colors">
                   <option value="">— select initiative —</option>
@@ -390,7 +394,7 @@ function ReviewStep({
                 <button onClick={() => { const arr = [...data.projects]; arr.splice(i, 1); update({ projects: arr }); }} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             ))}
-            <button onClick={() => update({ projects: [...data.projects, { name: "", initiative: initiativeNames[0] || "", owner: "", budgetAllocated: null, budgetSpent: null, startDate: null, endDate: null, milestones: [], matchAction: "create", matchId: null }] })} className="flex items-center gap-1.5 text-sm text-primary hover:underline">
+            <button onClick={() => update({ projects: [...data.projects, { name: "", projectCode: "", initiative: initiativeNames[0] || "", owner: "", budgetAllocated: null, budgetSpent: null, startDate: null, endDate: null, milestones: [], matchAction: "create", matchId: null }] })} className="flex items-center gap-1.5 text-sm text-primary hover:underline">
               <Plus className="w-4 h-4" />Add project
             </button>
           </div>

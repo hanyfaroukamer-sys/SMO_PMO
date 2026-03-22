@@ -119,7 +119,7 @@ export default function DepartmentPortfolio({ params }: Props) {
                         onClick={() => navigate(`/projects?project=${project.id}`)}
                         className="font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left transition-colors"
                       >
-                        {project.name}
+                        {project.projectCode && <span className="font-mono text-slate-500 mr-1">{project.projectCode}:</span>}{project.name}
                       </button>
                       <StatusBadge status={project.status} />
                     </div>

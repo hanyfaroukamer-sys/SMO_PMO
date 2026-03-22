@@ -88,6 +88,7 @@ export default function Risks() {
 
   const projects = projectsData?.projects ?? [];
   const initiatives = initiativesData?.initiatives ?? [];
+  const initiativeIndexMap = new Map(initiatives.map((ini, idx) => [ini.id, idx + 1]));
 
   const createMutation = useCreateSpmoRisk();
   const updateMutation = useUpdateSpmoRisk();
@@ -174,7 +175,13 @@ export default function Risks() {
     const project = projects.find((p) => p.id === projectId);
     if (!project) return null;
     const initiative = initiatives.find((i) => i.id === project.initiativeId);
-    return { projectName: project.name, initiativeName: initiative?.name ?? "" };
+    const iniNum = initiative ? String(initiativeIndexMap.get(initiative.id) ?? 0).padStart(2, "0") : "00";
+    const codePrefix = project.projectCode ? `${project.projectCode}: ` : "";
+    const iniPrefix = initiative ? `Initiative ${iniNum}: ` : "";
+    return {
+      projectName: `${codePrefix}${project.name}`,
+      initiativeName: initiative ? `${iniPrefix}${initiative.name}` : "",
+    };
   }
 
   const PROB_LEVELS: ProbImpact[] = ["low", "medium", "high", "critical"];
@@ -365,7 +372,7 @@ export default function Risks() {
             <FormField label="Linked Project">
               <select className={selectClass} value={riskForm.projectId} onChange={(e) => setRiskForm({ ...riskForm, projectId: e.target.value })}>
                 <option value="">— None —</option>
-                {projects.map((p) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+                {projects.map((p) => <option key={p.id} value={String(p.id)}>{p.projectCode ? `${p.projectCode}: ` : ""}{p.name}</option>)}
               </select>
             </FormField>
           </div>

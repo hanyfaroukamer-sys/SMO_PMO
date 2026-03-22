@@ -701,7 +701,7 @@ export default function Projects() {
             <select className={selectClass} value={form.initiativeId} onChange={(e) => setForm({ ...form, initiativeId: e.target.value })} required>
               <option value="">Select an initiative...</option>
               {initiatives.map((i) => (
-                <option key={i.id} value={i.id}>{i.name}</option>
+                <option key={i.id} value={i.id}>Initiative {String(initiativeIndexMap.get(i.id) ?? 0).padStart(2, "0")}: {i.name}</option>
               ))}
             </select>
           </FormField>

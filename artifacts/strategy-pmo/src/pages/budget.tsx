@@ -222,6 +222,7 @@ export default function Budget() {
 
   const initiatives = initiativesData?.initiatives ?? [];
   const projects = projectsData?.projects ?? [];
+  const initiativeIndexMap = new Map(initiatives.map((ini, idx) => [ini.id, idx + 1]));
   const totalProjBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
 
   const spentByInitiative: Map<number, number> = new Map();
@@ -344,7 +345,7 @@ export default function Budget() {
                     const health = initiativeHealth(progress);
                     return (
                       <tr key={initiative.id} className="hover:bg-secondary/20 transition-colors">
-                        <td className="px-5 py-3 font-semibold">{initiative.name}</td>
+                        <td className="px-5 py-3 font-semibold">Initiative {String(initiativeIndexMap.get(initiative.id) ?? 0).padStart(2, "0")}: {initiative.name}</td>
                         <td className="px-5 py-3 text-right">
                           <InlineNumberEdit
                             value={budget}
@@ -411,7 +412,9 @@ export default function Budget() {
                   const vendor = vendorByProject.get(project.id) ?? "—";
                   return (
                     <tr key={project.id} className="hover:bg-secondary/20 transition-colors">
-                      <td className="px-5 py-3 font-semibold">{project.name}</td>
+                      <td className="px-5 py-3 font-semibold">
+                        {project.projectCode && <span className="font-mono text-muted-foreground mr-1">{project.projectCode}:</span>}{project.name}
+                      </td>
                       <td className="px-5 py-3 text-muted-foreground text-xs">{vendor}</td>
                       <td className="px-5 py-3 text-right font-mono text-sm">{project.weight}%</td>
                       <td className="px-5 py-3 text-right">

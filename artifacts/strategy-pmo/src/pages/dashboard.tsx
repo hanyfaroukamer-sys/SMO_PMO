@@ -469,7 +469,7 @@ export default function Dashboard() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1 gap-2">
                           <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-sm truncate block">{initiative.name}</span>
+                            <span className="font-semibold text-sm truncate block">Initiative {String(initiativeIndexMap.get(initiative.id) ?? 0).padStart(2, "0")}: {initiative.name}</span>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
                             <div className="text-right">

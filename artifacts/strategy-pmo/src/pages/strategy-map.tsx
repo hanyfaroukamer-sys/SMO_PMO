@@ -94,6 +94,8 @@ export default function StrategyMap() {
   const initiatives = initiativesData?.initiatives ?? [];
   const projects = projectsData?.projects ?? [];
 
+  const initiativeIndexMap = new Map(initiatives.map((ini, idx) => [ini.id, idx + 1]));
+
   const programmePct = overviewData?.programmeProgress
     ?? (pillars.length > 0
       ? Math.round(pillars.reduce((s, p) => s + (p.progress ?? 0), 0) / pillars.length)
@@ -215,7 +217,7 @@ export default function StrategyMap() {
                           <ChevronRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-semibold text-sm truncate">{initiative.name}</span>
+                              <span className="font-semibold text-sm truncate">Initiative {String(initiativeIndexMap.get(initiative.id) ?? 0).padStart(2, "0")}: {initiative.name}</span>
                               <div className="flex items-center gap-2 shrink-0">
                                 {planned > 0 && (
                                   <span className="text-xs text-muted-foreground">Plan {planned}%</span>
