@@ -2408,7 +2408,7 @@ router.get("/spmo/pillars/:id/portfolio", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;
 
-  const params = GetSpmaPillarParams.safeParse(req.params);
+  const params = GetSpmoPillarParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
