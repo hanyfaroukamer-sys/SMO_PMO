@@ -19,6 +19,7 @@ import {
   useGetSpmaProjectWeeklyReport,
   useUpsertSpmaProjectWeeklyReport,
   useGetSpmaProjectWeeklyReportHistory,
+  useSetBulkSpmoMilestoneWeights,
   type SpmoProjectWithProgress,
   type CreateSpmoProjectRequest,
   type UpdateSpmoProjectRequest,
@@ -31,6 +32,8 @@ import {
 import { GanttChart } from "@/components/gantt-chart";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
@@ -877,17 +880,37 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
   const [siblingWeightEdits, setSiblingWeightEdits] = useState<Record<number, string>>({});
   const [savingSiblingId, setSavingSiblingId] = useState<number | null>(null);
   const [applyingAutoWeights, setApplyingAutoWeights] = useState(false);
+  const [effortWeightDialog, setEffortWeightDialog] = useState<{ open: boolean; pendingId: number | null; pendingEffort: number | null }>({ open: false, pendingId: null, pendingEffort: null });
+  const autoPopulatedRef = useRef(false);
 
   const createMutation = useCreateSpmoMilestone();
   const updateMutation = useUpdateSpmoMilestone();
   const deleteMutation = useDeleteSpmoMilestone();
   const submitMutation = useSubmitSpmoMilestone();
+  const bulkWeightMutation = useSetBulkSpmoMilestoneWeights();
 
   const milestones = data?.milestones ?? [];
   const totalWeight = milestones.reduce((s: number, m) => s + (m.weight ?? 0), 0);
   const milestoneWeightError = totalWeight > 100;
   const milestoneWeightWarning = !milestoneWeightError && Math.round(totalWeight) !== 100 && milestones.length > 0;
   const autoWeightMap = computeProportionalWeights(milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0 })));
+
+  // Auto-populate weights on first load when all milestones have 0 weight
+  useEffect(() => {
+    if (autoPopulatedRef.current) return;
+    if (milestones.length === 0) return;
+    const allZero = milestones.every((m) => (m.weight ?? 0) === 0);
+    if (!allZero) return;
+    const hasEffort = milestones.some((m) => (m.effortDays ?? 0) > 0);
+    if (!hasEffort) return;
+    autoPopulatedRef.current = true;
+    const weights = computeProportionalWeights(milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0 })));
+    const payload = milestones.map((m) => ({ id: m.id, weight: weights.get(m.id) ?? 0 }));
+    if (Math.abs(payload.reduce((s, w) => s + w.weight, 0) - 100) < 2) {
+      bulkWeightMutation.mutate({ projectId, data: { weights: payload } }, { onSuccess: () => invalidate() });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [milestones.length, milestones.map((m) => m.id).join(",")]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: [`/api/spmo/projects/${projectId}/milestones`] });
@@ -904,12 +927,26 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
 
   async function handleInlineEffortUpdate(id: number, effort: number) {
     await updateMutation.mutateAsync({ id, data: { effortDays: effort } });
-    const updated = milestones.map((m) => ({ id: m.id, effortDays: m.id === id ? effort : (m.effortDays ?? 0) }));
-    const weights = computeProportionalWeights(updated);
-    for (const m of updated) {
-      await updateMutation.mutateAsync({ id: m.id, data: { weight: weights.get(m.id) ?? 0 } });
-    }
     invalidate();
+    // Prompt user to auto-update weights based on new effort proportions
+    setEffortWeightDialog({ open: true, pendingId: id, pendingEffort: effort });
+  }
+
+  async function confirmAutoWeightFromEffort() {
+    const { pendingId, pendingEffort } = effortWeightDialog;
+    setEffortWeightDialog({ open: false, pendingId: null, pendingEffort: null });
+    if (pendingId === null || pendingEffort === null) return;
+    const updated = milestones.map((m) => ({ id: m.id, effortDays: m.id === pendingId ? pendingEffort : (m.effortDays ?? 0) }));
+    const weights = computeProportionalWeights(updated);
+    const payload = updated.map((m) => ({ id: m.id, weight: weights.get(m.id) ?? 0 }));
+    try {
+      await bulkWeightMutation.mutateAsync({ projectId, data: { weights: payload } });
+      invalidate();
+      toast({ title: "Weights updated", description: "All weights recalculated from effort days." });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed";
+      toast({ variant: "destructive", title: "Weight update failed", description: msg });
+    }
   }
 
   function handleInlineStartDateUpdate(id: number, startDate: string) {
@@ -967,11 +1004,10 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
     if (milestones.length === 0) return;
     const items = milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0 }));
     const weights = computeProportionalWeights(items);
+    const payload = milestones.map((m) => ({ id: m.id, weight: weights.get(m.id) ?? 0 }));
     setApplyingAutoWeights(true);
     try {
-      for (const m of milestones) {
-        await updateMutation.mutateAsync({ id: m.id, data: { weight: weights.get(m.id) ?? 0 } });
-      }
+      await bulkWeightMutation.mutateAsync({ projectId, data: { weights: payload } });
       invalidate();
       toast({ title: "Auto-weights applied", description: "All weights recalculated from effort days" });
     } catch (err: unknown) {
@@ -1005,9 +1041,8 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
         { id: created.id, effortDays: newEffort },
       ];
       const weights = computeProportionalWeights(allItems);
-      for (const item of allItems) {
-        await updateMutation.mutateAsync({ id: item.id, data: { weight: weights.get(item.id) ?? 0 } });
-      }
+      const payload = allItems.map((item) => ({ id: item.id, weight: weights.get(item.id) ?? 0 }));
+      await bulkWeightMutation.mutateAsync({ projectId, data: { weights: payload } });
       invalidate();
       toast({ title: "Milestone added", description: "Weights redistributed based on effort" });
     } catch (err: unknown) {
@@ -1030,6 +1065,26 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
   }
 
   return (
+    <>
+    {/* Effort → Weight confirmation dialog */}
+    <Dialog open={effortWeightDialog.open} onOpenChange={(open) => !open && setEffortWeightDialog({ open: false, pendingId: null, pendingEffort: null })}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Update milestone weights?</DialogTitle>
+          <DialogDescription>
+            Effort days changed. Would you like to automatically redistribute all milestone weights proportionally based on the updated effort days?
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => setEffortWeightDialog({ open: false, pendingId: null, pendingEffort: null })}>
+            Keep current weights
+          </Button>
+          <Button onClick={confirmAutoWeightFromEffort}>
+            Yes, update weights
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <div className="border-t border-border bg-secondary/10">
       {/* Column header — mirrors exact widths of the data rows below */}
       <div className="px-6 py-2 flex items-center gap-4 border-b border-border/50 bg-secondary/30">
@@ -1330,6 +1385,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
         </div>
       )}
     </div>
+    </>
   );
 }
 

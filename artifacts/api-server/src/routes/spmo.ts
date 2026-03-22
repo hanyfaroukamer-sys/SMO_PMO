@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { eq, desc, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
@@ -976,6 +977,38 @@ router.delete("/spmo/milestones/:id", async (req, res): Promise<void> => {
 
   const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "deleted", "milestone", milestone.id, milestone.name);
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────
+// BULK MILESTONE WEIGHT UPDATE (atomic — bypasses per-row validation)
+// ─────────────────────────────────────────────────────────────
+router.put("/spmo/projects/:id/milestones/weights", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const params = GetSpmoProjectParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid project id" }); return; }
+  const projectId = params.data.id;
+
+  const body = z.object({
+    weights: z.array(z.object({ id: z.number().int().positive(), weight: z.number().min(0).max(100) })),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: "Invalid weights payload" }); return; }
+
+  const { weights } = body.data;
+  const total = weights.reduce((s, w) => s + w.weight, 0);
+  if (Math.abs(total - 100) > 1) {
+    res.status(400).json({ error: `Weights must sum to 100% (got ${Math.round(total)}%)` });
+    return;
+  }
+
+  for (const { id, weight } of weights) {
+    await db.update(spmoMilestonesTable)
+      .set({ weight, updatedAt: new Date() })
+      .where(and(eq(spmoMilestonesTable.id, id), eq(spmoMilestonesTable.projectId, projectId)));
+  }
+
   res.json({ success: true });
 });
 

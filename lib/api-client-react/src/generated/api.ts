@@ -3898,6 +3898,43 @@ export const useUpdateSpmoMilestone = <
   return useMutation(getUpdateSpmoMilestoneMutationOptions(options));
 };
 
+// ─── BULK MILESTONE WEIGHT UPDATE ────────────────────────────
+
+export const setBulkSpmoMilestoneWeightsUrl = (projectId: number) =>
+  `/api/spmo/projects/${projectId}/milestones/weights`;
+
+export const setBulkSpmoMilestoneWeights = async (
+  projectId: number,
+  data: { weights: { id: number; weight: number }[] },
+  options?: RequestInit,
+): Promise<{ success: boolean }> =>
+  customFetch<{ success: boolean }>(setBulkSpmoMilestoneWeightsUrl(projectId), {
+    ...options,
+    method: "PUT",
+    body: JSON.stringify(data),
+    headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
+  });
+
+export const useSetBulkSpmoMilestoneWeights = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setBulkSpmoMilestoneWeights>>,
+    TError,
+    { projectId: number; data: { weights: { id: number; weight: number }[] } },
+    TContext
+  >;
+  request?: RequestInit;
+}) => {
+  const mutationOptions = {
+    mutationFn: ({ projectId, data }: { projectId: number; data: { weights: { id: number; weight: number }[] } }) =>
+      setBulkSpmoMilestoneWeights(projectId, data, options?.request),
+    ...options?.mutation,
+  };
+  return useMutation(mutationOptions);
+};
+
 /**
  * @summary Delete a milestone
  */
