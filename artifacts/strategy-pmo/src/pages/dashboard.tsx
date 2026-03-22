@@ -129,7 +129,7 @@ function ProjectStatusPieChart({ projects }: { projects: SpmoProjectWithProgress
       <h2 className="text-base font-display font-bold mb-4">Project Status Breakdown</h2>
       <div className="flex flex-col sm:flex-row items-center gap-6">
         {/* Pie */}
-        <div className="w-52 h-52 shrink-0">
+        <div className="relative w-52 h-52 shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -152,6 +152,11 @@ function ProjectStatusPieChart({ projects }: { projects: SpmoProjectWithProgress
               />
             </PieChart>
           </ResponsiveContainer>
+          {/* Centre label */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-3xl font-display font-bold leading-none">{total}</span>
+            <span className="text-[11px] text-muted-foreground mt-1">projects</span>
+          </div>
         </div>
 
         {/* Legend + counts — always show all 6 categories */}
@@ -177,9 +182,7 @@ function ProjectStatusPieChart({ projects }: { projects: SpmoProjectWithProgress
           ))}
         </div>
 
-        {/* Centre total */}
       </div>
-      <div className="mt-3 text-xs text-muted-foreground text-right">{total} total project{total !== 1 ? "s" : ""}</div>
     </div>
   );
 }
