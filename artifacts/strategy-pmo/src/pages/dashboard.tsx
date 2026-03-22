@@ -126,8 +126,8 @@ function ProjectStatusPieChart({ projects }: { projects: SpmoProjectWithProgress
   const total = projects.length;
 
   return (
-    <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm">
-      <h2 className="text-base font-display font-bold mb-4">Project Status Breakdown</h2>
+    <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm transition-shadow duration-200 hover:shadow-md">
+      <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2 mb-4">Project Status Breakdown</h2>
       <div className="flex flex-col sm:flex-row items-center gap-6">
         {/* Pie */}
         <div className="relative w-52 h-52 shrink-0">
@@ -249,7 +249,7 @@ export default function Dashboard() {
         {isAdmin && (
           <button
             onClick={handleRunAi}
-            className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-primary text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm"
+            className="flex items-center gap-2 bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-700 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm"
           >
             <Sparkles className="w-4 h-4" />
             AI Assessment
@@ -298,6 +298,7 @@ export default function Dashboard() {
           sub={`${data.approvedMilestones} of ${data.totalMilestones} milestones approved`}
           color="text-primary"
           bg="bg-primary/10"
+          accent="linear-gradient(90deg, #2563eb, #7c3aed)"
         />
         <SummaryCard
           icon={Sparkles}
@@ -306,6 +307,7 @@ export default function Dashboard() {
           sub={`${initiativesOnTrack} on track`}
           color="text-violet-600"
           bg="bg-violet-100"
+          accent="linear-gradient(90deg, #7c3aed, #a78bfa)"
         />
         <SummaryCard
           icon={FolderOpen}
@@ -314,6 +316,7 @@ export default function Dashboard() {
           sub={`${projectsNeedAttention} need attention`}
           color="text-success"
           bg="bg-success/10"
+          accent="linear-gradient(90deg, #059669, #34d399)"
         />
         <SummaryCard
           icon={Wallet}
@@ -326,6 +329,7 @@ export default function Dashboard() {
           }
           color={budgetUsed > 90 ? "text-destructive" : "text-warning"}
           bg={budgetUsed > 90 ? "bg-destructive/10" : "bg-warning/10"}
+          accent={budgetUsed > 90 ? "linear-gradient(90deg, #dc2626, #f87171)" : "linear-gradient(90deg, #d97706, #fbbf24)"}
         />
       </div>
 
@@ -336,7 +340,7 @@ export default function Dashboard() {
 
       {/* Pillar Groups — Initiatives + Project Status Counts */}
       <section>
-        <h2 className="text-lg font-display font-bold mb-4">Pillars &amp; Initiatives</h2>
+        <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2 mb-4">Pillars &amp; Initiatives</h2>
         <div className="space-y-5">
           {data.pillarSummaries.map((pillar) => {
             const isPillarExpanded = expandedPillars.has(pillar.id);
@@ -350,7 +354,7 @@ export default function Dashboard() {
             })();
 
             return (
-              <div key={pillar.id} className="rounded-2xl border border-border overflow-hidden shadow-sm">
+              <div key={pillar.id} className="rounded-[14px] border border-border overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
                 {/* Pillar header — clickable (expand/collapse) */}
                 <div
                   className="bg-card border-b border-border"
@@ -521,7 +525,7 @@ export default function Dashboard() {
           })}
 
           {data.pillarSummaries.length === 0 && initiatives.length > 0 && (
-            <Card noPadding className="overflow-hidden">
+            <Card noPadding className="overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
               <div className="divide-y divide-border">
                 {initiatives.map((initiative) => {
                   const isInitExpanded = expandedInitiatives.has(initiative.id);
@@ -724,6 +728,7 @@ function SummaryCard({
   sub,
   color,
   bg,
+  accent,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -731,17 +736,21 @@ function SummaryCard({
   sub: string;
   color: string;
   bg: string;
+  accent?: string;
 }) {
   return (
-    <Card className="hover:-translate-y-1 transition-transform duration-200">
-      <div className="flex items-start justify-between mb-2">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${bg}`}>
-          <Icon className={`w-5 h-5 ${color}`} />
+    <Card noPadding className="hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
+      {accent && <div className="h-0.5 w-full" style={{ background: accent }} />}
+      <div className="p-5 md:p-6">
+        <div className="flex items-start justify-between mb-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${bg}`}>
+            <Icon className={`w-5 h-5 ${color}`} />
+          </div>
         </div>
+        <div className={`text-3xl font-display font-bold tracking-tight ${color} mb-1.5`}>{value}</div>
+        <div className="font-semibold text-sm text-foreground">{label}</div>
+        <div className="text-xs text-muted-foreground mt-1">{sub}</div>
       </div>
-      <div className={`text-3xl font-display font-bold tracking-tight ${color} mb-1`}>{value}</div>
-      <div className="font-semibold text-sm text-foreground">{label}</div>
-      <div className="text-xs text-muted-foreground mt-0.5">{sub}</div>
     </Card>
   );
 }

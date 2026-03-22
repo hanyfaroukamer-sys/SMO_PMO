@@ -5,8 +5,9 @@ export function PageHeader({ title, description, children }: { title: string, de
   return (
     <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground tracking-tight">{title}</h1>
-        {description && <p className="text-muted-foreground mt-1 text-lg">{description}</p>}
+        <h1 className="text-2xl font-display font-bold text-foreground tracking-tight">{title}</h1>
+        <div className="w-12 h-0.5 rounded-full bg-gradient-to-r from-primary to-violet-500 mt-2 mb-1" />
+        {description && <p className="text-muted-foreground mt-1 text-base">{description}</p>}
       </div>
       <div className="flex items-center gap-3 shrink-0">
         {children}
@@ -19,10 +20,11 @@ export function StatusBadge({ status, className }: { status: string, className?:
   const formattedStatus = status?.replace(/_/g, ' ') || 'Unknown';
   return (
     <span className={cn(
-      "px-2.5 py-1 rounded-full text-xs font-semibold capitalize border whitespace-nowrap",
+      "px-3 py-1 rounded-full text-xs font-semibold capitalize border whitespace-nowrap inline-flex items-center gap-1.5",
       getStatusColor(status),
       className
     )}>
+      <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
       {formattedStatus}
     </span>
   );
@@ -39,12 +41,12 @@ export function ProgressBar({ progress, planned, status, className, showLabel = 
   
   return (
     <div className={cn("w-full flex items-center gap-3", className)}>
-      <div className="flex-1 relative h-2.5 bg-secondary rounded-full border border-border/50 overflow-hidden">
+      <div className="flex-1 relative h-2 bg-secondary rounded-full border border-border/50 overflow-hidden">
         <div 
-          className="h-full bg-primary transition-all duration-500 ease-out relative"
-          style={{ width: `${Math.min(100, Math.max(0, effectiveProgress))}%` }}
+          className="h-full transition-all duration-500 ease-out relative rounded-full"
+          style={{ width: `${Math.min(100, Math.max(0, effectiveProgress))}%`, background: "linear-gradient(90deg, hsl(var(--primary)) 0%, #7c3aed 100%)" }}
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent to-white/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent to-white/20 rounded-full" />
         </div>
         {planned !== undefined && planned > 0 && (
           <div
@@ -66,9 +68,9 @@ export function Card({ className, children, noPadding = false, style, onClick }:
   return (
     <div
       className={cn(
-        "bg-card border border-card-border rounded-[14px] shadow-sm overflow-hidden",
+        "bg-card border border-card-border rounded-[14px] shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden",
         !noPadding && "p-5 md:p-6",
-        onClick && "cursor-pointer",
+        onClick && "cursor-pointer hover:shadow-lg hover:-translate-y-0.5",
         className
       )}
       style={style}

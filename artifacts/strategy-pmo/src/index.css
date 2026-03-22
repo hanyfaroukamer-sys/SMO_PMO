@@ -67,7 +67,7 @@
 
 :root {
   /* Page background: very light blue-grey */
-  --background: 220 20% 97%;
+  --background: 220 18% 96%;
   --foreground: 220 25% 14%;
 
   /* Cards: pure white */
@@ -80,7 +80,7 @@
   --popover-border: 220 15% 91%;
 
   /* Primary: rich blue (government action) */
-  --primary: 221 83% 53%;
+  --primary: 221 88% 56%;
   --primary-foreground: 0 0% 100%;
 
   --secondary: 220 14% 96%;
@@ -89,38 +89,41 @@
   --muted: 220 14% 96%;
   --muted-foreground: 220 9% 46%;
 
-  --accent: 221 83% 53%;
+  --accent: 221 88% 56%;
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
 
-  --success: 161 94% 30%;
+  --success: 160 84% 32%;
   --success-foreground: 0 0% 100%;
 
   --warning: 38 92% 44%;
   --warning-foreground: 0 0% 100%;
 
-  --border: 220 15% 91%;
+  --border: 220 13% 88%;
   --input: 220 15% 91%;
-  --ring: 221 83% 53%;
+  --ring: 221 88% 56%;
 
-  --chart-1: 221 83% 53%;
+  --chart-1: 221 88% 56%;
   --chart-2: 262 83% 58%;
   --chart-3: 142 71% 45%;
   --chart-4: 38 92% 50%;
   --chart-5: 0 84% 60%;
 
   /* Sidebar: deep navy */
-  --sidebar: 222 47% 11%;
+  --sidebar: 222 52% 9%;
   --sidebar-foreground: 220 15% 90%;
-  --sidebar-border: 220 38% 16%;
-  --sidebar-primary: 221 83% 53%;
+  --sidebar-border: 220 40% 14%;
+  --sidebar-primary: 221 88% 56%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 38% 18%;
+  --sidebar-accent: 220 40% 16%;
   --sidebar-accent-foreground: 0 0% 100%;
 
-  --radius: 0.625rem;
+  --radius: 0.5rem;
+  
+  --shadow-card: 0 1px 3px 0 rgba(0,0,0,0.04), 0 4px 12px -2px rgba(0,0,0,0.05);
+  --shadow-card-hover: 0 4px 6px -1px rgba(0,0,0,0.06), 0 10px 24px -4px rgba(0,0,0,0.08);
 }
 
 .dark {
@@ -194,5 +197,14 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+  .card-shadow {
+    box-shadow: var(--shadow-card);
+  }
+  .card-shadow-hover:hover {
+    box-shadow: var(--shadow-card-hover);
+  }
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary to-violet-500 bg-clip-text text-transparent;
   }
 }

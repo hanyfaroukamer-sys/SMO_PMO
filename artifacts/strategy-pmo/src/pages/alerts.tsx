@@ -10,19 +10,22 @@ const SEVERITY_CONFIG = {
     icon: AlertCircle,
     border: "border-l-4 border-l-destructive",
     badge: "bg-destructive/10 text-destructive border border-destructive/20",
-    iconColor: "text-destructive",
+    iconColor: "text-white",
+    iconBg: "bg-gradient-to-br from-red-500 to-red-600",
   },
   warning: {
     icon: AlertTriangle,
     border: "border-l-4 border-l-warning",
     badge: "bg-warning/10 text-warning-foreground border border-warning/20",
-    iconColor: "text-warning",
+    iconColor: "text-white",
+    iconBg: "bg-gradient-to-br from-amber-400 to-amber-600",
   },
   info: {
     icon: Info,
     border: "border-l-4 border-l-primary",
     badge: "bg-primary/10 text-primary border border-primary/20",
-    iconColor: "text-primary",
+    iconColor: "text-white",
+    iconBg: "bg-gradient-to-br from-blue-500 to-blue-700",
   },
 } as const;
 
@@ -113,7 +116,7 @@ export default function Alerts() {
           return (
             <Card key={alert.id} noPadding={false} className={`${config.border} hover:shadow-md transition-all`}>
               <div className="flex items-start gap-4">
-                <div className="mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-secondary">
+                <div className={`mt-0.5 w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${config.iconBg}`}>
                   <Icon className={`w-5 h-5 ${config.iconColor}`} />
                 </div>
                 <div className="flex-1 min-w-0">

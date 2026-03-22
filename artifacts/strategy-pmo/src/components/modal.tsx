@@ -82,7 +82,7 @@ export function FormActions({ loading, disabled, label = "Save", onCancel }: Sub
       <button
         type="submit"
         disabled={loading || disabled}
-        className="px-5 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        className="px-5 py-2 text-sm font-semibold bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-700 text-primary-foreground rounded-lg disabled:opacity-50 transition-all shadow-sm hover:shadow-md"
       >
         {loading ? "Saving..." : label}
       </button>
