@@ -114,7 +114,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
       const s = await projectProgress(p.id);
       const projStatus = computeStatus(s.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, s.rawProgress);
       const budgetWeight = totalBudget > 0 ? ((p.budget ?? 0) / totalBudget) * 100 : (100 / projects.length);
-      return { value: s.progress, rawValue: s.rawProgress, weight: p.budget ?? 0, ...s, budgetSpent: p.budgetSpent ?? 0, projStatus, name: p.name, budgetWeight };
+      return { value: s.progress, rawValue: s.rawProgress, weight: p.budget ?? 0, ...s, budgetSpent: p.budgetSpent ?? 0, projStatus, name: p.name, projectCode: p.projectCode ?? null, budgetWeight };
     })
   );
 
@@ -125,6 +125,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
 
   const childProjects: ChildProjectSummary[] = projectStats.map((p) => ({
     name: p.name,
+    projectCode: p.projectCode,
     computedStatus: p.projStatus,
     progress: p.progress,
     weight: p.budgetWeight,
@@ -300,6 +301,7 @@ export interface StatusResult {
 
 export interface ChildProjectSummary {
   name: string;
+  projectCode: string | null;
   computedStatus: StatusResult;
   progress: number;
   weight: number;  // budget-based weight 0-100
@@ -499,7 +501,7 @@ export function computeInitiativeStatus(
     if (parts.length > 0) {
       result.reason += " | " + parts.join(". ");
     }
-    result.delayedChildren = delayed.map(p => p.name);
+    result.delayedChildren = delayed.map(p => p.projectCode ? `${p.projectCode}: ${p.name}` : p.name);
   }
 
   return result;

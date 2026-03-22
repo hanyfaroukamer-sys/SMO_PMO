@@ -55,7 +55,7 @@ function ComputedStatusBadge({ cs }: { cs: SpmoStatusResult | undefined }) {
         </div>
       </div>
       {cs.delayedChildren && cs.delayedChildren.length > 0 && (
-        <div className="text-[10px] text-destructive/80 leading-tight">
+        <div className="text-xs text-destructive/80 leading-snug mt-0.5 font-medium">
           ⚠ Delayed: {cs.delayedChildren.join(", ")}
         </div>
       )}
