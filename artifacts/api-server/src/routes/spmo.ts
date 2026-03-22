@@ -1326,6 +1326,18 @@ router.put("/spmo/kpis/:id", async (req, res): Promise<void> => {
     }
   }
 
+  // Auto-track velocity: when actual changes, snapshot old actual → prevActual
+  if (updateValues.actual !== undefined) {
+    const [existing] = await db
+      .select({ actual: spmoKpisTable.actual })
+      .from(spmoKpisTable)
+      .where(eq(spmoKpisTable.id, params.data.id));
+    if (existing && existing.actual !== updateValues.actual) {
+      updateValues.prevActual = existing.actual;
+      updateValues.prevActualDt = new Date().toISOString().split("T")[0];
+    }
+  }
+
   const [kpi] = await db
     .update(spmoKpisTable)
     .set(updateValues)

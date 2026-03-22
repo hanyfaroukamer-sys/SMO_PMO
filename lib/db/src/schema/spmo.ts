@@ -253,6 +253,8 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
   status: text("status", { enum: ["on_track", "at_risk", "off_track"] })
     .notNull()
     .default("on_track"),
+  prevActual: real("prev_actual"),
+  prevActualDt: date("prev_actual_dt"),
   kpiType: text("kpi_type", { enum: ["cumulative", "rate", "milestone", "reduction"] })
     .notNull()
     .default("rate"),

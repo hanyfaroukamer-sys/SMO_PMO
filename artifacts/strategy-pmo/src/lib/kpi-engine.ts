@@ -6,10 +6,19 @@ export type KpiEngineStatus =
   | "achieved"
   | "not-started";
 
+export interface Velocity {
+  monthlyRate: number;
+  projectedYearEnd: number;
+  willHitTarget: boolean;
+  projectedGap: number;
+}
+
 export interface KpiStatusResult {
   status: KpiEngineStatus;
   reason: string;
   performanceIndex: number;
+  velocity: Velocity | null;
+  timePosition: string;
 }
 
 export interface KpiEngineInput {
@@ -18,71 +27,189 @@ export interface KpiEngineInput {
   target: number | null;
   actual: number | null;
   baseline: number | null;
+  prevActual?: number | null;
+  prevActualDt?: string | null;
   periodStart: string | null;
   periodEnd: string | null;
   milestoneDue: string | null;
   milestoneDone: boolean;
+  unit?: string | null;
 }
 
-function computeCumulativeKpi(kpi: KpiEngineInput): KpiStatusResult {
+function fmtN(n: number): string {
+  return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1);
+}
+
+function getTimePosition(periodStart: string | null, periodEnd: string | null) {
   const today = new Date();
-  const start = new Date(kpi.periodStart || `${today.getFullYear()}-01-01`);
-  const end = new Date(kpi.periodEnd || `${today.getFullYear()}-12-31`);
-  const actual = kpi.actual!;
-  const target = kpi.target!;
+  const start = new Date(periodStart || `${today.getFullYear()}-01-01`);
+  const end = new Date(periodEnd || `${today.getFullYear()}-12-31`);
 
   const totalDays = Math.max((end.getTime() - start.getTime()) / 86400000, 1);
   const elapsedDays = Math.max((today.getTime() - start.getTime()) / 86400000, 0);
-  const elapsedPct = Math.min(elapsedDays / totalDays, 1);
+  const remainingDays = Math.max((end.getTime() - today.getTime()) / 86400000, 0);
+  const elapsedPct = Math.min(elapsedDays / totalDays, 1.5);
+  const remainingPct = Math.max(1 - elapsedPct, 0);
 
-  const expected = target * elapsedPct;
+  const quarter =
+    elapsedPct <= 0.25 ? "Q1"
+    : elapsedPct <= 0.5 ? "Q2"
+    : elapsedPct <= 0.75 ? "Q3"
+    : "Q4";
+
+  return { totalDays, elapsedDays, remainingDays, elapsedPct, remainingPct, quarter };
+}
+
+function calcVelocity(
+  actual: number,
+  baseline: number | null,
+  prevActual: number | null | undefined,
+  prevActualDt: string | null | undefined,
+  target: number,
+  direction: "higher" | "lower",
+  periodStart: string | null,
+  periodEnd: string | null
+): Velocity | null {
+  const today = new Date();
+  const time = getTimePosition(periodStart, periodEnd);
+
+  let refValue: number;
+  let refDate: Date;
+
+  if (prevActual != null && prevActualDt) {
+    refValue = prevActual;
+    refDate = new Date(prevActualDt);
+  } else if (baseline != null) {
+    refValue = baseline;
+    refDate = new Date(periodStart || `${today.getFullYear()}-01-01`);
+  } else {
+    return null;
+  }
+
+  const daysBetween = Math.max((today.getTime() - refDate.getTime()) / 86400000, 1);
+  const change = actual - refValue;
+  const dailyRate = change / daysBetween;
+  const monthlyRate = dailyRate * 30.44;
+
+  const projectedYearEnd = actual + dailyRate * time.remainingDays;
+
+  const willHitTarget =
+    direction === "higher" ? projectedYearEnd >= target : projectedYearEnd <= target;
+
+  const projectedGap =
+    direction === "higher"
+      ? projectedYearEnd - target
+      : target - projectedYearEnd;
+
+  return { monthlyRate, projectedYearEnd, willHitTarget, projectedGap };
+}
+
+function velText(vel: Velocity | null, unit: string): string {
+  if (!vel) return "";
+  const sign = vel.monthlyRate >= 0 ? "+" : "";
+  return ` Velocity: ${sign}${fmtN(vel.monthlyRate)}${unit}/mo → projected ${fmtN(vel.projectedYearEnd)}${unit}.`;
+}
+
+function r(
+  status: KpiEngineStatus,
+  reason: string,
+  pi: number,
+  vel: Velocity | null,
+  time: ReturnType<typeof getTimePosition>
+): KpiStatusResult {
+  return {
+    status,
+    reason,
+    performanceIndex: Math.round(pi * 100) / 100,
+    velocity: vel,
+    timePosition: time.quarter,
+  };
+}
+
+function computeCumulativeKpi(kpi: KpiEngineInput): KpiStatusResult {
+  const time = getTimePosition(kpi.periodStart, kpi.periodEnd);
+  const actual = kpi.actual!;
+  const target = kpi.target!;
+  const unit = kpi.unit ?? "";
+
+  const expected = target * time.elapsedPct;
   const pi = expected > 0 ? actual / expected : actual > 0 ? 2 : 0;
+  const vel = calcVelocity(actual, kpi.baseline, kpi.prevActual, kpi.prevActualDt, target, "higher", kpi.periodStart, kpi.periodEnd);
+  const vt = velText(vel, unit);
 
   if (actual >= target) {
-    return { status: "achieved", reason: `Target reached: ${actual} vs target ${target}.`, performanceIndex: pi };
+    return r("achieved", `Target reached: ${fmtN(actual)}${unit} vs ${fmtN(target)}${unit}.`, pi, vel, time);
   }
   if (pi >= 1.10) {
-    return { status: "exceeding", reason: `Ahead of pace: ${actual} vs expected ${Math.round(expected)}.`, performanceIndex: pi };
+    return r("exceeding", `Ahead of pace. ${fmtN(actual)}${unit} vs expected ${fmtN(expected)}${unit} (${time.quarter}).${vt}`, pi, vel, time);
   }
   if (pi >= 0.90) {
-    return { status: "on-track", reason: `On pace: ${actual} vs expected ${Math.round(expected)}.`, performanceIndex: pi };
+    return r("on-track", `On pace: ${fmtN(actual)}${unit} vs expected ${fmtN(expected)}${unit} (${time.quarter}).${vt}`, pi, vel, time);
   }
-  if (pi >= 0.70) {
-    const gap = Math.round(expected - actual);
-    return { status: "at-risk", reason: `Behind pace by ${gap}. Actual ${actual} vs expected ${Math.round(expected)}.`, performanceIndex: pi };
+
+  const severityMultiplier = 1 + time.elapsedPct * 0.5;
+  const adjustedPi = pi * (1 / severityMultiplier);
+
+  if (adjustedPi >= 0.55) {
+    return r("at-risk", `Behind pace (${time.quarter}): ${fmtN(actual)}${unit} vs expected ${fmtN(expected)}${unit}.${vt}`, pi, vel, time);
   }
-  const gap = Math.round(expected - actual);
-  return { status: "critical", reason: `${gap} behind expected pace. Actual ${actual} vs expected ${Math.round(expected)}.`, performanceIndex: pi };
+  return r("critical", `Critically behind (${time.quarter}): ${fmtN(actual)}${unit} vs expected ${fmtN(expected)}${unit}.${vt}`, pi, vel, time);
 }
 
 function computeRateKpi(kpi: KpiEngineInput): KpiStatusResult {
+  const time = getTimePosition(kpi.periodStart, kpi.periodEnd);
+  const direction = kpi.direction;
   const target = kpi.target!;
   const actual = kpi.actual!;
-  const direction = kpi.direction;
+  const unit = kpi.unit ?? "";
 
-  const pi = direction === "higher" ? actual / target : target / actual;
-  const rawGap = direction === "higher" ? target - actual : actual - target;
-  const gapPct = Math.abs(rawGap) / target * 100;
+  const vel = calcVelocity(actual, kpi.baseline, kpi.prevActual, kpi.prevActualDt, target, direction, kpi.periodStart, kpi.periodEnd);
+  const vt = velText(vel, unit);
 
-  if (direction === "higher" && actual >= target) {
-    return { status: pi >= 1.10 ? "exceeding" : "achieved", reason: `${actual} meets/exceeds target of ${target}.`, performanceIndex: pi };
+  const pi = direction === "higher" ? actual / target : target / Math.max(actual, 0.01);
+  const gap = direction === "higher" ? target - actual : actual - target;
+  const gapPct = Math.abs(gap) / target * 100;
+
+  const met = direction === "higher" ? actual >= target : actual <= target;
+  if (met) {
+    return r(
+      pi >= 1.10 ? "exceeding" : "achieved",
+      `${fmtN(actual)}${unit} meets target ${fmtN(target)}${unit} (${time.quarter}).${vt}`,
+      pi, vel, time
+    );
   }
-  if (direction === "lower" && actual <= target) {
-    return { status: pi >= 1.10 ? "exceeding" : "achieved", reason: `${actual} meets/exceeds target of ${target}.`, performanceIndex: pi };
+
+  const shrink = 0.5;
+  const onTrackThreshold = 5 * (1 + (1 - time.elapsedPct) * shrink);
+  const atRiskThreshold = 15 * (1 + (1 - time.elapsedPct) * shrink);
+
+  if (vel) {
+    if (!vel.willHitTarget && time.elapsedPct > 0.5) {
+      if (gapPct > atRiskThreshold * 0.7) {
+        return r("critical", `${fmtN(actual)}${unit} vs ${fmtN(target)}${unit} — ${gapPct.toFixed(1)}% gap (${time.quarter}). Velocity will miss target.${vt}`, pi, vel, time);
+      }
+      return r("at-risk", `${fmtN(actual)}${unit} vs ${fmtN(target)}${unit}. Current pace won't reach target (${time.quarter}).${vt}`, pi, vel, time);
+    }
+    if (vel.willHitTarget && gapPct > atRiskThreshold) {
+      return r("at-risk", `${fmtN(actual)}${unit} vs ${fmtN(target)}${unit} (${gapPct.toFixed(1)}% gap) but velocity on track.${vt}`, pi, vel, time);
+    }
   }
-  if (gapPct <= 5) {
-    return { status: "on-track", reason: `${actual} vs target ${target} — within ${gapPct.toFixed(1)}% gap.`, performanceIndex: pi };
+
+  if (gapPct <= onTrackThreshold) {
+    return r("on-track", `${fmtN(actual)}${unit} vs ${fmtN(target)}${unit} — ${gapPct.toFixed(1)}% gap (${time.quarter}).${vt}`, pi, vel, time);
   }
-  if (gapPct <= 15) {
-    return { status: "at-risk", reason: `${actual} vs target ${target} — ${gapPct.toFixed(1)}% gap.`, performanceIndex: pi };
+  if (gapPct <= atRiskThreshold) {
+    return r("at-risk", `${fmtN(actual)}${unit} vs ${fmtN(target)}${unit} — ${gapPct.toFixed(1)}% gap (${time.quarter}).${vt}`, pi, vel, time);
   }
-  return { status: "critical", reason: `${actual} vs target ${target} — ${gapPct.toFixed(1)}% gap from target.`, performanceIndex: pi };
+  return r("critical", `${fmtN(actual)}${unit} vs ${fmtN(target)}${unit} — ${gapPct.toFixed(1)}% gap (${time.quarter}).${vt}`, pi, vel, time);
 }
 
 function computeReductionKpi(kpi: KpiEngineInput): KpiStatusResult {
+  const time = getTimePosition(kpi.periodStart, kpi.periodEnd);
   const baseline = kpi.baseline ?? kpi.actual!;
   const target = kpi.target!;
   const actual = kpi.actual!;
+  const unit = kpi.unit ?? "";
 
   const totalReduction = baseline - target;
   const achievedReduction = baseline - actual;
@@ -91,58 +218,47 @@ function computeReductionKpi(kpi: KpiEngineInput): KpiStatusResult {
     return computeRateKpi({ ...kpi, direction: "lower" });
   }
 
+  const vel = calcVelocity(actual, kpi.baseline, kpi.prevActual, kpi.prevActualDt, target, "lower", kpi.periodStart, kpi.periodEnd);
+  const vt = velText(vel, unit);
+
   const reductionPct = achievedReduction / totalReduction;
-
-  const today = new Date();
-  const start = new Date(kpi.periodStart || `${today.getFullYear()}-01-01`);
-  const end = new Date(kpi.periodEnd || `${today.getFullYear()}-12-31`);
-  const totalDays = Math.max((end.getTime() - start.getTime()) / 86400000, 1);
-  const elapsedDays = Math.max((today.getTime() - start.getTime()) / 86400000, 0);
-  const elapsedPct = Math.min(elapsedDays / totalDays, 1);
-
-  const pi = elapsedPct > 0 ? reductionPct / elapsedPct : reductionPct > 0 ? 2 : 0;
+  const pi = time.elapsedPct > 0 ? reductionPct / time.elapsedPct : reductionPct > 0 ? 2 : 0;
+  const expectedNow = Math.round(baseline - totalReduction * time.elapsedPct);
 
   if (actual <= target) {
-    return { status: "achieved", reason: `Target met: ${actual} (target: ${target}, baseline: ${baseline}).`, performanceIndex: pi };
+    return r("achieved", `Target met: ${fmtN(actual)}${unit} (target ${fmtN(target)}${unit}, baseline ${fmtN(baseline)}${unit}).`, pi, vel, time);
   }
+
+  const severityMultiplier = 1 + time.elapsedPct * 0.5;
+  const adjustedPi = pi * (1 / severityMultiplier);
+
   if (pi >= 1.10) {
-    return { status: "exceeding", reason: `Ahead of reduction pace. ${actual} down from ${baseline}.`, performanceIndex: pi };
+    return r("exceeding", `Reducing faster than needed. ${fmtN(actual)}${unit} vs expected ${fmtN(expectedNow)}${unit} (${time.quarter}).${vt}`, pi, vel, time);
   }
   if (pi >= 0.90) {
-    return { status: "on-track", reason: `Reducing on pace. ${actual} down from ${baseline}.`, performanceIndex: pi };
+    return r("on-track", `Reducing on pace. ${fmtN(actual)}${unit} vs expected ${fmtN(expectedNow)}${unit} (${time.quarter}).${vt}`, pi, vel, time);
   }
-  if (pi >= 0.70) {
-    return { status: "at-risk", reason: `Reduction behind pace. ${actual} (baseline ${baseline}, target ${target}).`, performanceIndex: pi };
+  if (adjustedPi >= 0.55) {
+    return r("at-risk", `Reduction behind (${time.quarter}). ${fmtN(actual)}${unit} vs expected ${fmtN(expectedNow)}${unit}.${vt}`, pi, vel, time);
   }
-  return { status: "critical", reason: `Reduction stalled. ${actual} (baseline ${baseline}, target ${target}).`, performanceIndex: pi };
+  return r("critical", `Reduction stalled (${time.quarter}). ${fmtN(actual)}${unit} vs expected ${fmtN(expectedNow)}${unit}.${vt}`, pi, vel, time);
 }
 
 function computeMilestoneKpi(kpi: KpiEngineInput): KpiStatusResult {
-  if (kpi.milestoneDone) {
-    return { status: "achieved", reason: "Milestone completed.", performanceIndex: 1 };
-  }
-  if (!kpi.milestoneDue) {
-    return { status: "not-started", reason: "No due date set for milestone.", performanceIndex: 0 };
-  }
-  const today = new Date();
-  const due = new Date(kpi.milestoneDue);
-  const daysUntilDue = Math.ceil((due.getTime() - today.getTime()) / 86400000);
+  const time = getTimePosition(kpi.periodStart, kpi.periodEnd);
+  if (kpi.milestoneDone) return r("achieved", "Completed.", 1, null, time);
+  if (!kpi.milestoneDue) return r("not-started", "No due date set.", 0, null, time);
 
-  if (daysUntilDue < 0) {
-    return { status: "critical", reason: `Overdue by ${Math.abs(daysUntilDue)}d. Due: ${kpi.milestoneDue}.`, performanceIndex: 0 };
-  }
-  if (daysUntilDue <= 30) {
-    return { status: "at-risk", reason: `Due in ${daysUntilDue}d (${kpi.milestoneDue}). Not yet complete.`, performanceIndex: 0.5 };
-  }
-  return { status: "on-track", reason: `Due ${kpi.milestoneDue} (${daysUntilDue}d away).`, performanceIndex: 1 };
+  const days = Math.ceil((new Date(kpi.milestoneDue).getTime() - new Date().getTime()) / 86400000);
+  if (days < 0) return r("critical", `Overdue by ${Math.abs(days)}d.`, 0, null, time);
+  if (days <= 30) return r("at-risk", `Due in ${days}d — not yet complete.`, 0.5, null, time);
+  return r("on-track", `Due in ${days}d (${kpi.milestoneDue}).`, 0.8, null, time);
 }
 
 export function computeKpiStatus(kpi: KpiEngineInput): KpiStatusResult {
-  if (kpi.target === null || kpi.target === 0) {
-    return { status: "not-started", reason: "No target set.", performanceIndex: 0 };
-  }
-  if (kpi.kpiType !== "milestone" && kpi.actual === null) {
-    return { status: "not-started", reason: "No actual value recorded.", performanceIndex: 0 };
+  if (kpi.kpiType !== "milestone") {
+    if (!kpi.target) return { status: "not-started", reason: "No target set.", performanceIndex: 0, velocity: null, timePosition: "Q1" };
+    if (kpi.actual == null) return { status: "not-started", reason: "No actual value recorded.", performanceIndex: 0, velocity: null, timePosition: "Q1" };
   }
 
   if (kpi.kpiType === "milestone") return computeMilestoneKpi(kpi);

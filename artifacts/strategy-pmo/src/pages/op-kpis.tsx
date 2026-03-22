@@ -56,6 +56,8 @@ type Kpi = {
   nextYearTarget?: number | null;
   initiativeId: number | null;
   ownerName?: string | null;
+  prevActual?: number | null;
+  prevActualDt?: string | null;
   kpiType?: string | null;
   direction?: string | null;
   periodStart?: string | null;
@@ -279,10 +281,13 @@ export default function OpKPIs() {
                           target: kpi.target,
                           actual: kpi.actual,
                           baseline: kpi.baseline ?? null,
+                          prevActual: kpi.prevActual ?? null,
+                          prevActualDt: kpi.prevActualDt ?? null,
                           periodStart: kpi.periodStart ?? null,
                           periodEnd: kpi.periodEnd ?? null,
                           milestoneDue: kpi.milestoneDue ?? null,
                           milestoneDone: kpi.milestoneDone ?? false,
+                          unit: kpi.unit,
                         };
                         const result = computeKpiStatus(engineInput);
                         const kpiColor = getPillarColor(kpi.initiativeId);

@@ -184,10 +184,13 @@ export default function KPIs() {
               target: kpi.target,
               actual: kpi.actual,
               baseline: kpi.baseline ?? null,
+              prevActual: kpi.prevActual ?? null,
+              prevActualDt: kpi.prevActualDt ?? null,
               periodStart: kpi.periodStart ?? null,
               periodEnd: kpi.periodEnd ?? null,
               milestoneDue: kpi.milestoneDue ?? null,
               milestoneDone: kpi.milestoneDone ?? false,
+              unit: kpi.unit,
             };
             const result = computeKpiStatus(engineInput);
             const progress = kpi.target > 0 ? Math.min(100, (kpi.actual / kpi.target) * 100) : 0;
