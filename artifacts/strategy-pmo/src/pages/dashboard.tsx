@@ -10,6 +10,7 @@ import {
   type SpmoProjectWithProgress,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
+import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
 
 import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload } from "lucide-react";
 import { format } from "date-fns";
@@ -89,6 +90,99 @@ const STATUS_CHIPS: Record<ProjectStatusCategory, { label: string; bg: string; t
 };
 
 const STATUS_ORDER: ProjectStatusCategory[] = ["on_track", "at_risk", "delayed", "completed", "not_started", "on_hold"];
+
+// Exact colours per user spec
+const PIE_COLOURS: Record<ProjectStatusCategory, string> = {
+  on_track:    "#86efac", // light green
+  completed:   "#16a34a", // dark green
+  at_risk:     "#f59e0b", // amber
+  delayed:     "#ef4444", // red
+  on_hold:     "#9ca3af", // grey
+  not_started: "#d1d5db", // light grey
+};
+
+const PIE_LABELS: Record<ProjectStatusCategory, string> = {
+  on_track:    "On Track",
+  completed:   "Completed",
+  at_risk:     "Risk of Delay",
+  delayed:     "Delayed",
+  on_hold:     "On Hold",
+  not_started: "Not Started",
+};
+
+function ProjectStatusPieChart({ projects }: { projects: SpmoProjectWithProgress[] }) {
+  const counts: Record<ProjectStatusCategory, number> = {
+    on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0, on_hold: 0,
+  };
+  for (const p of projects) counts[classifyProject(p)]++;
+
+  const chartData = STATUS_ORDER
+    .filter((s) => counts[s] > 0)
+    .map((s) => ({ name: PIE_LABELS[s], value: counts[s], key: s }));
+
+  if (chartData.length === 0) return null;
+
+  const total = projects.length;
+
+  return (
+    <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm">
+      <h2 className="text-base font-display font-bold mb-4">Project Status Breakdown</h2>
+      <div className="flex flex-col sm:flex-row items-center gap-6">
+        {/* Pie */}
+        <div className="w-52 h-52 shrink-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={58}
+                outerRadius={88}
+                paddingAngle={2}
+                dataKey="value"
+                strokeWidth={0}
+              >
+                {chartData.map((entry) => (
+                  <Cell key={entry.key} fill={PIE_COLOURS[entry.key as ProjectStatusCategory]} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value: number, name: string) => [`${value} project${value !== 1 ? "s" : ""}`, name]}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Legend + counts — always show all 6 categories */}
+        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-y-2.5 gap-x-6 w-full">
+          {STATUS_ORDER.map((s) => (
+            <div key={s} className="flex items-center gap-2.5">
+              <span
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{ backgroundColor: PIE_COLOURS[s], opacity: counts[s] === 0 ? 0.35 : 1 }}
+              />
+              <span className={`text-sm flex-1 ${counts[s] === 0 ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                {PIE_LABELS[s]}
+              </span>
+              <span className={`text-sm font-bold tabular-nums ${counts[s] === 0 ? "text-muted-foreground/40" : ""}`}>
+                {counts[s]}
+              </span>
+              {total > 0 && counts[s] > 0 && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {Math.round((counts[s] / total) * 100)}%
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Centre total */}
+      </div>
+      <div className="mt-3 text-xs text-muted-foreground text-right">{total} total project{total !== 1 ? "s" : ""}</div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { data, isLoading, error } = useGetSpmoOverview();
@@ -227,6 +321,11 @@ export default function Dashboard() {
           bg={budgetUsed > 90 ? "bg-destructive/10" : "bg-warning/10"}
         />
       </div>
+
+      {/* Project Status Pie Chart */}
+      {projects.length > 0 && (
+        <ProjectStatusPieChart projects={projects} />
+      )}
 
       {/* Pillar Groups — Initiatives + Project Status Counts */}
       <section>
