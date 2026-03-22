@@ -357,8 +357,8 @@ export default function PillarPortfolio({ params }: Props) {
                             Initiative
                           </div>
                           <h3 className="font-bold text-base">
-                            {initiative.code && (
-                              <span className="font-mono text-muted-foreground mr-1.5">{initiative.code}:</span>
+                            {initiative.initiativeCode && (
+                              <span className="font-mono text-muted-foreground mr-1.5">{initiative.initiativeCode}:</span>
                             )}
                             {initiative.name}
                           </h3>

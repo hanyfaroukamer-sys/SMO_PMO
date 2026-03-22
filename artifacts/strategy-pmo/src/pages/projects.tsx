@@ -36,12 +36,13 @@ import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elem
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { Link } from "wouter";
 
 function fileIcon(contentType: string | null | undefined) {
   if (!contentType) return FileText;
@@ -983,6 +984,15 @@ function ProjectRow({
           <div className="text-right">
             <div className="text-xs text-muted-foreground">Milestones</div>
             <div className="font-bold text-sm">{project.milestoneCount ?? 0}</div>
+          </div>
+          <div onClick={(e) => e.stopPropagation()}>
+            <Link
+              to={`/risks?project=${project.id}`}
+              className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors flex items-center"
+              title="View project risks"
+            >
+              <ShieldAlert className="w-4 h-4" />
+            </Link>
           </div>
           {isAdmin && (
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>

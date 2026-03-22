@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   useListSpmoRisks,
   useCreateSpmoRisk,
@@ -8,12 +8,13 @@ import {
   useUpdateSpmoMitigation,
   useListSpmoProjects,
   useListSpmoInitiatives,
+  useListSpmoDepartments,
   type CreateSpmoRiskRequest,
   type CreateSpmoMitigationRequest,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, ShieldAlert, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
+import { Loader2, ShieldAlert, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck, Building2, FolderOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -83,11 +84,17 @@ export default function Risks() {
   const [editId, setEditId] = useState<number | null>(null);
   const [riskForm, setRiskForm] = useState<RiskForm>(emptyRisk());
   const [expandedRisk, setExpandedRisk] = useState<number | null>(null);
+  const { data: departmentsData } = useListSpmoDepartments();
+  const [collapsedDepts, setCollapsedDepts] = useState<Set<number | string>>(new Set());
+  const UNASSIGNED_RISKS_KEY = "unassigned";
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(new Set());
+  const didScrollRef = useRef(false);
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const projects = projectsData?.projects ?? [];
   const initiatives = initiativesData?.initiatives ?? [];
+  const departments = departmentsData?.departments ?? [];
   const initiativeCodeMap = new Map(initiatives.map((ini, idx) => [ini.id, ini.initiativeCode ?? String(idx + 1).padStart(2, "0")]));
 
   const createMutation = useCreateSpmoRisk();
@@ -95,6 +102,22 @@ export default function Risks() {
   const deleteMutation = useDeleteSpmoRisk();
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/spmo/risks"] });
+
+  useEffect(() => {
+    if (didScrollRef.current || !data?.risks?.length || !projects.length) return;
+    const params = new URLSearchParams(window.location.search);
+    const rawId = params.get("project");
+    if (!rawId) return;
+    const targetProjectId = parseInt(rawId, 10);
+    if (isNaN(targetProjectId)) return;
+    const projectHasRisk = data.risks.some((r) => r.projectId === targetProjectId);
+    if (!projectHasRisk) return;
+    didScrollRef.current = true;
+    setTimeout(() => {
+      const el = document.getElementById(`risk-project-${targetProjectId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  }, [data, projects]);
 
   function openCreate() {
     setEditId(null);
@@ -182,6 +205,66 @@ export default function Risks() {
       projectName: `${codePrefix}${project.name}`,
       initiativeName: initiative ? `${iniPrefix}${initiative.name}` : "",
     };
+  }
+
+  // ── Build grouped structure: Department → Project → Risks ──────────────────
+  const risksByProject = new Map<number, typeof sorted>();
+  const unassignedRisks: typeof sorted = [];
+  for (const r of sorted) {
+    if (!r.projectId) { unassignedRisks.push(r); continue; }
+    const list = risksByProject.get(r.projectId) ?? [];
+    list.push(r);
+    risksByProject.set(r.projectId, list);
+  }
+
+  type DeptGroup = {
+    deptId: number | null;
+    deptName: string;
+    deptColor: string;
+    projectGroups: { project: NonNullable<typeof projects>[number]; risks: typeof sorted }[];
+  };
+
+  const deptGroups: DeptGroup[] = [];
+  const assignedDeptIds = new Set<number>();
+
+  for (const dept of departments) {
+    const deptProjects = projects
+      .filter((p) => p.departmentId === dept.id && risksByProject.has(p.id))
+      .map((p) => ({ project: p, risks: risksByProject.get(p.id)! }));
+    if (deptProjects.length === 0) continue;
+    assignedDeptIds.add(dept.id);
+    deptGroups.push({
+      deptId: dept.id,
+      deptName: dept.name,
+      deptColor: dept.color,
+      projectGroups: deptProjects,
+    });
+  }
+
+  // Projects with risks but no department (or dept not in list)
+  const noDeptProjects = projects
+    .filter((p) => risksByProject.has(p.id) && (p.departmentId == null || !assignedDeptIds.has(p.departmentId)))
+    .map((p) => ({ project: p, risks: risksByProject.get(p.id)! }));
+  if (noDeptProjects.length > 0) {
+    deptGroups.push({ deptId: null, deptName: "No Department", deptColor: "#9ca3af", projectGroups: noDeptProjects });
+  }
+
+  function toggleDept(key: number | string) {
+    setCollapsedDepts((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleProject(projectId: number) {
+    setCollapsedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
   }
 
   const PROB_LEVELS: ProbImpact[] = ["low", "medium", "high", "critical"];
@@ -280,80 +363,215 @@ export default function Risks() {
         })}
       </div>
 
-      {/* Risk list */}
-      <div className="space-y-3">
-        {sorted.map((risk) => {
-          const borderColor = riskBorderColor(risk.riskScore);
-          return (
-            <Card key={risk.id} noPadding className={`overflow-hidden ${riskColorClass(risk.riskScore)}`}>
-              <div
-                className="flex items-center gap-4 p-4 cursor-pointer hover:bg-black/5 transition-colors"
-                style={{ borderLeft: `4px solid ${borderColor}` }}
-                onClick={() => setExpandedRisk(expandedRisk === risk.id ? null : risk.id)}
-              >
-                <div className="flex flex-col items-center justify-center w-14 h-14 rounded-xl shrink-0 border-2 bg-background"
-                  style={{ borderColor, color: borderColor }}
+      {/* Risk list — grouped by Department → Project */}
+      {risks.length === 0 ? (
+        <Card className="p-12 text-center text-muted-foreground flex flex-col items-center">
+          <ShieldAlert className="w-12 h-12 mb-4 opacity-20" />
+          <p>No risks logged yet.</p>
+        </Card>
+      ) : (
+        <div className="space-y-5">
+          {deptGroups.map((dg) => {
+            const deptKey = dg.deptId ?? "no-dept";
+            const isDeptCollapsed = collapsedDepts.has(deptKey);
+            const deptRiskCount = dg.projectGroups.reduce((s, pg) => s + pg.risks.length, 0);
+            return (
+              <div key={deptKey} className="rounded-2xl border border-border overflow-hidden shadow-sm">
+                {/* Department header */}
+                <button
+                  onClick={() => toggleDept(deptKey)}
+                  className="w-full flex items-center gap-3 px-5 py-3.5 bg-card hover:bg-secondary/20 transition-colors text-left focus:outline-none"
+                  style={{ borderLeft: `4px solid ${dg.deptColor}` }}
                 >
-                  <span className="text-xl font-bold leading-none">{risk.riskScore}</span>
-                  <span className="text-[9px] uppercase tracking-wider opacity-70">score</span>
-                </div>
+                  <Building2 className="w-4 h-4 shrink-0" style={{ color: dg.deptColor }} />
+                  <span className="flex-1 font-bold text-sm">{dg.deptName}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {deptRiskCount} risk{deptRiskCount !== 1 ? "s" : ""}
+                    {" · "}
+                    {dg.projectGroups.length} project{dg.projectGroups.length !== 1 ? "s" : ""}
+                  </span>
+                  <ChevronDown
+                    className="w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0"
+                    style={{ transform: isDeptCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+                  />
+                </button>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h3 className="font-bold text-foreground">{risk.title}</h3>
-                    <StatusBadge status={risk.status} />
-                    {risk.category && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
-                        {risk.category}
-                      </span>
-                    )}
-                  </div>
-                  {(() => {
-                    const ctx = getProjectContext(risk.projectId);
-                    return ctx ? (
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
-                        {ctx.initiativeName && <span className="text-primary/70">{ctx.initiativeName}</span>}
-                        {ctx.initiativeName && <span>›</span>}
-                        <span className="font-medium text-foreground/70">{ctx.projectName}</span>
-                      </div>
-                    ) : null;
-                  })()}
-                  <p className="text-sm text-muted-foreground line-clamp-1">{risk.description}</p>
-                  <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                    {risk.owner && <span>Owner: <strong className="text-foreground">{risk.owner}</strong></span>}
-                    <span className="capitalize">{LABEL_MAP[risk.probability as ProbImpact]} probability × {LABEL_MAP[risk.impact as ProbImpact]} impact</span>
-                  </div>
-                </div>
+                {/* Project groups within department */}
+                {!isDeptCollapsed && (
+                  <div className="divide-y divide-border border-t border-border">
+                    {dg.projectGroups.map((pg) => {
+                      const isProjCollapsed = collapsedProjects.has(pg.project.id);
+                      return (
+                        <div key={pg.project.id} id={`risk-project-${pg.project.id}`}>
+                          {/* Project header */}
+                          <button
+                            onClick={() => toggleProject(pg.project.id)}
+                            className="w-full flex items-center gap-3 px-6 py-3 bg-secondary/5 hover:bg-secondary/20 transition-colors text-left focus:outline-none"
+                          >
+                            <FolderOpen className="w-4 h-4 shrink-0 text-muted-foreground" />
+                            <span className="flex-1 font-semibold text-sm">
+                              {pg.project.projectCode && (
+                                <span className="font-mono text-muted-foreground mr-1.5">{pg.project.projectCode}:</span>
+                              )}
+                              {pg.project.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {pg.risks.length} risk{pg.risks.length !== 1 ? "s" : ""}
+                            </span>
+                            <ChevronDown
+                              className="w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0"
+                              style={{ transform: isProjCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+                            />
+                          </button>
 
-                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => openEdit(risk)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  {isAdmin && (
-                    <button onClick={() => handleDelete(risk.id, risk.title)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  <div onClick={(e) => { e.stopPropagation(); setExpandedRisk(expandedRisk === risk.id ? null : risk.id); }}>
-                    {expandedRisk === risk.id
-                      ? <ChevronUp className="w-5 h-5 text-muted-foreground cursor-pointer" />
-                      : <ChevronDown className="w-5 h-5 text-muted-foreground cursor-pointer" />}
+                          {/* Risks within project */}
+                          {!isProjCollapsed && (
+                            <div className="divide-y divide-border/60 bg-background">
+                              {pg.risks.map((risk) => {
+                                const borderColor = riskBorderColor(risk.riskScore);
+                                return (
+                                  <div key={risk.id} className={`${riskColorClass(risk.riskScore)}`}>
+                                    <div
+                                      className="flex items-center gap-4 px-6 py-4 cursor-pointer hover:bg-black/5 transition-colors"
+                                      style={{ borderLeft: `4px solid ${borderColor}` }}
+                                      onClick={() => setExpandedRisk(expandedRisk === risk.id ? null : risk.id)}
+                                    >
+                                      <div
+                                        className="flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 border-2 bg-background"
+                                        style={{ borderColor, color: borderColor }}
+                                      >
+                                        <span className="text-lg font-bold leading-none">{risk.riskScore}</span>
+                                        <span className="text-[9px] uppercase tracking-wider opacity-70">score</span>
+                                      </div>
+
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                          <h3 className="font-bold text-foreground">{risk.title}</h3>
+                                          <StatusBadge status={risk.status} />
+                                          {risk.category && (
+                                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                                              {risk.category}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-sm text-muted-foreground line-clamp-1">{risk.description}</p>
+                                        <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                                          {risk.owner && <span>Owner: <strong className="text-foreground">{risk.owner}</strong></span>}
+                                          <span className="capitalize">{LABEL_MAP[risk.probability as ProbImpact]} prob × {LABEL_MAP[risk.impact as ProbImpact]} impact</span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                        <button onClick={() => openEdit(risk)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
+                                          <Pencil className="w-4 h-4" />
+                                        </button>
+                                        {isAdmin && (
+                                          <button onClick={() => handleDelete(risk.id, risk.title)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        )}
+                                        <div onClick={(e) => { e.stopPropagation(); setExpandedRisk(expandedRisk === risk.id ? null : risk.id); }}>
+                                          {expandedRisk === risk.id
+                                            ? <ChevronUp className="w-5 h-5 text-muted-foreground cursor-pointer" />
+                                            : <ChevronDown className="w-5 h-5 text-muted-foreground cursor-pointer" />}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {expandedRisk === risk.id && <MitigationSection riskId={risk.id} mitigations={risk.mitigations ?? []} />}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
+                )}
               </div>
+            );
+          })}
 
-              {expandedRisk === risk.id && <MitigationSection riskId={risk.id} mitigations={risk.mitigations ?? []} />}
-            </Card>
-          );
-        })}
+          {/* Unassigned risks (no project) */}
+          {unassignedRisks.length > 0 && (
+            <div className="rounded-2xl border border-border overflow-hidden shadow-sm">
+              <button
+                onClick={() => toggleDept(UNASSIGNED_RISKS_KEY)}
+                className="w-full flex items-center gap-3 px-5 py-3.5 bg-card hover:bg-secondary/20 transition-colors text-left focus:outline-none border-l-4 border-muted-foreground/30"
+              >
+                <ShieldAlert className="w-4 h-4 shrink-0 text-muted-foreground" />
+                <span className="flex-1 font-bold text-sm text-muted-foreground">Unassigned Risks</span>
+                <span className="text-xs text-muted-foreground">{unassignedRisks.length} risk{unassignedRisks.length !== 1 ? "s" : ""}</span>
+                <ChevronDown
+                  className="w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0"
+                  style={{ transform: collapsedDepts.has(UNASSIGNED_RISKS_KEY) ? "rotate(-90deg)" : "rotate(0deg)" }}
+                />
+              </button>
 
-        {risks.length === 0 && (
-          <Card className="p-12 text-center text-muted-foreground flex flex-col items-center">
-            <ShieldAlert className="w-12 h-12 mb-4 opacity-20" />
-            <p>No risks logged yet.</p>
-          </Card>
-        )}
-      </div>
+              {!collapsedDepts.has(UNASSIGNED_RISKS_KEY) && (
+                <div className="divide-y divide-border/60 bg-background border-t border-border">
+                  {unassignedRisks.map((risk) => {
+                    const borderColor = riskBorderColor(risk.riskScore);
+                    return (
+                      <div key={risk.id} className={riskColorClass(risk.riskScore)}>
+                        <div
+                          className="flex items-center gap-4 px-6 py-4 cursor-pointer hover:bg-black/5 transition-colors"
+                          style={{ borderLeft: `4px solid ${borderColor}` }}
+                          onClick={() => setExpandedRisk(expandedRisk === risk.id ? null : risk.id)}
+                        >
+                          <div
+                            className="flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 border-2 bg-background"
+                            style={{ borderColor, color: borderColor }}
+                          >
+                            <span className="text-lg font-bold leading-none">{risk.riskScore}</span>
+                            <span className="text-[9px] uppercase tracking-wider opacity-70">score</span>
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <h3 className="font-bold text-foreground">{risk.title}</h3>
+                              <StatusBadge status={risk.status} />
+                              {risk.category && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                                  {risk.category}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground line-clamp-1">{risk.description}</p>
+                            <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                              {risk.owner && <span>Owner: <strong className="text-foreground">{risk.owner}</strong></span>}
+                              <span className="capitalize">{LABEL_MAP[risk.probability as ProbImpact]} prob × {LABEL_MAP[risk.impact as ProbImpact]} impact</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => openEdit(risk)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            {isAdmin && (
+                              <button onClick={() => handleDelete(risk.id, risk.title)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            <div onClick={(e) => { e.stopPropagation(); setExpandedRisk(expandedRisk === risk.id ? null : risk.id); }}>
+                              {expandedRisk === risk.id
+                                ? <ChevronUp className="w-5 h-5 text-muted-foreground cursor-pointer" />
+                                : <ChevronDown className="w-5 h-5 text-muted-foreground cursor-pointer" />}
+                            </div>
+                          </div>
+                        </div>
+
+                        {expandedRisk === risk.id && <MitigationSection riskId={risk.id} mitigations={risk.mitigations ?? []} />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Risk Form Modal */}
       <Modal open={riskModal} onClose={() => setRiskModal(false)} title={editId ? "Edit Risk" : "Log New Risk"}>
