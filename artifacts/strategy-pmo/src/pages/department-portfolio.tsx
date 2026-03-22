@@ -3,7 +3,7 @@ import {
   useGetSpmaDepartmentPortfolio,
   type SpmaDepartmentPortfolioProject,
 } from "@workspace/api-client-react";
-import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
+import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { Loader2, ArrowLeft, Building2, FolderOpen, TrendingUp, Target, ExternalLink } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -34,6 +34,30 @@ const PIE_LABELS: Record<StatusCategory, string> = {
   on_hold:     "On Hold",
   not_started: "Not Started",
 };
+
+const STATUS_TEXT: Record<StatusCategory, string> = {
+  on_track:    "text-green-700 dark:text-green-400",
+  completed:   "text-green-800 dark:text-green-300",
+  at_risk:     "text-amber-700 dark:text-amber-400",
+  delayed:     "text-red-600 dark:text-red-400",
+  on_hold:     "text-slate-500",
+  not_started: "text-slate-400",
+};
+
+function DeptStatusBadge({ project }: { project: SpmaDepartmentPortfolioProject }) {
+  const category = classifyProject(project);
+  const label = PIE_LABELS[category];
+  const color = PIE_COLOURS[category];
+  const textCls = STATUS_TEXT[category];
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border whitespace-nowrap ${textCls}`}
+      style={{ backgroundColor: `${color}22`, borderColor: `${color}55` }}
+    >
+      {label}
+    </span>
+  );
+}
 
 function calcPlannedProgress(startDate: string | null | undefined, endDate: string | null | undefined): number {
   if (!startDate || !endDate) return 0;
@@ -245,7 +269,7 @@ export default function DepartmentPortfolio({ params }: Props) {
                       >
                         {project.projectCode && <span className="font-mono text-slate-500 mr-1">{project.projectCode}:</span>}{project.name}
                       </button>
-                      <StatusBadge status={project.status} />
+                      <DeptStatusBadge project={project} />
                     </div>
                     {(project.initiativeName || project.pillarName) && (
                       <p className="text-xs text-slate-400 mt-0.5">
