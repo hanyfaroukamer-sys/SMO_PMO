@@ -179,9 +179,12 @@ function computeRateKpi(kpi: KpiEngineInput): KpiStatusResult {
     );
   }
 
+  // Thresholds widen with remaining runway so Q1 is most forgiving, Q4 strictest.
+  // Spec example: Q1 (25% elapsed) → onTrack = 7.5×1.375 = 10.3%, atRisk = 22.5×1.375 = 30.9%
+  // Q4 (100% elapsed) → onTrack = 7.5%, atRisk = 22.5%
   const shrink = 0.5;
-  const onTrackThreshold = 5 * (1 + (1 - time.elapsedPct) * shrink);
-  const atRiskThreshold = 15 * (1 + (1 - time.elapsedPct) * shrink);
+  const onTrackThreshold = 7.5 * (1 + (1 - time.elapsedPct) * shrink);
+  const atRiskThreshold = 22.5 * (1 + (1 - time.elapsedPct) * shrink);
 
   if (vel) {
     if (!vel.willHitTarget && time.elapsedPct > 0.5) {
