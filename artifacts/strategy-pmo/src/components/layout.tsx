@@ -20,6 +20,8 @@ import {
   ShieldCheck,
   Upload,
   GitMerge,
+  Layers,
+  Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetCurrentAuthUser } from "@workspace/api-client-react";
@@ -27,6 +29,8 @@ import { useGetCurrentAuthUser } from "@workspace/api-client-react";
 const navItems = [
   { title: "Dashboard",        href: "/",             icon: LayoutDashboard, adminOnly: false, hidden: false },
   { title: "Strategy Map",     href: "/strategy-map", icon: Network,          adminOnly: false, hidden: true  },
+  { title: "Pillars",          href: "/pillars",      icon: Layers,           adminOnly: true,  hidden: false },
+  { title: "Initiatives",      href: "/initiatives",  icon: Flag,             adminOnly: true,  hidden: false },
   { title: "Projects",         href: "/projects",     icon: Briefcase,        adminOnly: false, hidden: false },
   { title: "Progress Proof",   href: "/progress",     icon: CheckSquare,      adminOnly: true,  hidden: false },
   { title: "KPIs",             href: "/kpis",         icon: LineChart,        adminOnly: false, hidden: false },
