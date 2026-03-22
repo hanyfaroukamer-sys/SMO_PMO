@@ -10,10 +10,11 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, Building2, DollarSign, FileText, Send, Search, Award, CheckCircle2 } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Building2, DollarSign, FileText, Send, Search, Award, CheckCircle2, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 const STAGES = [
   { value: "rfp_draft",   label: "RFP Draft",   color: "#64748b", bg: "bg-slate-50",   header: "bg-slate-100" },
@@ -42,6 +43,7 @@ const emptyForm = (): ProcurementForm => ({
 });
 
 export default function Procurement() {
+  const isAdmin = useIsAdmin();
   const { data: projectsData } = useListSpmoProjects();
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: procurementData, isLoading } = useListSpmoProcurement();
@@ -51,10 +53,19 @@ export default function Procurement() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<ProcurementForm>(emptyForm());
-
   const createMutation = useCreateSpmoProcurement();
   const updateMutation = useUpdateSpmoProcurement();
   const deleteMutation = useDeleteSpmoProcurement();
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
+        <ShieldCheck className="w-12 h-12 text-muted-foreground" />
+        <h2 className="text-xl font-bold">Admin access required</h2>
+        <p className="text-muted-foreground text-sm">You need admin privileges to view procurement records.</p>
+      </div>
+    );
+  }
 
   const projects = projectsData?.projects ?? [];
   const initiatives = initiativesData?.initiatives ?? [];

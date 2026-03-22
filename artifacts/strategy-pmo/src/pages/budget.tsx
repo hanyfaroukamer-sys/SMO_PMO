@@ -16,11 +16,12 @@ import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import {
   Loader2, Plus, Pencil, Trash2, Wallet, TrendingUp, CircleDollarSign, BarChart2,
-  Check, X,
+  Check, X, ShieldCheck,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
@@ -103,6 +104,7 @@ function initiativeHealth(progress: number): { label: string; color: string } {
 }
 
 export default function Budget() {
+  const isAdmin = useIsAdmin();
   const { data, isLoading } = useListSpmoBudget();
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: projectsData } = useListSpmoProjects();
@@ -112,12 +114,21 @@ export default function Budget() {
   const [form, setForm] = useState<EntryForm>(emptyForm());
   const { toast } = useToast();
   const qc = useQueryClient();
-
   const createMutation = useCreateSpmoBudgetEntry();
   const updateMutation = useUpdateSpmoBudgetEntry();
   const deleteMutation = useDeleteSpmoBudgetEntry();
   const updateProject = useUpdateSpmoProject();
   const updateInitiative = useUpdateSpmoInitiative();
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
+        <ShieldCheck className="w-12 h-12 text-muted-foreground" />
+        <h2 className="text-xl font-bold">Admin access required</h2>
+        <p className="text-muted-foreground text-sm">You need admin privileges to view budget information.</p>
+      </div>
+    );
+  }
 
   const invalidateBudget = () => qc.invalidateQueries({ queryKey: ["/api/spmo/budget"] });
   const invalidateProjects = () => qc.invalidateQueries({ queryKey: ["/api/spmo/projects"] });
