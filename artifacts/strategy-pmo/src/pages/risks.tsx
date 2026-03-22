@@ -16,6 +16,7 @@ import { Modal, FormField, FormActions, inputClass, selectClass } from "@/compon
 import { Loader2, ShieldAlert, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 const RISK_STATUSES = ["open", "mitigated", "closed", "accepted"] as const;
 const PROB_IMPACT_VALUES = ["low", "medium", "high", "critical"] as const;
@@ -74,6 +75,7 @@ function heatmapColor(count: number) {
 }
 
 export default function Risks() {
+  const isAdmin = useIsAdmin();
   const { data, isLoading } = useListSpmoRisks();
   const { data: projectsData } = useListSpmoProjects();
   const { data: initiativesData } = useListSpmoInitiatives();
@@ -320,9 +322,11 @@ export default function Risks() {
                   <button onClick={() => openEdit(risk)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                     <Pencil className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleDelete(risk.id, risk.title)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {isAdmin && (
+                    <button onClick={() => handleDelete(risk.id, risk.title)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                   <div onClick={(e) => { e.stopPropagation(); setExpandedRisk(expandedRisk === risk.id ? null : risk.id); }}>
                     {expandedRisk === risk.id
                       ? <ChevronUp className="w-5 h-5 text-muted-foreground cursor-pointer" />

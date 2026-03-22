@@ -24,19 +24,19 @@ import { cn } from "@/lib/utils";
 import { useGetCurrentAuthUser } from "@workspace/api-client-react";
 
 const navItems = [
-  { title: "Dashboard",        href: "/",             icon: LayoutDashboard },
-  { title: "Strategy Map",     href: "/strategy-map", icon: Network          },
-  { title: "Projects",         href: "/projects",     icon: Briefcase        },
-  { title: "Progress Proof",   href: "/progress",     icon: CheckSquare      },
-  { title: "KPIs",             href: "/kpis",         icon: LineChart        },
-  { title: "Op. KPIs",         href: "/op-kpis",      icon: Activity         },
-  { title: "Budget",           href: "/budget",       icon: Wallet           },
-  { title: "Procurement",      href: "/procurement",  icon: ShoppingCart     },
-  { title: "Departments",      href: "/departments",  icon: Building2        },
-  { title: "Risks",            href: "/risks",        icon: ShieldAlert      },
-  { title: "Alerts",           href: "/alerts",       icon: BellRing         },
-  { title: "Activity Log",     href: "/activity",     icon: ScrollText       },
-  { title: "Import Strategy",  href: "/import",       icon: Upload           },
+  { title: "Dashboard",        href: "/",             icon: LayoutDashboard, adminOnly: false },
+  { title: "Strategy Map",     href: "/strategy-map", icon: Network,          adminOnly: false },
+  { title: "Projects",         href: "/projects",     icon: Briefcase,        adminOnly: false },
+  { title: "Progress Proof",   href: "/progress",     icon: CheckSquare,      adminOnly: true  },
+  { title: "KPIs",             href: "/kpis",         icon: LineChart,        adminOnly: false },
+  { title: "Op. KPIs",         href: "/op-kpis",      icon: Activity,         adminOnly: false },
+  { title: "Budget",           href: "/budget",       icon: Wallet,           adminOnly: false },
+  { title: "Procurement",      href: "/procurement",  icon: ShoppingCart,     adminOnly: false },
+  { title: "Departments",      href: "/departments",  icon: Building2,        adminOnly: false },
+  { title: "Risks",            href: "/risks",        icon: ShieldAlert,      adminOnly: false },
+  { title: "Alerts",           href: "/alerts",       icon: BellRing,         adminOnly: false },
+  { title: "Activity Log",     href: "/activity",     icon: ScrollText,       adminOnly: true  },
+  { title: "Import Strategy",  href: "/import",       icon: Upload,           adminOnly: true  },
 ];
 
 function Logo({ collapsed }: { collapsed: boolean }) {
@@ -79,7 +79,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
         {/* Nav items */}
         <nav className="flex-1 overflow-y-auto py-3 px-1.5 space-y-0.5 scrollbar-hide">
-          {navItems.map((item) => {
+          {navItems.filter((item) => !item.adminOnly || user?.role === "admin").map((item) => {
             const isActive =
               location === item.href ||
               (item.href !== "/" && location.startsWith(item.href));

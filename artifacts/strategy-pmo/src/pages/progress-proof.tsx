@@ -6,6 +6,7 @@ import {
   useApproveSpmoMilestone,
   useRejectSpmoMilestone,
   useAddSpmoEvidence,
+  useGetCurrentAuthUser,
   type SpmoPendingApprovalItem,
   type SpmoEvidence,
   type SpmoMilestoneWithEvidence,
@@ -13,7 +14,7 @@ import {
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
 import {
   Loader2, CheckCircle2, XCircle, FileText, Sparkles, ChevronRight,
-  Target, Clock, AlertCircle, FileX, ThumbsUp, Upload,
+  Target, Clock, AlertCircle, FileX, ThumbsUp, Upload, ShieldCheck,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -40,7 +41,19 @@ const FILTER_CONFIG: Array<{
 
 export default function ProgressProof() {
   const [filter, setFilter] = useState<FilterKey>("submitted");
+  const { data: authData } = useGetCurrentAuthUser();
+  const isAdmin = authData?.user?.role === "admin";
   const { data, isLoading } = useListSpmoAllMilestones();
+
+  if (!isAdmin && authData !== undefined) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
+        <ShieldCheck className="w-12 h-12 text-muted-foreground" />
+        <h2 className="text-xl font-bold">Admin access required</h2>
+        <p className="text-muted-foreground text-sm">You need admin privileges to view progress proofs.</p>
+      </div>
+    );
+  }
 
   if (isLoading)
     return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;

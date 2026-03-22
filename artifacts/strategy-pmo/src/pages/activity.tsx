@@ -1,7 +1,8 @@
 import { useListSpmoActivityLog } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
-import { Loader2, FileText } from "lucide-react";
+import { Loader2, FileText, ShieldCheck } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 function actionDotColor(action: string): string {
   if (action.includes("approve")) return "bg-success";
@@ -16,7 +17,18 @@ function actionLabel(action: string): string {
 }
 
 export default function ActivityLog() {
+  const isAdmin = useIsAdmin();
   const { data, isLoading } = useListSpmoActivityLog();
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
+        <ShieldCheck className="w-12 h-12 text-muted-foreground" />
+        <h2 className="text-xl font-bold">Admin access required</h2>
+        <p className="text-muted-foreground text-sm">You need admin privileges to view the activity log.</p>
+      </div>
+    );
+  }
 
   if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 

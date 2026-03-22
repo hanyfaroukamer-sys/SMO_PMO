@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { Upload, FileText, X, CheckCircle2, AlertTriangle, Loader2, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { Upload, FileText, X, CheckCircle2, AlertTriangle, Loader2, ChevronDown, ChevronUp, Plus, Trash2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -480,13 +481,23 @@ export default function ImportPage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
-
+  const isAdmin = useIsAdmin();
   const [step, setStep] = useState<"upload" | "review">("upload");
   const [files, setFiles] = useState<File[]>([]);
   const [mode, setMode] = useState<ImportMode>("new");
   const [analysing, setAnalysing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [extracted, setExtracted] = useState<ExtractedData | null>(null);
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
+        <ShieldCheck className="w-12 h-12 text-muted-foreground" />
+        <h2 className="text-xl font-bold">Admin access required</h2>
+        <p className="text-muted-foreground text-sm">You need admin privileges to import strategies.</p>
+      </div>
+    );
+  }
 
   async function handleAnalyse() {
     setAnalysing(true);

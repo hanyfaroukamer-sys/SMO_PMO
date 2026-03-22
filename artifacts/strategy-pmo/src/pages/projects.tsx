@@ -795,7 +795,7 @@ function ProjectRow({
             <h4 className="font-bold text-base">{project.name}</h4>
             <div className="flex items-center gap-2">
               <ComputedStatusBadge cs={project.computedStatus} />
-              {project.weight > 0 && (
+              {isAdmin && project.weight > 0 && (
                 <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded text-muted-foreground">
                   {project.weight}% weight
                 </span>
