@@ -7,12 +7,20 @@ import {
   type SpmaAdminUser,
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
-import { Loader2, ShieldCheck, Settings, Users } from "lucide-react";
+import { Loader2, ShieldCheck, Settings, Users, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+type UserRole = "admin" | "project-manager" | "approver";
+
+const ROLES: { value: UserRole; label: string; description: string; color: string }[] = [
+  { value: "admin", label: "Admin", description: "Full edit access", color: "bg-primary text-primary-foreground border-primary" },
+  { value: "project-manager", label: "Project Manager", description: "Update progress & reports", color: "bg-blue-500 text-white border-blue-500" },
+  { value: "approver", label: "Approver", description: "Approve milestones", color: "bg-amber-500 text-white border-amber-500" },
+];
 
 function SectionCard({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
   return (
@@ -26,27 +34,48 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
   );
 }
 
-function UserRoleRow({ user, onRoleChange }: { user: SpmaAdminUser; onRoleChange: (userId: string, role: "admin" | "project-manager") => void }) {
+function UserRoleRow({ user, saving, onRoleChange }: {
+  user: SpmaAdminUser;
+  saving: boolean;
+  onRoleChange: (userId: string, role: UserRole) => void;
+}) {
   const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || user.id;
   const initials = ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() || "?";
+  const currentRole = (user.role ?? "project-manager") as UserRole;
 
   return (
-    <div className="flex items-center gap-4 py-2.5 border-b border-border/40 last:border-b-0">
-      <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-        {initials}
+    <div className="py-4 border-b border-border/40 last:border-b-0">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold truncate">{displayName}</div>
+          {user.email && <div className="text-xs text-muted-foreground truncate">{user.email}</div>}
+        </div>
+        {saving && <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold truncate">{displayName}</div>
-        {user.email && <div className="text-xs text-muted-foreground truncate">{user.email}</div>}
+      <div className="flex gap-2 flex-wrap">
+        {ROLES.map((role) => {
+          const isActive = currentRole === role.value;
+          return (
+            <button
+              key={role.value}
+              onClick={() => !isActive && onRoleChange(user.id, role.value)}
+              disabled={saving}
+              className={[
+                "flex flex-col items-start px-3 py-2 rounded-lg border text-left transition-all min-w-[100px]",
+                isActive
+                  ? role.color + " shadow-sm"
+                  : "bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
+              ].join(" ")}
+            >
+              <span className="text-xs font-bold">{role.label}</span>
+              <span className={["text-[10px]", isActive ? "opacity-80" : "opacity-60"].join(" ")}>{role.description}</span>
+            </button>
+          );
+        })}
       </div>
-      <select
-        value={user.role ?? "project-manager"}
-        onChange={(e) => onRoleChange(user.id, e.target.value as "admin" | "project-manager")}
-        className="text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-medium"
-      >
-        <option value="admin">Admin</option>
-        <option value="project-manager">Project Manager</option>
-      </select>
     </div>
   );
 }
@@ -61,6 +90,7 @@ export default function Admin() {
   const qc = useQueryClient();
 
   const [weeklyResetDay, setWeeklyResetDay] = useState<number | null>(null);
+  const [savingUsers, setSavingUsers] = useState<Set<string>>(new Set());
 
   const effectiveResetDay = weeklyResetDay ?? configData?.weeklyResetDay ?? 3;
 
@@ -86,13 +116,17 @@ export default function Admin() {
     }
   }
 
-  async function handleRoleChange(userId: string, role: "admin" | "project-manager") {
+  async function handleRoleChange(userId: string, role: UserRole) {
+    setSavingUsers((s) => new Set(s).add(userId));
     try {
       await updateRole.mutateAsync({ userId, data: { role } });
       qc.invalidateQueries({ queryKey: ["/api/spmo/admin/users"] });
-      toast({ title: "Role updated", description: `User role changed to ${role}.` });
+      const roleLabel = ROLES.find((r) => r.value === role)?.label ?? role;
+      toast({ title: "Role updated", description: `Role changed to ${roleLabel}. User must re-login for the change to take effect.` });
     } catch {
       toast({ variant: "destructive", title: "Update failed", description: "Could not change user role." });
+    } finally {
+      setSavingUsers((s) => { const n = new Set(s); n.delete(userId); return n; });
     }
   }
 
@@ -163,22 +197,28 @@ export default function Admin() {
           ) : (
             <div>
               {(!usersData?.users || usersData.users.length === 0) ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No users found.</p>
+                <p className="text-sm text-muted-foreground text-center py-4">No users found. Users appear here after their first login.</p>
               ) : (
-                <div>
-                  <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-muted-foreground pb-2 border-b border-border/50 mb-1">
-                    <span>User</span>
-                    <span>Role</span>
-                  </div>
-                  {usersData.users.map((user) => (
-                    <UserRoleRow key={user.id} user={user} onRoleChange={handleRoleChange} />
-                  ))}
-                </div>
+                usersData.users.map((user) => (
+                  <UserRoleRow
+                    key={user.id}
+                    user={user}
+                    saving={savingUsers.has(user.id)}
+                    onRoleChange={handleRoleChange}
+                  />
+                ))
               )}
-              <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/50">
-                <span className="font-semibold text-foreground">Admin</span> — full edit access to all data.{" "}
-                <span className="font-semibold text-foreground">Project Manager</span> — can update progress, upload evidence, submit milestones, and write weekly reports.
-              </p>
+              <div className="mt-3 pt-3 border-t border-border/50 space-y-1">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <RefreshCw className="w-3 h-3 shrink-0" />
+                  <span>Role changes take effect after the user logs out and back in.</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">Admin</span> — full access.{" "}
+                  <span className="font-semibold text-foreground">Project Manager</span> — progress, evidence & reports.{" "}
+                  <span className="font-semibold text-foreground">Approver</span> — approve milestones.
+                </p>
+              </div>
             </div>
           )}
         </SectionCard>

@@ -1617,7 +1617,7 @@ export type GetSpmaAdminUsers200 = {
 };
 
 export interface UpdateSpmaUserRoleRequest {
-  role: "admin" | "project-manager";
+  role: "admin" | "project-manager" | "approver";
 }
 
 export interface SpmaUserRoleUpdateResult {

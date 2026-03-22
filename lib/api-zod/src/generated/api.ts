@@ -2375,7 +2375,7 @@ export const UpdateSpmoUserRoleParams = zod.object({
 });
 
 export const UpdateSpmoUserRoleBody = zod.object({
-  role: zod.enum(["admin", "project-manager"]),
+  role: zod.enum(["admin", "project-manager", "approver"]),
 });
 
 export const UpdateSpmoUserRoleResponse = zod.object({
