@@ -313,6 +313,17 @@ const emptyProject = (): ProjectForm => ({
   weight: "50", status: "active", budget: "", startDate: "", targetDate: "",
 });
 
+function classifyProjectStatus(p: SpmoProjectWithProgress): "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold" {
+  if (p.status === "on_hold") return "on_hold";
+  if (p.status === "completed" || p.status === "cancelled") return "completed";
+  const cs = p.computedStatus?.status;
+  if (cs === "delayed") return "delayed";
+  if (cs === "at_risk") return "at_risk";
+  if (cs === "completed") return "completed";
+  if ((p.progress ?? 0) === 0) return "not_started";
+  return "on_track";
+}
+
 export default function Projects() {
   const { data, isLoading } = useListSpmoProjects();
   const { data: initiativesData } = useListSpmoInitiatives();
@@ -328,6 +339,7 @@ export default function Projects() {
   const [viewMode, setViewMode] = useState<"list" | "gantt">("list");
   const [pillarFilter, setPillarFilter] = useState<number | "all">("all");
   const [departmentFilter, setDepartmentFilter] = useState<number | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold">("all");
   const { toast } = useToast();
   const qc = useQueryClient();
   const didDeepLink = useRef(false);
@@ -549,6 +561,22 @@ export default function Projects() {
             </select>
           </div>
         )}
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</label>
+          <select
+            className={`${selectClass} py-1.5 text-xs w-44`}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+          >
+            <option value="all">All Statuses</option>
+            <option value="on_track">On Track</option>
+            <option value="at_risk">Risk of Delay</option>
+            <option value="delayed">Delayed</option>
+            <option value="completed">Completed</option>
+            <option value="not_started">Not Started</option>
+            <option value="on_hold">On Hold</option>
+          </select>
+        </div>
         {viewMode === "gantt" && (
           <span className="ml-auto text-xs text-muted-foreground">
             Showing projects with milestone markers · hover bars/diamonds for details
@@ -569,7 +597,8 @@ export default function Projects() {
           const pillarName = pillars.find((p) => p.id === initiative.pillarId)?.name ?? "";
           const initProjects = projects.filter((p) =>
             p.initiativeId === initiative.id &&
-            (departmentFilter === "all" || p.departmentId === departmentFilter)
+            (departmentFilter === "all" || p.departmentId === departmentFilter) &&
+            (statusFilter === "all" || classifyProjectStatus(p) === statusFilter)
           );
           if (initProjects.length === 0) return null;
 

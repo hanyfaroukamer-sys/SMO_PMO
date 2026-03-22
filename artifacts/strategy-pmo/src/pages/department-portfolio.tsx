@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import {
   useGetSpmaDepartmentPortfolio,
   type SpmaDepartmentPortfolioProject,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
-import { Loader2, ArrowLeft, Building2, FolderOpen, TrendingUp, Target, ExternalLink } from "lucide-react";
+import { selectClass } from "@/components/modal";
+import { Loader2, ArrowLeft, Building2, FolderOpen, TrendingUp, Target, ExternalLink, SlidersHorizontal } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
 const fmtCurrency = (n: number) => {
@@ -163,6 +165,7 @@ type Props = {
 export default function DepartmentPortfolio({ params }: Props) {
   const deptId = parseInt(params?.id ?? "0");
   const [, navigate] = useLocation();
+  const [statusFilter, setStatusFilter] = useState<"all" | StatusCategory>("all");
 
   const { data, isLoading, isError } = useGetSpmaDepartmentPortfolio(deptId);
 
@@ -251,9 +254,48 @@ export default function DepartmentPortfolio({ params }: Props) {
             Go to Projects and assign a department to include them here.
           </p>
         </Card>
-      ) : (
-        <div className="space-y-3">
-          {projects.map((project) => {
+      ) : (() => {
+        const filteredProjects = statusFilter === "all"
+          ? projects
+          : projects.filter((p) => classifyProject(p) === statusFilter);
+        return (
+        <>
+          {/* Filter bar */}
+          <div className="flex flex-wrap items-center gap-3">
+            <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</label>
+              <select
+                className={`${selectClass} py-1.5 text-xs w-44`}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as "all" | StatusCategory)}
+              >
+                <option value="all">All Statuses</option>
+                {(Object.keys(PIE_LABELS) as StatusCategory[]).map((s) => (
+                  <option key={s} value={s}>{PIE_LABELS[s]}</option>
+                ))}
+              </select>
+            </div>
+            {statusFilter !== "all" && (
+              <button
+                className="text-xs text-blue-600 hover:underline"
+                onClick={() => setStatusFilter("all")}
+              >
+                Clear filter
+              </button>
+            )}
+            <span className="ml-auto text-xs text-muted-foreground">
+              {filteredProjects.length} of {projects.length} projects
+            </span>
+          </div>
+
+          {filteredProjects.length === 0 ? (
+            <Card className="text-center py-8 text-slate-400">
+              No projects match the selected status filter.
+            </Card>
+          ) : (
+          <div className="space-y-3">
+          {filteredProjects.map((project) => {
             const budgetUsedPct = project.budget > 0
               ? Math.min(100, Math.round((project.budgetSpent / project.budget) * 100))
               : 0;
@@ -314,7 +356,10 @@ export default function DepartmentPortfolio({ params }: Props) {
             );
           })}
         </div>
-      )}
+        )}
+      </>
+    );
+  })()}
     </div>
   );
 }
