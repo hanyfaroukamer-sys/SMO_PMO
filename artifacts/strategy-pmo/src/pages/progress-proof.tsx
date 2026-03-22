@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   useListSpmoAllMilestones,
   useListSpmoPendingApprovals,
@@ -13,8 +13,8 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
 import {
-  Loader2, CheckCircle2, XCircle, FileText, Sparkles, ChevronRight,
-  Target, Clock, AlertCircle, FileX, ThumbsUp, Upload, ShieldCheck,
+  Loader2, CheckCircle2, XCircle, FileText, Sparkles, ChevronRight, ChevronDown,
+  Target, Clock, AlertCircle, FileX, ThumbsUp, Upload, ShieldCheck, Building2, Layers,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -41,6 +41,9 @@ const FILTER_CONFIG: Array<{
 
 export default function ProgressProof() {
   const [filter, setFilter] = useState<FilterKey>("submitted");
+  const [collapsedPillars, setCollapsedPillars] = useState<Set<number>>(() => new Set());
+  const [collapsedInitiatives, setCollapsedInitiatives] = useState<Set<number>>(() => new Set());
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(() => new Set());
   const { data: authData } = useGetCurrentAuthUser();
   const isAdmin = authData?.user?.role === "admin";
   const { data, isLoading } = useListSpmoAllMilestones();
@@ -170,20 +173,140 @@ export default function ProgressProof() {
         </span>
       </div>
 
-      {/* Milestone Cards Grid */}
+      {/* Hierarchy: Pillar → Initiative → Project → Milestones */}
       {filteredItems.length === 0 ? (
         <Card className="text-center py-16">
           <CheckCircle2 className="w-12 h-12 text-success mx-auto mb-3 opacity-50" />
           <h3 className="text-lg font-bold">Nothing here</h3>
           <p className="text-muted-foreground mt-1 text-sm">No milestones in this category.</p>
         </Card>
-      ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          {filteredItems.map((item) => (
-            <ApprovalCard key={item.milestone.id} item={item} />
-          ))}
-        </div>
-      )}
+      ) : (() => {
+        // Build Pillar → Initiative → Project hierarchy
+        type PillarGroup = {
+          pillar: SpmoPendingApprovalItem["pillar"];
+          initiatives: {
+            initiative: SpmoPendingApprovalItem["initiative"];
+            projects: {
+              project: SpmoPendingApprovalItem["project"];
+              items: SpmoPendingApprovalItem[];
+            }[];
+          }[];
+        };
+
+        const pillarMap = new Map<number, PillarGroup>();
+        for (const item of filteredItems) {
+          const pid = item.pillar.id;
+          if (!pillarMap.has(pid)) pillarMap.set(pid, { pillar: item.pillar, initiatives: [] });
+          const pg = pillarMap.get(pid)!;
+
+          let ig = pg.initiatives.find((i) => i.initiative.id === item.initiative.id);
+          if (!ig) { ig = { initiative: item.initiative, projects: [] }; pg.initiatives.push(ig); }
+
+          let proj = ig.projects.find((p) => p.project.id === item.project.id);
+          if (!proj) { proj = { project: item.project, items: [] }; ig.projects.push(proj); }
+
+          proj.items.push(item);
+        }
+
+        const pillarGroups = Array.from(pillarMap.values()).sort((a, b) =>
+          (a.pillar.sortOrder ?? 999) - (b.pillar.sortOrder ?? 999)
+        );
+
+        const toggleSet = (setFn: Dispatch<SetStateAction<Set<number>>>, id: number) =>
+          setFn((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+
+        return (
+          <div className="space-y-4">
+            {pillarGroups.map(({ pillar, initiatives }) => {
+              const pillarCollapsed = collapsedPillars.has(pillar.id);
+              const pillarCount = initiatives.reduce((s, i) => s + i.projects.reduce((s2, p) => s2 + p.items.length, 0), 0);
+
+              return (
+                <div key={pillar.id} className="rounded-2xl border border-border overflow-hidden shadow-sm">
+                  {/* Pillar Header */}
+                  <button
+                    onClick={() => toggleSet(setCollapsedPillars, pillar.id)}
+                    className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-secondary/50 transition-colors"
+                    style={{ background: `linear-gradient(90deg, ${pillar.color ?? "#3b82f6"}22 0%, transparent 60%)` }}
+                  >
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: pillar.color ?? "#3b82f6" }} />
+                    <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="font-display font-bold text-sm flex-1">{pillar.name}</span>
+                    <span className="text-xs text-muted-foreground font-medium">{pillarCount} milestone{pillarCount !== 1 ? "s" : ""}</span>
+                    {pillarCollapsed
+                      ? <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                  </button>
+
+                  {!pillarCollapsed && (
+                    <div className="border-t border-border">
+                      {initiatives.map(({ initiative, projects }) => {
+                        const initCollapsed = collapsedInitiatives.has(initiative.id);
+                        const initCount = projects.reduce((s, p) => s + p.items.length, 0);
+
+                        return (
+                          <div key={initiative.id} className="border-b border-border/50 last:border-b-0">
+                            {/* Initiative Header */}
+                            <button
+                              onClick={() => toggleSet(setCollapsedInitiatives, initiative.id)}
+                              className="w-full flex items-center gap-3 px-5 py-2.5 text-left bg-secondary/20 hover:bg-secondary/40 transition-colors"
+                            >
+                              <div className="w-1 h-6 rounded-full ml-4 shrink-0" style={{ backgroundColor: pillar.color ?? "#3b82f6" }} />
+                              <Layers className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                              <span className="font-semibold text-xs flex-1">{initiative.name}</span>
+                              <span className="text-[10px] text-muted-foreground">{initCount} milestone{initCount !== 1 ? "s" : ""}</span>
+                              {initCollapsed
+                                ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                                : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                            </button>
+
+                            {!initCollapsed && (
+                              <div>
+                                {projects.map(({ project, items }) => {
+                                  const projCollapsed = collapsedProjects.has(project.id);
+
+                                  return (
+                                    <div key={project.id} className="border-t border-border/30">
+                                      {/* Project Header */}
+                                      <button
+                                        onClick={() => toggleSet(setCollapsedProjects, project.id)}
+                                        className="w-full flex items-center gap-3 px-5 py-2 text-left bg-background hover:bg-secondary/30 transition-colors"
+                                      >
+                                        <div className="w-6 ml-8" />
+                                        <Target className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                        <span className="font-semibold text-xs flex-1">
+                                          {project.projectCode && <span className="font-mono text-muted-foreground mr-1.5">{project.projectCode}:</span>}
+                                          {project.name}
+                                        </span>
+                                        <span className="text-[10px] text-muted-foreground">{items.length} milestone{items.length !== 1 ? "s" : ""}</span>
+                                        {projCollapsed
+                                          ? <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                                          : <ChevronDown className="w-3 h-3 text-muted-foreground" />}
+                                      </button>
+
+                                      {!projCollapsed && (
+                                        <div className="p-4 bg-background grid grid-cols-1 xl:grid-cols-2 gap-4 border-t border-border/20">
+                                          {items.map((item) => (
+                                            <ApprovalCard key={item.milestone.id} item={item} />
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -210,7 +333,7 @@ function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
     if (!file) return;
     setUploading(true);
     try {
-      const urlRes = await fetch("/spmo/api/storage/uploads/request-url", {
+      const urlRes = await fetch("/api/storage/uploads/request-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ milestoneId: item.milestone.id }),
@@ -350,7 +473,7 @@ function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
               <div key={ev.id} className="flex items-center justify-between p-2 bg-secondary/30 border border-border rounded-lg text-xs group hover:border-primary/30 transition-colors">
                 <span className="font-medium truncate flex-1">{ev.fileName}</span>
                 <a
-                  href={`/spmo/api/storage/objects/${ev.objectPath}`}
+                  href={`/api/storage/objects/${ev.objectPath}`}
                   target="_blank"
                   rel="noreferrer"
                   className="text-primary hover:underline ml-3 font-semibold shrink-0"

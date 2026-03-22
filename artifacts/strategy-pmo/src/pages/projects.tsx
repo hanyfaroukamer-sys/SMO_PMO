@@ -83,7 +83,7 @@ function EvidencePanel({
     if (!file) return;
     setUploading(true);
     try {
-      const urlRes = await fetch("/spmo/api/storage/uploads/request-url", {
+      const urlRes = await fetch("/api/storage/uploads/request-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ milestoneId: milestone.id }),
@@ -189,7 +189,7 @@ function EvidencePanel({
                     <span className="text-[9px] bg-success/10 text-success px-1 py-0.5 rounded font-bold border border-success/20">AI ✓ {ev.aiScore ?? "—"}</span>
                   )}
                   <a
-                    href={`/spmo/api/storage/objects${ev.objectPath}`}
+                    href={`/api/storage/objects${ev.objectPath}`}
                     target="_blank"
                     rel="noreferrer"
                     className="text-primary hover:underline font-semibold shrink-0 text-[10px]"
@@ -263,7 +263,7 @@ function EvidencePanel({
         <div className="px-3 pb-3">
           <button
             onClick={() => {
-              fetch(`/spmo/api/spmo/milestones/${milestone.id}`, {
+              fetch(`/api/spmo/milestones/${milestone.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: "in_progress" }),
@@ -1074,7 +1074,6 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
   const allDeps = allDepsData?.dependencies ?? [];
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [expandedEvidence, setExpandedEvidence] = useState<number | null>(null);
   const [siblingWeightEdits, setSiblingWeightEdits] = useState<Record<number, string>>({});
   const [savingSiblingId, setSavingSiblingId] = useState<number | null>(null);
   const [applyingAutoWeights, setApplyingAutoWeights] = useState(false);
@@ -1404,7 +1403,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
             const evidenceList = (m.evidence ?? []) as SpmoEvidence[];
             const hasEvidence = evidenceList.length > 0;
             const canSubmit = (m.progress ?? 0) >= 100 && hasEvidence;
-            const evidenceOpen = expandedEvidence === m.id;
+            const evidenceOpen = true; // always show evidence panel
             const depRes = depResolutions[m.id];
             const isBlocked = depRes?.status === "blocked";
             const blockerCount = depRes?.blockers?.filter((b) => !b.satisfied).length ?? 0;
@@ -1575,17 +1574,16 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
                     )}
                   </div>
 
-                  {/* Evidence badge + toggle */}
-                  <button
-                    onClick={() => setExpandedEvidence(evidenceOpen ? null : m.id)}
-                    className={`flex items-center gap-1 text-xs rounded-lg px-2 py-1 transition-colors shrink-0 ${
-                      evidenceOpen ? "bg-primary/10 text-primary" : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                  {/* Evidence count badge */}
+                  <div
+                    className={`flex items-center gap-1 text-xs rounded-lg px-2 py-1 shrink-0 ${
+                      hasEvidence ? "bg-primary/10 text-primary" : "text-muted-foreground"
                     }`}
-                    title="Evidence"
+                    title={`${evidenceList.length} evidence file${evidenceList.length !== 1 ? "s" : ""}`}
                   >
                     <FileText className="w-3.5 h-3.5" />
                     <span className="font-semibold">{evidenceList.length}</span>
-                  </button>
+                  </div>
 
                   {/* Submit for Approval – visible only when progress=100% AND evidence>0 */}
                   {!isApproved && m.status !== "submitted" && canSubmit && (
