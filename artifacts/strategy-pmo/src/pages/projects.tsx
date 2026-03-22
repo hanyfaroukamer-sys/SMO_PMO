@@ -791,9 +791,9 @@ function ProjectRow({
       >
         <div className="w-1.5 h-8 rounded-full shrink-0" style={{ backgroundColor: pillarColor }} />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <div className="flex flex-col gap-1 mb-1">
             <h4 className="font-bold text-base">{project.name}</h4>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2">
               <ComputedStatusBadge cs={project.computedStatus} />
               {project.weight > 0 && (
                 <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded text-muted-foreground">
