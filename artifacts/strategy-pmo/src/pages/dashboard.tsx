@@ -240,15 +240,6 @@ export default function Dashboard() {
     projectsByInitiative.set(proj.initiativeId, list);
   }
 
-  const projectsByPillar = new Map<number, SpmoProjectWithProgress[]>();
-  for (const proj of projects) {
-    const init = initiatives.find((i) => i.id === proj.initiativeId);
-    if (!init?.pillarId) continue;
-    const list = projectsByPillar.get(init.pillarId) ?? [];
-    list.push(proj);
-    projectsByPillar.set(init.pillarId, list);
-  }
-
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <PageHeader
@@ -350,66 +341,75 @@ export default function Dashboard() {
           {data.pillarSummaries.map((pillar) => {
             const isPillarExpanded = expandedPillars.has(pillar.id);
             const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);
-            const pillarProjects = projectsByPillar.get(pillar.id) ?? [];
-
-            const counts: Record<ProjectStatusCategory, number> = {
-              on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0, on_hold: 0,
-            };
-            for (const proj of pillarProjects) {
-              counts[classifyProject(proj)]++;
-            }
+            // Derive pillar planned progress from its initiatives' date range
+            const pillarPlanned = (() => {
+              if (pillarInitiatives.length === 0) return 0;
+              const minStart = pillarInitiatives.reduce((m, i) => i.startDate < m ? i.startDate : m, pillarInitiatives[0].startDate);
+              const maxEnd = pillarInitiatives.reduce((m, i) => i.targetDate > m ? i.targetDate : m, pillarInitiatives[0].targetDate);
+              return calcPlannedProgress(minStart, maxEnd);
+            })();
 
             return (
               <div key={pillar.id} className="rounded-2xl border border-border overflow-hidden shadow-sm">
-                {/* Pillar header — clickable */}
-                <button
-                  onClick={() => togglePillar(pillar.id)}
-                  className="w-full px-6 py-4 bg-card border-b border-border text-left hover:bg-secondary/20 transition-colors focus:outline-none"
+                {/* Pillar header — clickable (expand/collapse) */}
+                <div
+                  className="bg-card border-b border-border"
                   style={{ borderLeft: `4px solid ${pillar.color}` }}
                 >
-                  <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: pillar.color }}>
-                        Pillar
-                      </div>
-                      <h3 className="font-bold text-base">{pillar.name}</h3>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right shrink-0">
-                        <div className="text-2xl font-display font-bold" style={{ color: pillar.color }}>
-                          {Math.round(pillar.progress)}%
+                  <button
+                    onClick={() => togglePillar(pillar.id)}
+                    className="w-full px-6 pt-4 pb-3 text-left hover:bg-secondary/20 transition-colors focus:outline-none"
+                  >
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: pillar.color }}>
+                          Pillar
                         </div>
-                        <div className="text-[10px] text-muted-foreground">{pillar.projectCount} project{pillar.projectCount !== 1 ? "s" : ""}</div>
+                        <h3 className="font-bold text-base">{pillar.name}</h3>
                       </div>
-                      <ChevronDown
-                        className="w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0"
-                        style={{ transform: isPillarExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                      <div className="flex items-center gap-3">
+                        <div className="text-right shrink-0">
+                          <div className="text-2xl font-display font-bold" style={{ color: pillar.color }}>
+                            {Math.round(pillar.progress)}%
+                          </div>
+                          {pillarPlanned > 0 && (
+                            <div className="text-[10px] text-muted-foreground">plan {pillarPlanned}%</div>
+                          )}
+                          <div className="text-[10px] text-muted-foreground">{pillar.projectCount} project{pillar.projectCount !== 1 ? "s" : ""}</div>
+                        </div>
+                        <ChevronDown
+                          className="w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0"
+                          style={{ transform: isPillarExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="relative h-1.5 bg-secondary rounded-full overflow-hidden mt-3">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${Math.min(100, pillar.progress)}%`, backgroundColor: pillar.color }}
                       />
+                      {pillarPlanned > 0 && (
+                        <div
+                          className="absolute top-0 bottom-0 w-0.5 bg-warning/80"
+                          style={{ left: `${Math.min(100, pillarPlanned)}%`, transform: "translateX(-50%)" }}
+                        />
+                      )}
                     </div>
-                  </div>
+                  </button>
 
-                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden mt-3 mb-3">
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${Math.min(100, pillar.progress)}%`, backgroundColor: pillar.color }}
-                    />
+                  {/* Deep-dive link */}
+                  <div className="px-6 pb-3 flex justify-end">
+                    <Link
+                      to={`/pillars/${pillar.id}/portfolio`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[11px] font-semibold text-muted-foreground hover:underline flex items-center gap-1"
+                      style={{ color: pillar.color }}
+                    >
+                      View Pillar Dashboard <ChevronRight className="w-3 h-3" />
+                    </Link>
                   </div>
-
-                  {/* Project status chips */}
-                  {pillarProjects.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {STATUS_ORDER.filter((s) => counts[s] > 0).map((s) => {
-                        const { label, bg, text } = STATUS_CHIPS[s];
-                        return (
-                          <span key={s} className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${bg} ${text}`}>
-                            <span className="font-bold text-[13px] leading-none">{counts[s]}</span>
-                            {label}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-                </button>
+                </div>
 
                 {/* Initiative rows — shown when pillar is expanded */}
                 {isPillarExpanded && (

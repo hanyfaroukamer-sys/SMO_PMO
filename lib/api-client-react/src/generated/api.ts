@@ -106,6 +106,8 @@ import type {
   CreateSpmaDepartmentRequest,
   UpdateSpmaDepartmentRequest,
   GetSpmaDepartmentPortfolio200,
+  GetSpmaPillarPortfolio200,
+  SpmaPillarPortfolioProject,
   ListSpmoAllMilestones200,
   SpmoAllMilestoneItem,
   SpmaProjectWeeklyReport,
@@ -6791,6 +6793,73 @@ export function useGetSpmaDepartmentPortfolio<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetSpmaDepartmentPortfolioQueryOptions(id, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+// ─────────────────────────────────────────────────────────────
+// PILLARS — portfolio (deep dive)
+// ─────────────────────────────────────────────────────────────
+export const getGetSpmaPillarPortfolioUrl = (id: number) =>
+  `/api/spmo/pillars/${id}/portfolio`;
+
+export const getSpmaPillarPortfolio = async (
+  id: number,
+  options?: RequestInit,
+): Promise<GetSpmaPillarPortfolio200> =>
+  customFetch<GetSpmaPillarPortfolio200>(
+    getGetSpmaPillarPortfolioUrl(id),
+    { ...options, method: "GET" },
+  );
+
+export const getGetSpmaPillarPortfolioQueryKey = (id: number) =>
+  [`/api/spmo/pillars/${id}/portfolio`] as const;
+
+export const getGetSpmaPillarPortfolioQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSpmaPillarPortfolio>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSpmaPillarPortfolio>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSpmaPillarPortfolioQueryKey(id);
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSpmaPillarPortfolio>>
+  > = ({ signal }) =>
+    getSpmaPillarPortfolio(id, { signal, ...requestOptions });
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSpmaPillarPortfolio>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export function useGetSpmaPillarPortfolio<
+  TData = Awaited<ReturnType<typeof getSpmaPillarPortfolio>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSpmaPillarPortfolio>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSpmaPillarPortfolioQueryOptions(id, options);
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
   };

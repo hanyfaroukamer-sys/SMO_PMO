@@ -2404,6 +2404,61 @@ router.delete("/spmo/departments/:id", async (req, res): Promise<void> => {
   res.json({ success: true });
 });
 
+router.get("/spmo/pillars/:id/portfolio", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const params = GetSpmaPillarParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [pillar] = await db.select().from(spmoPillarsTable).where(eq(spmoPillarsTable.id, params.data.id));
+  if (!pillar) {
+    res.status(404).json({ error: "Pillar not found" });
+    return;
+  }
+
+  const stats = await pillarProgress(pillar.id);
+
+  const initiatives = await db
+    .select()
+    .from(spmoInitiativesTable)
+    .where(eq(spmoInitiativesTable.pillarId, pillar.id))
+    .orderBy(asc(spmoInitiativesTable.sortOrder), asc(spmoInitiativesTable.createdAt));
+
+  const departments = await db.select().from(spmoDepartmentsTable);
+  const deptMap = new Map(departments.map((d) => [d.id, d.name]));
+
+  const initiativesWithProjects = await Promise.all(
+    initiatives.map(async (i) => {
+      const is = await initiativeProgress(i.id);
+
+      const projects = await db
+        .select()
+        .from(spmoProjectsTable)
+        .where(eq(spmoProjectsTable.initiativeId, i.id))
+        .orderBy(asc(spmoProjectsTable.sortOrder), asc(spmoProjectsTable.createdAt));
+
+      const projectsEnriched = await Promise.all(
+        projects.map(async (p) => {
+          const ps = await projectProgress(p.id);
+          return {
+            ...p,
+            ...ps,
+            departmentName: p.departmentId ? deptMap.get(p.departmentId) : undefined,
+          };
+        }),
+      );
+
+      return { ...i, ...is, projects: projectsEnriched };
+    }),
+  );
+
+  res.json({ pillar: { ...pillar, ...stats }, initiatives: initiativesWithProjects });
+});
+
 router.get("/spmo/departments/:id/portfolio", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;

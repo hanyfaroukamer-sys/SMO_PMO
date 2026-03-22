@@ -17,6 +17,7 @@ import Budget from "@/pages/budget";
 import Procurement from "@/pages/procurement";
 import Departments from "@/pages/departments";
 import DepartmentPortfolio from "@/pages/department-portfolio";
+import PillarPortfolio from "@/pages/pillar-portfolio";
 import Risks from "@/pages/risks";
 import Alerts from "@/pages/alerts";
 import ActivityLog from "@/pages/activity";
@@ -52,6 +53,7 @@ function Router() {
           <Route path="/procurement" component={Procurement} />
           <Route path="/departments" component={Departments} />
           <Route path="/departments/:id/portfolio" component={DepartmentPortfolio} />
+          <Route path="/pillars/:id/portfolio" component={PillarPortfolio} />
           <Route path="/risks" component={Risks} />
           <Route path="/dependencies" component={Dependencies} />
           <Route path="/alerts" component={Alerts} />

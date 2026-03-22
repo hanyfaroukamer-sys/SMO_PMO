@@ -1585,6 +1585,32 @@ export type GetSpmaDepartmentPortfolio200 = {
   projects: SpmaDepartmentPortfolioProject[];
 };
 
+export type SpmaPillarPortfolioProject = {
+  id: number;
+  initiativeId: number;
+  departmentId: number | null;
+  projectCode: string | null;
+  name: string;
+  description: string | null;
+  ownerName: string | null;
+  startDate: string;
+  targetDate: string;
+  weight: number;
+  budget: number;
+  budgetSpent: number;
+  status: SpmoProjectStatus;
+  progress: number;
+  milestoneCount: number;
+  approvedMilestones: number;
+  pendingApprovals: number;
+  departmentName?: string;
+};
+
+export type GetSpmaPillarPortfolio200 = {
+  pillar: SpmoPillarWithProgress;
+  initiatives: (SpmoInitiativeWithProgress & { projects: SpmaPillarPortfolioProject[] })[];
+};
+
 export interface SpmaProjectWeeklyReport {
   projectId: number;
   weekStart: string;
