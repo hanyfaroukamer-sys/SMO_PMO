@@ -2439,7 +2439,7 @@ router.get("/spmo/pillars/:id/portfolio", async (req, res): Promise<void> => {
         .select()
         .from(spmoProjectsTable)
         .where(eq(spmoProjectsTable.initiativeId, i.id))
-        .orderBy(asc(spmoProjectsTable.sortOrder), asc(spmoProjectsTable.createdAt));
+        .orderBy(asc(spmoProjectsTable.createdAt));
 
       const projectsEnriched = await Promise.all(
         projects.map(async (p) => {

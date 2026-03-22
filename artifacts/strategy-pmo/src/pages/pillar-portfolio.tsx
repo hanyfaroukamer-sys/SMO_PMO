@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import {
   useGetSpmaPillarPortfolio,
   type SpmaPillarPortfolioProject,
@@ -8,7 +8,7 @@ import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { selectClass } from "@/components/modal";
 import {
   Loader2, ArrowLeft, FolderOpen, TrendingUp, Target, Wallet,
-  ChevronDown, ChevronRight, ExternalLink, SlidersHorizontal,
+  ChevronDown, ChevronRight, ExternalLink, SlidersHorizontal, ShieldAlert,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -442,13 +442,22 @@ export default function PillarPortfolio({ params }: Props) {
                                     <span className="hidden sm:block">Owner: {project.ownerName}</span>
                                   )}
                                 </div>
-                                <button
-                                  onClick={() => navigate(`/projects?project=${project.id}`)}
-                                  className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline shrink-0"
-                                  title="View in Projects"
-                                >
-                                  <ExternalLink className="w-3 h-3" /> View
-                                </button>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Link
+                                    to={`/risks?project=${project.id}`}
+                                    className="flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline"
+                                    title="View project risks"
+                                  >
+                                    <ShieldAlert className="w-3 h-3" /> Risks
+                                  </Link>
+                                  <button
+                                    onClick={() => navigate(`/projects?project=${project.id}`)}
+                                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
+                                    title="View in Projects"
+                                  >
+                                    <ExternalLink className="w-3 h-3" /> View
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           );
