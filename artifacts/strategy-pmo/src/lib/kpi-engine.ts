@@ -186,6 +186,21 @@ function computeRateKpi(kpi: KpiEngineInput): KpiStatusResult {
   const onTrackThreshold = 7.5 * (1 + (1 - time.elapsedPct) * shrink);
   const atRiskThreshold = 22.5 * (1 + (1 - time.elapsedPct) * shrink);
 
+  // ── PROPORTIONAL PACE OVERRIDE ──
+  // Answers spec question #2: "Where should you be NOW?"
+  // If actual/target is ≥2.5× what you'd need proportionally at this point in the
+  // year, the user is well ahead of any reasonable annual pace → on-track or exceeding.
+  // Example: 60% of target achieved when only 22% of the year has elapsed (2.7× pace).
+  const progressRatio = time.elapsedPct > 0 ? (actual / target) / time.elapsedPct : 0;
+  if (progressRatio >= 2.5) {
+    return r(
+      "on-track",
+      `${fmtN(actual)}${unit} — ${Math.round((actual/target)*100)}% of annual target with ${Math.round(time.elapsedPct*100)}% of period elapsed (${time.quarter}). Well ahead of pace.${vt}`,
+      pi, vel, time
+    );
+  }
+
+  // ── VELOCITY OVERRIDES ──
   if (vel) {
     if (!vel.willHitTarget && time.elapsedPct > 0.5) {
       if (gapPct > atRiskThreshold * 0.7) {
@@ -198,12 +213,21 @@ function computeRateKpi(kpi: KpiEngineInput): KpiStatusResult {
     }
   }
 
+  // ── STANDARD GAP CHECK ──
   if (gapPct <= onTrackThreshold) {
     return r("on-track", `${fmtN(actual)}${unit} vs ${fmtN(target)}${unit} — ${gapPct.toFixed(1)}% gap (${time.quarter}).${vt}`, pi, vel, time);
   }
   if (gapPct <= atRiskThreshold) {
     return r("at-risk", `${fmtN(actual)}${unit} vs ${fmtN(target)}${unit} — ${gapPct.toFixed(1)}% gap (${time.quarter}).${vt}`, pi, vel, time);
   }
+
+  // ── EARLY-QUARTER SAFETY NET ──
+  // Without velocity data in Q1/Q2, we lack enough history to declare "critical".
+  // Cap at "at-risk" and prompt the user to keep updating their actuals.
+  if (!vel && time.elapsedPct < 0.5) {
+    return r("at-risk", `${fmtN(actual)}${unit} vs ${fmtN(target)}${unit} — ${gapPct.toFixed(1)}% gap (${time.quarter}). Update actuals regularly to enable velocity projection.`, pi, vel, time);
+  }
+
   return r("critical", `${fmtN(actual)}${unit} vs ${fmtN(target)}${unit} — ${gapPct.toFixed(1)}% gap (${time.quarter}).${vt}`, pi, vel, time);
 }
 
