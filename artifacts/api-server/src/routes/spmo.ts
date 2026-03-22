@@ -2396,6 +2396,8 @@ router.put("/spmo/projects/:id/weekly-report", async (req, res) => {
   const weekStart = getCurrentWeekStart(resetDay);
   const updatedByName = getUserDisplayName(user) ?? user?.email ?? null;
 
+  const [project] = await db.select({ name: spmoProjectsTable.name }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, projectId));
+
   const [report] = await db
     .insert(spmoProjectWeeklyReportsTable)
     .values({
@@ -2418,6 +2420,18 @@ router.put("/spmo/projects/:id/weekly-report", async (req, res) => {
     })
     .returning();
 
+  if (user?.id) {
+    await logSpmoActivity(
+      user.id,
+      getUserDisplayName(user) ?? user.email ?? null,
+      "weekly_report_submitted",
+      "project",
+      projectId,
+      project?.name ?? `Project #${projectId}`,
+      { weekStart, keyAchievements: keyAchievements ?? "", nextSteps: nextSteps ?? "" }
+    );
+  }
+
   res.json({
     projectId,
     weekStart,
@@ -2426,6 +2440,20 @@ router.put("/spmo/projects/:id/weekly-report", async (req, res) => {
     updatedByName: report?.updatedByName ?? null,
     updatedAt: report?.updatedAt ?? null,
   });
+});
+
+router.get("/spmo/projects/:id/weekly-report/history", async (req, res) => {
+  const parsed = GetSpmoProjectWeeklyReportParams.safeParse(req.params);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid project id" }); return; }
+  const { id: projectId } = parsed.data;
+
+  const reports = await db
+    .select()
+    .from(spmoProjectWeeklyReportsTable)
+    .where(eq(spmoProjectWeeklyReportsTable.projectId, projectId))
+    .orderBy(desc(spmoProjectWeeklyReportsTable.weekStart));
+
+  res.json({ reports });
 });
 
 // ─────────────────────────────────────────────────────────────

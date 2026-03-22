@@ -18,6 +18,7 @@ import {
   useGetCurrentAuthUser,
   useGetSpmaProjectWeeklyReport,
   useUpsertSpmaProjectWeeklyReport,
+  useGetSpmaProjectWeeklyReportHistory,
   type SpmoProjectWithProgress,
   type CreateSpmoProjectRequest,
   type UpdateSpmoProjectRequest,
@@ -30,7 +31,7 @@ import {
 import { GanttChart } from "@/components/gantt-chart";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -1334,27 +1335,41 @@ function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: numb
 
 function WeeklyReportSection({ projectId }: { projectId: number }) {
   const { data, isLoading } = useGetSpmaProjectWeeklyReport(projectId);
+  const { data: historyData } = useGetSpmaProjectWeeklyReportHistory(projectId);
   const upsert = useUpsertSpmaProjectWeeklyReport();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [achievements, setAchievements] = useState<string | null>(null);
-  const [nextSteps, setNextSteps] = useState<string | null>(null);
+  const [form, setForm] = useState({ achievements: "", nextSteps: "" });
+  const formRef = useRef(form);
+  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
-  const serverAchievements = data?.keyAchievements ?? "";
-  const serverNextSteps = data?.nextSteps ?? "";
+  useEffect(() => { formRef.current = form; }, [form]);
 
-  async function save(field: "achievements" | "nextSteps") {
+  useEffect(() => {
+    if (data && !loaded) {
+      const initial = { achievements: data.keyAchievements ?? "", nextSteps: data.nextSteps ?? "" };
+      setForm(initial);
+      formRef.current = initial;
+      setLoaded(true);
+    }
+  }, [data, loaded]);
+
+  const pastReports = (historyData?.reports ?? []).filter(
+    (r) => r.weekStart !== data?.weekStart
+  );
+
+  async function save() {
+    const latest = formRef.current;
     setSaving(true);
     try {
       await upsert.mutateAsync({
         id: projectId,
-        data: {
-          keyAchievements: field === "achievements" ? (achievements ?? serverAchievements) : serverAchievements,
-          nextSteps: field === "nextSteps" ? (nextSteps ?? serverNextSteps) : serverNextSteps,
-        },
+        data: { keyAchievements: latest.achievements, nextSteps: latest.nextSteps },
       });
       qc.invalidateQueries({ queryKey: [`/api/spmo/projects/${projectId}/weekly-report`] });
+      qc.invalidateQueries({ queryKey: [`/api/spmo/projects/${projectId}/weekly-report/history`] });
     } catch {
       toast({ variant: "destructive", title: "Save failed", description: "Could not save weekly report." });
     } finally {
@@ -1370,7 +1385,7 @@ function WeeklyReportSection({ projectId }: { projectId: number }) {
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Weekly Report</span>
         {data?.weekStart && (
           <span className="text-[10px] text-muted-foreground">
-            (week of {new Date(data.weekStart).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})
+            (week of {new Date(data.weekStart + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })})
           </span>
         )}
         {saving && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
@@ -1386,9 +1401,9 @@ function WeeklyReportSection({ projectId }: { projectId: number }) {
           <textarea
             className="w-full text-xs border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none min-h-[72px]"
             placeholder="What was accomplished this week?"
-            value={achievements ?? serverAchievements}
-            onChange={(e) => setAchievements(e.target.value)}
-            onBlur={() => save("achievements")}
+            value={form.achievements}
+            onChange={(e) => setForm((f) => ({ ...f, achievements: e.target.value }))}
+            onBlur={save}
           />
         </div>
         <div>
@@ -1396,12 +1411,53 @@ function WeeklyReportSection({ projectId }: { projectId: number }) {
           <textarea
             className="w-full text-xs border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none min-h-[72px]"
             placeholder="What will be done next week?"
-            value={nextSteps ?? serverNextSteps}
-            onChange={(e) => setNextSteps(e.target.value)}
-            onBlur={() => save("nextSteps")}
+            value={form.nextSteps}
+            onChange={(e) => setForm((f) => ({ ...f, nextSteps: e.target.value }))}
+            onBlur={save}
           />
         </div>
       </div>
+
+      {pastReports.length > 0 && (
+        <div className="mt-4">
+          <button
+            onClick={() => setHistoryOpen((o) => !o)}
+            className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${historyOpen ? "rotate-90" : ""}`} />
+            Previous weeks ({pastReports.length})
+          </button>
+
+          {historyOpen && (
+            <div className="mt-2 space-y-3">
+              {pastReports.map((r) => (
+                <div key={r.id} className="rounded-lg border border-border/60 bg-secondary/20 px-4 py-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                    Week of {new Date(r.weekStart + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    {r.updatedByName && (
+                      <span className="ml-2 font-normal normal-case tracking-normal">· {r.updatedByName}</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-[10px] font-semibold text-foreground mb-1">Key Achievements</div>
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                        {r.keyAchievements || <span className="italic">None recorded</span>}
+                      </p>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-semibold text-foreground mb-1">Next Steps</div>
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                        {r.nextSteps || <span className="italic">None recorded</span>}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

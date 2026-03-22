@@ -725,6 +725,7 @@ export const SpmoActivityEntryAction = {
   rejected: "rejected",
   uploaded_evidence: "uploaded_evidence",
   ran_ai_assessment: "ran_ai_assessment",
+  weekly_report_submitted: "weekly_report_submitted",
 } as const;
 
 /**
@@ -1483,6 +1484,21 @@ export interface SpmaProjectWeeklyReport {
 export interface UpsertSpmaProjectWeeklyReportRequest {
   keyAchievements?: string;
   nextSteps?: string;
+}
+
+export interface SpmaProjectWeeklyReportHistoryEntry {
+  id: number;
+  projectId: number;
+  weekStart: string;
+  keyAchievements?: string | null;
+  nextSteps?: string | null;
+  updatedByName?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+
+export interface SpmaProjectWeeklyReportHistory {
+  reports: SpmaProjectWeeklyReportHistoryEntry[];
 }
 
 export interface SpmaAdminUser {

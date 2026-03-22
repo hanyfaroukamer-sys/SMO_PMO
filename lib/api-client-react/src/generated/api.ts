@@ -109,6 +109,7 @@ import type {
   ListSpmoAllMilestones200,
   SpmoAllMilestoneItem,
   SpmaProjectWeeklyReport,
+  SpmaProjectWeeklyReportHistory,
   UpsertSpmaProjectWeeklyReportRequest,
   GetSpmaAdminUsers200,
   UpdateSpmaUserRoleRequest,
@@ -7078,6 +7079,66 @@ export const useUpsertSpmaProjectWeeklyReport = <
   const mutationOptions = getUpsertSpmaProjectWeeklyReportMutationOptions(options);
   return useMutation(mutationOptions);
 };
+
+// ─── PROJECT WEEKLY REPORT HISTORY ───────────────────────────
+
+export const getGetSpmaProjectWeeklyReportHistoryUrl = (id: number) =>
+  `/api/spmo/projects/${id}/weekly-report/history`;
+
+export const getSpmaProjectWeeklyReportHistory = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SpmaProjectWeeklyReportHistory> =>
+  customFetch<SpmaProjectWeeklyReportHistory>(getGetSpmaProjectWeeklyReportHistoryUrl(id), {
+    ...options,
+    method: "GET",
+  });
+
+export const getGetSpmaProjectWeeklyReportHistoryQueryKey = (id: number) =>
+  [`/api/spmo/projects/${id}/weekly-report/history`] as const;
+
+export const getGetSpmaProjectWeeklyReportHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSpmaProjectWeeklyReportHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getSpmaProjectWeeklyReportHistory>>, TError, TData>;
+    request?: RequestInit;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetSpmaProjectWeeklyReportHistoryQueryKey(id);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSpmaProjectWeeklyReportHistory>>> = ({
+    signal,
+  }) => getSpmaProjectWeeklyReportHistory(id, { signal, ...requestOptions });
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSpmaProjectWeeklyReportHistory>>,
+    TError,
+    TData
+  >;
+};
+
+export type GetSpmaProjectWeeklyReportHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSpmaProjectWeeklyReportHistory>>
+>;
+export type GetSpmaProjectWeeklyReportHistoryQueryError = ErrorType<unknown>;
+
+export function useGetSpmaProjectWeeklyReportHistory<
+  TData = Awaited<ReturnType<typeof getSpmaProjectWeeklyReportHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getSpmaProjectWeeklyReportHistory>>, TError, TData>;
+    request?: RequestInit;
+  }
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSpmaProjectWeeklyReportHistoryQueryOptions(id, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  query.queryKey = queryOptions.queryKey;
+  return query;
+}
 
 // ─── ADMIN: USER MANAGEMENT ──────────────────────────────────
 
