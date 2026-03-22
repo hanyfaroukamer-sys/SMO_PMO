@@ -12,7 +12,7 @@ import {
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
 
-import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload } from "lucide-react";
+import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Link } from "wouter";
@@ -196,7 +196,14 @@ export default function Dashboard() {
   const { data: projectsData } = useListSpmoProjects();
   const isAdmin = useIsAdmin();
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
+  const [expandedInitiatives, setExpandedInitiatives] = useState<Set<number>>(new Set());
   const aiMutation = useRunSpmoAiAssessment();
+
+  const togglePillar = (id: number) =>
+    setExpandedPillars((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const toggleInitiative = (id: number) =>
+    setExpandedInitiatives((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
   const handleRunAi = () => {
     setIsAiModalOpen(true);
@@ -341,6 +348,7 @@ export default function Dashboard() {
         <h2 className="text-lg font-display font-bold mb-4">Pillars &amp; Initiatives</h2>
         <div className="space-y-5">
           {data.pillarSummaries.map((pillar) => {
+            const isPillarExpanded = expandedPillars.has(pillar.id);
             const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);
             const pillarProjects = projectsByPillar.get(pillar.id) ?? [];
 
@@ -353,9 +361,10 @@ export default function Dashboard() {
 
             return (
               <div key={pillar.id} className="rounded-2xl border border-border overflow-hidden shadow-sm">
-                {/* Pillar header */}
-                <div
-                  className="px-6 py-4 bg-card border-b border-border"
+                {/* Pillar header — clickable */}
+                <button
+                  onClick={() => togglePillar(pillar.id)}
+                  className="w-full px-6 py-4 bg-card border-b border-border text-left hover:bg-secondary/20 transition-colors focus:outline-none"
                   style={{ borderLeft: `4px solid ${pillar.color}` }}
                 >
                   <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -365,11 +374,17 @@ export default function Dashboard() {
                       </div>
                       <h3 className="font-bold text-base">{pillar.name}</h3>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-2xl font-display font-bold" style={{ color: pillar.color }}>
-                        {Math.round(pillar.progress)}%
+                    <div className="flex items-center gap-3">
+                      <div className="text-right shrink-0">
+                        <div className="text-2xl font-display font-bold" style={{ color: pillar.color }}>
+                          {Math.round(pillar.progress)}%
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">{pillar.projectCount} project{pillar.projectCount !== 1 ? "s" : ""}</div>
                       </div>
-                      <div className="text-[10px] text-muted-foreground">{pillar.projectCount} project{pillar.projectCount !== 1 ? "s" : ""}</div>
+                      <ChevronDown
+                        className="w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0"
+                        style={{ transform: isPillarExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                      />
                     </div>
                   </div>
 
@@ -394,69 +409,112 @@ export default function Dashboard() {
                       })}
                     </div>
                   )}
-                </div>
+                </button>
 
-                {/* Initiative rows */}
-                {pillarInitiatives.length > 0 && (
-                  <div className="divide-y divide-border/40 bg-secondary/10">
-                    {pillarInitiatives.map((initiative) => {
-                      const progress = initiative.progress ?? 0;
-                      const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
-                      const initProjects = projectsByInitiative.get(initiative.id) ?? [];
-                      const initCounts: Record<ProjectStatusCategory, number> = {
-                        on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0, on_hold: 0,
-                      };
-                      for (const p of initProjects) {
-                        initCounts[classifyProject(p)]++;
-                      }
+                {/* Initiative rows — shown when pillar is expanded */}
+                {isPillarExpanded && (
+                  <>
+                    {pillarInitiatives.length > 0 ? (
+                      <div className="divide-y divide-border/40 bg-secondary/10">
+                        {pillarInitiatives.map((initiative) => {
+                          const isInitExpanded = expandedInitiatives.has(initiative.id);
+                          const progress = initiative.progress ?? 0;
+                          const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
+                          const initProjects = projectsByInitiative.get(initiative.id) ?? [];
+                          const initCounts: Record<ProjectStatusCategory, number> = {
+                            on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0, on_hold: 0,
+                          };
+                          for (const p of initProjects) {
+                            initCounts[classifyProject(p)]++;
+                          }
 
-                      return (
-                        <div key={initiative.id} className="flex items-start gap-4 px-6 py-3.5 hover:bg-secondary/30 transition-colors">
-                          <div className="w-1 h-10 rounded-full shrink-0 mt-1" style={{ backgroundColor: pillar.color }} />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-semibold text-sm">
-                                    Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}
-                                  </span>
-                                  <ComputedStatusBadge cs={initiative.computedStatus} />
+                          return (
+                            <div key={initiative.id}>
+                              {/* Initiative row — clickable */}
+                              <button
+                                onClick={() => toggleInitiative(initiative.id)}
+                                className="w-full flex items-start gap-4 px-6 py-3.5 hover:bg-secondary/30 transition-colors text-left focus:outline-none"
+                              >
+                                <div className="w-1 h-10 rounded-full shrink-0 mt-1" style={{ backgroundColor: pillar.color }} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-semibold text-sm">
+                                          Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}
+                                        </span>
+                                        <ComputedStatusBadge cs={initiative.computedStatus} />
+                                        <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+                                          {initProjects.length} project{initProjects.length !== 1 ? "s" : ""}
+                                        </span>
+                                      </div>
+                                      {initiative.computedStatus?.reason && (
+                                        <span className="text-[10px] text-muted-foreground truncate block">{initiative.computedStatus.reason}</span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <div className="text-right">
+                                        <div className="text-sm font-bold" style={{ color: pillar.color }}>{Math.round(progress)}%</div>
+                                        {planned > 0 && <div className="text-[10px] text-muted-foreground">plan {planned}%</div>}
+                                      </div>
+                                      <ChevronDown
+                                        className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200"
+                                        style={{ transform: isInitExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <ProgressBar progress={progress} planned={planned} showLabel={false} />
+                                  {/* Per-initiative project status chips */}
+                                  {initProjects.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                      {STATUS_ORDER.filter((s) => initCounts[s] > 0).map((s) => {
+                                        const { label, bg, text } = STATUS_CHIPS[s];
+                                        return (
+                                          <span key={s} className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${bg} ${text}`}>
+                                            <span className="font-bold leading-none">{initCounts[s]}</span>
+                                            {label}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
-                                {initiative.computedStatus?.reason && (
-                                  <span className="text-[10px] text-muted-foreground truncate block">{initiative.computedStatus.reason}</span>
-                                )}
-                              </div>
-                              <div className="shrink-0 text-right">
-                                <div className="text-sm font-bold" style={{ color: pillar.color }}>{Math.round(progress)}%</div>
-                                {planned > 0 && <div className="text-[10px] text-muted-foreground">plan {planned}%</div>}
-                              </div>
-                            </div>
-                            <ProgressBar progress={progress} planned={planned} showLabel={false} />
-                            {/* Per-initiative project status chips */}
-                            {initProjects.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {STATUS_ORDER.filter((s) => initCounts[s] > 0).map((s) => {
-                                  const { label, bg, text } = STATUS_CHIPS[s];
-                                  return (
-                                    <span key={s} className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${bg} ${text}`}>
-                                      <span className="font-bold leading-none">{initCounts[s]}</span>
-                                      {label}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                              </button>
 
-                {pillarInitiatives.length === 0 && (
-                  <div className="px-6 py-3 text-xs text-muted-foreground bg-secondary/10">
-                    No initiatives linked to this pillar yet.
-                  </div>
+                              {/* Project list — shown when initiative is expanded */}
+                              {isInitExpanded && initProjects.length > 0 && (
+                                <div className="divide-y divide-border/30 bg-card border-t border-border/40">
+                                  {initProjects.map((proj) => (
+                                    <Link key={proj.id} to={`/projects?project=${proj.id}`}>
+                                      <div className="flex items-center gap-4 px-10 py-2.5 hover:bg-secondary/30 transition-colors cursor-pointer">
+                                        <div className="w-0.5 h-6 rounded-full shrink-0" style={{ backgroundColor: pillar.color }} />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            {proj.projectCode && (
+                                              <span className="font-mono text-[11px] text-muted-foreground">{proj.projectCode}:</span>
+                                            )}
+                                            <span className="text-sm font-medium truncate">{proj.name}</span>
+                                            <ComputedStatusBadge cs={proj.computedStatus} />
+                                          </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                          <div className="text-sm font-bold" style={{ color: pillar.color }}>{proj.progress}%</div>
+                                        </div>
+                                      </div>
+                                    </Link>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="px-6 py-3 text-xs text-muted-foreground bg-secondary/10">
+                        No initiatives linked to this pillar yet.
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             );
@@ -466,25 +524,56 @@ export default function Dashboard() {
             <Card noPadding className="overflow-hidden">
               <div className="divide-y divide-border">
                 {initiatives.map((initiative) => {
+                  const isInitExpanded = expandedInitiatives.has(initiative.id);
                   const progress = initiative.progress ?? 0;
                   const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
+                  const initProjects = projectsByInitiative.get(initiative.id) ?? [];
                   return (
-                    <div key={initiative.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-secondary/30 transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1 gap-2">
-                          <div className="flex-1 min-w-0">
-                            <span className="font-semibold text-sm truncate block">Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}</span>
-                          </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <div className="text-right">
-                              <div className="text-sm font-bold">{Math.round(progress)}%</div>
-                              {planned > 0 && <div className="text-[10px] text-muted-foreground">plan {planned}%</div>}
+                    <div key={initiative.id}>
+                      <button
+                        onClick={() => toggleInitiative(initiative.id)}
+                        className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-secondary/30 transition-colors text-left focus:outline-none"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1 gap-2">
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-sm truncate block">Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}</span>
                             </div>
-                            <ComputedStatusBadge cs={initiative.computedStatus} />
+                            <div className="flex items-center gap-3 shrink-0">
+                              <div className="text-right">
+                                <div className="text-sm font-bold">{Math.round(progress)}%</div>
+                                {planned > 0 && <div className="text-[10px] text-muted-foreground">plan {planned}%</div>}
+                              </div>
+                              <ComputedStatusBadge cs={initiative.computedStatus} />
+                              <ChevronDown
+                                className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200"
+                                style={{ transform: isInitExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                              />
+                            </div>
                           </div>
+                          <ProgressBar progress={progress} planned={planned} showLabel={false} />
                         </div>
-                        <ProgressBar progress={progress} planned={planned} showLabel={false} />
-                      </div>
+                      </button>
+                      {isInitExpanded && initProjects.length > 0 && (
+                        <div className="divide-y divide-border/30 bg-secondary/10 border-t border-border/40">
+                          {initProjects.map((proj) => (
+                            <Link key={proj.id} to={`/projects?project=${proj.id}`}>
+                              <div className="flex items-center gap-4 px-8 py-2.5 hover:bg-secondary/40 transition-colors cursor-pointer">
+                                <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                                  {proj.projectCode && (
+                                    <span className="font-mono text-[11px] text-muted-foreground">{proj.projectCode}:</span>
+                                  )}
+                                  <span className="text-sm font-medium truncate">{proj.name}</span>
+                                  <ComputedStatusBadge cs={proj.computedStatus} />
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="text-sm font-bold">{proj.progress}%</div>
+                                </div>
+                              </div>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

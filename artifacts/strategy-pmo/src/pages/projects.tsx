@@ -340,6 +340,8 @@ export default function Projects() {
   const [pillarFilter, setPillarFilter] = useState<number | "all">("all");
   const [departmentFilter, setDepartmentFilter] = useState<number | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold">("all");
+  const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
+  const [expandedInitiatives, setExpandedInitiatives] = useState<Set<number>>(new Set());
   const { toast } = useToast();
   const qc = useQueryClient();
   const didDeepLink = useRef(false);
@@ -499,6 +501,11 @@ export default function Projects() {
 
   const initiativeCodeMap = new Map(initiatives.map((ini, idx) => [ini.id, ini.initiativeCode ?? String(idx + 1).padStart(2, "0")]));
 
+  const togglePillar = (id: number) =>
+    setExpandedPillars((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const toggleInitiative = (id: number) =>
+    setExpandedInitiatives((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader title="Projects & Milestones" description="Grouped by initiative — track delivery, budgets, and milestones.">
@@ -589,116 +596,179 @@ export default function Projects() {
         <GanttChart pillarFilter={pillarFilter} departmentFilter={departmentFilter} />
       )}
 
-      {/* List view — Grouped by Initiative */}
-      {viewMode === "list" && <div className="space-y-8">
-        {initiatives.map((initiative) => {
-          if (pillarFilter !== "all" && initiative.pillarId !== pillarFilter) return null;
-          const pillarColor = getPillarColor(initiative.pillarId);
-          const pillarName = pillars.find((p) => p.id === initiative.pillarId)?.name ?? "";
-          const initProjects = projects.filter((p) =>
-            p.initiativeId === initiative.id &&
+      {/* List view — Pillar → Initiative → Project hierarchy */}
+      {viewMode === "list" && <div className="space-y-5">
+        {pillars
+          .filter((pillar) => pillarFilter === "all" || pillar.id === pillarFilter)
+          .map((pillar) => {
+            const isPillarExpanded = expandedPillars.has(pillar.id);
+            const pillarColor = pillar.color ?? "#6366f1";
+            const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);
+
+            // Count visible projects in this pillar (respecting dept/status filters)
+            const pillarProjectCount = projects.filter((p) => {
+              const init = initiatives.find((i) => i.id === p.initiativeId);
+              return (
+                init?.pillarId === pillar.id &&
+                (departmentFilter === "all" || p.departmentId === departmentFilter) &&
+                (statusFilter === "all" || classifyProjectStatus(p) === statusFilter)
+              );
+            }).length;
+
+            if (pillarProjectCount === 0 && (departmentFilter !== "all" || statusFilter !== "all")) return null;
+
+            return (
+              <div key={pillar.id} className="rounded-2xl border border-border overflow-hidden shadow-sm">
+                {/* Pillar header — clickable */}
+                <button
+                  onClick={() => togglePillar(pillar.id)}
+                  className="w-full px-6 py-4 flex items-center gap-4 bg-card border-b border-border text-left hover:bg-secondary/20 transition-colors focus:outline-none"
+                  style={{ borderLeft: `4px solid ${pillarColor}` }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: pillarColor }}>Pillar</div>
+                    <h3 className="font-bold text-lg">{pillar.name}</h3>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">
+                      {pillarInitiatives.length} initiative{pillarInitiatives.length !== 1 ? "s" : ""}
+                    </span>
+                    <ChevronDown
+                      className="w-4 h-4 text-muted-foreground transition-transform duration-200"
+                      style={{ transform: isPillarExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                    />
+                  </div>
+                </button>
+
+                {/* Initiatives — shown when pillar expanded */}
+                {isPillarExpanded && (
+                  <div className="divide-y divide-border/40 bg-secondary/10">
+                    {pillarInitiatives.map((initiative) => {
+                      const isInitExpanded = expandedInitiatives.has(initiative.id);
+                      const initProjects = projects.filter((p) =>
+                        p.initiativeId === initiative.id &&
+                        (departmentFilter === "all" || p.departmentId === departmentFilter) &&
+                        (statusFilter === "all" || classifyProjectStatus(p) === statusFilter)
+                      );
+                      if (initProjects.length === 0 && (departmentFilter !== "all" || statusFilter !== "all")) return null;
+
+                      const initProgress = initiative.progress ?? 0;
+                      const initPlanned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
+
+                      return (
+                        <div key={initiative.id}>
+                          {/* Initiative row — clickable */}
+                          <button
+                            onClick={() => toggleInitiative(initiative.id)}
+                            className="w-full flex items-center gap-4 px-6 py-3.5 hover:bg-secondary/30 transition-colors text-left focus:outline-none"
+                          >
+                            <div className="w-1 h-8 rounded-full shrink-0" style={{ backgroundColor: pillarColor }} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-sm">
+                                  Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}
+                                </span>
+                                <ComputedStatusBadge cs={initiative.computedStatus} />
+                                <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+                                  {initProjects.length} project{initProjects.length !== 1 ? "s" : ""}
+                                </span>
+                              </div>
+                              {initPlanned > 0 ? (
+                                <div className="mt-1.5 relative h-1 bg-secondary rounded-full overflow-hidden w-full max-w-xs">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-700"
+                                    style={{ width: `${Math.min(100, initProgress)}%`, backgroundColor: pillarColor }}
+                                  />
+                                  <div
+                                    className="absolute top-0 bottom-0 w-0.5 bg-warning/80"
+                                    style={{ left: `${Math.min(100, initPlanned)}%`, transform: "translateX(-50%)" }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="mt-1.5 h-1 bg-secondary rounded-full overflow-hidden w-full max-w-xs">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-700"
+                                    style={{ width: `${Math.min(100, initProgress)}%`, backgroundColor: pillarColor }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className="text-right">
+                                <div className="text-sm font-bold" style={{ color: pillarColor }}>{Math.round(initProgress)}%</div>
+                                {initPlanned > 0 && <div className="text-[10px] text-muted-foreground">plan {initPlanned}%</div>}
+                              </div>
+                              <ChevronDown
+                                className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200"
+                                style={{ transform: isInitExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                              />
+                            </div>
+                          </button>
+
+                          {/* Projects — shown when initiative expanded */}
+                          {isInitExpanded && (
+                            <div className="divide-y divide-border/50 bg-card border-t border-border/40">
+                              {initProjects.length === 0 ? (
+                                <div className="px-10 py-4 text-xs text-muted-foreground">No projects match the current filters.</div>
+                              ) : initProjects.map((proj) => (
+                                <ProjectRow
+                                  key={proj.id}
+                                  project={proj}
+                                  pillarColor={pillarColor}
+                                  expanded={expandedProject === proj.id}
+                                  onToggle={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
+                                  onEdit={() => openEdit(proj)}
+                                  onDelete={() => handleDelete(proj.id, proj.name)}
+                                  onStatusOverride={(newStatus) => {
+                                    updateMutation.mutate({ id: proj.id, data: { status: newStatus as "active" | "on_hold" | "completed" | "cancelled" } }, {
+                                      onSuccess: () => { toast({ title: newStatus === "on_hold" ? "Project put on hold" : "Project resumed" }); invalidate(); },
+                                      onError: () => toast({ variant: "destructive", title: "Failed to update status" }),
+                                    });
+                                  }}
+                                  isAdmin={isAdmin}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {pillarInitiatives.length === 0 && (
+                      <div className="px-6 py-3 text-xs text-muted-foreground">No initiatives linked to this pillar.</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+        {/* Projects not in any pillar/initiative */}
+        {(() => {
+          const orphans = projects.filter((p) =>
+            !initiatives.some((i) => i.id === p.initiativeId) &&
             (departmentFilter === "all" || p.departmentId === departmentFilter) &&
             (statusFilter === "all" || classifyProjectStatus(p) === statusFilter)
           );
-          if (initProjects.length === 0) return null;
-
-          const initProgress = initiative.progress ?? 0;
-
-          return (
-            <div key={initiative.id} className="rounded-2xl border border-border overflow-hidden shadow-sm">
-              {/* Coloured left border (as top stripe in header) */}
-              <div
-                className="px-6 py-4 flex items-center gap-4 bg-card border-b border-border"
-                style={{ borderLeft: `4px solid ${pillarColor}` }}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: pillarColor }}>
-                    {pillarName}
-                  </div>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <h3 className="font-bold text-lg">
-                      Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}
-                    </h3>
-                    <ComputedStatusBadge cs={initiative.computedStatus} />
-                    <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">
-                      {initProjects.length} project{initProjects.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                </div>
-                {(() => {
-                  const initPlanned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
-                  return (
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="w-36">
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-muted-foreground">
-                            <span className="font-bold" style={{ color: pillarColor }}>{Math.round(initProgress)}%</span>
-                            {initPlanned > 0 && <span className="ml-1 text-[10px] text-muted-foreground">/ plan {initPlanned}%</span>}
-                          </span>
-                        </div>
-                        <div className="relative h-1.5 bg-secondary rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-700"
-                            style={{ width: `${Math.min(100, initProgress)}%`, backgroundColor: pillarColor }}
-                          />
-                          {initPlanned > 0 && (
-                            <div
-                              className="absolute top-0 bottom-0 w-0.5 bg-warning/80"
-                              style={{ left: `${Math.min(100, initPlanned)}%`, transform: "translateX(-50%)" }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Projects */}
-              <div className="divide-y divide-border/50 bg-secondary/10">
-                {initProjects.map((proj) => (
-                  <ProjectRow
-                    key={proj.id}
-                    project={proj}
-                    pillarColor={pillarColor}
-                    expanded={expandedProject === proj.id}
-                    onToggle={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
-                    onEdit={() => openEdit(proj)}
-                    onDelete={() => handleDelete(proj.id, proj.name)}
-                    onStatusOverride={(newStatus) => {
-                      updateMutation.mutate({ id: proj.id, data: { status: newStatus as "active" | "on_hold" | "completed" | "cancelled" } }, {
-                        onSuccess: () => { toast({ title: newStatus === "on_hold" ? "Project put on hold" : "Project resumed" }); invalidate(); },
-                        onError: () => toast({ variant: "destructive", title: "Failed to update status" }),
-                      });
-                    }}
-                    isAdmin={isAdmin}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Projects not in any matched initiative */}
-        {projects.filter((p) => !initiatives.some((i) => i.id === p.initiativeId)).map((proj) => (
-          <Card key={proj.id} noPadding className="overflow-hidden">
-            <ProjectRow
-              project={proj}
-              pillarColor="#6366f1"
-              expanded={expandedProject === proj.id}
-              onToggle={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
-              onEdit={() => openEdit(proj)}
-              onDelete={() => handleDelete(proj.id, proj.name)}
-              onStatusOverride={(newStatus) => {
-                updateMutation.mutate({ id: proj.id, data: { status: newStatus as "active" | "on_hold" | "completed" | "cancelled" } }, {
-                  onSuccess: () => { toast({ title: newStatus === "on_hold" ? "Project put on hold" : "Project resumed" }); invalidate(); },
-                  onError: () => toast({ variant: "destructive", title: "Failed to update status" }),
-                });
-              }}
-              isAdmin={isAdmin}
-            />
-          </Card>
-        ))}
+          return orphans.map((proj) => (
+            <Card key={proj.id} noPadding className="overflow-hidden">
+              <ProjectRow
+                project={proj}
+                pillarColor="#6366f1"
+                expanded={expandedProject === proj.id}
+                onToggle={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
+                onEdit={() => openEdit(proj)}
+                onDelete={() => handleDelete(proj.id, proj.name)}
+                onStatusOverride={(newStatus) => {
+                  updateMutation.mutate({ id: proj.id, data: { status: newStatus as "active" | "on_hold" | "completed" | "cancelled" } }, {
+                    onSuccess: () => { toast({ title: newStatus === "on_hold" ? "Project put on hold" : "Project resumed" }); invalidate(); },
+                    onError: () => toast({ variant: "destructive", title: "Failed to update status" }),
+                  });
+                }}
+                isAdmin={isAdmin}
+              />
+            </Card>
+          ));
+        })()}
 
         {projects.length === 0 && (
           <Card className="p-12 text-center text-muted-foreground">
