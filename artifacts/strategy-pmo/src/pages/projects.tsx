@@ -296,6 +296,7 @@ function calcPlannedProgress(startDate: string | null | undefined, endDate: stri
 
 type ProjectForm = {
   name: string;
+  projectCode: string;
   description: string;
   initiativeId: string;
   departmentId: string;
@@ -308,7 +309,7 @@ type ProjectForm = {
 };
 
 const emptyProject = (): ProjectForm => ({
-  name: "", description: "", initiativeId: "", departmentId: "", ownerName: "",
+  name: "", projectCode: "", description: "", initiativeId: "", departmentId: "", ownerName: "",
   weight: "50", status: "active", budget: "", startDate: "", targetDate: "",
 });
 
@@ -368,6 +369,7 @@ export default function Projects() {
     setEditId(project.id);
     setForm({
       name: project.name,
+      projectCode: project.projectCode ?? "",
       description: project.description ?? "",
       initiativeId: String(project.initiativeId),
       departmentId: project.departmentId != null ? String(project.departmentId) : "",
@@ -421,6 +423,7 @@ export default function Projects() {
     e.preventDefault();
     const commonFields = {
       name: form.name,
+      projectCode: form.projectCode || null,
       description: form.description || undefined,
       initiativeId: parseInt(form.initiativeId),
       departmentId: form.departmentId ? parseInt(form.departmentId) : null,
@@ -481,6 +484,8 @@ export default function Projects() {
 
   const getPillarColor = (pillarId: number) =>
     pillars.find((p) => p.id === pillarId)?.color ?? "#6366f1";
+
+  const initiativeIndexMap = new Map(initiatives.map((ini, idx) => [ini.id, idx + 1]));
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -582,7 +587,9 @@ export default function Projects() {
                     {pillarName}
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
-                    <h3 className="font-bold text-lg">{initiative.name}</h3>
+                    <h3 className="font-bold text-lg">
+                      Initiative {String(initiativeIndexMap.get(initiative.id) ?? 0).padStart(2, "0")}: {initiative.name}
+                    </h3>
                     <ComputedStatusBadge cs={initiative.computedStatus} />
                     <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">
                       {initProjects.length} project{initProjects.length !== 1 ? "s" : ""}
@@ -674,9 +681,21 @@ export default function Projects() {
       {/* Project Form Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? "Edit Project" : "New Project"}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <FormField label="Project Name" required>
-            <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Citizen Identity Module" required />
-          </FormField>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2">
+              <FormField label="Project Name" required>
+                <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Citizen Identity Module" required />
+              </FormField>
+            </div>
+            <FormField label="Project Code">
+              <input
+                className={inputClass}
+                value={form.projectCode}
+                onChange={(e) => setForm({ ...form, projectCode: e.target.value })}
+                placeholder="e.g. P01"
+              />
+            </FormField>
+          </div>
 
           <FormField label="Initiative" required>
             <select className={selectClass} value={form.initiativeId} onChange={(e) => setForm({ ...form, initiativeId: e.target.value })} required>
@@ -810,7 +829,12 @@ function ProjectRow({
         <div className="w-1.5 h-8 rounded-full shrink-0" style={{ backgroundColor: isOnHold ? "#f97316" : pillarColor }} />
         <div className="flex-1 min-w-0">
           <div className="flex flex-col gap-1 mb-1">
-            <h4 className="font-bold text-base">{project.name}</h4>
+            <h4 className="font-bold text-base">
+              {project.projectCode && (
+                <span className="text-muted-foreground font-mono mr-1.5">{project.projectCode}:</span>
+              )}
+              {project.name}
+            </h4>
             <div className="flex items-center gap-2 flex-wrap">
               {isOnHold ? (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 border border-orange-200">

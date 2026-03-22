@@ -114,6 +114,7 @@ export type SpmoDepartment = typeof spmoDepartmentsTable.$inferSelect;
 export const spmoProjectsTable = pgTable("spmo_projects", {
   id: serial("id").primaryKey(),
   depStatus: text("dep_status", { enum: ["blocked", "ready"] }).notNull().default("ready"),
+  projectCode: text("project_code"),
   initiativeId: integer("initiative_id")
     .notNull()
     .references(() => spmoInitiativesTable.id, { onDelete: "cascade" }),

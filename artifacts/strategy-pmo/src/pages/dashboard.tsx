@@ -222,6 +222,8 @@ export default function Dashboard() {
   }).length;
   const projectsNeedAttention = data.pillarSummaries.reduce((s, p) => s + p.pendingApprovals, 0);
 
+  const initiativeIndexMap = new Map(initiatives.map((ini, idx) => [ini.id, idx + 1]));
+
   const projectsByInitiative = new Map<number, SpmoProjectWithProgress[]>();
   for (const proj of projects) {
     const list = projectsByInitiative.get(proj.initiativeId) ?? [];
@@ -411,7 +413,9 @@ export default function Dashboard() {
                             <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-semibold text-sm">{initiative.name}</span>
+                                  <span className="font-semibold text-sm">
+                                    Initiative {String(initiativeIndexMap.get(initiative.id) ?? 0).padStart(2, "0")}: {initiative.name}
+                                  </span>
                                   <ComputedStatusBadge cs={initiative.computedStatus} />
                                 </div>
                                 {initiative.computedStatus?.reason && (

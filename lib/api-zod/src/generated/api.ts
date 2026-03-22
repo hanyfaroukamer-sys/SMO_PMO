@@ -1068,6 +1068,7 @@ export const CreateSpmoProjectBody = zod.object({
   initiativeId: zod.number(),
   departmentId: zod.number().optional().nullable(),
   name: zod.string().min(1),
+  projectCode: zod.string().optional().nullable(),
   description: zod.string().optional(),
   ownerId: zod.string(),
   startDate: zod.coerce.date(),
@@ -1181,6 +1182,7 @@ export const UpdateSpmoProjectParams = zod.object({
 
 export const UpdateSpmoProjectBody = zod.object({
   name: zod.string().optional(),
+  projectCode: zod.string().optional().nullable(),
   description: zod.string().optional(),
   ownerId: zod.string().optional(),
   ownerName: zod.string().optional().nullable(),
