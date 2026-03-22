@@ -512,22 +512,22 @@ export default function Projects() {
         </div>
       </PageHeader>
 
-      {/* Gantt filter bar */}
-      {viewMode === "gantt" && (
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pillar</label>
-            <select
-              className={`${selectClass} py-1.5 text-xs w-44`}
-              value={pillarFilter === "all" ? "all" : String(pillarFilter)}
-              onChange={(e) => setPillarFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-            >
-              <option value="all">All Pillars</option>
-              {(pillars as Array<{id: number; name: string}>).map((p) => (
-                <option key={p.id} value={String(p.id)}>{p.name}</option>
-              ))}
-            </select>
-          </div>
+      {/* Filter bar — shown in both list and Gantt views */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pillar</label>
+          <select
+            className={`${selectClass} py-1.5 text-xs w-44`}
+            value={pillarFilter === "all" ? "all" : String(pillarFilter)}
+            onChange={(e) => setPillarFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+          >
+            <option value="all">All Pillars</option>
+            {(pillars as Array<{id: number; name: string}>).map((p) => (
+              <option key={p.id} value={String(p.id)}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+        {departments.length > 0 && (
           <div className="flex items-center gap-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</label>
             <select
@@ -541,11 +541,13 @@ export default function Projects() {
               ))}
             </select>
           </div>
+        )}
+        {viewMode === "gantt" && (
           <span className="ml-auto text-xs text-muted-foreground">
             Showing projects with milestone markers · hover bars/diamonds for details
           </span>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Gantt view */}
       {viewMode === "gantt" && (
@@ -555,9 +557,13 @@ export default function Projects() {
       {/* List view — Grouped by Initiative */}
       {viewMode === "list" && <div className="space-y-8">
         {initiatives.map((initiative) => {
+          if (pillarFilter !== "all" && initiative.pillarId !== pillarFilter) return null;
           const pillarColor = getPillarColor(initiative.pillarId);
           const pillarName = pillars.find((p) => p.id === initiative.pillarId)?.name ?? "";
-          const initProjects = projects.filter((p) => p.initiativeId === initiative.id);
+          const initProjects = projects.filter((p) =>
+            p.initiativeId === initiative.id &&
+            (departmentFilter === "all" || p.departmentId === departmentFilter)
+          );
           if (initProjects.length === 0) return null;
 
           const initProgress = initiative.progress ?? 0;
