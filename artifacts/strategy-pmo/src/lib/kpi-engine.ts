@@ -188,14 +188,14 @@ function computeRateKpi(kpi: KpiEngineInput): KpiStatusResult {
 
   // ── PROPORTIONAL PACE OVERRIDE ──
   // Answers spec question #2: "Where should you be NOW?"
-  // If actual/target is ≥2.5× what you'd need proportionally at this point in the
-  // year, the user is well ahead of any reasonable annual pace → on-track or exceeding.
-  // Example: 60% of target achieved when only 22% of the year has elapsed (2.7× pace).
-  const progressRatio = time.elapsedPct > 0 ? (actual / target) / time.elapsedPct : 0;
-  if (progressRatio >= 2.5) {
+  // If actual/target >= elapsedPct the KPI is at or ahead of proportional pace
+  // toward the annual target — it cannot be "at-risk".
+  // Example: 40% of target achieved with 22% of year elapsed → 40% ≥ 22% → on-track.
+  const achievedPct = target > 0 ? actual / target : 0;
+  if (time.elapsedPct > 0 && achievedPct >= time.elapsedPct) {
     return r(
       "on-track",
-      `${fmtN(actual)}${unit} — ${Math.round((actual/target)*100)}% of annual target with ${Math.round(time.elapsedPct*100)}% of period elapsed (${time.quarter}). Well ahead of pace.${vt}`,
+      `${fmtN(actual)}${unit} — ${Math.round(achievedPct * 100)}% of annual target with ${Math.round(time.elapsedPct * 100)}% of period elapsed (${time.quarter}). At or ahead of pace.${vt}`,
       pi, vel, time
     );
   }
