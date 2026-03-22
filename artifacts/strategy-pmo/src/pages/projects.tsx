@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   useListSpmoProjects,
   useListSpmoInitiatives,
@@ -319,6 +319,24 @@ export default function Projects() {
   const [departmentFilter, setDepartmentFilter] = useState<number | "all">("all");
   const { toast } = useToast();
   const qc = useQueryClient();
+  const didDeepLink = useRef(false);
+
+  useEffect(() => {
+    if (didDeepLink.current || !data?.projects?.length) return;
+    const params = new URLSearchParams(window.location.search);
+    const rawId = params.get("project");
+    if (!rawId) return;
+    const targetId = parseInt(rawId, 10);
+    if (isNaN(targetId)) return;
+    const exists = data.projects.some((p) => p.id === targetId);
+    if (!exists) return;
+    didDeepLink.current = true;
+    setExpandedProject(targetId);
+    setTimeout(() => {
+      const el = document.getElementById(`project-${targetId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  }, [data]);
 
   const createMutation = useCreateSpmoProject();
   const updateMutation = useUpdateSpmoProject();
@@ -746,7 +764,7 @@ function ProjectRow({
   onDelete: () => void;
 }) {
   return (
-    <div>
+    <div id={`project-${project.id}`}>
       <div
         className="flex items-center gap-4 px-6 py-4 cursor-pointer hover:bg-secondary/20 transition-colors"
         onClick={onToggle}

@@ -3,7 +3,7 @@ import {
   useGetSpmaDepartmentPortfolio,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elements";
-import { Loader2, ArrowLeft, Building2, FolderOpen, TrendingUp, Target } from "lucide-react";
+import { Loader2, ArrowLeft, Building2, FolderOpen, TrendingUp, Target, ExternalLink } from "lucide-react";
 
 const fmtCurrency = (n: number) => {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -115,7 +115,12 @@ export default function DepartmentPortfolio({ params }: Props) {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-slate-800">{project.name}</h3>
+                      <button
+                        onClick={() => navigate(`/projects?project=${project.id}`)}
+                        className="font-semibold text-slate-800 hover:text-blue-600 hover:underline text-left transition-colors"
+                      >
+                        {project.name}
+                      </button>
                       <StatusBadge status={project.status} />
                     </div>
                     {(project.initiativeName || project.pillarName) && (
@@ -144,9 +149,18 @@ export default function DepartmentPortfolio({ params }: Props) {
                 </div>
 
                 <div className="flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 pt-2">
-                  <span>Budget: {fmtCurrency(project.budget)}</span>
-                  <span>Spent: {fmtCurrency(project.budgetSpent)} ({budgetUsedPct}%)</span>
-                  {project.ownerName && <span className="hidden sm:block">Owner: {project.ownerName}</span>}
+                  <div className="flex items-center gap-3">
+                    <span>Budget: {fmtCurrency(project.budget)}</span>
+                    <span>Spent: {fmtCurrency(project.budgetSpent)} ({budgetUsedPct}%)</span>
+                    {project.ownerName && <span className="hidden sm:block">Owner: {project.ownerName}</span>}
+                  </div>
+                  <button
+                    onClick={() => navigate(`/projects?project=${project.id}`)}
+                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline shrink-0"
+                    title="View in Projects"
+                  >
+                    <ExternalLink className="w-3 h-3" /> View
+                  </button>
                 </div>
               </Card>
             );
