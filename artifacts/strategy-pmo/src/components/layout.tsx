@@ -18,6 +18,7 @@ import {
   ChevronsRight,
   Building2,
   ShieldCheck,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetCurrentAuthUser } from "@workspace/api-client-react";
@@ -35,6 +36,7 @@ const navItems = [
   { title: "Risks",            href: "/risks",        icon: ShieldAlert      },
   { title: "Alerts",           href: "/alerts",       icon: BellRing         },
   { title: "Activity Log",     href: "/activity",     icon: ScrollText       },
+  { title: "Import Strategy",  href: "/import",       icon: Upload           },
 ];
 
 function Logo({ collapsed }: { collapsed: boolean }) {

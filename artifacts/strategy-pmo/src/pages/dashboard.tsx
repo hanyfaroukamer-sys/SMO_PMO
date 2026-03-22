@@ -9,7 +9,7 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 
-import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, Wallet, ThumbsUp, Lightbulb, ShieldAlert } from "lucide-react";
+import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Link } from "wouter";
@@ -107,6 +107,27 @@ export default function Dashboard() {
           AI Assessment
         </button>
       </PageHeader>
+
+      {/* Empty state banner — shown when no programme data exists yet */}
+      {data.pillarSummaries.length === 0 && (
+        <div className="flex items-center gap-4 p-5 rounded-xl bg-gradient-to-r from-blue-50 to-violet-50 border border-blue-200">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shrink-0">
+            <Upload className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-sm">No programme data yet</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Import your strategy documents to auto-populate the programme structure, or create pillars manually.</div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href="/import" className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+              Import from documents
+            </Link>
+            <Link href="/admin" className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors">
+              Create manually
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Critical alerts banner */}
       {criticalAlerts.length > 0 && (

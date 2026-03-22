@@ -23,6 +23,7 @@ import ActivityLog from "@/pages/activity";
 import Admin from "@/pages/admin";
 import Pillars from "@/pages/pillars";
 import Initiatives from "@/pages/initiatives";
+import ImportPage from "@/pages/import";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,6 +54,7 @@ function Router() {
           <Route path="/risks" component={Risks} />
           <Route path="/alerts" component={Alerts} />
           <Route path="/activity" component={ActivityLog} />
+          <Route path="/import" component={ImportPage} />
           <Route path="/admin" component={Admin} />
           <Route component={NotFound} />
         </Switch>
