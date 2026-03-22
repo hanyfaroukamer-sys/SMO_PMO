@@ -627,6 +627,12 @@ export default function Projects() {
                     onToggle={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
                     onEdit={() => openEdit(proj)}
                     onDelete={() => handleDelete(proj.id, proj.name)}
+                    onStatusOverride={(newStatus) => {
+                      updateMutation.mutate({ id: proj.id, data: { status: newStatus as "active" | "on_hold" | "completed" | "cancelled" } }, {
+                        onSuccess: () => { toast({ title: newStatus === "on_hold" ? "Project put on hold" : "Project resumed" }); invalidate(); },
+                        onError: () => toast({ variant: "destructive", title: "Failed to update status" }),
+                      });
+                    }}
                     isAdmin={isAdmin}
                   />
                 ))}
@@ -645,6 +651,12 @@ export default function Projects() {
               onToggle={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
               onEdit={() => openEdit(proj)}
               onDelete={() => handleDelete(proj.id, proj.name)}
+              onStatusOverride={(newStatus) => {
+                updateMutation.mutate({ id: proj.id, data: { status: newStatus as "active" | "on_hold" | "completed" | "cancelled" } }, {
+                  onSuccess: () => { toast({ title: newStatus === "on_hold" ? "Project put on hold" : "Project resumed" }); invalidate(); },
+                  onError: () => toast({ variant: "destructive", title: "Failed to update status" }),
+                });
+              }}
               isAdmin={isAdmin}
             />
           </Card>
@@ -773,6 +785,7 @@ function ProjectRow({
   onToggle,
   onEdit,
   onDelete,
+  onStatusOverride,
   isAdmin,
 }: {
   project: SpmoProjectWithProgress;
@@ -781,20 +794,29 @@ function ProjectRow({
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onStatusOverride: (newStatus: string) => void;
   isAdmin: boolean;
 }) {
+  const isOnHold = project.status === "on_hold";
+
   return (
     <div id={`project-${project.id}`}>
       <div
-        className="flex items-center gap-4 px-6 py-4 cursor-pointer hover:bg-secondary/20 transition-colors"
+        className={`flex items-center gap-4 px-6 py-4 cursor-pointer transition-colors ${isOnHold ? "bg-orange-50/40 hover:bg-orange-50/60" : "hover:bg-secondary/20"}`}
         onClick={onToggle}
       >
-        <div className="w-1.5 h-8 rounded-full shrink-0" style={{ backgroundColor: pillarColor }} />
+        <div className="w-1.5 h-8 rounded-full shrink-0" style={{ backgroundColor: isOnHold ? "#f97316" : pillarColor }} />
         <div className="flex-1 min-w-0">
           <div className="flex flex-col gap-1 mb-1">
             <h4 className="font-bold text-base">{project.name}</h4>
-            <div className="flex items-center gap-2">
-              <ComputedStatusBadge cs={project.computedStatus} />
+            <div className="flex items-center gap-2 flex-wrap">
+              {isOnHold ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 border border-orange-200">
+                  ⏸ On Hold
+                </span>
+              ) : (
+                <ComputedStatusBadge cs={project.computedStatus} />
+              )}
               {isAdmin && project.weight > 0 && (
                 <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded text-muted-foreground">
                   {project.weight}% weight
@@ -839,6 +861,23 @@ function ProjectRow({
           </div>
           {isAdmin && (
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              {isOnHold ? (
+                <button
+                  onClick={() => onStatusOverride("active")}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
+                  title="Resume project"
+                >
+                  ▶ Resume
+                </button>
+              ) : (
+                <button
+                  onClick={() => onStatusOverride("on_hold")}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-100 border border-orange-200 text-orange-600 text-xs font-semibold hover:bg-orange-200 transition-colors"
+                  title="Put on hold"
+                >
+                  ⏸ Hold
+                </button>
+              )}
               <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                 <Pencil className="w-4 h-4" />
               </button>
