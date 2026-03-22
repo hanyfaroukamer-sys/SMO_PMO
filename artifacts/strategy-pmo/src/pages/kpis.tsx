@@ -12,6 +12,7 @@ import { Modal, FormField, FormActions, inputClass, selectClass } from "@/compon
 import { Loader2, Plus, Pencil, Trash2, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
   computeKpiStatus,
   ENGINE_STATUS_LABEL,
@@ -71,6 +72,7 @@ function GaugeCircle({ progress, color }: { progress: number; color: string }) {
 }
 
 export default function KPIs() {
+  const isAdmin = useIsAdmin();
   const { data, isLoading } = useListSpmoKpis({ type: "strategic" });
   const { data: pillarsData } = useListSpmoPillars();
   const [modalOpen, setModalOpen] = useState(false);
@@ -164,9 +166,11 @@ export default function KPIs() {
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader title="Strategic KPIs" description="Track strategic metrics linked to national transformation pillars.">
-        <button onClick={openCreate} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors">
-          <Plus className="w-4 h-4" /> Add KPI
-        </button>
+        {isAdmin && (
+          <button onClick={openCreate} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors">
+            <Plus className="w-4 h-4" /> Add KPI
+          </button>
+        )}
       </PageHeader>
 
       {isLoading ? (
@@ -198,19 +202,21 @@ export default function KPIs() {
             return (
               <Card
                 key={kpi.id}
-                className="relative overflow-hidden group hover:shadow-md transition-shadow cursor-pointer pl-5"
+                className={`relative overflow-hidden group hover:shadow-md transition-shadow pl-5${isAdmin ? " cursor-pointer" : ""}`}
                 noPadding={false}
-                onClick={() => openEdit(kpi)}
+                onClick={isAdmin ? () => openEdit(kpi) : undefined}
               >
                 <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-xl" style={{ backgroundColor: color }} />
-                <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => openEdit(kpi)} className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); handleDelete(kpi.id, kpi.name); }} className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => openEdit(kpi)} className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(kpi.id, kpi.name); }} className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex items-start gap-4">
                   {kpi.kpiType === "milestone" ? (

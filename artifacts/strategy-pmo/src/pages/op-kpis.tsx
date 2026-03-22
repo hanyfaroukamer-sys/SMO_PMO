@@ -13,6 +13,7 @@ import { Modal, FormField, FormActions, inputClass, selectClass } from "@/compon
 import { Loader2, Activity, Plus, Pencil, Trash2, User, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
   computeKpiStatus,
   ENGINE_STATUS_LABEL,
@@ -86,6 +87,7 @@ function MiniBar({ actual, target }: { actual: number; target: number }) {
 }
 
 export default function OpKPIs() {
+  const isAdmin = useIsAdmin();
   const { data, isLoading } = useListSpmoKpis({ type: "operational" });
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: pillarsData } = useListSpmoPillars();
@@ -213,16 +215,18 @@ export default function OpKPIs() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader title="Operational KPIs" description="Grouped by initiative — baseline, targets, actuals and next-year outlook.">
-        <button onClick={() => openCreate()} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg font-semibold shadow-sm hover:bg-primary/90 transition-all">
-          <Plus className="w-4 h-4" /> Add KPI
-        </button>
+        {isAdmin && (
+          <button onClick={() => openCreate()} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg font-semibold shadow-sm hover:bg-primary/90 transition-all">
+            <Plus className="w-4 h-4" /> Add KPI
+          </button>
+        )}
       </PageHeader>
 
       {kpis.length === 0 ? (
         <Card className="text-center py-16 text-muted-foreground">
           <Activity className="w-12 h-12 mx-auto mb-4 opacity-20" />
           <p className="text-lg font-medium">No operational KPIs yet.</p>
-          <button onClick={() => openCreate()} className="mt-4 text-primary hover:underline text-sm font-medium">Add the first one</button>
+          {isAdmin && <button onClick={() => openCreate()} className="mt-4 text-primary hover:underline text-sm font-medium">Add the first one</button>}
         </Card>
       ) : (
         <div className="space-y-6">
@@ -252,7 +256,7 @@ export default function OpKPIs() {
                       </div>
                     )}
                   </div>
-                  {initiative && (
+                  {isAdmin && initiative && (
                     <button onClick={() => openCreate(initiative.id)} className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-3 py-1.5 hover:bg-secondary transition-colors">
                       <Plus className="w-3 h-3" /> Add KPI
                     </button>
@@ -323,10 +327,12 @@ export default function OpKPIs() {
                             </td>
                             <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.nextYearTarget, kpi.unit)}</td>
                             <td className="px-4 py-4">
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => openEdit(kpi)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => handleDelete(kpi.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
-                              </div>
+                              {isAdmin && (
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button onClick={() => openEdit(kpi)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => handleDelete(kpi.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );
