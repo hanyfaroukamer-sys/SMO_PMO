@@ -16,6 +16,8 @@ import {
   useApproveSpmoMilestone,
   useRejectSpmoMilestone,
   useGetCurrentAuthUser,
+  useGetSpmaProjectWeeklyReport,
+  useUpsertSpmaProjectWeeklyReport,
   type SpmoProjectWithProgress,
   type CreateSpmoProjectRequest,
   type UpdateSpmoProjectRequest,
@@ -33,6 +35,7 @@ import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 function fileIcon(contentType: string | null | undefined) {
   if (!contentType) return FileText;
@@ -308,6 +311,7 @@ export default function Projects() {
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: pillarsData } = useListSpmoPillars();
   const { data: departmentsData } = useListSpmoDepartments();
+  const isAdmin = useIsAdmin();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<ProjectForm>(emptyProject());
@@ -493,12 +497,14 @@ export default function Projects() {
               <GanttChartSquare className="w-3.5 h-3.5" /> Gantt
             </button>
           </div>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4" /> + Project
-          </button>
+          {isAdmin && (
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors shadow-sm"
+            >
+              <Plus className="w-4 h-4" /> + Project
+            </button>
+          )}
         </div>
       </PageHeader>
 
@@ -611,6 +617,7 @@ export default function Projects() {
                     onToggle={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
                     onEdit={() => openEdit(proj)}
                     onDelete={() => handleDelete(proj.id, proj.name)}
+                    isAdmin={isAdmin}
                   />
                 ))}
               </div>
@@ -628,6 +635,7 @@ export default function Projects() {
               onToggle={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
               onEdit={() => openEdit(proj)}
               onDelete={() => handleDelete(proj.id, proj.name)}
+              isAdmin={isAdmin}
             />
           </Card>
         ))}
@@ -755,6 +763,7 @@ function ProjectRow({
   onToggle,
   onEdit,
   onDelete,
+  isAdmin,
 }: {
   project: SpmoProjectWithProgress;
   pillarColor: string;
@@ -762,6 +771,7 @@ function ProjectRow({
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  isAdmin: boolean;
 }) {
   return (
     <div id={`project-${project.id}`}>
@@ -815,19 +825,26 @@ function ProjectRow({
             <div className="text-xs text-muted-foreground">Milestones</div>
             <div className="font-bold text-sm">{project.milestoneCount ?? 0}</div>
           </div>
-          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-            <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
-              <Pencil className="w-4 h-4" />
-            </button>
-            <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           {expanded ? <ChevronUp className="w-5 h-5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-5 h-5 text-muted-foreground shrink-0" />}
         </div>
       </div>
 
-      {expanded && <MilestoneSection projectId={project.id} pillarColor={pillarColor} />}
+      {expanded && (
+        <>
+          <MilestoneSection projectId={project.id} pillarColor={pillarColor} isAdmin={isAdmin} />
+          <WeeklyReportSection projectId={project.id} />
+        </>
+      )}
     </div>
   );
 }
@@ -851,7 +868,7 @@ function computeProportionalWeights(items: { id: number; effortDays: number }[])
   return resultMap;
 }
 
-function MilestoneSection({ projectId, pillarColor }: { projectId: number; pillarColor: string }) {
+function MilestoneSection({ projectId, pillarColor, isAdmin }: { projectId: number; pillarColor: string; isAdmin: boolean }) {
   const { data, isLoading } = useListSpmoMilestones(projectId);
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -1035,13 +1052,15 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
           <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Wt%</span>
         </div>
         <div className="w-12 shrink-0" />
-        <button
-          onClick={handleAddMilestone}
-          disabled={createMutation.isPending}
-          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline disabled:opacity-50 shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" /> Add
-        </button>
+        {isAdmin && (
+          <button
+            onClick={handleAddMilestone}
+            disabled={createMutation.isPending}
+            className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline disabled:opacity-50 shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add
+          </button>
+        )}
       </div>
 
       {/* Weight summary row */}
@@ -1056,21 +1075,23 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                   : `✓ Milestone weights total ${Math.round(totalWeight)}%`}
               </span>
               <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={applyAutoWeights}
-                  disabled={applyingAutoWeights}
-                  className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded border border-current hover:opacity-70 transition-opacity disabled:opacity-40"
-                  title="Recalculate all weights proportionally from effort days"
-                >
-                  {applyingAutoWeights
-                    ? <Loader2 className="w-3 h-3 animate-spin" />
-                    : <RotateCcw className="w-3 h-3" />}
-                  Auto-weight
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={applyAutoWeights}
+                    disabled={applyingAutoWeights}
+                    className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded border border-current hover:opacity-70 transition-opacity disabled:opacity-40"
+                    title="Recalculate all weights proportionally from effort days"
+                  >
+                    {applyingAutoWeights
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : <RotateCcw className="w-3 h-3" />}
+                    Auto-weight
+                  </button>
+                )}
                 <span className="w-16 text-right">{Math.max(0, Math.round(100 - totalWeight))}% left</span>
               </div>
             </div>
-            {(milestoneWeightError || milestoneWeightWarning) && (
+            {isAdmin && (milestoneWeightError || milestoneWeightWarning) && (
               <div className="mt-2 space-y-1.5">
                 {milestones.map((sib) => {
                   const autoW = autoWeightMap.get(sib.id) ?? 0;
@@ -1128,12 +1149,14 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                         <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
                         <span className="text-sm font-semibold text-success">{m.name}</span>
                       </div>
-                    ) : (
+                    ) : isAdmin ? (
                       <InlineEdit
                         value={m.name}
                         onSave={(v) => handleInlineNameUpdate(m.id, v)}
                         className="text-sm font-semibold"
                       />
+                    ) : (
+                      <span className="text-sm font-semibold">{m.name}</span>
                     )}
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <StatusBadge status={m.status} />
@@ -1183,7 +1206,7 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
 
                   {/* Effort */}
                   <div className="w-20 shrink-0">
-                    {isApproved ? (
+                    {isApproved || !isAdmin ? (
                       <span className="text-sm text-muted-foreground">{m.effortDays ?? 0}d</span>
                     ) : (
                       <InlineNumberEdit
@@ -1197,7 +1220,7 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
 
                   {/* Start Date — editable */}
                   <div className="w-24 shrink-0 text-center">
-                    {isApproved ? (
+                    {isApproved || !isAdmin ? (
                       <span className="text-xs text-muted-foreground">
                         {m.startDate ? format(new Date(m.startDate + "T00:00:00"), "MMM d, yyyy") : "—"}
                       </span>
@@ -1212,7 +1235,7 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
 
                   {/* Due Date — editable */}
                   <div className="w-24 shrink-0 text-center">
-                    {isApproved ? (
+                    {isApproved || !isAdmin ? (
                       <span className="text-xs text-muted-foreground">
                         {m.dueDate ? format(new Date(m.dueDate + "T00:00:00"), "MMM d, yyyy") : "—"}
                       </span>
@@ -1226,7 +1249,7 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
 
                   {/* Weight — editable inline with auto-weight hint */}
                   <div className="w-16 text-center shrink-0">
-                    {isApproved ? (
+                    {isApproved || !isAdmin ? (
                       <span className="text-xs font-bold tabular-nums">{Math.round(m.weight ?? 0)}%</span>
                     ) : (
                       <div className="flex flex-col items-center gap-0.5">
@@ -1269,18 +1292,20 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
                     </button>
                   )}
 
-                  {/* Delete (hover) */}
-                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {!isApproved && (
-                      <button
-                        onClick={() => handleDelete(m.id, m.name)}
-                        className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                        title="Delete"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
+                  {/* Delete (hover, admin only) */}
+                  {isAdmin && (
+                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {!isApproved && (
+                        <button
+                          onClick={() => handleDelete(m.id, m.name)}
+                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Delete"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Evidence Panel */}
@@ -1294,13 +1319,89 @@ function MilestoneSection({ projectId, pillarColor }: { projectId: number; pilla
           {milestones.length === 0 && (
             <div className="px-6 py-6 text-center text-sm text-muted-foreground">
               No milestones yet.{" "}
-              <button onClick={handleAddMilestone} className="text-primary hover:underline font-medium">
-                Add one
-              </button>
+              {isAdmin && (
+                <button onClick={handleAddMilestone} className="text-primary hover:underline font-medium">
+                  Add one
+                </button>
+              )}
             </div>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function WeeklyReportSection({ projectId }: { projectId: number }) {
+  const { data, isLoading } = useGetSpmaProjectWeeklyReport(projectId);
+  const upsert = useUpsertSpmaProjectWeeklyReport();
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [achievements, setAchievements] = useState<string | null>(null);
+  const [nextSteps, setNextSteps] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const serverAchievements = data?.keyAchievements ?? "";
+  const serverNextSteps = data?.nextSteps ?? "";
+
+  async function save(field: "achievements" | "nextSteps") {
+    setSaving(true);
+    try {
+      await upsert.mutateAsync({
+        id: projectId,
+        data: {
+          keyAchievements: field === "achievements" ? (achievements ?? serverAchievements) : serverAchievements,
+          nextSteps: field === "nextSteps" ? (nextSteps ?? serverNextSteps) : serverNextSteps,
+        },
+      });
+      qc.invalidateQueries({ queryKey: [`/api/spmo/projects/${projectId}/weekly-report`] });
+    } catch {
+      toast({ variant: "destructive", title: "Save failed", description: "Could not save weekly report." });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (isLoading) return null;
+
+  return (
+    <div className="border-t border-border bg-background/60 px-6 py-4">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Weekly Report</span>
+        {data?.weekStart && (
+          <span className="text-[10px] text-muted-foreground">
+            (week of {new Date(data.weekStart).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})
+          </span>
+        )}
+        {saving && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+        {data?.updatedByName && (
+          <span className="text-[10px] text-muted-foreground ml-auto">
+            Last updated by {data.updatedByName}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-foreground mb-1">Key Achievements</label>
+          <textarea
+            className="w-full text-xs border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none min-h-[72px]"
+            placeholder="What was accomplished this week?"
+            value={achievements ?? serverAchievements}
+            onChange={(e) => setAchievements(e.target.value)}
+            onBlur={() => save("achievements")}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-foreground mb-1">Next Steps</label>
+          <textarea
+            className="w-full text-xs border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none min-h-[72px]"
+            placeholder="What will be done next week?"
+            value={nextSteps ?? serverNextSteps}
+            onChange={(e) => setNextSteps(e.target.value)}
+            onBlur={() => save("nextSteps")}
+          />
+        </div>
+      </div>
     </div>
   );
 }

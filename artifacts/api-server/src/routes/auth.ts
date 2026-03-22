@@ -6,6 +6,7 @@ import {
   ExchangeMobileAuthorizationCodeResponse,
   LogoutMobileSessionResponse,
 } from "@workspace/api-zod";
+import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import {
   clearSession,
@@ -83,11 +84,30 @@ async function upsertUser(claims: Record<string, unknown>) {
     .onConflictDoUpdate({
       target: usersTable.id,
       set: {
-        ...userData,
+        email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        profileImageUrl: userData.profileImageUrl,
         updatedAt: new Date(),
       },
     })
     .returning();
+
+  if (user.role !== "admin") {
+    const admins = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.role, "admin"))
+      .limit(1);
+    if (admins.length === 0) {
+      const [promoted] = await db
+        .update(usersTable)
+        .set({ role: "admin" })
+        .where(eq(usersTable.id, user.id))
+        .returning();
+      return promoted;
+    }
+  }
   return user;
 }
 

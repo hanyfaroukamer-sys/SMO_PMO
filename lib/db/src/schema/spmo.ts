@@ -8,6 +8,7 @@ import {
   boolean,
   jsonb,
   date,
+  unique,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -417,6 +418,7 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   projectAtRiskThreshold: integer("project_at_risk_threshold").notNull().default(5),
   projectDelayedThreshold: integer("project_delayed_threshold").notNull().default(10),
   milestoneAtRiskThreshold: integer("milestone_at_risk_threshold").notNull().default(5),
+  weeklyResetDay: integer("weekly_reset_day").notNull().default(3),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -471,3 +473,35 @@ export const insertSpmoActivityLogSchema = createInsertSchema(
 });
 export type InsertSpmoActivityLog = z.infer<typeof insertSpmoActivityLogSchema>;
 export type SpmoActivityLog = typeof spmoActivityLogTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// PROJECT WEEKLY REPORTS (reset on configured day)
+// ─────────────────────────────────────────────
+export const spmoProjectWeeklyReportsTable = pgTable(
+  "spmo_project_weekly_reports",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => spmoProjectsTable.id, { onDelete: "cascade" }),
+    weekStart: date("week_start").notNull(),
+    keyAchievements: text("key_achievements"),
+    nextSteps: text("next_steps"),
+    updatedById: text("updated_by_id"),
+    updatedByName: text("updated_by_name"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [unique("uniq_project_week").on(t.projectId, t.weekStart)],
+);
+
+export const insertSpmoProjectWeeklyReportSchema = createInsertSchema(
+  spmoProjectWeeklyReportsTable
+).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertSpmoProjectWeeklyReport = z.infer<typeof insertSpmoProjectWeeklyReportSchema>;
+export type SpmoProjectWeeklyReport = typeof spmoProjectWeeklyReportsTable.$inferSelect;

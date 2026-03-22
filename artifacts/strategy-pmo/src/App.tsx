@@ -20,6 +20,9 @@ import DepartmentPortfolio from "@/pages/department-portfolio";
 import Risks from "@/pages/risks";
 import Alerts from "@/pages/alerts";
 import ActivityLog from "@/pages/activity";
+import Admin from "@/pages/admin";
+import Pillars from "@/pages/pillars";
+import Initiatives from "@/pages/initiatives";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,6 +40,8 @@ function Router() {
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/strategy-map" component={StrategyMap} />
+          <Route path="/pillars" component={Pillars} />
+          <Route path="/initiatives" component={Initiatives} />
           <Route path="/projects" component={Projects} />
           <Route path="/progress" component={ProgressProof} />
           <Route path="/kpis" component={KPIs} />
@@ -48,6 +53,7 @@ function Router() {
           <Route path="/risks" component={Risks} />
           <Route path="/alerts" component={Alerts} />
           <Route path="/activity" component={ActivityLog} />
+          <Route path="/admin" component={Admin} />
           <Route component={NotFound} />
         </Switch>
       </Layout>

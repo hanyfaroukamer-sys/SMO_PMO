@@ -11,6 +11,7 @@ import { Modal, FormField, FormActions, inputClass } from "@/components/modal";
 import { Loader2, Pencil, Trash2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 const COLORS = [
   "#6366f1", "#8b5cf6", "#ec4899", "#f97316", "#14b8a6",
@@ -31,6 +32,7 @@ const emptyForm = (): PillarForm => ({
 
 export default function Pillars() {
   const { data, isLoading } = useListSpmoPillars();
+  const isAdmin = useIsAdmin();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<PillarForm>(emptyForm());
@@ -152,12 +154,14 @@ export default function Pillars() {
   return (
     <div className="space-y-8 animate-in fade-in">
       <PageHeader title="Strategic Pillars" description="The core foundations of the programme.">
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Add Pillar
-        </button>
+        {isAdmin && (
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Pillar
+          </button>
+        )}
       </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -175,20 +179,24 @@ export default function Pillars() {
                 <div className="bg-secondary px-3 py-1 rounded-md text-sm font-bold border border-border">
                   {pillar.weight}% Weight
                 </div>
-                <button
-                  onClick={() => openEdit(pillar)}
-                  className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                  title="Edit"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDelete(pillar.id, pillar.name)}
-                  className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {isAdmin && (
+                  <>
+                    <button
+                      onClick={() => openEdit(pillar)}
+                      className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                      title="Edit"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(pillar.id, pillar.name)}
+                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 

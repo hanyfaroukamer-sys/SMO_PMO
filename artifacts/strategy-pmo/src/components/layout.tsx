@@ -17,6 +17,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Building2,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetCurrentAuthUser } from "@workspace/api-client-react";
@@ -105,6 +106,32 @@ export function Layout({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+          {user?.role === "admin" && (() => {
+            const isActive = location === "/admin";
+            return (
+              <Link
+                href="/admin"
+                className={cn(
+                  "flex items-center gap-2.5 rounded-lg transition-all duration-150 group text-[13px] font-medium",
+                  collapsed ? "justify-center p-2.5" : "px-2.5 py-2",
+                  isActive
+                    ? "bg-sidebar-accent text-white"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+                )}
+                title={collapsed ? "Admin" : undefined}
+              >
+                <ShieldCheck
+                  className={cn(
+                    "w-4 h-4 shrink-0 transition-colors",
+                    isActive
+                      ? "text-white"
+                      : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground"
+                  )}
+                />
+                {!collapsed && <span className="truncate leading-none">Admin</span>}
+              </Link>
+            );
+          })()}
         </nav>
 
         {/* User footer */}

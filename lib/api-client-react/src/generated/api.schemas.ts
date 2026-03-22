@@ -838,6 +838,7 @@ export interface SpmoProgrammeConfig {
   projectAtRiskThreshold: number;
   projectDelayedThreshold: number;
   milestoneAtRiskThreshold: number;
+  weeklyResetDay: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -849,6 +850,7 @@ export interface UpdateSpmoProgrammeConfigRequest {
   projectAtRiskThreshold?: number;
   projectDelayedThreshold?: number;
   milestoneAtRiskThreshold?: number;
+  weeklyResetDay?: number;
 }
 
 export interface SpmoPendingApprovalItem {
@@ -1468,3 +1470,42 @@ export type GetSpmaDepartmentPortfolio200 = {
   department: SpmoDepartment;
   projects: SpmaDepartmentPortfolioProject[];
 };
+
+export interface SpmaProjectWeeklyReport {
+  projectId: number;
+  weekStart: string;
+  keyAchievements?: string | null;
+  nextSteps?: string | null;
+  updatedByName?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface UpsertSpmaProjectWeeklyReportRequest {
+  keyAchievements?: string;
+  nextSteps?: string;
+}
+
+export interface SpmaAdminUser {
+  id: string;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  role?: string | null;
+  createdAt: string;
+}
+
+export type GetSpmaAdminUsers200 = {
+  users: SpmaAdminUser[];
+};
+
+export interface UpdateSpmaUserRoleRequest {
+  role: "admin" | "project-manager";
+}
+
+export interface SpmaUserRoleUpdateResult {
+  id: string;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  role: string;
+}

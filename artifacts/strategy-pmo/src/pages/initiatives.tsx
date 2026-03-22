@@ -14,6 +14,7 @@ import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 
 const STATUSES = ["active", "on_hold", "completed", "cancelled"] as const;
 
@@ -42,6 +43,7 @@ const emptyForm = (): InitiativeForm => ({
 export default function Initiatives() {
   const { data, isLoading } = useListSpmoInitiatives();
   const { data: pillarsData } = useListSpmoPillars();
+  const isAdmin = useIsAdmin();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<InitiativeForm>(emptyForm());
@@ -188,12 +190,14 @@ export default function Initiatives() {
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader title="Initiatives" description="Manage and track strategic initiatives.">
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> New Initiative
-        </button>
+        {isAdmin && (
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> New Initiative
+          </button>
+        )}
       </PageHeader>
 
       <Card noPadding className="overflow-hidden">
@@ -229,22 +233,24 @@ export default function Initiatives() {
                   </td>
                   <td className="px-6 py-4 text-right font-bold">{init.projectCount ?? 0}</td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => openEdit(init)}
-                        className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                        title="Edit"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(init.id, init.name)}
-                        className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => openEdit(init)}
+                          className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(init.id, init.name)}
+                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

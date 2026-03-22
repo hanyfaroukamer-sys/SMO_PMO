@@ -15,6 +15,7 @@ import {
   spmoProgrammeConfigTable,
   spmoActivityLogTable,
   spmoDepartmentsTable,
+  spmoProjectWeeklyReportsTable,
   type InsertSpmoInitiative,
   type InsertSpmoProject,
   type InsertSpmoMilestone,
@@ -22,6 +23,7 @@ import {
   type InsertSpmoProcurement,
   type InsertSpmoDepartment,
 } from "@workspace/db";
+import { usersTable } from "@workspace/db";
 import {
   CreateSpmoPillarBody,
   UpdateSpmoPillarBody,
@@ -85,6 +87,11 @@ import {
   UpdateSpmoDepartmentParams,
   DeleteSpmoDepartmentParams,
   GetSpmoDepartmentPortfolioParams,
+  GetSpmoProjectWeeklyReportParams,
+  UpsertSpmoProjectWeeklyReportParams,
+  UpsertSpmoProjectWeeklyReportBody,
+  UpdateSpmoUserRoleParams,
+  UpdateSpmoUserRoleBody,
 } from "@workspace/api-zod";
 import {
   calcProgrammeProgress,
@@ -116,6 +123,28 @@ function getAuthUser(req: Parameters<Parameters<typeof router.get>[1]>[0]) {
         role?: string | null;
       }
     | undefined;
+}
+
+function requireAdmin(
+  req: Parameters<Parameters<typeof router.get>[1]>[0],
+  res: Parameters<Parameters<typeof router.get>[1]>[1],
+): boolean {
+  const user = getAuthUser(req);
+  if (user?.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return false;
+  }
+  return true;
+}
+
+function getCurrentWeekStart(resetDay: number): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayDow = today.getDay();
+  const daysAgo = (todayDow - resetDay + 7) % 7;
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - daysAgo);
+  return weekStart.toISOString().split("T")[0];
 }
 
 function getUserDisplayName(user: ReturnType<typeof getAuthUser>): string | null {
@@ -2321,6 +2350,132 @@ router.get("/spmo/departments/:id/portfolio", async (req, res): Promise<void> =>
   );
 
   res.json({ department: dept, projects: enriched });
+});
+
+// ─────────────────────────────────────────────────────────────
+// PROJECT WEEKLY REPORTS
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/projects/:id/weekly-report", async (req, res) => {
+  const parsed = GetSpmoProjectWeeklyReportParams.safeParse(req.params);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid project id" }); return; }
+  const { id: projectId } = parsed.data;
+
+  const [cfg] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const resetDay = cfg?.weeklyResetDay ?? 3;
+  const weekStart = getCurrentWeekStart(resetDay);
+
+  const [report] = await db
+    .select()
+    .from(spmoProjectWeeklyReportsTable)
+    .where(and(eq(spmoProjectWeeklyReportsTable.projectId, projectId), eq(spmoProjectWeeklyReportsTable.weekStart, weekStart)));
+
+  res.json({
+    projectId,
+    weekStart,
+    keyAchievements: report?.keyAchievements ?? null,
+    nextSteps: report?.nextSteps ?? null,
+    updatedByName: report?.updatedByName ?? null,
+    updatedAt: report?.updatedAt ?? null,
+  });
+});
+
+router.put("/spmo/projects/:id/weekly-report", async (req, res) => {
+  const parsedParams = UpsertSpmoProjectWeeklyReportParams.safeParse(req.params);
+  if (!parsedParams.success) { res.status(400).json({ error: "Invalid project id" }); return; }
+  const { id: projectId } = parsedParams.data;
+
+  const parsedBody = UpsertSpmoProjectWeeklyReportBody.safeParse(req.body);
+  if (!parsedBody.success) { res.status(400).json({ error: parsedBody.error }); return; }
+  const { keyAchievements, nextSteps } = parsedBody.data;
+
+  const user = getAuthUser(req);
+
+  const [cfg] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const resetDay = cfg?.weeklyResetDay ?? 3;
+  const weekStart = getCurrentWeekStart(resetDay);
+  const updatedByName = getUserDisplayName(user) ?? user?.email ?? null;
+
+  const [report] = await db
+    .insert(spmoProjectWeeklyReportsTable)
+    .values({
+      projectId,
+      weekStart,
+      keyAchievements: keyAchievements ?? null,
+      nextSteps: nextSteps ?? null,
+      updatedById: user?.id ?? null,
+      updatedByName,
+    })
+    .onConflictDoUpdate({
+      target: [spmoProjectWeeklyReportsTable.projectId, spmoProjectWeeklyReportsTable.weekStart],
+      set: {
+        keyAchievements: keyAchievements ?? null,
+        nextSteps: nextSteps ?? null,
+        updatedById: user?.id ?? null,
+        updatedByName,
+        updatedAt: new Date(),
+      },
+    })
+    .returning();
+
+  res.json({
+    projectId,
+    weekStart,
+    keyAchievements: report?.keyAchievements ?? null,
+    nextSteps: report?.nextSteps ?? null,
+    updatedByName: report?.updatedByName ?? null,
+    updatedAt: report?.updatedAt ?? null,
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// ADMIN: USER MANAGEMENT
+// ─────────────────────────────────────────────────────────────
+
+router.get("/admin/users", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const users = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      role: usersTable.role,
+      createdAt: usersTable.createdAt,
+    })
+    .from(usersTable)
+    .orderBy(asc(usersTable.createdAt));
+
+  res.json({ users });
+});
+
+router.put("/admin/users/:userId/role", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const parsedParams = UpdateSpmoUserRoleParams.safeParse(req.params);
+  if (!parsedParams.success) { res.status(400).json({ error: "Invalid user id" }); return; }
+  const { userId } = parsedParams.data;
+
+  const parsedBody = UpdateSpmoUserRoleBody.safeParse(req.body);
+  if (!parsedBody.success) { res.status(400).json({ error: parsedBody.error }); return; }
+  const { role } = parsedBody.data;
+
+  const currentAdmin = getAuthUser(req);
+  if (currentAdmin?.id === userId && role !== "admin") {
+    res.status(400).json({ error: "You cannot demote yourself from admin" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ role, updatedAt: new Date() })
+    .where(eq(usersTable.id, userId))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
+
+  res.json({ id: updated.id, email: updated.email, firstName: updated.firstName, lastName: updated.lastName, role: updated.role });
 });
 
 export default router;

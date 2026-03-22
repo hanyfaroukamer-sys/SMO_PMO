@@ -108,6 +108,11 @@ import type {
   GetSpmaDepartmentPortfolio200,
   ListSpmoAllMilestones200,
   SpmoAllMilestoneItem,
+  SpmaProjectWeeklyReport,
+  UpsertSpmaProjectWeeklyReportRequest,
+  GetSpmaAdminUsers200,
+  UpdateSpmaUserRoleRequest,
+  SpmaUserRoleUpdateResult,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -6947,5 +6952,243 @@ export const useDeleteSpmaDepartment = <
   request?: SecondParameter<typeof customFetch>;
 }) => {
   const mutationOptions = getDeleteSpmaDepartmentMutationOptions(options);
+  return useMutation(mutationOptions);
+};
+
+// ─── PROJECT WEEKLY REPORTS ──────────────────────────────────
+
+export const getGetSpmaProjectWeeklyReportUrl = (id: number) =>
+  `/api/spmo/projects/${id}/weekly-report`;
+
+export const getSpmaProjectWeeklyReport = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SpmaProjectWeeklyReport> =>
+  customFetch<SpmaProjectWeeklyReport>(getGetSpmaProjectWeeklyReportUrl(id), {
+    ...options,
+    method: "GET",
+  });
+
+export const getGetSpmaProjectWeeklyReportQueryKey = (id: number) =>
+  [`/api/spmo/projects/${id}/weekly-report`] as const;
+
+export const getGetSpmaProjectWeeklyReportQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSpmaProjectWeeklyReport>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getSpmaProjectWeeklyReport>>, TError, TData>;
+    request?: RequestInit;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetSpmaProjectWeeklyReportQueryKey(id);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSpmaProjectWeeklyReport>>> = ({
+    signal,
+  }) => getSpmaProjectWeeklyReport(id, { ...requestOptions, signal });
+  return { queryKey, queryFn, enabled: !!id, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSpmaProjectWeeklyReport>>,
+    TError,
+    TData
+  >;
+};
+
+export type GetSpmaProjectWeeklyReportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSpmaProjectWeeklyReport>>
+>;
+export type GetSpmaProjectWeeklyReportQueryError = ErrorType<unknown>;
+
+export function useGetSpmaProjectWeeklyReport<
+  TData = Awaited<ReturnType<typeof getSpmaProjectWeeklyReport>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getSpmaProjectWeeklyReport>>, TError, TData>;
+    request?: RequestInit;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSpmaProjectWeeklyReportQueryOptions(id, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  query.queryKey = queryOptions.queryKey;
+  return query;
+}
+
+export const getUpsertSpmaProjectWeeklyReportUrl = (id: number) =>
+  `/api/spmo/projects/${id}/weekly-report`;
+
+export const upsertSpmaProjectWeeklyReport = async (
+  id: number,
+  upsertSpmaProjectWeeklyReportRequest: UpsertSpmaProjectWeeklyReportRequest,
+  options?: RequestInit,
+): Promise<SpmaProjectWeeklyReport> =>
+  customFetch<SpmaProjectWeeklyReport>(getUpsertSpmaProjectWeeklyReportUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(upsertSpmaProjectWeeklyReportRequest),
+  });
+
+export const getUpsertSpmaProjectWeeklyReportMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertSpmaProjectWeeklyReport>>,
+    TError,
+    { id: number; data: UpsertSpmaProjectWeeklyReportRequest },
+    TContext
+  >;
+  request?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertSpmaProjectWeeklyReport>>,
+  TError,
+  { id: number; data: UpsertSpmaProjectWeeklyReportRequest },
+  TContext
+> => {
+  const { mutation: mutationOptions, request: requestOptions } = options ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertSpmaProjectWeeklyReport>>,
+    { id: number; data: UpsertSpmaProjectWeeklyReportRequest }
+  > = (props) => {
+    const { id, data } = props ?? {};
+    return upsertSpmaProjectWeeklyReport(id, data, requestOptions);
+  };
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertSpmaProjectWeeklyReportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertSpmaProjectWeeklyReport>>
+>;
+export type UpsertSpmaProjectWeeklyReportMutationError = ErrorType<unknown>;
+
+export const useUpsertSpmaProjectWeeklyReport = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertSpmaProjectWeeklyReport>>,
+    TError,
+    { id: number; data: UpsertSpmaProjectWeeklyReportRequest },
+    TContext
+  >;
+  request?: RequestInit;
+}) => {
+  const mutationOptions = getUpsertSpmaProjectWeeklyReportMutationOptions(options);
+  return useMutation(mutationOptions);
+};
+
+// ─── ADMIN: USER MANAGEMENT ──────────────────────────────────
+
+export const getGetSpmaAdminUsersUrl = () => `/api/spmo/admin/users`;
+
+export const getSpmaAdminUsers = async (
+  options?: RequestInit,
+): Promise<GetSpmaAdminUsers200> =>
+  customFetch<GetSpmaAdminUsers200>(getGetSpmaAdminUsersUrl(), {
+    ...options,
+    method: "GET",
+  });
+
+export const getGetSpmaAdminUsersQueryKey = () => [`/api/spmo/admin/users`] as const;
+
+export const getGetSpmaAdminUsersQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSpmaAdminUsers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getSpmaAdminUsers>>, TError, TData>;
+  request?: RequestInit;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetSpmaAdminUsersQueryKey();
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSpmaAdminUsers>>> = ({ signal }) =>
+    getSpmaAdminUsers({ ...requestOptions, signal });
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSpmaAdminUsers>>,
+    TError,
+    TData
+  >;
+};
+
+export type GetSpmaAdminUsersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSpmaAdminUsers>>
+>;
+export type GetSpmaAdminUsersQueryError = ErrorType<unknown>;
+
+export function useGetSpmaAdminUsers<
+  TData = Awaited<ReturnType<typeof getSpmaAdminUsers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof getSpmaAdminUsers>>, TError, TData>;
+  request?: RequestInit;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSpmaAdminUsersQueryOptions(options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  query.queryKey = queryOptions.queryKey;
+  return query;
+}
+
+export const getUpdateSpmaUserRoleUrl = (userId: string) =>
+  `/api/spmo/admin/users/${userId}/role`;
+
+export const updateSpmaUserRole = async (
+  userId: string,
+  updateSpmaUserRoleRequest: UpdateSpmaUserRoleRequest,
+  options?: RequestInit,
+): Promise<SpmaUserRoleUpdateResult> =>
+  customFetch<SpmaUserRoleUpdateResult>(getUpdateSpmaUserRoleUrl(userId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updateSpmaUserRoleRequest),
+  });
+
+export const getUpdateSpmaUserRoleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmaUserRole>>,
+    TError,
+    { userId: string; data: UpdateSpmaUserRoleRequest },
+    TContext
+  >;
+  request?: RequestInit;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSpmaUserRole>>,
+  TError,
+  { userId: string; data: UpdateSpmaUserRoleRequest },
+  TContext
+> => {
+  const { mutation: mutationOptions, request: requestOptions } = options ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSpmaUserRole>>,
+    { userId: string; data: UpdateSpmaUserRoleRequest }
+  > = (props) => {
+    const { userId, data } = props ?? {};
+    return updateSpmaUserRole(userId, data, requestOptions);
+  };
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSpmaUserRoleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSpmaUserRole>>
+>;
+export type UpdateSpmaUserRoleMutationError = ErrorType<unknown>;
+
+export const useUpdateSpmaUserRole = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSpmaUserRole>>,
+    TError,
+    { userId: string; data: UpdateSpmaUserRoleRequest },
+    TContext
+  >;
+  request?: RequestInit;
+}) => {
+  const mutationOptions = getUpdateSpmaUserRoleMutationOptions(options);
   return useMutation(mutationOptions);
 };

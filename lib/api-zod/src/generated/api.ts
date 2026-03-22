@@ -2231,6 +2231,7 @@ export const GetSpmoConfigResponse = zod.object({
   projectAtRiskThreshold: zod.number(),
   projectDelayedThreshold: zod.number(),
   milestoneAtRiskThreshold: zod.number(),
+  weeklyResetDay: zod.number().int().min(0).max(6),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -2245,6 +2246,7 @@ export const UpdateSpmoConfigBody = zod.object({
   projectAtRiskThreshold: zod.number().int().min(1).max(50).optional(),
   projectDelayedThreshold: zod.number().int().min(1).max(50).optional(),
   milestoneAtRiskThreshold: zod.number().int().min(1).max(50).optional(),
+  weeklyResetDay: zod.number().int().min(0).max(6).optional(),
 });
 
 export const UpdateSpmoConfigResponse = zod.object({
@@ -2255,8 +2257,81 @@ export const UpdateSpmoConfigResponse = zod.object({
   projectAtRiskThreshold: zod.number(),
   projectDelayedThreshold: zod.number(),
   milestoneAtRiskThreshold: zod.number(),
+  weeklyResetDay: zod.number().int().min(0).max(6),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Get the current week's report for a project (key achievements + next steps)
+ */
+export const GetSpmoProjectWeeklyReportParams = zod.object({
+  id: zod.coerce.number().int(),
+});
+
+export const GetSpmoProjectWeeklyReportResponse = zod.object({
+  projectId: zod.number(),
+  weekStart: zod.string(),
+  keyAchievements: zod.string().nullish(),
+  nextSteps: zod.string().nullish(),
+  updatedByName: zod.string().nullish(),
+  updatedAt: zod.coerce.date().nullish(),
+});
+
+/**
+ * @summary Upsert the current week's report for a project
+ */
+export const UpsertSpmoProjectWeeklyReportParams = zod.object({
+  id: zod.coerce.number().int(),
+});
+
+export const UpsertSpmoProjectWeeklyReportBody = zod.object({
+  keyAchievements: zod.string().optional(),
+  nextSteps: zod.string().optional(),
+});
+
+export const UpsertSpmoProjectWeeklyReportResponse = zod.object({
+  projectId: zod.number(),
+  weekStart: zod.string(),
+  keyAchievements: zod.string().nullish(),
+  nextSteps: zod.string().nullish(),
+  updatedByName: zod.string().nullish(),
+  updatedAt: zod.coerce.date().nullish(),
+});
+
+/**
+ * @summary List all users with their roles (admin only)
+ */
+export const GetSpmoAdminUsersResponse = zod.object({
+  users: zod.array(
+    zod.object({
+      id: zod.string(),
+      email: zod.string().nullish(),
+      firstName: zod.string().nullish(),
+      lastName: zod.string().nullish(),
+      role: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+});
+
+/**
+ * @summary Update a user's role (admin only)
+ */
+export const UpdateSpmoUserRoleParams = zod.object({
+  userId: zod.string(),
+});
+
+export const UpdateSpmoUserRoleBody = zod.object({
+  role: zod.enum(["admin", "project-manager"]),
+});
+
+export const UpdateSpmoUserRoleResponse = zod.object({
+  id: zod.string(),
+  email: zod.string().nullish(),
+  firstName: zod.string().nullish(),
+  lastName: zod.string().nullish(),
+  role: zod.string(),
 });
 
 /**
