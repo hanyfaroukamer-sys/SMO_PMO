@@ -865,6 +865,7 @@ export const ListSpmoInitiativesResponse = zod.object({
       .object({
         id: zod.number(),
         pillarId: zod.number(),
+        initiativeCode: zod.string().nullable(),
         name: zod.string(),
         description: zod.string().nullable(),
         ownerId: zod.string(),
@@ -897,6 +898,7 @@ export const createSpmoInitiativeBodyWeightMax = 100;
 
 export const CreateSpmoInitiativeBody = zod.object({
   pillarId: zod.number(),
+  initiativeCode: zod.string().optional().nullable(),
   name: zod.string().min(1),
   description: zod.string().optional(),
   ownerId: zod.string(),
@@ -980,6 +982,7 @@ export const UpdateSpmoInitiativeParams = zod.object({
 });
 
 export const UpdateSpmoInitiativeBody = zod.object({
+  initiativeCode: zod.string().optional().nullable(),
   name: zod.string().optional(),
   description: zod.string().optional(),
   pillarId: zod.number().optional(),
@@ -996,6 +999,7 @@ export const UpdateSpmoInitiativeBody = zod.object({
 export const UpdateSpmoInitiativeResponse = zod.object({
   id: zod.number(),
   pillarId: zod.number(),
+  initiativeCode: zod.string().nullable(),
   name: zod.string(),
   description: zod.string().nullable(),
   ownerId: zod.string(),

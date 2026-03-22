@@ -365,6 +365,8 @@ export const SpmoInitiativeStatus = {
 export interface SpmoInitiative {
   id: number;
   pillarId: number;
+  /** @nullable */
+  initiativeCode: string | null;
   name: string;
   /** @nullable */
   description: string | null;
@@ -410,6 +412,8 @@ export interface SpmoProject {
   initiativeId: number;
   /** @nullable */
   departmentId: number | null;
+  /** @nullable */
+  projectCode: string | null;
   name: string;
   /** @nullable */
   description: string | null;
@@ -1556,6 +1560,7 @@ export type SpmaDepartmentPortfolioProject = {
   id: number;
   initiativeId: number;
   departmentId: number | null;
+  projectCode: string | null;
   name: string;
   description: string | null;
   ownerName: string | null;

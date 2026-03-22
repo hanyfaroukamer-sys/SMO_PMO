@@ -19,6 +19,7 @@ import { useIsAdmin } from "@/hooks/use-is-admin";
 const STATUSES = ["active", "on_hold", "completed", "cancelled"] as const;
 
 type InitiativeForm = {
+  initiativeCode: string;
   name: string;
   description: string;
   pillarId: string;
@@ -30,6 +31,7 @@ type InitiativeForm = {
 };
 
 const emptyForm = (): InitiativeForm => ({
+  initiativeCode: "",
   name: "",
   description: "",
   pillarId: "",
@@ -71,6 +73,7 @@ export default function Initiatives() {
   function openEdit(initiative: NonNullable<typeof data>["initiatives"][number]) {
     setEditId(initiative.id);
     setForm({
+      initiativeCode: initiative.initiativeCode ?? "",
       name: initiative.name,
       description: initiative.description ?? "",
       pillarId: String(initiative.pillarId),
@@ -125,6 +128,7 @@ export default function Initiatives() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const commonFields = {
+      initiativeCode: form.initiativeCode.trim() || null,
       name: form.name,
       description: form.description || undefined,
       pillarId: parseInt(form.pillarId),
@@ -133,6 +137,11 @@ export default function Initiatives() {
       weight: parseFloat(form.weight) || 0,
       status: form.status as "active" | "on_hold" | "completed" | "cancelled",
     };
+
+    function extractError(err: unknown): string {
+      if (err && typeof err === "object" && "message" in err) return String((err as { message: string }).message);
+      return "An unexpected error occurred.";
+    }
 
     if (editId !== null) {
       const updatePayload: UpdateSpmoInitiativeRequest = {
@@ -148,7 +157,7 @@ export default function Initiatives() {
             setModalOpen(false);
             invalidate();
           },
-          onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update." }),
+          onError: (err) => toast({ variant: "destructive", title: "Error", description: extractError(err) }),
         }
       );
     } else {
@@ -165,7 +174,7 @@ export default function Initiatives() {
             setModalOpen(false);
             invalidate();
           },
-          onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to create." }),
+          onError: (err) => toast({ variant: "destructive", title: "Error", description: extractError(err) }),
         }
       );
     }
@@ -218,7 +227,12 @@ export default function Initiatives() {
               {data?.initiatives.map((init, idx) => (
                 <tr key={init.id} className="hover:bg-secondary/20 transition-colors group">
                   <td className="px-6 py-4">
-                    <div className="font-semibold text-foreground">Initiative {String(idx + 1).padStart(2, "0")}: {init.name}</div>
+                    <div className="font-semibold text-foreground">
+                      {init.initiativeCode
+                        ? <><span className="font-mono text-muted-foreground">{init.initiativeCode}</span><span className="text-muted-foreground mx-1">:</span></>
+                        : <span className="font-mono text-muted-foreground">{String(idx + 1).padStart(2, "0")}:</span>
+                      }{" "}{init.name}
+                    </div>
                     <div className="text-xs text-muted-foreground mt-1 truncate max-w-xs">{init.description}</div>
                   </td>
                   <td className="px-6 py-4">
@@ -272,15 +286,26 @@ export default function Initiatives() {
         title={editId ? "Edit Initiative" : "New Initiative"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          <FormField label="Name" required>
-            <input
-              className={inputClass}
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="e.g. Digital Identity Programme"
-              required
-            />
-          </FormField>
+          <div className="grid grid-cols-[120px_1fr] gap-4">
+            <FormField label="Code" required={false}>
+              <input
+                className={inputClass + " font-mono"}
+                value={form.initiativeCode}
+                onChange={(e) => setForm({ ...form, initiativeCode: e.target.value.toUpperCase() })}
+                placeholder="e.g. I01"
+                maxLength={10}
+              />
+            </FormField>
+            <FormField label="Name" required>
+              <input
+                className={inputClass}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Digital Identity Programme"
+                required
+              />
+            </FormField>
+          </div>
 
           <FormField label="Pillar" required>
             <select

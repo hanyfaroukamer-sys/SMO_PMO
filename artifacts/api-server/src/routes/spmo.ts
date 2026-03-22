@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, desc, and, asc, inArray, sql } from "drizzle-orm";
+import { eq, desc, and, asc, inArray, sql, ne } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { recalculateDownstreamStatuses } from "../lib/dep-engine";
 import {
@@ -451,6 +451,14 @@ router.post("/spmo/initiatives", async (req, res): Promise<void> => {
     targetDate: dateToStr(parsed.data.targetDate) as string,
   };
 
+  if (parsed.data.initiativeCode) {
+    const [codeConflict] = await db.select({ id: spmoInitiativesTable.id }).from(spmoInitiativesTable).where(eq(spmoInitiativesTable.initiativeCode, parsed.data.initiativeCode)).limit(1);
+    if (codeConflict) {
+      res.status(409).json({ error: `Initiative code "${parsed.data.initiativeCode}" is already in use. Please choose a different code.` });
+      return;
+    }
+  }
+
   if (parsed.data.weight !== undefined) {
     const siblings = await db.select({ weight: spmoInitiativesTable.weight }).from(spmoInitiativesTable).where(eq(spmoInitiativesTable.pillarId, insertInitiative.pillarId));
     const siblingSum = siblings.reduce((s, i) => s + (i.weight ?? 0), 0);
@@ -544,6 +552,14 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     ...(sd !== undefined && { startDate: dateToStr(sd) as string }),
     ...(td !== undefined && { targetDate: dateToStr(td) as string }),
   };
+
+  if (parsed.data.initiativeCode) {
+    const [codeConflict] = await db.select({ id: spmoInitiativesTable.id }).from(spmoInitiativesTable).where(and(eq(spmoInitiativesTable.initiativeCode, parsed.data.initiativeCode), ne(spmoInitiativesTable.id, params.data.id))).limit(1);
+    if (codeConflict) {
+      res.status(409).json({ error: `Initiative code "${parsed.data.initiativeCode}" is already in use. Please choose a different code.` });
+      return;
+    }
+  }
 
   if (parsed.data.weight !== undefined) {
     const [existingInit] = await db.select({ pillarId: spmoInitiativesTable.pillarId }).from(spmoInitiativesTable).where(eq(spmoInitiativesTable.id, params.data.id));
@@ -662,6 +678,14 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
     targetDate: dateToStr(parsed.data.targetDate) as string,
   };
 
+  if (parsed.data.projectCode) {
+    const [codeConflict] = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.projectCode, parsed.data.projectCode)).limit(1);
+    if (codeConflict) {
+      res.status(409).json({ error: `Project code "${parsed.data.projectCode}" is already in use. Please choose a different code.` });
+      return;
+    }
+  }
+
   if (parsed.data.weight !== undefined) {
     const siblings = await db.select({ weight: spmoProjectsTable.weight }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, insertProject.initiativeId));
     const siblingSum = siblings.reduce((s, p) => s + (p.weight ?? 0), 0);
@@ -738,6 +762,14 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
     ...(psd !== undefined && { startDate: dateToStr(psd) as string }),
     ...(ptd !== undefined && { targetDate: dateToStr(ptd) as string }),
   };
+
+  if (parsed.data.projectCode) {
+    const [codeConflict] = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(and(eq(spmoProjectsTable.projectCode, parsed.data.projectCode), ne(spmoProjectsTable.id, params.data.id))).limit(1);
+    if (codeConflict) {
+      res.status(409).json({ error: `Project code "${parsed.data.projectCode}" is already in use. Please choose a different code.` });
+      return;
+    }
+  }
 
   if (parsed.data.weight !== undefined) {
     const [existingProject] = await db.select({ initiativeId: spmoProjectsTable.initiativeId }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, params.data.id));

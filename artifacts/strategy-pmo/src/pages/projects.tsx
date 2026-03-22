@@ -446,7 +446,7 @@ export default function Projects() {
           setModalOpen(false);
           invalidate();
         },
-        onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update." }),
+        onError: (err) => toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed to update." }),
       });
     } else {
       const createPayload: CreateSpmoProjectRequest = {
@@ -460,7 +460,7 @@ export default function Projects() {
           setModalOpen(false);
           invalidate();
         },
-        onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to create." }),
+        onError: (err) => toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Failed to create." }),
       });
     }
   }

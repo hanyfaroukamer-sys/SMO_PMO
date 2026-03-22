@@ -51,6 +51,7 @@ export const spmoInitiativesTable = pgTable("spmo_initiatives", {
   pillarId: integer("pillar_id")
     .notNull()
     .references(() => spmoPillarsTable.id, { onDelete: "cascade" }),
+  initiativeCode: text("initiative_code"),
   name: text("name").notNull(),
   description: text("description"),
   ownerId: text("owner_id").notNull(),
