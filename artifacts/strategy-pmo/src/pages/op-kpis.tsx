@@ -86,6 +86,10 @@ export default function OpKPIs() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  const thisYear = new Date().getFullYear();
+  const prevYear = thisYear - 1;
+  const nextYear = thisYear + 1;
+
   const createMutation = useCreateSpmoKpi();
   const updateMutation = useUpdateSpmoKpi();
   const deleteMutation = useDeleteSpmoKpi();
@@ -281,12 +285,12 @@ export default function OpKPIs() {
                     <thead className="text-xs text-muted-foreground uppercase bg-secondary/40 border-b border-border">
                       <tr>
                         <th className="px-6 py-3 font-semibold">KPI</th>
-                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">Prev Year<br /><span className="normal-case font-normal">(Baseline)</span></th>
-                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">This Year<br /><span className="normal-case font-normal">(Target)</span></th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">{prevYear}<br /><span className="normal-case font-normal">(Baseline)</span></th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">{thisYear}<br /><span className="normal-case font-normal">(Target)</span></th>
                         <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">Actual</th>
                         <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">vs Target</th>
                         <th className="px-4 py-3 font-semibold whitespace-nowrap">Assessment</th>
-                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">Next Year<br /><span className="normal-case font-normal">(Target)</span></th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">{nextYear}<br /><span className="normal-case font-normal">(Target)</span></th>
                         <th className="px-4 py-3 w-20"></th>
                       </tr>
                     </thead>
@@ -381,13 +385,13 @@ export default function OpKPIs() {
             <input className={inputClass} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required placeholder="e.g. sensors, %" />
           </FormField>
           <div className="grid grid-cols-3 gap-3">
-            <FormField label="Prev Year (Baseline)">
+            <FormField label={`${prevYear} (Baseline)`}>
               <input className={inputClass} type="number" value={form.baseline} onChange={(e) => setForm({ ...form, baseline: e.target.value })} placeholder="0" step="any" />
             </FormField>
-            <FormField label="This Year Target" required>
+            <FormField label={`${thisYear} Target`} required>
               <input className={inputClass} type="number" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} required placeholder="100" step="any" />
             </FormField>
-            <FormField label="Next Year Target">
+            <FormField label={`${nextYear} Target`}>
               <input className={inputClass} type="number" value={form.nextYearTarget} onChange={(e) => setForm({ ...form, nextYearTarget: e.target.value })} placeholder="—" step="any" />
             </FormField>
           </div>
