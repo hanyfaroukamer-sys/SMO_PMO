@@ -249,6 +249,7 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
   ),
   ownerId: text("owner_id"),
   ownerName: text("owner_name"),
+  nextYearTarget: real("next_year_target"),
   status: text("status", { enum: ["on_track", "at_risk", "off_track"] })
     .notNull()
     .default("on_track"),

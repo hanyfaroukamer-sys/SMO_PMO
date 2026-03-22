@@ -10,7 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Activity, Plus, Pencil, Trash2, User } from "lucide-react";
+import { Loader2, Activity, Plus, Pencil, Trash2, User, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -21,40 +21,58 @@ type KpiForm = {
   target: string;
   actual: string;
   baseline: string;
+  nextYearTarget: string;
   status: string;
   initiativeId: string;
 };
 
 const emptyForm = (): KpiForm => ({
-  name: "", description: "", unit: "", target: "100", actual: "0", baseline: "0",
-  status: "on_track", initiativeId: "",
+  name: "", description: "", unit: "", target: "100", actual: "0",
+  baseline: "0", nextYearTarget: "", status: "on_track", initiativeId: "",
 });
 
-function GaugeCircle({ progress, color }: { progress: number; color: string }) {
-  const r = 24;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference - (Math.min(100, Math.max(0, progress)) / 100) * circumference;
+type Kpi = {
+  id: number;
+  name: string;
+  description?: string | null;
+  unit: string;
+  baseline: number;
+  target: number;
+  actual: number;
+  nextYearTarget?: number | null;
+  status: "on_track" | "at_risk" | "off_track";
+  initiativeId: number | null;
+  ownerName?: string | null;
+};
 
+function getAssessment(actual: number, target: number): { label: string; className: string } {
+  if (target <= 0) return { label: "—", className: "text-muted-foreground" };
+  const pct = (actual / target) * 100;
+  if (pct >= 90) return { label: "On Track", className: "bg-secondary text-foreground border border-border" };
+  if (pct >= 70) return { label: "Behind", className: "bg-secondary text-foreground border border-border" };
+  return { label: "At Risk", className: "bg-secondary text-foreground border border-border" };
+}
+
+function fmt(val: number | null | undefined, unit: string) {
+  if (val == null) return "—";
+  return `${val.toLocaleString()} ${unit}`.trim();
+}
+
+function vsTarget(actual: number, target: number) {
+  if (target <= 0) return "—";
+  const pct = Math.round((actual / target) * 100);
+  return `${pct}%`;
+}
+
+function MiniBar({ actual, target }: { actual: number; target: number }) {
+  const pct = target > 0 ? Math.min(100, Math.max(0, (actual / target) * 100)) : 0;
   return (
-    <svg width="60" height="60" viewBox="0 0 60 60">
-      <circle cx="30" cy="30" r={r} fill="none" stroke="currentColor" strokeWidth="5" className="text-secondary" />
-      <circle
-        cx="30"
-        cy="30"
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth="5"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        strokeLinecap="round"
-        transform="rotate(-90 30 30)"
-        className="transition-all duration-700"
+    <div className="w-20 h-1.5 bg-secondary rounded-full overflow-hidden">
+      <div
+        className="h-full bg-primary rounded-full transition-all duration-500"
+        style={{ width: `${pct}%` }}
       />
-      <text x="30" y="34" textAnchor="middle" fontSize="10" fontWeight="bold" fill={color}>
-        {Math.round(progress)}%
-      </text>
-    </svg>
+    </div>
   );
 }
 
@@ -78,25 +96,31 @@ export default function OpKPIs() {
   const getInitiative = (id: number | null | undefined) =>
     initiatives.find((i) => i.id === id);
 
-  const getInitiativeColor = (initiativeId: number | null | undefined) => {
+  const getPillarColor = (initiativeId: number | null | undefined) => {
     const initiative = getInitiative(initiativeId);
     if (!initiative) return "#6366f1";
     return pillars.find((p) => p.id === initiative.pillarId)?.color ?? "#6366f1";
+  };
+
+  const getPillarName = (initiativeId: number | null | undefined) => {
+    const initiative = getInitiative(initiativeId);
+    if (!initiative) return "";
+    return pillars.find((p) => p.id === initiative.pillarId)?.name ?? "";
   };
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["/api/spmo/kpis"] });
   };
 
-  const kpis = data?.kpis ?? [];
+  const kpis: Kpi[] = (data?.kpis ?? []) as Kpi[];
 
-  function openCreate() {
+  function openCreate(presetInitiativeId?: number) {
     setEditId(null);
-    setForm(emptyForm());
+    setForm({ ...emptyForm(), initiativeId: presetInitiativeId ? String(presetInitiativeId) : "" });
     setModalOpen(true);
   }
 
-  function openEdit(kpi: (typeof kpis)[0]) {
+  function openEdit(kpi: Kpi) {
     setEditId(kpi.id);
     setForm({
       name: kpi.name,
@@ -105,6 +129,7 @@ export default function OpKPIs() {
       target: String(kpi.target),
       actual: String(kpi.actual),
       baseline: String(kpi.baseline),
+      nextYearTarget: kpi.nextYearTarget != null ? String(kpi.nextYearTarget) : "",
       status: kpi.status,
       initiativeId: kpi.initiativeId ? String(kpi.initiativeId) : "",
     });
@@ -113,16 +138,7 @@ export default function OpKPIs() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const payload: CreateSpmoKpiRequest = {
-      type: "operational",
-      name: form.name,
-      description: form.description || undefined,
-      unit: form.unit,
-      target: parseFloat(form.target) || 0,
-      actual: parseFloat(form.actual) || 0,
-      baseline: parseFloat(form.baseline) || 0,
-      initiativeId: form.initiativeId ? parseInt(form.initiativeId) : undefined,
-    };
+    const nyt = form.nextYearTarget ? parseFloat(form.nextYearTarget) : undefined;
 
     if (editId) {
       updateMutation.mutate(
@@ -133,6 +149,8 @@ export default function OpKPIs() {
             unit: form.unit,
             target: parseFloat(form.target),
             actual: parseFloat(form.actual),
+            baseline: parseFloat(form.baseline) || 0,
+            nextYearTarget: nyt,
             status: form.status as "on_track" | "at_risk" | "off_track",
             description: form.description || undefined,
             initiativeId: form.initiativeId ? parseInt(form.initiativeId) : undefined,
@@ -144,6 +162,17 @@ export default function OpKPIs() {
         }
       );
     } else {
+      const payload: CreateSpmoKpiRequest = {
+        type: "operational",
+        name: form.name,
+        description: form.description || undefined,
+        unit: form.unit,
+        target: parseFloat(form.target) || 0,
+        actual: parseFloat(form.actual) || 0,
+        baseline: parseFloat(form.baseline) || 0,
+        nextYearTarget: nyt,
+        initiativeId: form.initiativeId ? parseInt(form.initiativeId) : undefined,
+      };
       createMutation.mutate({ data: payload }, {
         onSuccess: () => { toast({ title: "KPI created" }); setModalOpen(false); invalidate(); },
         onError: () => toast({ title: "Create failed", variant: "destructive" }),
@@ -161,16 +190,34 @@ export default function OpKPIs() {
 
   const selectedInitiative = form.initiativeId ? getInitiative(parseInt(form.initiativeId)) : null;
 
+  // Group KPIs by initiative
+  const kpisByInitiative = new Map<number | null, Kpi[]>();
+  for (const kpi of kpis) {
+    const key = kpi.initiativeId;
+    const list = kpisByInitiative.get(key) ?? [];
+    list.push(kpi);
+    kpisByInitiative.set(key, list);
+  }
+
+  // Sort groups: known initiatives first (in initiatives order), then unlinked
+  const groups: Array<{ initiativeId: number | null; kpis: Kpi[] }> = [];
+  for (const init of initiatives) {
+    const list = kpisByInitiative.get(init.id);
+    if (list && list.length > 0) groups.push({ initiativeId: init.id, kpis: list });
+  }
+  const unlinked = kpisByInitiative.get(null) ?? [];
+  if (unlinked.length > 0) groups.push({ initiativeId: null, kpis: unlinked });
+
   if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <PageHeader title="Operational KPIs" description="Initiative-level performance indicators tracking delivery outputs.">
+      <PageHeader title="Operational KPIs" description="Grouped by initiative — baseline, targets, actuals and next-year outlook.">
         <button
-          onClick={openCreate}
+          onClick={() => openCreate()}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg font-semibold shadow-sm hover:bg-primary/90 transition-all"
         >
-          <Plus className="w-4 h-4" /> Add Op. KPI
+          <Plus className="w-4 h-4" /> Add KPI
         </button>
       </PageHeader>
 
@@ -178,63 +225,128 @@ export default function OpKPIs() {
         <Card className="text-center py-16 text-muted-foreground">
           <Activity className="w-12 h-12 mx-auto mb-4 opacity-20" />
           <p className="text-lg font-medium">No operational KPIs yet.</p>
-          <button onClick={openCreate} className="mt-4 text-primary hover:underline text-sm font-medium">Add the first one</button>
+          <button onClick={() => openCreate()} className="mt-4 text-primary hover:underline text-sm font-medium">Add the first one</button>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {kpis.map((kpi) => {
-            const pct = kpi.target > 0 ? Math.min(100, (kpi.actual / kpi.target) * 100) : 0;
-            const initiative = getInitiative(kpi.initiativeId);
-            const ownerName = kpi.ownerName ?? initiative?.ownerName ?? null;
-            const ribbonColor = getInitiativeColor(kpi.initiativeId);
+        <div className="space-y-6">
+          {groups.map(({ initiativeId, kpis: groupKpis }) => {
+            const initiative = getInitiative(initiativeId);
+            const color = getPillarColor(initiativeId);
+            const pillarName = getPillarName(initiativeId);
+            const ownerName = initiative?.ownerName;
 
             return (
-              <Card
-                key={kpi.id}
-                className="relative overflow-hidden group cursor-pointer hover:shadow-md transition-all pl-5"
-                noPadding={false}
-                onClick={() => openEdit(kpi)}
-              >
+              <div key={initiativeId ?? "unlinked"} className="rounded-2xl border border-border overflow-hidden shadow-sm">
+                {/* Initiative header */}
                 <div
-                  className="absolute left-0 top-0 h-full w-1.5 rounded-l-xl"
-                  style={{ backgroundColor: ribbonColor }}
-                />
-
-                <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => openEdit(kpi)} className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); handleDelete(kpi.id); }} className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <GaugeCircle progress={pct} color={ribbonColor} />
-                  <div className="flex-1 min-w-0 pt-1">
-                    {initiative && (
-                      <div className="text-xs font-bold uppercase tracking-wider mb-0.5 truncate" style={{ color: ribbonColor }}>
-                        {initiative.name}
+                  className="px-6 py-4 flex items-center gap-4 bg-card border-b border-border"
+                  style={{ borderLeft: `4px solid ${color}` }}
+                >
+                  <div className="flex-1 min-w-0">
+                    {pillarName && (
+                      <div className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color }}>
+                        {pillarName}
                       </div>
                     )}
-                    <h3 className="font-bold text-sm leading-tight pr-14">{kpi.name}</h3>
-                    {kpi.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{kpi.description}</p>
-                    )}
-                    <div className="mt-1.5 space-y-1">
-                      <span className="text-xs text-muted-foreground">
-                        <span className="font-bold text-foreground">{kpi.actual}</span> / {kpi.target} {kpi.unit}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h3 className="font-bold text-base">
+                        {initiative?.name ?? "Unlinked KPIs"}
+                      </h3>
+                      <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">
+                        {groupKpis.length} KPI{groupKpis.length !== 1 ? "s" : ""}
                       </span>
-                      {ownerName && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <User className="w-3 h-3 shrink-0" />
-                          <span className="truncate">{ownerName}</span>
-                        </div>
-                      )}
                     </div>
+                    {ownerName && (
+                      <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                        <User className="w-3 h-3 shrink-0" />
+                        <span>{ownerName}</span>
+                        <ChevronRight className="w-3 h-3 opacity-40" />
+                        <span className="font-medium text-foreground/70">KPI Owner</span>
+                      </div>
+                    )}
                   </div>
+                  {initiative && (
+                    <button
+                      onClick={() => openCreate(initiative.id)}
+                      className="shrink-0 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg px-3 py-1.5 hover:bg-secondary transition-colors"
+                    >
+                      <Plus className="w-3 h-3" /> Add KPI
+                    </button>
+                  )}
                 </div>
-              </Card>
+
+                {/* KPI table */}
+                <div className="overflow-x-auto bg-card">
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-muted-foreground uppercase bg-secondary/40 border-b border-border">
+                      <tr>
+                        <th className="px-6 py-3 font-semibold">KPI</th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">Prev Year<br /><span className="normal-case font-normal">(Baseline)</span></th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">This Year<br /><span className="normal-case font-normal">(Target)</span></th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">Actual</th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">vs Target</th>
+                        <th className="px-4 py-3 font-semibold whitespace-nowrap">Assessment</th>
+                        <th className="px-4 py-3 font-semibold text-right whitespace-nowrap">Next Year<br /><span className="normal-case font-normal">(Target)</span></th>
+                        <th className="px-4 py-3 w-20"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {groupKpis.map((kpi) => {
+                        const assessment = getAssessment(kpi.actual, kpi.target);
+                        return (
+                          <tr key={kpi.id} className="hover:bg-secondary/20 transition-colors group">
+                            <td className="px-6 py-4">
+                              <div className="font-semibold text-sm">{kpi.name}</div>
+                              {kpi.description && (
+                                <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{kpi.description}</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">
+                              {fmt(kpi.baseline, kpi.unit)}
+                            </td>
+                            <td className="px-4 py-4 text-right font-mono text-sm font-semibold whitespace-nowrap">
+                              {fmt(kpi.target, kpi.unit)}
+                            </td>
+                            <td className="px-4 py-4 text-right whitespace-nowrap">
+                              <div className="font-mono text-sm font-bold">{fmt(kpi.actual, kpi.unit)}</div>
+                              <MiniBar actual={kpi.actual} target={kpi.target} />
+                            </td>
+                            <td className="px-4 py-4 text-right font-mono text-sm font-semibold whitespace-nowrap" style={{ color }}>
+                              {vsTarget(kpi.actual, kpi.target)}
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${assessment.className}`}>
+                                {assessment.label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">
+                              {fmt(kpi.nextYearTarget, kpi.unit)}
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => openEdit(kpi)}
+                                  className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                                  title="Edit"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(kpi.id)}
+                                  className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -265,22 +377,23 @@ export default function OpKPIs() {
               <span className="font-semibold">{selectedInitiative.ownerName}</span>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Unit" required>
-              <input className={inputClass} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required placeholder="e.g. sensors, %" />
+          <FormField label="Unit" required>
+            <input className={inputClass} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required placeholder="e.g. sensors, %" />
+          </FormField>
+          <div className="grid grid-cols-3 gap-3">
+            <FormField label="Prev Year (Baseline)">
+              <input className={inputClass} type="number" value={form.baseline} onChange={(e) => setForm({ ...form, baseline: e.target.value })} placeholder="0" step="any" />
             </FormField>
-            <FormField label="Baseline">
-              <input className={inputClass} type="number" value={form.baseline} onChange={(e) => setForm({ ...form, baseline: e.target.value })} />
+            <FormField label="This Year Target" required>
+              <input className={inputClass} type="number" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} required placeholder="100" step="any" />
             </FormField>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Target" required>
-              <input className={inputClass} type="number" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} required />
-            </FormField>
-            <FormField label="Actual" required>
-              <input className={inputClass} type="number" value={form.actual} onChange={(e) => setForm({ ...form, actual: e.target.value })} required />
+            <FormField label="Next Year Target">
+              <input className={inputClass} type="number" value={form.nextYearTarget} onChange={(e) => setForm({ ...form, nextYearTarget: e.target.value })} placeholder="—" step="any" />
             </FormField>
           </div>
+          <FormField label="Actual (Current)" required>
+            <input className={inputClass} type="number" value={form.actual} onChange={(e) => setForm({ ...form, actual: e.target.value })} required placeholder="0" step="any" />
+          </FormField>
           <FormActions
             onCancel={() => setModalOpen(false)}
             loading={createMutation.isPending || updateMutation.isPending}
