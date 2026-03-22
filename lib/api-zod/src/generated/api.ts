@@ -1746,6 +1746,13 @@ export const ListSpmoKpisResponse = zod.object({
       ownerName: zod.string().nullish(),
       nextYearTarget: zod.number().nullish(),
       status: zod.enum(["on_track", "at_risk", "off_track"]),
+      kpiType: zod.enum(["cumulative", "rate", "milestone", "reduction"]),
+      direction: zod.enum(["higher", "lower"]),
+      measurementPeriod: zod.enum(["annual", "quarterly", "monthly"]),
+      periodStart: zod.string().nullish(),
+      periodEnd: zod.string().nullish(),
+      milestoneDue: zod.string().nullish(),
+      milestoneDone: zod.boolean(),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -1770,6 +1777,13 @@ export const CreateSpmoKpiBody = zod.object({
   ownerId: zod.string().optional(),
   ownerName: zod.string().optional(),
   nextYearTarget: zod.number().optional(),
+  kpiType: zod.enum(["cumulative", "rate", "milestone", "reduction"]).optional(),
+  direction: zod.enum(["higher", "lower"]).optional(),
+  measurementPeriod: zod.enum(["annual", "quarterly", "monthly"]).optional(),
+  periodStart: zod.string().optional(),
+  periodEnd: zod.string().optional(),
+  milestoneDue: zod.string().optional(),
+  milestoneDone: zod.boolean().optional(),
 });
 
 /**
@@ -1791,6 +1805,13 @@ export const UpdateSpmoKpiBody = zod.object({
   ownerId: zod.string().optional(),
   ownerName: zod.string().optional(),
   nextYearTarget: zod.number().optional(),
+  kpiType: zod.enum(["cumulative", "rate", "milestone", "reduction"]).optional(),
+  direction: zod.enum(["higher", "lower"]).optional(),
+  measurementPeriod: zod.enum(["annual", "quarterly", "monthly"]).optional(),
+  periodStart: zod.string().optional(),
+  periodEnd: zod.string().optional(),
+  milestoneDue: zod.string().optional(),
+  milestoneDone: zod.boolean().optional(),
 });
 
 export const UpdateSpmoKpiResponse = zod.object({
@@ -1809,6 +1830,13 @@ export const UpdateSpmoKpiResponse = zod.object({
   ownerName: zod.string().nullish(),
   nextYearTarget: zod.number().nullish(),
   status: zod.enum(["on_track", "at_risk", "off_track"]),
+  kpiType: zod.enum(["cumulative", "rate", "milestone", "reduction"]),
+  direction: zod.enum(["higher", "lower"]),
+  measurementPeriod: zod.enum(["annual", "quarterly", "monthly"]),
+  periodStart: zod.string().nullish(),
+  periodEnd: zod.string().nullish(),
+  milestoneDue: zod.string().nullish(),
+  milestoneDone: zod.boolean(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });

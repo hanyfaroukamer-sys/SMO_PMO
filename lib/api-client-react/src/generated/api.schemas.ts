@@ -542,6 +542,33 @@ export const SpmoKpiStatus = {
   off_track: "off_track",
 } as const;
 
+export type SpmoKpiKpiType =
+  (typeof SpmoKpiKpiType)[keyof typeof SpmoKpiKpiType];
+
+export const SpmoKpiKpiType = {
+  cumulative: "cumulative",
+  rate: "rate",
+  milestone: "milestone",
+  reduction: "reduction",
+} as const;
+
+export type SpmoKpiDirection =
+  (typeof SpmoKpiDirection)[keyof typeof SpmoKpiDirection];
+
+export const SpmoKpiDirection = {
+  higher: "higher",
+  lower: "lower",
+} as const;
+
+export type SpmoKpiMeasurementPeriod =
+  (typeof SpmoKpiMeasurementPeriod)[keyof typeof SpmoKpiMeasurementPeriod];
+
+export const SpmoKpiMeasurementPeriod = {
+  annual: "annual",
+  quarterly: "quarterly",
+  monthly: "monthly",
+} as const;
+
 export interface SpmoKpi {
   id: number;
   type: SpmoKpiType;
@@ -565,6 +592,16 @@ export interface SpmoKpi {
   /** @nullable */
   nextYearTarget?: number | null;
   status: SpmoKpiStatus;
+  kpiType: SpmoKpiKpiType;
+  direction: SpmoKpiDirection;
+  measurementPeriod: SpmoKpiMeasurementPeriod;
+  /** @nullable */
+  periodStart?: string | null;
+  /** @nullable */
+  periodEnd?: string | null;
+  /** @nullable */
+  milestoneDue?: string | null;
+  milestoneDone: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -1130,6 +1167,33 @@ export const CreateSpmoKpiRequestType = {
   operational: "operational",
 } as const;
 
+export type CreateSpmoKpiRequestKpiType =
+  (typeof CreateSpmoKpiRequestKpiType)[keyof typeof CreateSpmoKpiRequestKpiType];
+
+export const CreateSpmoKpiRequestKpiType = {
+  cumulative: "cumulative",
+  rate: "rate",
+  milestone: "milestone",
+  reduction: "reduction",
+} as const;
+
+export type CreateSpmoKpiRequestDirection =
+  (typeof CreateSpmoKpiRequestDirection)[keyof typeof CreateSpmoKpiRequestDirection];
+
+export const CreateSpmoKpiRequestDirection = {
+  higher: "higher",
+  lower: "lower",
+} as const;
+
+export type CreateSpmoKpiRequestMeasurementPeriod =
+  (typeof CreateSpmoKpiRequestMeasurementPeriod)[keyof typeof CreateSpmoKpiRequestMeasurementPeriod];
+
+export const CreateSpmoKpiRequestMeasurementPeriod = {
+  annual: "annual",
+  quarterly: "quarterly",
+  monthly: "monthly",
+} as const;
+
 export interface CreateSpmoKpiRequest {
   type: CreateSpmoKpiRequestType;
   /** @minLength 1 */
@@ -1145,6 +1209,13 @@ export interface CreateSpmoKpiRequest {
   ownerId?: string;
   ownerName?: string;
   nextYearTarget?: number;
+  kpiType?: CreateSpmoKpiRequestKpiType;
+  direction?: CreateSpmoKpiRequestDirection;
+  measurementPeriod?: CreateSpmoKpiRequestMeasurementPeriod;
+  periodStart?: string;
+  periodEnd?: string;
+  milestoneDue?: string;
+  milestoneDone?: boolean;
 }
 
 export type UpdateSpmoKpiRequestStatus =
@@ -1168,6 +1239,13 @@ export interface UpdateSpmoKpiRequest {
   ownerId?: string;
   ownerName?: string;
   nextYearTarget?: number;
+  kpiType?: CreateSpmoKpiRequestKpiType;
+  direction?: CreateSpmoKpiRequestDirection;
+  measurementPeriod?: CreateSpmoKpiRequestMeasurementPeriod;
+  periodStart?: string;
+  periodEnd?: string;
+  milestoneDue?: string;
+  milestoneDone?: boolean;
 }
 
 export type CreateSpmoRiskRequestProbability =

@@ -253,6 +253,19 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
   status: text("status", { enum: ["on_track", "at_risk", "off_track"] })
     .notNull()
     .default("on_track"),
+  kpiType: text("kpi_type", { enum: ["cumulative", "rate", "milestone", "reduction"] })
+    .notNull()
+    .default("rate"),
+  direction: text("direction", { enum: ["higher", "lower"] })
+    .notNull()
+    .default("higher"),
+  measurementPeriod: text("measurement_period", { enum: ["annual", "quarterly", "monthly"] })
+    .notNull()
+    .default("annual"),
+  periodStart: date("period_start"),
+  periodEnd: date("period_end"),
+  milestoneDue: date("milestone_due"),
+  milestoneDone: boolean("milestone_done").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
