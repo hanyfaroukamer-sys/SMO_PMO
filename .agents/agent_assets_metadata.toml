@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "qrw4-X3jAYmRgqlcDRbSE"
+uri = "file://strategy-pmo.zip"
+type = "unspecified"
+title = "StrategyPMO — Full Source Code (5 MB)"
