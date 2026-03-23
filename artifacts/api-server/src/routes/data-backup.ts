@@ -28,7 +28,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 // ─── Auth helper ────────────────────────────────────────────────────────────
 
 function requireAuth(req: any, res: any): string | null {
-  const userId = (req as any).userId as string | undefined;
+  const userId = (req as any).user?.id as string | undefined;
   if (!userId) { res.status(401).json({ error: "Unauthorised" }); return null; }
   return userId;
 }
