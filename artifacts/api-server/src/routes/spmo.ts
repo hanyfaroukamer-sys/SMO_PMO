@@ -2625,7 +2625,7 @@ router.get("/spmo/projects/:id/weekly-report/history", async (req, res) => {
 // CHANGE REQUESTS
 // ─────────────────────────────────────────────────────────────
 
-router.get("/change-requests", async (req, res) => {
+router.get("/spmo/change-requests", async (req, res) => {
   const projectId = req.query.projectId ? Number(req.query.projectId) : null;
   const rows = await db
     .select()
@@ -2635,14 +2635,14 @@ router.get("/change-requests", async (req, res) => {
   res.json({ changeRequests: rows });
 });
 
-router.get("/change-requests/:id", async (req, res) => {
+router.get("/spmo/change-requests/:id", async (req, res) => {
   const id = Number(req.params.id);
   const [row] = await db.select().from(spmoChangeRequestsTable).where(eq(spmoChangeRequestsTable.id, id));
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json(row);
 });
 
-router.post("/change-requests", async (req, res) => {
+router.post("/spmo/change-requests", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const body = z.object({
@@ -2673,7 +2673,7 @@ router.post("/change-requests", async (req, res) => {
   res.status(201).json(row);
 });
 
-router.patch("/change-requests/:id", async (req, res) => {
+router.patch("/spmo/change-requests/:id", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const id = Number(req.params.id);
@@ -2708,7 +2708,7 @@ router.patch("/change-requests/:id", async (req, res) => {
   res.json(row);
 });
 
-router.delete("/change-requests/:id", async (req, res) => {
+router.delete("/spmo/change-requests/:id", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const id = Number(req.params.id);
@@ -2721,7 +2721,7 @@ router.delete("/change-requests/:id", async (req, res) => {
 // RACI MATRIX
 // ─────────────────────────────────────────────────────────────
 
-router.get("/raci", async (req, res) => {
+router.get("/spmo/raci", async (req, res) => {
   const projectId = req.query.projectId ? Number(req.query.projectId) : null;
   if (!projectId) { res.status(400).json({ error: "projectId required" }); return; }
   const rows = await db
@@ -2732,7 +2732,7 @@ router.get("/raci", async (req, res) => {
   res.json({ raci: rows });
 });
 
-router.post("/raci", async (req, res) => {
+router.post("/spmo/raci", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const body = z.object({
@@ -2763,7 +2763,7 @@ router.post("/raci", async (req, res) => {
   res.status(201).json(row);
 });
 
-router.patch("/raci/:id", async (req, res) => {
+router.patch("/spmo/raci/:id", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const id = Number(req.params.id);
@@ -2774,7 +2774,7 @@ router.patch("/raci/:id", async (req, res) => {
   res.json(row);
 });
 
-router.delete("/raci/:id", async (req, res) => {
+router.delete("/spmo/raci/:id", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const id = Number(req.params.id);
@@ -2787,7 +2787,7 @@ router.delete("/raci/:id", async (req, res) => {
 // DOCUMENTS
 // ─────────────────────────────────────────────────────────────
 
-router.get("/documents", async (req, res) => {
+router.get("/spmo/documents", async (req, res) => {
   const projectId = req.query.projectId ? Number(req.query.projectId) : null;
   const rows = await db
     .select()
@@ -2797,14 +2797,14 @@ router.get("/documents", async (req, res) => {
   res.json({ documents: rows });
 });
 
-router.get("/documents/:id", async (req, res) => {
+router.get("/spmo/documents/:id", async (req, res) => {
   const id = Number(req.params.id);
   const [row] = await db.select().from(spmoDocumentsTable).where(eq(spmoDocumentsTable.id, id));
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json(row);
 });
 
-router.post("/documents", async (req, res) => {
+router.post("/spmo/documents", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const body = z.object({
@@ -2837,7 +2837,7 @@ router.post("/documents", async (req, res) => {
   res.status(201).json(row);
 });
 
-router.patch("/documents/:id", async (req, res) => {
+router.patch("/spmo/documents/:id", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const id = Number(req.params.id);
@@ -2858,7 +2858,7 @@ router.patch("/documents/:id", async (req, res) => {
   res.json(row);
 });
 
-router.delete("/documents/:id", async (req, res) => {
+router.delete("/spmo/documents/:id", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const id = Number(req.params.id);
@@ -2871,7 +2871,7 @@ router.delete("/documents/:id", async (req, res) => {
 // ACTION ITEMS
 // ─────────────────────────────────────────────────────────────
 
-router.get("/actions", async (req, res) => {
+router.get("/spmo/actions", async (req, res) => {
   const projectId = req.query.projectId ? Number(req.query.projectId) : null;
   const rows = await db
     .select()
@@ -2881,7 +2881,7 @@ router.get("/actions", async (req, res) => {
   res.json({ actions: rows });
 });
 
-router.post("/actions", async (req, res) => {
+router.post("/spmo/actions", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const body = z.object({
@@ -2904,7 +2904,7 @@ router.post("/actions", async (req, res) => {
   res.status(201).json(row);
 });
 
-router.patch("/actions/:id", async (req, res) => {
+router.patch("/spmo/actions/:id", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const id = Number(req.params.id);
@@ -2923,7 +2923,7 @@ router.patch("/actions/:id", async (req, res) => {
   res.json(row);
 });
 
-router.delete("/actions/:id", async (req, res) => {
+router.delete("/spmo/actions/:id", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const id = Number(req.params.id);
@@ -2936,7 +2936,7 @@ router.delete("/actions/:id", async (req, res) => {
 // ADMIN: USER MANAGEMENT
 // ─────────────────────────────────────────────────────────────
 
-router.get("/admin/users", async (req, res) => {
+router.get("/spmo/admin/users", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const users = await db
@@ -2954,7 +2954,7 @@ router.get("/admin/users", async (req, res) => {
   res.json({ users });
 });
 
-router.put("/admin/users/:userId/role", async (req, res) => {
+router.put("/spmo/admin/users/:userId/role", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const parsedParams = UpdateSpmoUserRoleParams.safeParse(req.params);
