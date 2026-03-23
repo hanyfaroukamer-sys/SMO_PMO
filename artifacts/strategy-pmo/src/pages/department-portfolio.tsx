@@ -345,9 +345,9 @@ export default function DepartmentPortfolio({ params }: Props) {
                     {project.ownerName && <span className="hidden sm:block">Owner: {project.ownerName}</span>}
                   </div>
                   <button
-                    onClick={() => navigate(`/projects?project=${project.id}`)}
+                    onClick={() => navigate(`/projects/${project.id}`)}
                     className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline shrink-0"
-                    title="View in Projects"
+                    title="Open project deep dive"
                   >
                     <ExternalLink className="w-3 h-3" /> View
                   </button>
