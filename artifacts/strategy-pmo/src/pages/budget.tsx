@@ -16,8 +16,9 @@ import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import {
   Loader2, Plus, Pencil, Trash2, Wallet, TrendingUp, CircleDollarSign, BarChart2,
-  Check, X, ShieldCheck,
+  Check, X, ShieldCheck, Download,
 } from "lucide-react";
+import { exportToXlsx } from "@/lib/export";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -242,12 +243,26 @@ export default function Budget() {
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader title="Budget Tracking" description="Financial overview of programme allocations and spend.">
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors text-sm"
-        >
-          <Plus className="w-4 h-4" /> Add Entry
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => exportToXlsx((data?.entries ?? []).map((e: { label?: string; category?: string; allocated?: number; spent?: number; notes?: string }) => ({
+              Label: e.label ?? "",
+              Category: e.category ?? "",
+              Allocated: e.allocated ?? 0,
+              Spent: e.spent ?? 0,
+              Notes: e.notes ?? "",
+            })), "budget-export")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" /> Export
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors text-sm"
+          >
+            <Plus className="w-4 h-4" /> Add Entry
+          </button>
+        </div>
       </PageHeader>
 
       {/* 4 Summary Cards */}

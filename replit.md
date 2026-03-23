@@ -7,6 +7,15 @@ Full-stack pnpm monorepo hosting two production-grade government applications:
 1. **Initiative Tracker** — milestone-based progress tracking with approval workflow
 2. **StrategyPMO** — 5-level programme management dashboard (Programme → Pillars → Initiatives → Projects → Milestones) with AI assessment via Claude, dynamic alerts, KPI/Risk/Budget tracking, and full audit trail
 
+## StrategyPMO Key Features (Latest)
+
+- **Change Control** — change request lifecycle (draft → submitted → approved/rejected) per project
+- **RACI Matrix** — interactive R/A/C/I assignment per milestone via click-to-cycle cells; missing Accountable validation
+- **Action Items** — per-project action log with priority, assignee, due date, and status cycling
+- **Documents** — document library per project with category, tags, versioning; global `/documents` page with search/filter and export
+- **Export** — XLSX export buttons on Projects, KPIs, Op KPIs, Budget, Risks, and Documents pages
+- **Project Detail Tabs** — 8 tabs: Overview, Milestones, Weekly Report, Risks, Change Control, RACI, Actions, Documents
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces

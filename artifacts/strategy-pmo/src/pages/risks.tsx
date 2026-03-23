@@ -14,7 +14,8 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, ShieldAlert, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck, Building2, FolderOpen } from "lucide-react";
+import { Loader2, ShieldAlert, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck, Building2, FolderOpen, Download } from "lucide-react";
+import { exportToXlsx } from "@/lib/export";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -273,12 +274,29 @@ export default function Risks() {
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader title="Risk Register" description="Identify, assess, and mitigate programme risks.">
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Log New Risk
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => exportToXlsx(risks.map((r) => ({
+              Title: r.title,
+              Category: r.category,
+              Status: r.status,
+              Probability: r.probability,
+              Impact: r.impact,
+              Score: (r as { riskScore?: number }).riskScore ?? "",
+              Owner: r.owner ?? "",
+              "Created": r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-GB") : "",
+            })), "risks-export")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" /> Export
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Log New Risk
+          </button>
+        </div>
       </PageHeader>
 
       {/* Heat Map */}

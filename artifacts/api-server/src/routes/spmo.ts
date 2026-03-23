@@ -18,6 +18,10 @@ import {
   spmoActivityLogTable,
   spmoDepartmentsTable,
   spmoProjectWeeklyReportsTable,
+  spmoChangeRequestsTable,
+  spmoRaciTable,
+  spmoDocumentsTable,
+  spmoActionsTable,
   type InsertSpmoInitiative,
   type InsertSpmoProject,
   type InsertSpmoMilestone,
@@ -2619,6 +2623,317 @@ router.get("/spmo/projects/:id/weekly-report/history", async (req, res) => {
     .orderBy(desc(spmoProjectWeeklyReportsTable.weekStart));
 
   res.json({ reports });
+});
+
+// ─────────────────────────────────────────────────────────────
+// CHANGE REQUESTS
+// ─────────────────────────────────────────────────────────────
+
+router.get("/change-requests", async (req, res) => {
+  const projectId = req.query.projectId ? Number(req.query.projectId) : null;
+  const rows = await db
+    .select()
+    .from(spmoChangeRequestsTable)
+    .where(projectId ? eq(spmoChangeRequestsTable.projectId, projectId) : undefined)
+    .orderBy(desc(spmoChangeRequestsTable.createdAt));
+  res.json({ changeRequests: rows });
+});
+
+router.get("/change-requests/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const [row] = await db.select().from(spmoChangeRequestsTable).where(eq(spmoChangeRequestsTable.id, id));
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.post("/change-requests", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const body = z.object({
+    projectId: z.number(),
+    title: z.string(),
+    description: z.string().optional(),
+    changeType: z.enum(["scope", "budget", "timeline", "resource", "other"]).default("other"),
+    impact: z.string().optional(),
+    budgetImpact: z.number().optional(),
+    timelineImpact: z.number().optional(),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  const [row] = await db.insert(spmoChangeRequestsTable).values({
+    ...body.data,
+    requestedById: user.id,
+    requestedByName: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
+    status: "draft",
+  }).returning();
+  await db.insert(spmoActivityLogTable).values({
+    actorId: user.id,
+    actorName: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
+    action: "created",
+    entityType: "change_request",
+    entityId: row.id,
+    entityName: row.title,
+    details: { changeType: row.changeType },
+  });
+  res.status(201).json(row);
+});
+
+router.patch("/change-requests/:id", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = Number(req.params.id);
+  const body = z.object({
+    title: z.string().optional(),
+    description: z.string().optional(),
+    changeType: z.enum(["scope", "budget", "timeline", "resource", "other"]).optional(),
+    impact: z.string().optional(),
+    budgetImpact: z.number().nullable().optional(),
+    timelineImpact: z.number().nullable().optional(),
+    status: z.enum(["draft", "submitted", "under_review", "approved", "rejected", "withdrawn"]).optional(),
+    reviewComments: z.string().optional(),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  const update: Record<string, unknown> = { ...body.data };
+  if (body.data.status === "approved" || body.data.status === "rejected") {
+    update.reviewedById = user.id;
+    update.reviewedByName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
+    update.reviewedAt = new Date();
+  }
+  const [row] = await db.update(spmoChangeRequestsTable).set(update).where(eq(spmoChangeRequestsTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  await db.insert(spmoActivityLogTable).values({
+    actorId: user.id,
+    actorName: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
+    action: "updated",
+    entityType: "change_request",
+    entityId: row.id,
+    entityName: row.title,
+    details: body.data,
+  });
+  res.json(row);
+});
+
+router.delete("/change-requests/:id", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = Number(req.params.id);
+  const [row] = await db.delete(spmoChangeRequestsTable).where(eq(spmoChangeRequestsTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────
+// RACI MATRIX
+// ─────────────────────────────────────────────────────────────
+
+router.get("/raci", async (req, res) => {
+  const projectId = req.query.projectId ? Number(req.query.projectId) : null;
+  if (!projectId) { res.status(400).json({ error: "projectId required" }); return; }
+  const rows = await db
+    .select()
+    .from(spmoRaciTable)
+    .where(eq(spmoRaciTable.projectId, projectId))
+    .orderBy(asc(spmoRaciTable.milestoneId), asc(spmoRaciTable.userName));
+  res.json({ raci: rows });
+});
+
+router.post("/raci", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const body = z.object({
+    projectId: z.number(),
+    milestoneId: z.number().nullable().optional(),
+    userId: z.string(),
+    userName: z.string().optional(),
+    role: z.enum(["responsible", "accountable", "consulted", "informed"]),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  const existing = body.data.milestoneId
+    ? await db.select().from(spmoRaciTable).where(
+        and(eq(spmoRaciTable.milestoneId, body.data.milestoneId), eq(spmoRaciTable.userId, body.data.userId))
+      )
+    : [];
+  if (existing.length > 0) {
+    const [row] = await db.update(spmoRaciTable).set({ role: body.data.role }).where(eq(spmoRaciTable.id, existing[0].id)).returning();
+    res.json(row);
+    return;
+  }
+  const [row] = await db.insert(spmoRaciTable).values({
+    projectId: body.data.projectId,
+    milestoneId: body.data.milestoneId ?? null,
+    userId: body.data.userId,
+    userName: body.data.userName ?? body.data.userId,
+    role: body.data.role,
+  }).returning();
+  res.status(201).json(row);
+});
+
+router.patch("/raci/:id", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = Number(req.params.id);
+  const body = z.object({ role: z.enum(["responsible", "accountable", "consulted", "informed"]) }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  const [row] = await db.update(spmoRaciTable).set(body.data).where(eq(spmoRaciTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/raci/:id", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = Number(req.params.id);
+  const [row] = await db.delete(spmoRaciTable).where(eq(spmoRaciTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────
+// DOCUMENTS
+// ─────────────────────────────────────────────────────────────
+
+router.get("/documents", async (req, res) => {
+  const projectId = req.query.projectId ? Number(req.query.projectId) : null;
+  const rows = await db
+    .select()
+    .from(spmoDocumentsTable)
+    .where(projectId ? eq(spmoDocumentsTable.projectId, projectId) : undefined)
+    .orderBy(desc(spmoDocumentsTable.createdAt));
+  res.json({ documents: rows });
+});
+
+router.get("/documents/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const [row] = await db.select().from(spmoDocumentsTable).where(eq(spmoDocumentsTable.id, id));
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.post("/documents", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const body = z.object({
+    projectId: z.number().nullable().optional(),
+    milestoneId: z.number().nullable().optional(),
+    title: z.string(),
+    description: z.string().optional(),
+    category: z.enum(["business_case", "charter", "plan", "report", "template", "contract", "other"]).default("other"),
+    fileName: z.string(),
+    contentType: z.string().optional(),
+    objectPath: z.string(),
+    tags: z.array(z.string()).optional(),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  const [row] = await db.insert(spmoDocumentsTable).values({
+    ...body.data,
+    uploadedById: user.id,
+    uploadedByName: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
+    version: 1,
+  }).returning();
+  await db.insert(spmoActivityLogTable).values({
+    actorId: user.id,
+    actorName: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
+    action: "created",
+    entityType: "document",
+    entityId: row.id,
+    entityName: row.title,
+    details: { category: row.category },
+  });
+  res.status(201).json(row);
+});
+
+router.patch("/documents/:id", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = Number(req.params.id);
+  const body = z.object({
+    title: z.string().optional(),
+    description: z.string().optional(),
+    category: z.enum(["business_case", "charter", "plan", "report", "template", "contract", "other"]).optional(),
+    tags: z.array(z.string()).optional(),
+    fileName: z.string().optional(),
+    objectPath: z.string().optional(),
+    contentType: z.string().optional(),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  const update: Record<string, unknown> = { ...body.data };
+  if (body.data.objectPath) update.version = sql`version + 1`;
+  const [row] = await db.update(spmoDocumentsTable).set(update).where(eq(spmoDocumentsTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/documents/:id", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = Number(req.params.id);
+  const [row] = await db.delete(spmoDocumentsTable).where(eq(spmoDocumentsTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────
+// ACTION ITEMS
+// ─────────────────────────────────────────────────────────────
+
+router.get("/actions", async (req, res) => {
+  const projectId = req.query.projectId ? Number(req.query.projectId) : null;
+  const rows = await db
+    .select()
+    .from(spmoActionsTable)
+    .where(projectId ? eq(spmoActionsTable.projectId, projectId) : undefined)
+    .orderBy(asc(spmoActionsTable.dueDate), desc(spmoActionsTable.createdAt));
+  res.json({ actions: rows });
+});
+
+router.post("/actions", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const body = z.object({
+    projectId: z.number(),
+    milestoneId: z.number().nullable().optional(),
+    title: z.string(),
+    description: z.string().optional(),
+    assigneeId: z.string().optional(),
+    assigneeName: z.string().optional(),
+    dueDate: z.string().optional(),
+    priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+    status: z.enum(["open", "in_progress", "done", "cancelled"]).default("open"),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  const [row] = await db.insert(spmoActionsTable).values({
+    ...body.data,
+    createdById: user.id,
+    createdByName: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
+  }).returning();
+  res.status(201).json(row);
+});
+
+router.patch("/actions/:id", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = Number(req.params.id);
+  const body = z.object({
+    title: z.string().optional(),
+    description: z.string().optional(),
+    assigneeId: z.string().optional(),
+    assigneeName: z.string().optional(),
+    dueDate: z.string().nullable().optional(),
+    priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+    status: z.enum(["open", "in_progress", "done", "cancelled"]).optional(),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  const [row] = await db.update(spmoActionsTable).set(body.data).where(eq(spmoActionsTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+router.delete("/actions/:id", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = Number(req.params.id);
+  const [row] = await db.delete(spmoActionsTable).where(eq(spmoActionsTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ ok: true });
 });
 
 // ─────────────────────────────────────────────────────────────

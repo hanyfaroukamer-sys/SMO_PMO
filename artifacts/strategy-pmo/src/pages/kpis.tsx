@@ -9,7 +9,8 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, TrendingUp } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, TrendingUp, Download } from "lucide-react";
+import { exportToXlsx } from "@/lib/export";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -209,11 +210,27 @@ export default function KPIs() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader title="Strategic KPIs" description="Grouped by pillar — baseline, targets, actuals and 2030 outlook.">
-        {isAdmin && (
-          <button onClick={() => openCreate()} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg font-semibold shadow-sm hover:bg-primary/90 transition-all">
-            <Plus className="w-4 h-4" /> Add KPI
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => exportToXlsx(kpis.map((k) => ({
+              Name: k.name,
+              Unit: k.unit,
+              Baseline: k.baseline,
+              Target: k.target,
+              Actual: k.actual,
+              "2030 Target": k.target2030,
+              Status: (k as { status?: string }).status ?? "",
+            })), "strategic-kpis-export")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" /> Export
           </button>
-        )}
+          {isAdmin && (
+            <button onClick={() => openCreate()} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg font-semibold shadow-sm hover:bg-primary/90 transition-all">
+              <Plus className="w-4 h-4" /> Add KPI
+            </button>
+          )}
+        </div>
       </PageHeader>
 
       {kpis.length === 0 ? (

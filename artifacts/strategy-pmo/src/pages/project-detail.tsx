@@ -14,9 +14,27 @@ import {
   useUpdateSpmoMilestone,
   useAddSpmoEvidence,
   useRunSpmoAiValidateEvidence,
+  useListSpmoChangeRequests,
+  useCreateSpmoChangeRequest,
+  useUpdateSpmoChangeRequest,
+  useDeleteSpmoChangeRequest,
+  useListSpmoRaci,
+  useUpsertSpmoRaci,
+  useDeleteSpmoRaci,
+  useListSpmoActions,
+  useCreateSpmoAction,
+  useUpdateSpmoAction,
+  useDeleteSpmoAction,
+  useListSpmoDocuments,
+  useCreateSpmoDocument,
+  useDeleteSpmoDocument,
   type SpmoMilestoneWithEvidence,
   type SpmoEvidence,
   type SpmoHealthStatus,
+  type SpmoChangeRequest,
+  type SpmoRaci,
+  type SpmoAction,
+  type SpmoDocument,
 } from "@workspace/api-client-react";
 import { Card, ProgressBar, StatusBadge, PageHeader } from "@/components/ui-elements";
 import { formatCurrency } from "@/lib/utils";
@@ -27,6 +45,7 @@ import {
   FileArchive, FileSpreadsheet, Upload, AlertCircle, Clock, Target,
   Calendar, DollarSign, User, Building2, Layers, ChevronRight,
   Sparkles, TrendingUp, ShieldAlert, Activity, ClipboardList, Pencil, Save, X, Plus, ExternalLink,
+  GitPullRequest, Grid3X3, ListTodo, FolderOpen, Trash2, ChevronDown,
 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -61,7 +80,7 @@ function HealthBadge({ status }: { status: SpmoHealthStatus | null | undefined }
   );
 }
 
-type TabKey = "overview" | "milestones" | "weekly-report" | "risks";
+type TabKey = "overview" | "milestones" | "weekly-report" | "risks" | "changes" | "raci" | "actions" | "documents";
 
 // ─── Evidence inline panel ─────────────────────────────────────────────────────
 
@@ -375,6 +394,7 @@ export default function ProjectDetail({ params }: Props) {
   const userRole = authData?.user?.role;
   const canApprove = userRole === "admin" || userRole === "approver";
   const canEditReport = userRole === "admin" || userRole === "project-manager";
+  const isAdmin = userRole === "admin";
 
   const { data: project, isLoading } = useGetSpmoProject(projectId);
   const { data: pillarsData } = useListSpmoPillars();
@@ -383,6 +403,22 @@ export default function ProjectDetail({ params }: Props) {
   const { data: reportHistory, queryKey: reportHistoryKey } = useGetSpmaProjectWeeklyReportHistory(projectId);
   const { data: risksData } = useListSpmoRisks();
   const upsertReport = useUpsertSpmaProjectWeeklyReport();
+
+  const { data: changeRequestsData, queryKey: crQK } = useListSpmoChangeRequests(projectId);
+  const createCR = useCreateSpmoChangeRequest();
+  const updateCR = useUpdateSpmoChangeRequest();
+  const deleteCR = useDeleteSpmoChangeRequest();
+
+  const { data: raciData, queryKey: raciQK } = useListSpmoRaci(projectId);
+  const upsertRaci = useUpsertSpmoRaci();
+  const deleteRaci = useDeleteSpmoRaci();
+
+  const { data: actionsData, queryKey: actionsQK } = useListSpmoActions(projectId);
+  const createAction = useCreateSpmoAction();
+  const updateAction = useUpdateSpmoAction();
+  const deleteAction = useDeleteSpmoAction();
+
+  const { data: documentsData, queryKey: docsQK } = useListSpmoDocuments(projectId);
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -455,11 +491,21 @@ export default function ProjectDetail({ params }: Props) {
   const milestoneApproved = project.approvedMilestones ?? 0;
   const milestoneTotal = project.milestoneCount ?? 0;
 
+  const changeRequests = (changeRequestsData?.changeRequests ?? []) as SpmoChangeRequest[];
+  const raciRows = (raciData?.raci ?? []) as SpmoRaci[];
+  const actionItems = (actionsData?.actions ?? []) as SpmoAction[];
+  const documents = (documentsData?.documents ?? []) as SpmoDocument[];
+  const openActions = actionItems.filter((a) => a.status === "open" || a.status === "in_progress").length;
+
   const TABS: { key: TabKey; label: string; icon: React.ElementType; count?: number }[] = [
     { key: "overview",      label: "Overview",       icon: Target },
     { key: "milestones",    label: "Milestones",     icon: ClipboardList, count: milestoneTotal },
     { key: "weekly-report", label: "Weekly Report",  icon: Activity },
     { key: "risks",         label: "Risks",          icon: ShieldAlert,   count: projectRisks.length },
+    { key: "changes",       label: "Change Control", icon: GitPullRequest, count: changeRequests.length },
+    { key: "raci",          label: "RACI",           icon: Grid3X3 },
+    { key: "actions",       label: "Actions",        icon: ListTodo,      count: openActions || undefined },
+    { key: "documents",     label: "Documents",      icon: FolderOpen,    count: documents.length || undefined },
   ];
 
   return (
@@ -957,6 +1003,657 @@ export default function ProjectDetail({ params }: Props) {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── CHANGE CONTROL ── */}
+      {activeTab === "changes" && (
+        <ChangeControlTab
+          projectId={projectId}
+          changeRequests={changeRequests}
+          isAdmin={isAdmin}
+          canEdit={canEditReport}
+          currentUser={authData?.user}
+          onCreate={(data) => createCR.mutateAsync({ ...data, projectId } as SpmoChangeRequest, {
+            onSuccess: () => { qc.invalidateQueries({ queryKey: crQK }); },
+          })}
+          onUpdate={(id, data) => updateCR.mutateAsync({ id, ...data } as { id: number } & Partial<SpmoChangeRequest>, {
+            onSuccess: () => { qc.invalidateQueries({ queryKey: crQK }); },
+          })}
+          onDelete={(id) => deleteCR.mutateAsync(id, {
+            onSuccess: () => { qc.invalidateQueries({ queryKey: crQK }); },
+          })}
+        />
+      )}
+
+      {/* ── RACI ── */}
+      {activeTab === "raci" && (
+        <RaciTab
+          projectId={projectId}
+          milestones={milestones}
+          raciRows={raciRows}
+          canEdit={isAdmin || canEditReport}
+          onUpsert={(data) => upsertRaci.mutateAsync(data as SpmoRaci, {
+            onSuccess: () => { qc.invalidateQueries({ queryKey: raciQK }); },
+          })}
+          onDelete={(id) => deleteRaci.mutateAsync(id, {
+            onSuccess: () => { qc.invalidateQueries({ queryKey: raciQK }); },
+          })}
+        />
+      )}
+
+      {/* ── ACTION ITEMS ── */}
+      {activeTab === "actions" && (
+        <ActionsTab
+          projectId={projectId}
+          milestones={milestones}
+          actions={actionItems}
+          canEdit={canEditReport || isAdmin}
+          currentUser={authData?.user}
+          onCreate={(data) => createAction.mutateAsync({ ...data, projectId } as SpmoAction, {
+            onSuccess: () => { qc.invalidateQueries({ queryKey: actionsQK }); },
+          })}
+          onUpdate={(id, data) => updateAction.mutateAsync({ id, ...data } as { id: number } & Partial<SpmoAction>, {
+            onSuccess: () => { qc.invalidateQueries({ queryKey: actionsQK }); },
+          })}
+          onDelete={(id) => deleteAction.mutateAsync(id, {
+            onSuccess: () => { qc.invalidateQueries({ queryKey: actionsQK }); },
+          })}
+        />
+      )}
+
+      {/* ── DOCUMENTS ── */}
+      {activeTab === "documents" && (
+        <DocumentsTab
+          projectId={projectId}
+          documents={documents}
+          canEdit={isAdmin || canEditReport}
+          currentUser={authData?.user}
+          onInvalidate={() => qc.invalidateQueries({ queryKey: docsQK })}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Change Control Tab ────────────────────────────────────────────────────────
+
+const CR_TYPE_LABELS: Record<string, string> = {
+  scope: "Scope", budget: "Budget", timeline: "Timeline", resource: "Resource", other: "Other",
+};
+const CR_STATUS_COLORS: Record<string, string> = {
+  draft: "text-muted-foreground bg-secondary border-border",
+  submitted: "text-blue-700 bg-blue-50 border-blue-200",
+  under_review: "text-yellow-700 bg-yellow-50 border-yellow-200",
+  approved: "text-green-700 bg-green-50 border-green-200",
+  rejected: "text-red-700 bg-red-50 border-red-200",
+  withdrawn: "text-gray-600 bg-gray-50 border-gray-200",
+};
+
+type CRFormData = { title: string; changeType: string; description: string; impact: string; budgetImpact: string; timelineImpact: string };
+const emptyCRForm = (): CRFormData => ({ title: "", changeType: "other", description: "", impact: "", budgetImpact: "", timelineImpact: "" });
+
+function ChangeControlTab({
+  projectId, changeRequests, isAdmin, canEdit, currentUser, onCreate, onUpdate, onDelete,
+}: {
+  projectId: number;
+  changeRequests: SpmoChangeRequest[];
+  isAdmin: boolean;
+  canEdit: boolean;
+  currentUser: { id: string; firstName?: string | null; lastName?: string | null } | undefined | null;
+  onCreate: (data: Partial<SpmoChangeRequest>) => Promise<unknown>;
+  onUpdate: (id: number, data: Partial<SpmoChangeRequest>) => Promise<unknown>;
+  onDelete: (id: number) => Promise<unknown>;
+}) {
+  const { toast } = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<CRFormData>(emptyCRForm());
+  const [saving, setSaving] = useState(false);
+
+  const handleCreate = async () => {
+    if (!form.title.trim()) { toast({ title: "Title required", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      await onCreate({
+        title: form.title,
+        changeType: form.changeType as SpmoChangeRequest["changeType"],
+        description: form.description || undefined,
+        impact: form.impact || undefined,
+        budgetImpact: form.budgetImpact ? parseFloat(form.budgetImpact) : undefined,
+        timelineImpact: form.timelineImpact ? parseInt(form.timelineImpact) : undefined,
+      });
+      toast({ title: "Change request created" });
+      setForm(emptyCRForm());
+      setShowForm(false);
+    } finally { setSaving(false); }
+  };
+
+  const handleStatusChange = async (cr: SpmoChangeRequest, status: SpmoChangeRequest["status"]) => {
+    await onUpdate(cr.id, { status });
+    toast({ title: `Request ${status}` });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{changeRequests.length} change request{changeRequests.length !== 1 ? "s" : ""}</p>
+        {canEdit && (
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> New Request
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <Card className="p-4 space-y-3 border-primary/20">
+          <h4 className="text-sm font-semibold">New Change Request</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Title *</label>
+              <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Brief description of the change" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Change Type</label>
+              <select value={form.changeType} onChange={(e) => setForm((f) => ({ ...f, changeType: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+                {Object.entries(CR_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Budget Impact (SAR)</label>
+              <input type="number" value={form.budgetImpact} onChange={(e) => setForm((f) => ({ ...f, budgetImpact: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="e.g. 500000" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Description</label>
+              <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" placeholder="Detailed description of the change..." />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={handleCreate} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:-translate-y-0.5 transition-transform disabled:opacity-50">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Submit
+            </button>
+            <button onClick={() => { setShowForm(false); setForm(emptyCRForm()); }} className="px-3 py-2 rounded-lg text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+          </div>
+        </Card>
+      )}
+
+      {changeRequests.length === 0 && !showForm ? (
+        <Card className="text-center py-14">
+          <GitPullRequest className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+          <h3 className="font-bold">No change requests</h3>
+          <p className="text-sm text-muted-foreground mt-1">Log change requests to track scope, budget, and timeline changes.</p>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {changeRequests.map((cr) => (
+            <Card key={cr.id} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="font-semibold text-sm">{cr.title}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium capitalize ${CR_STATUS_COLORS[cr.status] ?? ""}`}>{cr.status.replace("_", " ")}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary text-muted-foreground font-medium">{CR_TYPE_LABELS[cr.changeType]}</span>
+                  </div>
+                  {cr.description && <p className="text-xs text-muted-foreground">{cr.description}</p>}
+                  <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-muted-foreground">
+                    {cr.budgetImpact != null && <span>Budget: <span className={`font-semibold ${cr.budgetImpact > 0 ? "text-destructive" : "text-success"}`}>{cr.budgetImpact > 0 ? "+" : ""}{formatCurrency(cr.budgetImpact)}</span></span>}
+                    {cr.timelineImpact != null && <span>Timeline: <span className={`font-semibold ${cr.timelineImpact > 0 ? "text-warning" : "text-success"}`}>{cr.timelineImpact > 0 ? "+" : ""}{cr.timelineImpact}d</span></span>}
+                    <span>By: {cr.requestedByName}</span>
+                    <span>{new Date(cr.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {(isAdmin || canEdit) && cr.status === "submitted" && (
+                    <>
+                      <button onClick={() => handleStatusChange(cr, "approved")} className="px-2 py-1 rounded text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors">Approve</button>
+                      <button onClick={() => handleStatusChange(cr, "rejected")} className="px-2 py-1 rounded text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors">Reject</button>
+                    </>
+                  )}
+                  {(canEdit) && cr.status === "draft" && (
+                    <button onClick={() => handleStatusChange(cr, "submitted")} className="px-2 py-1 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors">Submit</button>
+                  )}
+                  <button onClick={() => onDelete(cr.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── RACI Tab ─────────────────────────────────────────────────────────────────
+
+const RACI_COLORS: Record<string, string> = {
+  responsible: "bg-blue-100 text-blue-700 border-blue-200",
+  accountable: "bg-purple-100 text-purple-700 border-purple-200",
+  consulted: "bg-amber-100 text-amber-700 border-amber-200",
+  informed: "bg-gray-100 text-gray-600 border-gray-200",
+};
+const RACI_LETTERS: Record<string, string> = { responsible: "R", accountable: "A", consulted: "C", informed: "I" };
+const RACI_CYCLE: Array<SpmoRaci["role"] | null> = ["responsible", "accountable", "consulted", "informed", null];
+
+function RaciTab({
+  projectId, milestones, raciRows, canEdit, onUpsert, onDelete,
+}: {
+  projectId: number;
+  milestones: SpmoMilestoneWithEvidence[];
+  raciRows: SpmoRaci[];
+  canEdit: boolean;
+  onUpsert: (data: Partial<SpmoRaci>) => Promise<unknown>;
+  onDelete: (id: number) => Promise<unknown>;
+}) {
+  const [addingPerson, setAddingPerson] = useState(false);
+  const [newPersonName, setNewPersonName] = useState("");
+
+  const people = Array.from(new Set(raciRows.map((r) => r.userId))).map((uid) => ({
+    userId: uid,
+    userName: raciRows.find((r) => r.userId === uid)?.userName ?? uid,
+  }));
+
+  const handleAddPerson = () => {
+    if (!newPersonName.trim()) return;
+    const userId = newPersonName.trim().toLowerCase().replace(/\s+/g, "_");
+    const firstMs = milestones[0];
+    if (firstMs) {
+      onUpsert({ projectId, milestoneId: firstMs.id, userId, userName: newPersonName.trim(), role: "informed" });
+    }
+    setNewPersonName("");
+    setAddingPerson(false);
+  };
+
+  const getCell = (msId: number, userId: string) =>
+    raciRows.find((r) => r.milestoneId === msId && r.userId === userId);
+
+  const cycleRole = (msId: number, userId: string, userName: string, current: SpmoRaci | undefined) => {
+    if (!canEdit) return;
+    const currentRole = current?.role ?? null;
+    const idx = RACI_CYCLE.indexOf(currentRole);
+    const next = RACI_CYCLE[(idx + 1) % RACI_CYCLE.length];
+    if (next === null) {
+      if (current) onDelete(current.id);
+    } else {
+      onUpsert({ projectId, milestoneId: msId, userId, userName, role: next });
+    }
+  };
+
+  if (milestones.length === 0) return (
+    <Card className="text-center py-14">
+      <Grid3X3 className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+      <h3 className="font-bold">No milestones yet</h3>
+      <p className="text-sm text-muted-foreground mt-1">Add milestones first to build the RACI matrix.</p>
+    </Card>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          {Object.entries(RACI_LETTERS).map(([role, letter]) => (
+            <span key={role} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-bold ${RACI_COLORS[role]}`}>
+              {letter} = <span className="font-normal capitalize">{role}</span>
+            </span>
+          ))}
+        </div>
+        {canEdit && (
+          <button onClick={() => setAddingPerson(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+            <Plus className="w-3.5 h-3.5" /> Add Person
+          </button>
+        )}
+      </div>
+
+      {addingPerson && (
+        <div className="flex items-center gap-2">
+          <input value={newPersonName} onChange={(e) => setNewPersonName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAddPerson()} placeholder="Person name…" className="text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 flex-1 max-w-xs" autoFocus />
+          <button onClick={handleAddPerson} className="px-3 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground">Add</button>
+          <button onClick={() => { setAddingPerson(false); setNewPersonName(""); }} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+        </div>
+      )}
+
+      {people.length === 0 ? (
+        <Card className="text-center py-10">
+          <p className="text-sm text-muted-foreground">Add team members using "Add Person" to build the RACI matrix.</p>
+        </Card>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left px-3 py-2 font-semibold text-muted-foreground w-48">Milestone</th>
+                {people.map((p) => (
+                  <th key={p.userId} className="px-3 py-2 text-center font-semibold min-w-[80px]">{p.userName}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {milestones.map((ms) => {
+                const hasMissingA = !raciRows.find((r) => r.milestoneId === ms.id && r.role === "accountable");
+                return (
+                  <tr key={ms.id} className={`border-b border-border/50 ${hasMissingA ? "bg-amber-50/30" : ""}`}>
+                    <td className="px-3 py-2 font-medium text-sm">
+                      {ms.name}
+                      {hasMissingA && <span className="ml-1 text-[9px] text-amber-600 font-semibold">No A</span>}
+                    </td>
+                    {people.map((p) => {
+                      const cell = getCell(ms.id, p.userId);
+                      return (
+                        <td key={p.userId} className="px-3 py-2 text-center">
+                          <button
+                            onClick={() => cycleRole(ms.id, p.userId, p.userName!, cell)}
+                            title={canEdit ? "Click to cycle role" : cell?.role ?? "—"}
+                            className={`w-8 h-8 rounded-lg text-xs font-bold border transition-colors ${cell ? RACI_COLORS[cell.role] : "border-dashed border-border text-muted-foreground/40 hover:border-primary/40"} ${canEdit ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
+                          >
+                            {cell ? RACI_LETTERS[cell.role] : "·"}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {milestones.some((ms) => !raciRows.find((r) => r.milestoneId === ms.id && r.role === "accountable")) && (
+            <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5" /> Some milestones are missing an Accountable (A) person.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Actions Tab ───────────────────────────────────────────────────────────────
+
+const ACTION_PRIORITY_COLORS: Record<string, string> = {
+  low: "text-gray-500 bg-gray-50 border-gray-200",
+  medium: "text-blue-600 bg-blue-50 border-blue-200",
+  high: "text-amber-600 bg-amber-50 border-amber-200",
+  urgent: "text-red-600 bg-red-50 border-red-200",
+};
+
+type ActionFormData = { title: string; description: string; assigneeName: string; dueDate: string; priority: string; milestoneId: string };
+const emptyActionForm = (): ActionFormData => ({ title: "", description: "", assigneeName: "", dueDate: "", priority: "medium", milestoneId: "" });
+
+function ActionsTab({
+  projectId, milestones, actions, canEdit, currentUser, onCreate, onUpdate, onDelete,
+}: {
+  projectId: number;
+  milestones: SpmoMilestoneWithEvidence[];
+  actions: SpmoAction[];
+  canEdit: boolean;
+  currentUser: { id: string; firstName?: string | null; lastName?: string | null } | undefined | null;
+  onCreate: (data: Partial<SpmoAction>) => Promise<unknown>;
+  onUpdate: (id: number, data: Partial<SpmoAction>) => Promise<unknown>;
+  onDelete: (id: number) => Promise<unknown>;
+}) {
+  const { toast } = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<ActionFormData>(emptyActionForm());
+  const [saving, setSaving] = useState(false);
+  const today = new Date().toISOString().split("T")[0];
+
+  const handleCreate = async () => {
+    if (!form.title.trim()) { toast({ title: "Title required", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      await onCreate({
+        title: form.title,
+        description: form.description || undefined,
+        assigneeName: form.assigneeName || undefined,
+        assigneeId: form.assigneeName ? form.assigneeName.toLowerCase().replace(/\s+/g, "_") : undefined,
+        dueDate: form.dueDate || undefined,
+        priority: form.priority as SpmoAction["priority"],
+        milestoneId: form.milestoneId ? parseInt(form.milestoneId) : undefined,
+      });
+      toast({ title: "Action item created" });
+      setForm(emptyActionForm());
+      setShowForm(false);
+    } finally { setSaving(false); }
+  };
+
+  const cycleStatus = (action: SpmoAction) => {
+    const CYCLE: SpmoAction["status"][] = ["open", "in_progress", "done", "cancelled"];
+    const idx = CYCLE.indexOf(action.status);
+    const next = CYCLE[(idx + 1) % CYCLE.length];
+    onUpdate(action.id, { status: next });
+  };
+
+  const statusColor = (s: string) => s === "done" ? "text-success" : s === "cancelled" ? "text-muted-foreground" : s === "in_progress" ? "text-blue-600" : "text-foreground";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {actions.filter((a) => a.status !== "done" && a.status !== "cancelled").length} open action{actions.filter((a) => a.status !== "done" && a.status !== "cancelled").length !== 1 ? "s" : ""}
+        </p>
+        {canEdit && (
+          <button onClick={() => setShowForm((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+            <Plus className="w-3.5 h-3.5" /> New Action
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <Card className="p-4 space-y-3 border-primary/20">
+          <h4 className="text-sm font-semibold">New Action Item</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Title *</label>
+              <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="What needs to be done?" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Assignee</label>
+              <input value={form.assigneeName} onChange={(e) => setForm((f) => ({ ...f, assigneeName: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Name" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Due Date</label>
+              <input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Priority</label>
+              <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+                {["low", "medium", "high", "urgent"].map((p) => <option key={p} value={p} className="capitalize">{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Link to Milestone</label>
+              <select value={form.milestoneId} onChange={(e) => setForm((f) => ({ ...f, milestoneId: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <option value="">None</option>
+                {milestones.map((ms) => <option key={ms.id} value={ms.id}>{ms.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={handleCreate} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:-translate-y-0.5 transition-transform disabled:opacity-50">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Create
+            </button>
+            <button onClick={() => { setShowForm(false); setForm(emptyActionForm()); }} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+          </div>
+        </Card>
+      )}
+
+      {actions.length === 0 && !showForm ? (
+        <Card className="text-center py-14">
+          <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+          <h3 className="font-bold">No action items yet</h3>
+          <p className="text-sm text-muted-foreground mt-1">Create action items to track small tasks and follow-ups.</p>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {actions.map((action) => {
+            const isOverdue = action.dueDate && action.dueDate < today && action.status !== "done" && action.status !== "cancelled";
+            return (
+              <Card key={action.id} className={`p-3 flex items-center gap-3 ${action.status === "done" ? "opacity-60" : ""}`}>
+                <button
+                  onClick={() => canEdit && cycleStatus(action)}
+                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${action.status === "done" ? "border-success bg-success/20" : action.status === "in_progress" ? "border-blue-500 bg-blue-50" : "border-border hover:border-primary"}`}
+                  title="Click to cycle status"
+                >
+                  {action.status === "done" && <CheckCircle2 className="w-3.5 h-3.5 text-success" />}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-sm font-medium ${action.status === "done" ? "line-through text-muted-foreground" : statusColor(action.status)}`}>{action.title}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${ACTION_PRIORITY_COLORS[action.priority]}`}>{action.priority}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-0.5 text-[11px] text-muted-foreground">
+                    {action.assigneeName && <span>→ {action.assigneeName}</span>}
+                    {action.dueDate && (
+                      <span className={isOverdue ? "text-destructive font-semibold" : ""}>{isOverdue ? "⚠ Overdue: " : "Due: "}{new Date(action.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+                    )}
+                    <span className="capitalize">{action.status.replace("_", " ")}</span>
+                  </div>
+                </div>
+                {canEdit && (
+                  <button onClick={() => onDelete(action.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Documents Tab ─────────────────────────────────────────────────────────────
+
+const DOC_CATEGORY_LABELS: Record<string, string> = {
+  business_case: "Business Case", charter: "Charter", plan: "Plan",
+  report: "Report", template: "Template", contract: "Contract", other: "Other",
+};
+
+function DocumentsTab({
+  projectId, documents, canEdit, currentUser, onInvalidate,
+}: {
+  projectId: number;
+  documents: SpmoDocument[];
+  canEdit: boolean;
+  currentUser: { id: string; firstName?: string | null; lastName?: string | null } | undefined | null;
+  onInvalidate: () => void;
+}) {
+  const { toast } = useToast();
+  const createDoc = useCreateSpmoDocument();
+  const deleteDoc = useDeleteSpmoDocument();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: "", category: "other", description: "", tags: "" });
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = async () => {
+    if (!form.title.trim()) { toast({ title: "Title required", variant: "destructive" }); return; }
+    if (!file) { toast({ title: "Please select a file", variant: "destructive" }); return; }
+    setUploading(true);
+    try {
+      const objectPath = `documents/${projectId}/${Date.now()}_${file.name}`;
+      await createDoc.mutateAsync({
+        projectId,
+        title: form.title,
+        category: form.category as SpmoDocument["category"],
+        description: form.description || undefined,
+        fileName: file.name,
+        contentType: file.type,
+        objectPath,
+        tags: form.tags ? form.tags.split(",").map((t) => t.trim()).filter(Boolean) : undefined,
+      } as SpmoDocument);
+      toast({ title: "Document added" });
+      onInvalidate();
+      setFile(null);
+      setForm({ title: "", category: "other", description: "", tags: "" });
+      setShowForm(false);
+    } catch {
+      toast({ title: "Failed to save document", variant: "destructive" });
+    } finally { setUploading(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{documents.length} document{documents.length !== 1 ? "s" : ""}</p>
+        {canEdit && (
+          <button onClick={() => setShowForm((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+            <Plus className="w-3.5 h-3.5" /> Add Document
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <Card className="p-4 space-y-3 border-primary/20">
+          <h4 className="text-sm font-semibold">Add Document</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Title *</label>
+              <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Document title" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Category</label>
+              <select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+                {Object.entries(DOC_CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Tags (comma-separated)</label>
+              <input value={form.tags} onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="e.g. Q1, finance" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">File</label>
+              <input ref={fileRef} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              <button onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-dashed border-border hover:border-primary transition-colors text-muted-foreground hover:text-foreground">
+                <Upload className="w-4 h-4" />
+                {file ? file.name : "Choose file…"}
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={handleUpload} disabled={uploading} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:-translate-y-0.5 transition-transform disabled:opacity-50">
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Save
+            </button>
+            <button onClick={() => setShowForm(false)} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+          </div>
+        </Card>
+      )}
+
+      {documents.length === 0 && !showForm ? (
+        <Card className="text-center py-14">
+          <FolderOpen className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+          <h3 className="font-bold">No documents yet</h3>
+          <p className="text-sm text-muted-foreground mt-1">Upload project documents like charters, plans, and reports.</p>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {documents.map((doc) => (
+            <Card key={doc.id} className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                <FileText className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-sm truncate">{doc.title}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary text-muted-foreground font-medium">{DOC_CATEGORY_LABELS[doc.category]}</span>
+                  <span className="text-[10px] text-muted-foreground">v{doc.version}</span>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-0.5 text-[11px] text-muted-foreground">
+                  <span>{doc.fileName}</span>
+                  {doc.uploadedByName && <span>By: {doc.uploadedByName}</span>}
+                  <span>{new Date(doc.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                </div>
+                {doc.tags && doc.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {doc.tags.map((tag) => <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{tag}</span>)}
+                  </div>
+                )}
+              </div>
+              {canEdit && (
+                <button onClick={async () => { await deleteDoc.mutateAsync(doc.id); onInvalidate(); }} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
+              )}
+            </Card>
+          ))}
         </div>
       )}
     </div>

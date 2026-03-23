@@ -535,6 +535,123 @@ export type InsertSpmoProjectWeeklyReport = z.infer<typeof insertSpmoProjectWeek
 export type SpmoProjectWeeklyReport = typeof spmoProjectWeeklyReportsTable.$inferSelect;
 
 // ─────────────────────────────────────────────
+// CHANGE REQUESTS
+// ─────────────────────────────────────────────
+export const spmoChangeRequestsTable = pgTable("spmo_change_requests", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .notNull()
+    .references(() => spmoProjectsTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  changeType: text("change_type", {
+    enum: ["scope", "budget", "timeline", "resource", "other"],
+  }).notNull().default("other"),
+  impact: text("impact"),
+  requestedById: text("requested_by_id").notNull(),
+  requestedByName: text("requested_by_name"),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  status: text("status", {
+    enum: ["draft", "submitted", "under_review", "approved", "rejected", "withdrawn"],
+  }).notNull().default("draft"),
+  reviewedById: text("reviewed_by_id"),
+  reviewedByName: text("reviewed_by_name"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewComments: text("review_comments"),
+  budgetImpact: real("budget_impact"),
+  timelineImpact: integer("timeline_impact"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertSpmoChangeRequestSchema = createInsertSchema(spmoChangeRequestsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertSpmoChangeRequest = z.infer<typeof insertSpmoChangeRequestSchema>;
+export type SpmoChangeRequest = typeof spmoChangeRequestsTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// RACI MATRIX
+// ─────────────────────────────────────────────
+export const spmoRaciTable = pgTable(
+  "spmo_raci",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => spmoProjectsTable.id, { onDelete: "cascade" }),
+    milestoneId: integer("milestone_id")
+      .references(() => spmoMilestonesTable.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    userName: text("user_name"),
+    role: text("role", {
+      enum: ["responsible", "accountable", "consulted", "informed"],
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("uniq_raci_ms_user").on(t.milestoneId, t.userId)],
+);
+
+export const insertSpmoRaciSchema = createInsertSchema(spmoRaciTable).omit({ id: true, createdAt: true });
+export type InsertSpmoRaci = z.infer<typeof insertSpmoRaciSchema>;
+export type SpmoRaci = typeof spmoRaciTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// DOCUMENTS
+// ─────────────────────────────────────────────
+export const spmoDocumentsTable = pgTable("spmo_documents", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => spmoProjectsTable.id, { onDelete: "cascade" }),
+  milestoneId: integer("milestone_id").references(() => spmoMilestonesTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category", {
+    enum: ["business_case", "charter", "plan", "report", "template", "contract", "other"],
+  }).notNull().default("other"),
+  fileName: text("file_name").notNull(),
+  contentType: text("content_type"),
+  objectPath: text("object_path").notNull(),
+  version: integer("version").notNull().default(1),
+  uploadedById: text("uploaded_by_id").notNull(),
+  uploadedByName: text("uploaded_by_name"),
+  tags: text("tags").array(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertSpmoDocumentSchema = createInsertSchema(spmoDocumentsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertSpmoDocument = z.infer<typeof insertSpmoDocumentSchema>;
+export type SpmoDocument = typeof spmoDocumentsTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// ACTION ITEMS
+// ─────────────────────────────────────────────
+export const spmoActionsTable = pgTable("spmo_actions", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .notNull()
+    .references(() => spmoProjectsTable.id, { onDelete: "cascade" }),
+  milestoneId: integer("milestone_id").references(() => spmoMilestonesTable.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  assigneeId: text("assignee_id"),
+  assigneeName: text("assignee_name"),
+  dueDate: date("due_date"),
+  priority: text("priority", {
+    enum: ["low", "medium", "high", "urgent"],
+  }).notNull().default("medium"),
+  status: text("status", {
+    enum: ["open", "in_progress", "done", "cancelled"],
+  }).notNull().default("open"),
+  createdById: text("created_by_id").notNull(),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertSpmoActionSchema = createInsertSchema(spmoActionsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertSpmoAction = z.infer<typeof insertSpmoActionSchema>;
+export type SpmoAction = typeof spmoActionsTable.$inferSelect;
+
+// ─────────────────────────────────────────────
 // DEPENDENCIES (cross-project milestone/project dependencies)
 // ─────────────────────────────────────────────
 export const spmoDependenciesTable = pgTable(

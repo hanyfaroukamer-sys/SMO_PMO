@@ -36,7 +36,8 @@ import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elem
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge, ShieldAlert, Telescope } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge, ShieldAlert, Telescope, Download } from "lucide-react";
+import { exportToXlsx } from "@/lib/export";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -534,6 +535,21 @@ export default function Projects() {
               <GanttChartSquare className="w-3.5 h-3.5" /> Gantt
             </button>
           </div>
+          <button
+            onClick={() => exportToXlsx(projects.map((p) => ({
+              Name: p.name,
+              Status: p.healthStatus,
+              Progress: Math.round(p.progress) + "%",
+              Budget: p.budget,
+              Spent: p.budgetSpent,
+              "Start Date": p.startDate,
+              "End Date": p.targetDate,
+              "Owner": p.ownerName ?? "",
+            })), "projects-export")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" /> Export
+          </button>
           {isAdmin && (
             <button
               onClick={openCreate}
