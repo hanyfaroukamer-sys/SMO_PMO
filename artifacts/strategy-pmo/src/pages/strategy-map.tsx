@@ -151,7 +151,116 @@ export default function StrategyMap() {
         </div>
       </Card>
 
-      {/* 4-pillar Grid */}
+      {/* ── Classic Strategy House Diagram ── */}
+      {pillars.length > 0 && (
+        <div className="rounded-2xl border border-border overflow-hidden shadow-md bg-card">
+          {/* Roof: Vision + Mission */}
+          <div className="bg-gradient-to-r from-primary via-primary/90 to-violet-700 text-white px-8 py-5">
+            <div className="max-w-4xl mx-auto text-center">
+              <div className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/50 mb-1">Strategy House</div>
+              {configData?.vision ? (
+                <>
+                  <div className="text-xs font-semibold uppercase tracking-widest text-white/60 mb-1">Vision</div>
+                  <p className="text-base font-semibold text-white leading-snug mb-2">{configData.vision}</p>
+                </>
+              ) : (
+                <p className="text-base font-semibold text-white/70 italic mb-2">No vision statement set — click Edit Vision to add one.</p>
+              )}
+              {configData?.mission && (
+                <>
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-white/50 mt-1 mb-0.5">Mission</div>
+                  <p className="text-xs text-white/80">{configData.mission}</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Pillar Columns */}
+          <div className="grid divide-x divide-border" style={{ gridTemplateColumns: `repeat(${pillars.length || 1}, 1fr)` }}>
+            {pillars.map((pillar) => {
+              const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);
+              const pct = Math.round(pillar.progress ?? 0);
+
+              return (
+                <div key={pillar.id} className="flex flex-col">
+                  {/* Column Header */}
+                  <div className="px-4 py-4 text-center border-b border-border" style={{ borderTopColor: pillar.color, borderTopWidth: 4 }}>
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center mx-auto mb-2 shrink-0"
+                      style={{ backgroundColor: `${pillar.color}20` }}
+                    >
+                      <PillarIcon name={pillar.iconName} className="w-4 h-4" color={pillar.color} />
+                    </div>
+                    <h4 className="text-xs font-display font-bold leading-tight" style={{ color: pillar.color }}>{pillar.name}</h4>
+                    <div className="text-2xl font-display font-bold mt-1" style={{ color: pillar.color }}>{pct}%</div>
+                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden mt-2 mx-2">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${Math.min(100, pct)}%`, backgroundColor: pillar.color }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Initiatives in pillar */}
+                  <div className="flex-1 divide-y divide-border/40 bg-secondary/10">
+                    {pillarInitiatives.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-xs text-muted-foreground italic">No initiatives</div>
+                    ) : (
+                      pillarInitiatives.map((initiative, idx) => {
+                        const initiativeProjects = projects.filter((p) => p.initiativeId === initiative.id);
+                        const ipct = Math.round(initiative.progress ?? 0);
+                        const code = initiativeCodeMap.get(initiative.id) ?? String(idx + 1).padStart(2, "0");
+                        return (
+                          <div key={initiative.id} className="px-4 py-3">
+                            <div className="flex items-start gap-2">
+                              <span
+                                className="mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 text-white"
+                                style={{ backgroundColor: pillar.color }}
+                              >
+                                {code}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-semibold leading-tight text-foreground line-clamp-2">{initiative.name}</p>
+                                <div className="flex items-center justify-between mt-1.5 gap-1">
+                                  <div className="h-1 flex-1 bg-secondary rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full"
+                                      style={{ width: `${Math.min(100, ipct)}%`, backgroundColor: pillar.color }}
+                                    />
+                                  </div>
+                                  <span className="text-[10px] font-bold shrink-0" style={{ color: pillar.color }}>{ipct}%</span>
+                                </div>
+                                {initiativeProjects.length > 0 && (
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                                    {initiativeProjects.length} project{initiativeProjects.length !== 1 ? "s" : ""}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Foundation / Base */}
+          <div className="border-t-2 border-border bg-secondary/30 px-8 py-3">
+            <div className="flex items-center justify-center gap-8 text-xs text-muted-foreground font-semibold uppercase tracking-widest">
+              <span>{pillars.length} Strategic Pillars</span>
+              <span className="text-border">·</span>
+              <span>{initiatives.length} Initiatives</span>
+              <span className="text-border">·</span>
+              <span>{projects.filter((p) => p.status === "active").length} Active Projects</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Detailed Pillar Cards (full detail) ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {pillars.map((pillar) => {
           const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);

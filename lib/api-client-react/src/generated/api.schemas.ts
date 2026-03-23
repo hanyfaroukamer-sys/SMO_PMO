@@ -897,6 +897,10 @@ export interface SpmoProgrammeConfig {
   projectDelayedThreshold: number;
   milestoneAtRiskThreshold: number;
   weeklyResetDay: number;
+  defaultPlanningWeight?: number;
+  defaultTenderingWeight?: number;
+  defaultExecutionWeight?: number;
+  defaultClosureWeight?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -909,6 +913,10 @@ export interface UpdateSpmoProgrammeConfigRequest {
   projectDelayedThreshold?: number;
   milestoneAtRiskThreshold?: number;
   weeklyResetDay?: number;
+  defaultPlanningWeight?: number;
+  defaultTenderingWeight?: number;
+  defaultExecutionWeight?: number;
+  defaultClosureWeight?: number;
 }
 
 export interface SpmoPendingApprovalItem {

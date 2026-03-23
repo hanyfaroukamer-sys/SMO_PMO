@@ -2296,6 +2296,10 @@ export const GetSpmoConfigResponse = zod.object({
   projectDelayedThreshold: zod.number(),
   milestoneAtRiskThreshold: zod.number(),
   weeklyResetDay: zod.number().int().min(0).max(6),
+  defaultPlanningWeight: zod.number().optional(),
+  defaultTenderingWeight: zod.number().optional(),
+  defaultExecutionWeight: zod.number().optional(),
+  defaultClosureWeight: zod.number().optional(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -2311,6 +2315,10 @@ export const UpdateSpmoConfigBody = zod.object({
   projectDelayedThreshold: zod.number().int().min(1).max(50).optional(),
   milestoneAtRiskThreshold: zod.number().int().min(1).max(50).optional(),
   weeklyResetDay: zod.number().int().min(0).max(6).optional(),
+  defaultPlanningWeight: zod.number().min(0).max(100).optional(),
+  defaultTenderingWeight: zod.number().min(0).max(100).optional(),
+  defaultExecutionWeight: zod.number().min(0).max(100).optional(),
+  defaultClosureWeight: zod.number().min(0).max(100).optional(),
 });
 
 export const UpdateSpmoConfigResponse = zod.object({
@@ -2322,6 +2330,10 @@ export const UpdateSpmoConfigResponse = zod.object({
   projectDelayedThreshold: zod.number(),
   milestoneAtRiskThreshold: zod.number(),
   weeklyResetDay: zod.number().int().min(0).max(6),
+  defaultPlanningWeight: zod.number().optional(),
+  defaultTenderingWeight: zod.number().optional(),
+  defaultExecutionWeight: zod.number().optional(),
+  defaultClosureWeight: zod.number().optional(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });

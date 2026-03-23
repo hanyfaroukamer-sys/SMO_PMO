@@ -240,6 +240,20 @@ export default function Budget() {
       .map((r: { projectId: number; vendor?: string | null }) => [r.projectId, r.vendor as string])
   );
 
+  const currentYear = new Date().getFullYear();
+  const quarterlyChartData = [1, 2, 3, 4].map((q) => {
+    const entriesQ = (data?.entries ?? []).filter(
+      (e: { fiscalYear?: number | null; fiscalQuarter?: number | null }) =>
+        e.fiscalQuarter === q && (e.fiscalYear == null || e.fiscalYear === currentYear)
+    );
+    return {
+      name: `Q${q}`,
+      Allocated: entriesQ.reduce((s: number, e: { allocated?: number }) => s + (e.allocated ?? 0), 0),
+      Spent: entriesQ.reduce((s: number, e: { spent?: number }) => s + (e.spent ?? 0), 0),
+    };
+  });
+  const hasQuarterlyData = quarterlyChartData.some((d) => d.Allocated > 0 || d.Spent > 0);
+
   return (
     <div className="space-y-6 animate-in fade-in">
       <PageHeader title="Budget Tracking" description="Financial overview of programme allocations and spend.">
@@ -308,6 +322,35 @@ export default function Budget() {
           </div>
         </Card>
       </div>
+
+      {/* Quarterly Phasing Chart */}
+      {hasQuarterlyData && (
+        <Card style={{ height: 340 }}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-bold text-base">Quarterly Budget Phasing</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">FY{currentYear} — Allocated vs Spent per quarter</p>
+            </div>
+            <div className="flex items-center gap-4 text-xs">
+              <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-[hsl(220,14%,90%)]" /> Allocated</span>
+              <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-sm bg-[hsl(221,83%,53%)]" /> Spent</span>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height="82%">
+            <BarChart data={quarterlyChartData} margin={{ top: 4, right: 8, left: 20, bottom: 8 }} barGap={4} barCategoryGap="30%">
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600 }} />
+              <YAxis tickFormatter={(v) => `$${(v / 1_000_000).toFixed(1)}M`} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+              <Tooltip
+                formatter={(val: number, name: string) => [formatCurrency(val), name]}
+                contentStyle={{ borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "12px" }}
+              />
+              <Bar dataKey="Allocated" fill="hsl(220 14% 88%)" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="Spent" fill="hsl(221 83% 53%)" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
 
       {/* Chart */}
       {chartData.length > 0 && (

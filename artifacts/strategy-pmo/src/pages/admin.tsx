@@ -7,7 +7,7 @@ import {
   type SpmaAdminUser,
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
-import { Loader2, ShieldCheck, Settings, Users, RefreshCw } from "lucide-react";
+import { Loader2, ShieldCheck, Settings, Users, RefreshCw, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -91,8 +91,18 @@ export default function Admin() {
 
   const [weeklyResetDay, setWeeklyResetDay] = useState<number | null>(null);
   const [savingUsers, setSavingUsers] = useState<Set<string>>(new Set());
+  const [phaseWeights, setPhaseWeights] = useState<{ planning: number; tendering: number; execution: number; closure: number } | null>(null);
+  const [savingPhase, setSavingPhase] = useState(false);
 
   const effectiveResetDay = weeklyResetDay ?? configData?.weeklyResetDay ?? 3;
+  const pw = phaseWeights ?? {
+    planning: configData?.defaultPlanningWeight ?? 5,
+    tendering: configData?.defaultTenderingWeight ?? 5,
+    execution: configData?.defaultExecutionWeight ?? 85,
+    closure: configData?.defaultClosureWeight ?? 5,
+  };
+  const pwTotal = pw.planning + pw.tendering + pw.execution + pw.closure;
+  const pwValid = Math.abs(pwTotal - 100) < 0.01;
 
   if (!isAdmin) {
     return (
@@ -116,6 +126,31 @@ export default function Admin() {
     }
   }
 
+  async function handleSavePhaseDefaults() {
+    if (!pwValid) {
+      toast({ variant: "destructive", title: "Validation error", description: "All four weights must sum to exactly 100%." });
+      return;
+    }
+    setSavingPhase(true);
+    try {
+      await updateConfig.mutateAsync({
+        data: {
+          defaultPlanningWeight: pw.planning,
+          defaultTenderingWeight: pw.tendering,
+          defaultExecutionWeight: pw.execution,
+          defaultClosureWeight: pw.closure,
+        },
+      });
+      qc.invalidateQueries({ queryKey: ["/api/spmo/programme-config"] });
+      setPhaseWeights(null);
+      toast({ title: "Phase gate defaults saved", description: "New projects will use these weights." });
+    } catch {
+      toast({ variant: "destructive", title: "Save failed", description: "Could not update phase gate defaults." });
+    } finally {
+      setSavingPhase(false);
+    }
+  }
+
   async function handleRoleChange(userId: string, role: UserRole) {
     setSavingUsers((s) => new Set(s).add(userId));
     try {
@@ -133,6 +168,76 @@ export default function Admin() {
   return (
     <div className="space-y-8 animate-in fade-in">
       <PageHeader title="Admin Settings" description="Manage users, roles, and programme configuration." />
+
+      {/* Phase Gate Defaults */}
+      <SectionCard title="Phase Gate Default Weights" icon={Lock}>
+        {configLoading ? (
+          <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              These weights are applied to the 4 mandatory phase gates when a new project is created. Changes affect new projects only — existing projects are not retroactively updated.
+            </p>
+            <div className="border border-border rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-secondary/50">
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground uppercase">Phase Gate</th>
+                    <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground uppercase w-28">Weight (%)</th>
+                    <th className="px-4 py-2 w-16" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {[
+                    { key: "planning" as const, label: "Planning & Requirements", locked: true },
+                    { key: "tendering" as const, label: "Tendering & Procurement", locked: true },
+                    { key: "execution" as const, label: "Execution & Delivery (default)", locked: false },
+                    { key: "closure" as const, label: "Closure & Handover", locked: true },
+                  ].map(({ key, label, locked }) => (
+                    <tr key={key} className="hover:bg-secondary/20">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {locked && <Lock className="w-3 h-3 text-blue-500 shrink-0" />}
+                          <span className={locked ? "font-medium" : "text-muted-foreground"}>{label}</span>
+                          {locked && <span className="text-[10px] text-blue-600 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 font-semibold">PHASE GATE</span>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.5}
+                          value={pw[key]}
+                          onChange={(e) => setPhaseWeights({ ...pw, [key]: Number(e.target.value) })}
+                          className="w-20 text-right text-sm border border-border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 ml-auto block"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground text-right">%</td>
+                    </tr>
+                  ))}
+                  <tr className={`font-bold ${pwValid ? "bg-green-50" : "bg-red-50"}`}>
+                    <td className="px-4 py-2 text-sm">Total</td>
+                    <td className="px-4 py-2 text-right text-sm">{pwTotal.toFixed(1)}</td>
+                    <td className="px-4 py-2 text-xs text-right">{pwValid ? "✓ 100%" : <span className="text-red-600">Must = 100%</span>}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-xs text-muted-foreground">Changes only affect newly created projects.</p>
+              <button
+                onClick={handleSavePhaseDefaults}
+                disabled={savingPhase || !pwValid}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-50 hover:-translate-y-0.5 transition-transform"
+              >
+                {savingPhase ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Save Defaults
+              </button>
+            </div>
+          </div>
+        )}
+      </SectionCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Programme Configuration */}
