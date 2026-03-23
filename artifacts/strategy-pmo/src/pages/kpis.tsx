@@ -123,10 +123,11 @@ function MiniBar({ actual, target }: { actual: number; target: number }) {
 
 // ─── KPI Detail Modal ─────────────────────────────────────────────────────────
 
-function KpiDetailModal({ kpi, pillarName, pillarColor, onClose }: {
+function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, onClose }: {
   kpi: Kpi;
   pillarName?: string;
   pillarColor?: string;
+  isAdmin?: boolean;
   onClose: () => void;
 }) {
   const { toast } = useToast();
@@ -134,10 +135,27 @@ function KpiDetailModal({ kpi, pillarName, pillarColor, onClose }: {
   const { data, isLoading, queryKey } = useListSpmoKpiMeasurements(kpi.id);
   const createMeasurement = useCreateSpmoKpiMeasurement(kpi.id);
   const deleteMeasurement = useDeleteSpmoKpiMeasurement(kpi.id);
+  const updateKpi = useUpdateSpmoKpi();
   const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 10));
   const [newValue, setNewValue] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [adding, setAdding] = useState(false);
+  const [formulaDraft, setFormulaDraft] = useState(kpi.formula ?? "");
+  const [savingFormula, setSavingFormula] = useState(false);
+  const formulaDirty = formulaDraft !== (kpi.formula ?? "");
+
+  const handleSaveFormula = async () => {
+    setSavingFormula(true);
+    try {
+      await updateKpi.mutateAsync({ id: kpi.id, data: { formula: formulaDraft || undefined } });
+      qc.invalidateQueries({ queryKey: ["/api/spmo/kpis"] });
+      toast({ title: "Formula saved" });
+    } catch {
+      toast({ title: "Failed to save formula", variant: "destructive" });
+    } finally {
+      setSavingFormula(false);
+    }
+  };
 
   const measurements: SpmoKpiMeasurement[] = data?.measurements ?? [];
   const sorted = [...measurements].sort((a, b) => a.measuredAt.localeCompare(b.measuredAt));
@@ -268,14 +286,35 @@ function KpiDetailModal({ kpi, pillarName, pillarColor, onClose }: {
             </div>
 
             {/* ── Formula ── */}
-            {kpi.formula && (
-              <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1.5 flex items-center gap-1.5">
+            <div className="rounded-xl border border-border bg-secondary/20 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold flex items-center gap-1.5">
                   <BarChart2 className="w-3 h-3" /> Calculation Formula
                 </div>
-                <p className="text-sm font-mono text-foreground leading-relaxed">{kpi.formula}</p>
+                {isAdmin && formulaDirty && (
+                  <button
+                    onClick={handleSaveFormula}
+                    disabled={savingFormula}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    {savingFormula ? "Saving…" : "Save"}
+                  </button>
+                )}
               </div>
-            )}
+              {isAdmin ? (
+                <textarea
+                  className="w-full bg-transparent text-sm font-mono text-foreground leading-relaxed resize-none border-none outline-none placeholder:text-muted-foreground/50 min-h-[3rem]"
+                  rows={3}
+                  value={formulaDraft}
+                  onChange={(e) => setFormulaDraft(e.target.value)}
+                  placeholder="e.g. (Total digital transactions / All transactions) × 100"
+                />
+              ) : (
+                <p className="text-sm font-mono text-foreground leading-relaxed whitespace-pre-wrap">
+                  {kpi.formula || <span className="text-muted-foreground italic">No formula defined</span>}
+                </p>
+              )}
+            </div>
 
             {/* ── Target Rationale ── */}
             {kpi.targetRationale && (
@@ -740,6 +779,7 @@ export default function KPIs() {
             kpi={detailKpi}
             pillarName={detailPillar?.name}
             pillarColor={detailPillar?.color}
+            isAdmin={isAdmin}
             onClose={() => setDetailKpi(null)}
           />
         );
