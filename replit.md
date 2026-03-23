@@ -146,3 +146,30 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - DB push: `pnpm --filter @workspace/db run push`
 - Codegen: `pnpm --filter @workspace/api-spec run codegen`
 - SPMO seed: `pnpm --filter @workspace/api-server exec tsx ./scripts/seed-spmo.ts`
+
+## Testing
+
+Unit + integration tests live in `artifacts/api-server/src/__tests__/`. Run with:
+
+```
+pnpm --filter @workspace/api-server run test
+```
+
+**Test Coverage (103 tests across 11 files):**
+
+| Suite | Location | Tests |
+|-------|----------|-------|
+| Milestone progress (milestoneEffectiveProgress) | `engines/calc-progress.test.ts` | 6 |
+| Project/initiative/pillar progress (DB) | `engines/calc-progress.test.ts` | 12 |
+| Project status (computeStatus) | `engines/project-status.test.ts` | 14 |
+| Initiative status + child escalation | `engines/initiative-status.test.ts` | 7 |
+| KPI engine — all 4 types + edge cases | `engines/kpi-status.test.ts` | 19 |
+| Dependency cycle detection (DB) | `engines/dependency-cycle.test.ts` | 6 |
+| Dependency resolution (DB) | `engines/dependency-resolve.test.ts` | 9 |
+| Approval workflow (DB lifecycle) | `workflows/approval-flow.test.ts` | 7 |
+| Progress cascade hierarchy (DB) | `workflows/progress-cascade.test.ts` | 8 |
+| Dependency blocking/unblocking (DB) | `workflows/dependency-flow.test.ts` | 5 |
+| CRUD + cascade delete (DB) | `api/crud.test.ts` | 10 |
+| SQL injection / XSS security (DB) | `security/injection.test.ts` | 5 |
+
+**Engine rule fix:** `computeStatus` now checks near-completion (≥95%) before the overdue check, so projects at 95%+ are always on-track even if past their end date.

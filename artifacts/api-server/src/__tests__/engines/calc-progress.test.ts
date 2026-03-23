@@ -162,11 +162,9 @@ describe("projectProgress (DB integration)", () => {
       projectId, name: uid(), progress: 80, effortDays: 0, status: "in_progress",
     }).returning();
 
-    let result: Awaited<ReturnType<typeof projectProgress>> | undefined;
-    await expect(async () => {
-      result = await projectProgress(projectId);
-    }).not.toThrow();
-    expect(result!.progress).toBe(70); // simple avg of 60 and 80
+    // Should not throw — falls back to simple average when all efforts are 0
+    const result = await projectProgress(projectId);
+    expect(result.progress).toBe(70); // simple avg of 60 and 80
 
     await db.delete(spmoMilestonesTable).where(inArray(spmoMilestonesTable.id, [ms1.id, ms2.id]));
   });
