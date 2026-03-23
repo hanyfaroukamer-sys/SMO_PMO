@@ -393,7 +393,11 @@ type Props = {
 
 export default function ProjectDetail({ params }: Props) {
   const [, navigate] = useLocation();
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    const param = new URLSearchParams(window.location.search).get("tab") as TabKey | null;
+    const valid: TabKey[] = ["overview", "milestones", "weekly-report", "risks", "changes", "raci", "actions", "documents"];
+    return param && valid.includes(param) ? param : "overview";
+  });
   const [editingReport, setEditingReport] = useState(false);
   const [reportDraft, setReportDraft] = useState({ keyAchievements: "", nextSteps: "" });
   const projectId = parseInt(params?.id ?? "0");

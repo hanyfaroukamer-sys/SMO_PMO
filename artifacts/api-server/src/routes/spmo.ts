@@ -3202,24 +3202,24 @@ router.get("/spmo/my-tasks", async (req, res) => {
 
   const tasks: object[] = [];
   for (const m of pendingApprovals) {
-    tasks.push({ id: `approve-${m.id}`, type: "approval", priority: "high", title: `Approve: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Submitted · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: null, daysLeft: null, action: "Review evidence and approve or reject", link: `/projects/${m.projectId}` });
+    tasks.push({ id: `approve-${m.id}`, type: "approval", priority: "high", title: `Approve: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Submitted · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: null, daysLeft: null, action: "Review evidence and approve or reject", link: `/projects/${m.projectId}?tab=milestones` });
   }
   for (const m of overdue) {
     const daysOver = Math.ceil((now.getTime() - new Date(m.dueDate!).getTime()) / 86400000);
-    tasks.push({ id: `overdue-${m.id}`, type: "overdue", priority: "critical", title: `OVERDUE: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${daysOver}d overdue · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft: -daysOver, action: "Update progress and evidence immediately", link: `/projects/${m.projectId}` });
+    tasks.push({ id: `overdue-${m.id}`, type: "overdue", priority: "critical", title: `OVERDUE: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${daysOver}d overdue · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft: -daysOver, action: "Update progress and evidence immediately", link: `/projects/${m.projectId}?tab=milestones` });
   }
   for (const m of dueSoon) {
     const daysLeft = Math.ceil((new Date(m.dueDate!).getTime() - now.getTime()) / 86400000);
-    tasks.push({ id: `duesoon-${m.id}`, type: "due_soon", priority: "medium", title: `Due in ${daysLeft}d: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft, action: "Update progress before due date", link: `/projects/${m.projectId}` });
+    tasks.push({ id: `duesoon-${m.id}`, type: "due_soon", priority: "medium", title: `Due in ${daysLeft}d: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft, action: "Update progress before due date", link: `/projects/${m.projectId}?tab=milestones` });
   }
   for (const p of weeklyReportsDue) {
-    tasks.push({ id: `weekly-${p.id}`, type: "weekly_report", priority: "medium", title: `Weekly Report: ${p.name}`, subtitle: `Week of ${weekStart} · Not yet submitted`, entityType: "project", entityId: p.id, projectId: p.id, dueDate: null, daysLeft: null, action: "Submit key achievements and next steps", link: `/projects/${p.id}` });
+    tasks.push({ id: `weekly-${p.id}`, type: "weekly_report", priority: "medium", title: `Weekly Report: ${p.name}`, subtitle: `Week of ${weekStart} · Not yet submitted`, entityType: "project", entityId: p.id, projectId: p.id, dueDate: null, daysLeft: null, action: "Submit key achievements and next steps", link: `/projects/${p.id}?tab=weekly-report` });
   }
   for (const m of needsUpdate) {
-    tasks.push({ id: `update-${m.id}`, type: "progress_update", priority: "low", title: `Update: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft: m.dueDate ? Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000) : null, action: "Update progress percentage", link: `/projects/${m.projectId}` });
+    tasks.push({ id: `update-${m.id}`, type: "progress_update", priority: "low", title: `Update: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft: m.dueDate ? Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000) : null, action: "Update progress percentage", link: `/projects/${m.projectId}?tab=milestones` });
   }
   for (const m of blocked) {
-    tasks.push({ id: `blocked-${m.id}`, type: "blocked", priority: "info", title: `Blocked: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Waiting on dependency`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft: null, action: "No action needed — blocked by upstream dependency", link: `/projects/${m.projectId}` });
+    tasks.push({ id: `blocked-${m.id}`, type: "blocked", priority: "info", title: `Blocked: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Waiting on dependency`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft: null, action: "No action needed — blocked by upstream dependency", link: `/projects/${m.projectId}?tab=milestones` });
   }
 
   const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };

@@ -1,7 +1,7 @@
 import { useGetSpmoMyTasks, type SpmoMyTask, type SpmoMyTaskPriority } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Loader2, AlertTriangle, Clock, CheckCircle2, FileText, RefreshCw, ArrowRight, Lock } from "lucide-react";
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 
 const PRIORITY_CONFIG: Record<SpmoMyTaskPriority, { label: string; bg: string; border: string; text: string; icon: React.ReactNode }> = {
   critical: {
@@ -50,15 +50,33 @@ const TYPE_LABELS: Record<string, string> = {
   blocked: "Blocked",
 };
 
+const ACTION_LABELS: Record<string, string> = {
+  approval: "Review & Approve",
+  overdue: "Update Now",
+  due_soon: "Update Progress",
+  weekly_report: "Submit Report",
+  progress_update: "Update Progress",
+  blocked: "View Details",
+};
+
 function TaskCard({ task }: { task: SpmoMyTask }) {
+  const [, navigate] = useLocation();
   const cfg = PRIORITY_CONFIG[task.priority];
+  const actionLabel = ACTION_LABELS[task.type] ?? "Open";
+
   return (
-    <div className={`rounded-xl border ${cfg.border} ${cfg.bg} p-4 flex items-start gap-3 group transition-all hover:shadow-sm`}>
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${cfg.border} bg-white/80 ${cfg.text}`}>
+    <div
+      onClick={() => navigate(task.link)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigate(task.link); }}
+      className={`rounded-xl border ${cfg.border} ${cfg.bg} p-4 flex items-start gap-3 group transition-all hover:shadow-md cursor-pointer hover:brightness-95 active:scale-[0.99]`}
+    >
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${cfg.border} bg-white/80 ${cfg.text}`}>
         {cfg.icon}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+        <div className="flex items-center gap-2 flex-wrap mb-1">
           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${cfg.border} ${cfg.bg} ${cfg.text}`}>
             {cfg.label}
           </span>
@@ -68,14 +86,11 @@ function TaskCard({ task }: { task: SpmoMyTask }) {
         </div>
         <p className="text-sm font-semibold text-foreground leading-snug">{task.title}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{task.subtitle}</p>
-        <p className="text-xs text-muted-foreground/80 mt-1 italic">{task.action}</p>
+        <p className="text-xs text-muted-foreground/70 mt-1 italic">{task.action}</p>
       </div>
-      <Link
-        href={task.link}
-        className={`shrink-0 flex items-center gap-1 text-xs font-semibold ${cfg.text} hover:underline opacity-0 group-hover:opacity-100 transition-opacity`}
-      >
-        Open <ArrowRight className="w-3 h-3" />
-      </Link>
+      <div className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border ${cfg.border} ${cfg.bg} ${cfg.text} group-hover:opacity-100 transition-all whitespace-nowrap`}>
+        {actionLabel} <ArrowRight className="w-3 h-3" />
+      </div>
     </div>
   );
 }
