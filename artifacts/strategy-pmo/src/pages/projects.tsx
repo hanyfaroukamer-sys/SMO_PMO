@@ -36,7 +36,7 @@ import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elem
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge, ShieldAlert } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge, ShieldAlert, Telescope } from "lucide-react";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -995,7 +995,15 @@ function ProjectRow({
             <div className="text-xs text-muted-foreground">Milestones</div>
             <div className="font-bold text-sm">{project.milestoneCount ?? 0}</div>
           </div>
-          <div onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <Link
+              to={`/projects/${project.id}`}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-primary hover:bg-primary/10 border border-primary/30 transition-colors"
+              title="Open project deep dive"
+            >
+              <Telescope className="w-3.5 h-3.5" />
+              Deep Dive
+            </Link>
             <Link
               to={`/risks?project=${project.id}`}
               className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-amber-600 hover:text-amber-700 hover:bg-amber-50 border border-amber-200 transition-colors"

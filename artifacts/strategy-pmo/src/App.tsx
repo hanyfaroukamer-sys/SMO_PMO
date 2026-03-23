@@ -26,6 +26,7 @@ import Pillars from "@/pages/pillars";
 import Initiatives from "@/pages/initiatives";
 import ImportPage from "@/pages/import";
 import Dependencies from "@/pages/dependencies";
+import ProjectDetail from "@/pages/project-detail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +47,7 @@ function Router() {
           <Route path="/pillars" component={Pillars} />
           <Route path="/initiatives" component={Initiatives} />
           <Route path="/projects" component={Projects} />
+          <Route path="/projects/:id" component={ProjectDetail} />
           <Route path="/progress" component={ProgressProof} />
           <Route path="/kpis" component={KPIs} />
           <Route path="/op-kpis" component={OpKPIs} />
