@@ -45,7 +45,7 @@ import {
   FileArchive, FileSpreadsheet, Upload, AlertCircle, Clock, Target,
   Calendar, DollarSign, User, Building2, Layers, ChevronRight,
   Sparkles, TrendingUp, ShieldAlert, Activity, ClipboardList, Pencil, Save, X, Plus, ExternalLink,
-  GitPullRequest, Grid3X3, ListTodo, FolderOpen, Trash2, ChevronDown,
+  GitPullRequest, Grid3X3, ListTodo, FolderOpen, Trash2, ChevronDown, Lock,
 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -293,13 +293,21 @@ function MilestoneRow({
     setEditing(false);
   };
 
+  const isPhaseGate = !!(milestone as { phaseGate?: string | null }).phaseGate;
+
   return (
-    <div className={`rounded-xl border ${isApproved ? "border-success/30 bg-success/5" : isRejected ? "border-destructive/30 bg-destructive/5" : isSubmitted ? "border-primary/30 bg-primary/5" : "border-border bg-background"} p-4 transition-colors`}>
+    <div className={`rounded-xl border ${isPhaseGate ? "border-blue-300 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800" : isApproved ? "border-success/30 bg-success/5" : isRejected ? "border-destructive/30 bg-destructive/5" : isSubmitted ? "border-primary/30 bg-primary/5" : "border-border bg-background"} p-4 transition-colors`}>
       {/* Header row */}
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className="font-semibold text-sm">{milestone.name}</span>
+            {isPhaseGate && (
+              <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700">
+                <Lock className="w-2.5 h-2.5" />
+                PHASE GATE
+              </span>
+            )}
             <StatusBadge status={milestone.status} />
             <HealthBadge status={milestone.healthStatus} />
           </div>

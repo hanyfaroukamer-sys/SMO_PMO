@@ -183,3 +183,120 @@ export const useDeleteSpmoAction = (options?: UseMutationOptions<unknown, unknow
     mutationFn: (id) => customFetch(`/api/spmo/actions/${id}`, { method: "DELETE" }),
     ...options,
   });
+
+// ─── KPI Measurements ─────────────────────────────────────────────────────────
+
+export type SpmoKpiMeasurement = {
+  id: number;
+  kpiId: number;
+  measuredAt: string;
+  value: number;
+  notes: string | null;
+  recordedById: string | null;
+  recordedByName: string | null;
+  createdAt: string;
+};
+
+export const useListSpmoKpiMeasurements = (kpiId?: number, options?: UseQueryOptions<{ measurements: SpmoKpiMeasurement[] }>) => {
+  const queryKey: QueryKey = ["/api/spmo/kpis/measurements", kpiId];
+  const query = useQuery<{ measurements: SpmoKpiMeasurement[] }>({
+    queryKey,
+    queryFn: ({ signal }) => customFetch(`/api/spmo/kpis/${kpiId}/measurements`, { signal }),
+    enabled: !!kpiId,
+    ...options,
+  });
+  return { ...query, queryKey };
+};
+
+export const useCreateSpmoKpiMeasurement = (kpiId: number, options?: UseMutationOptions<SpmoKpiMeasurement, unknown, { measuredAt: string; value: number; notes?: string }>) =>
+  useMutation<SpmoKpiMeasurement, unknown, { measuredAt: string; value: number; notes?: string }>({
+    mutationFn: (body) => customFetch(`/api/spmo/kpis/${kpiId}/measurements`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    ...options,
+  });
+
+export const useDeleteSpmoKpiMeasurement = (kpiId: number, options?: UseMutationOptions<unknown, unknown, number>) =>
+  useMutation<unknown, unknown, number>({
+    mutationFn: (id) => customFetch(`/api/spmo/kpis/${kpiId}/measurements/${id}`, { method: "DELETE" }),
+    ...options,
+  });
+
+// ─── My Tasks ─────────────────────────────────────────────────────────────────
+
+export type SpmoMyTaskPriority = "critical" | "high" | "medium" | "low" | "info";
+export type SpmoMyTaskType = "approval" | "overdue" | "due_soon" | "weekly_report" | "progress_update" | "blocked";
+
+export type SpmoMyTask = {
+  id: string;
+  type: SpmoMyTaskType;
+  priority: SpmoMyTaskPriority;
+  title: string;
+  subtitle: string;
+  entityType: "milestone" | "project";
+  entityId: number;
+  projectId: number;
+  dueDate: string | null;
+  daysLeft: number | null;
+  action: string;
+  link: string;
+};
+
+export type SpmoMyTasksResult = {
+  userId: string;
+  taskCount: number;
+  criticalCount: number;
+  highCount: number;
+  tasks: SpmoMyTask[];
+};
+
+export type SpmoMyTaskCount = {
+  total: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+};
+
+export const useGetSpmoMyTaskCount = (options?: UseQueryOptions<SpmoMyTaskCount>) => {
+  const queryKey: QueryKey = ["/api/spmo/my-tasks/count"];
+  const query = useQuery<SpmoMyTaskCount>({
+    queryKey,
+    queryFn: ({ signal }) => customFetch("/api/spmo/my-tasks/count", { signal }),
+    refetchInterval: 60_000,
+    ...options,
+  });
+  return { ...query, queryKey };
+};
+
+export const useGetSpmoMyTasks = (options?: UseQueryOptions<SpmoMyTasksResult>) => {
+  const queryKey: QueryKey = ["/api/spmo/my-tasks"];
+  const query = useQuery<SpmoMyTasksResult>({
+    queryKey,
+    queryFn: ({ signal }) => customFetch("/api/spmo/my-tasks", { signal }),
+    ...options,
+  });
+  return { ...query, queryKey };
+};
+
+// ─── Department Status ─────────────────────────────────────────────────────────
+
+export type SpmoDepartmentStatus = {
+  departmentId: number;
+  departmentName: string;
+  departmentColor: string;
+  totalProjects: number;
+  onTrack: number;
+  atRisk: number;
+  delayed: number;
+  completed: number;
+  notStarted: number;
+};
+
+export const useGetSpmoDepartmentStatus = (options?: UseQueryOptions<SpmoDepartmentStatus[]>) => {
+  const queryKey: QueryKey = ["/api/spmo/dashboard/department-status"];
+  const query = useQuery<SpmoDepartmentStatus[]>({
+    queryKey,
+    queryFn: ({ signal }) => customFetch("/api/spmo/dashboard/department-status", { signal }),
+    ...options,
+  });
+  return { ...query, queryKey };
+};

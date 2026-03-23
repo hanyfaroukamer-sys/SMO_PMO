@@ -5,12 +5,14 @@ import {
   useListSpmoBudget,
   useListSpmoProjects,
   useRunSpmoAiAssessment,
+  useGetSpmoDepartmentStatus,
   type SpmoHealthStatus,
   type SpmoStatusResult,
   type SpmoProjectWithProgress,
+  type SpmoDepartmentStatus,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
-import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 
 import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload, FileText, BarChart2 } from "lucide-react";
 import { format } from "date-fns";
@@ -188,12 +190,106 @@ function ProjectStatusPieChart({ projects }: { projects: SpmoProjectWithProgress
   );
 }
 
+// Phase distribution pie chart
+const PHASE_COLOURS: Record<string, string> = {
+  planning:  "#60a5fa",
+  tendering: "#a78bfa",
+  execution: "#34d399",
+  closure:   "#f59e0b",
+  completed: "#16a34a",
+  unknown:   "#d1d5db",
+};
+const PHASE_LABELS: Record<string, string> = {
+  planning:  "Planning",
+  tendering: "Tendering",
+  execution: "Execution",
+  closure:   "Closure",
+  completed: "Completed",
+  unknown:   "Not Started",
+};
+const PHASE_ORDER = ["planning", "tendering", "execution", "closure", "completed", "unknown"];
+
+function ProjectPhasePieChart({ projects }: { projects: SpmoProjectWithProgress[] }) {
+  const counts: Record<string, number> = {};
+  for (const p of projects) {
+    const phase = (p as { currentPhase?: string }).currentPhase ?? "unknown";
+    counts[phase] = (counts[phase] ?? 0) + 1;
+  }
+  const chartData = PHASE_ORDER.filter((ph) => (counts[ph] ?? 0) > 0).map((ph) => ({ name: PHASE_LABELS[ph] ?? ph, value: counts[ph], key: ph }));
+  if (chartData.length === 0) return null;
+  return (
+    <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
+      <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2 mb-4">Project Phase Distribution</h2>
+      <div className="flex flex-col sm:flex-row items-center gap-6">
+        <div className="relative w-44 h-44 shrink-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={chartData} cx="50%" cy="50%" innerRadius={48} outerRadius={76} paddingAngle={2} dataKey="value" strokeWidth={0}>
+                {chartData.map((entry) => (
+                  <Cell key={entry.key} fill={PHASE_COLOURS[entry.key] ?? "#9ca3af"} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(v: number, n: string) => [`${v} project${v !== 1 ? "s" : ""}`, n]} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-2xl font-display font-bold leading-none">{projects.length}</span>
+            <span className="text-[11px] text-muted-foreground mt-0.5">projects</span>
+          </div>
+        </div>
+        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-5 w-full">
+          {PHASE_ORDER.map((ph) => (
+            <div key={ph} className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: PHASE_COLOURS[ph], opacity: (counts[ph] ?? 0) === 0 ? 0.3 : 1 }} />
+              <span className={`text-sm flex-1 ${(counts[ph] ?? 0) === 0 ? "text-muted-foreground/40" : "text-muted-foreground"}`}>{PHASE_LABELS[ph]}</span>
+              <span className={`text-sm font-bold tabular-nums ${(counts[ph] ?? 0) === 0 ? "text-muted-foreground/30" : ""}`}>{counts[ph] ?? 0}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Department health stacked bar chart
+function DepartmentHealthBarChart({ depts }: { depts: SpmoDepartmentStatus[] }) {
+  if (depts.length === 0) return null;
+  const chartData = depts.map((d) => ({
+    name: d.departmentName.length > 14 ? d.departmentName.slice(0, 13) + "…" : d.departmentName,
+    "On Track": d.onTrack,
+    "At Risk": d.atRisk,
+    "Delayed": d.delayed,
+    "Completed": d.completed,
+    "Not Started": d.notStarted,
+  }));
+  return (
+    <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
+      <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2 mb-4">Department Health Overview</h2>
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+          <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} allowDecimals={false} />
+          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }} />
+          <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+          <Bar dataKey="On Track" stackId="a" fill="#86efac" radius={[0, 0, 0, 0]} />
+          <Bar dataKey="At Risk" stackId="a" fill="#f59e0b" />
+          <Bar dataKey="Delayed" stackId="a" fill="#ef4444" />
+          <Bar dataKey="Completed" stackId="a" fill="#16a34a" />
+          <Bar dataKey="Not Started" stackId="a" fill="#d1d5db" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { data, isLoading, error } = useGetSpmoOverview();
   const { data: alertsData } = useListSpmoAlerts();
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: budgetData } = useListSpmoBudget();
   const { data: projectsData } = useListSpmoProjects();
+  const { data: deptStatus } = useGetSpmoDepartmentStatus();
   const isAdmin = useIsAdmin();
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
@@ -369,9 +465,17 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Project Status Pie Chart */}
+      {/* Charts Row — Status + Phase */}
       {projects.length > 0 && (
-        <ProjectStatusPieChart projects={projects} />
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <ProjectStatusPieChart projects={projects} />
+          <ProjectPhasePieChart projects={projects} />
+        </div>
+      )}
+
+      {/* Department Health Bar Chart */}
+      {(deptStatus ?? []).length > 0 && (
+        <DepartmentHealthBarChart depts={deptStatus ?? []} />
       )}
 
       {/* Pillar Groups — Initiatives + Project Status Counts */}

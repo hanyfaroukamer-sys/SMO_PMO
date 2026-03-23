@@ -23,12 +23,14 @@ import {
   Layers,
   Flag,
   FolderOpen,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useGetCurrentAuthUser } from "@workspace/api-client-react";
+import { useGetCurrentAuthUser, useGetSpmoMyTaskCount } from "@workspace/api-client-react";
 
 const navItems = [
   { title: "Dashboard",        href: "/",             icon: LayoutDashboard, adminOnly: false, hidden: false },
+  { title: "My Tasks",         href: "/my-tasks",     icon: ClipboardList,    adminOnly: false, hidden: false, badge: true },
   { title: "Strategy Map",     href: "/strategy-map", icon: Network,          adminOnly: false, hidden: true  },
   { title: "Pillars",          href: "/pillars",      icon: Layers,           adminOnly: true,  hidden: false },
   { title: "Initiatives",      href: "/initiatives",  icon: Flag,             adminOnly: true,  hidden: false },
@@ -68,8 +70,10 @@ function Logo({ collapsed }: { collapsed: boolean }) {
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { data: authData } = useGetCurrentAuthUser();
+  const { data: taskCount } = useGetSpmoMyTaskCount();
   const [collapsed, setCollapsed] = useState(false);
   const user = authData?.user;
+  const myTasksBadge = taskCount?.total ?? 0;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
@@ -91,6 +95,7 @@ export function Layout({ children }: { children: ReactNode }) {
             const isActive =
               location === item.href ||
               (item.href !== "/" && location.startsWith(item.href));
+            const badge = (item as { badge?: boolean }).badge && myTasksBadge > 0 ? myTasksBadge : 0;
             return (
               <Link
                 key={item.href}
@@ -104,15 +109,27 @@ export function Layout({ children }: { children: ReactNode }) {
                 )}
                 title={collapsed ? item.title : undefined}
               >
-                <item.icon
-                  className={cn(
-                    "w-4 h-4 shrink-0 transition-colors",
-                    isActive
-                      ? "text-white"
-                      : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground"
+                <div className="relative shrink-0">
+                  <item.icon
+                    className={cn(
+                      "w-4 h-4 transition-colors",
+                      isActive
+                        ? "text-white"
+                        : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground"
+                    )}
+                  />
+                  {badge > 0 && collapsed && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
                   )}
-                />
-                {!collapsed && <span className="truncate leading-none">{item.title}</span>}
+                </div>
+                {!collapsed && <span className="truncate leading-none flex-1">{item.title}</span>}
+                {!collapsed && badge > 0 && (
+                  <span className="ml-auto min-w-[18px] h-4.5 px-1 rounded-full bg-destructive text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {badge > 99 ? "99+" : badge}
+                  </span>
+                )}
               </Link>
             );
           })}

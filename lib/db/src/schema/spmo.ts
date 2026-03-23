@@ -173,6 +173,9 @@ export const spmoMilestonesTable = pgTable("spmo_milestones", {
   })
     .notNull()
     .default("pending"),
+  phaseGate: text("phase_gate", { enum: ["planning", "tendering", "closure"] }),
+  assigneeId: text("assignee_id"),
+  assigneeName: text("assignee_name"),
   startDate: date("start_date"),
   dueDate: date("due_date"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
@@ -273,6 +276,18 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
   periodEnd: date("period_end"),
   milestoneDue: date("milestone_due"),
   milestoneDone: boolean("milestone_done").notNull().default(false),
+  formula: text("formula"),
+  targetRationale: text("target_rationale"),
+  category: text("category"),
+  measurementFrequency: text("measurement_frequency", { enum: ["annual", "quarterly", "monthly", "weekly"] }),
+  target2026: real("target_2026"),
+  target2027: real("target_2027"),
+  target2028: real("target_2028"),
+  target2029: real("target_2029"),
+  actual2026: real("actual_2026"),
+  actual2027: real("actual_2027"),
+  actual2028: real("actual_2028"),
+  actual2029: real("actual_2029"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -289,6 +304,31 @@ export const insertSpmoKpiSchema = createInsertSchema(spmoKpisTable).omit({
 });
 export type InsertSpmoKpi = z.infer<typeof insertSpmoKpiSchema>;
 export type SpmoKpi = typeof spmoKpisTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// KPI MEASUREMENT HISTORY
+// ─────────────────────────────────────────────
+export const spmoKpiMeasurementsTable = pgTable("spmo_kpi_measurements", {
+  id: serial("id").primaryKey(),
+  kpiId: integer("kpi_id")
+    .notNull()
+    .references(() => spmoKpisTable.id, { onDelete: "cascade" }),
+  measuredAt: date("measured_at").notNull(),
+  value: real("value").notNull(),
+  notes: text("notes"),
+  recordedById: text("recorded_by_id"),
+  recordedByName: text("recorded_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const insertSpmoKpiMeasurementSchema = createInsertSchema(spmoKpiMeasurementsTable).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSpmoKpiMeasurement = z.infer<typeof insertSpmoKpiMeasurementSchema>;
+export type SpmoKpiMeasurement = typeof spmoKpiMeasurementsTable.$inferSelect;
 
 // ─────────────────────────────────────────────
 // RISKS
@@ -446,6 +486,10 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   projectDelayedThreshold: integer("project_delayed_threshold").notNull().default(10),
   milestoneAtRiskThreshold: integer("milestone_at_risk_threshold").notNull().default(5),
   weeklyResetDay: integer("weekly_reset_day").notNull().default(3),
+  defaultPlanningWeight: real("default_planning_weight").notNull().default(5),
+  defaultTenderingWeight: real("default_tendering_weight").notNull().default(5),
+  defaultExecutionWeight: real("default_execution_weight").notNull().default(85),
+  defaultClosureWeight: real("default_closure_weight").notNull().default(5),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

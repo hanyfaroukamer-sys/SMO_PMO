@@ -1,19 +1,25 @@
 import { useState } from "react";
+import type React from "react";
 import {
   useListSpmoKpis,
   useListSpmoPillars,
   useCreateSpmoKpi,
   useUpdateSpmoKpi,
   useDeleteSpmoKpi,
+  useListSpmoKpiMeasurements,
+  useCreateSpmoKpiMeasurement,
+  useDeleteSpmoKpiMeasurement,
   type CreateSpmoKpiRequest,
+  type SpmoKpiMeasurement,
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, TrendingUp, Download } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, TrendingUp, Download, BarChart2, X } from "lucide-react";
 import { exportToXlsx } from "@/lib/export";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import {
   computeKpiStatus,
   ENGINE_STATUS_LABEL,
@@ -88,6 +94,154 @@ function MiniBar({ actual, target }: { actual: number; target: number }) {
   );
 }
 
+// ─── KPI Detail Modal ─────────────────────────────────────────────────────────
+
+function KpiDetailModal({ kpi, onClose }: { kpi: Kpi; onClose: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data, isLoading, queryKey } = useListSpmoKpiMeasurements(kpi.id);
+  const createMeasurement = useCreateSpmoKpiMeasurement(kpi.id);
+  const deleteMeasurement = useDeleteSpmoKpiMeasurement(kpi.id);
+  const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 10));
+  const [newValue, setNewValue] = useState("");
+  const [newNotes, setNewNotes] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const measurements: SpmoKpiMeasurement[] = data?.measurements ?? [];
+  const sorted = [...measurements].sort((a, b) => a.measuredAt.localeCompare(b.measuredAt));
+
+  const chartData = sorted.map((m) => ({
+    date: m.measuredAt.slice(0, 7),
+    value: m.value,
+  }));
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newValue) return;
+    setAdding(true);
+    try {
+      await createMeasurement.mutateAsync({ measuredAt: newDate, value: parseFloat(newValue), notes: newNotes || undefined });
+      qc.invalidateQueries({ queryKey });
+      qc.invalidateQueries({ queryKey: ["/api/spmo/kpis"] });
+      toast({ title: "Measurement recorded" });
+      setNewValue("");
+      setNewNotes("");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this measurement?")) return;
+    await deleteMeasurement.mutateAsync(id);
+    qc.invalidateQueries({ queryKey });
+    qc.invalidateQueries({ queryKey: ["/api/spmo/kpis"] });
+    toast({ title: "Measurement deleted" });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 p-6 border-b border-border">
+          <div>
+            <h2 className="text-lg font-display font-bold text-foreground">{kpi.name}</h2>
+            {kpi.description && <p className="text-xs text-muted-foreground mt-0.5">{kpi.description}</p>}
+            <div className="flex items-center gap-3 mt-2">
+              <span className="text-xs bg-secondary rounded px-1.5 py-0.5 capitalize">{kpi.kpiType ?? "rate"}</span>
+              <span className="text-xs text-muted-foreground">Unit: <strong>{kpi.unit}</strong></span>
+              <span className="text-xs text-muted-foreground">Target: <strong>{kpi.target} {kpi.unit}</strong></span>
+              <span className="text-xs text-muted-foreground">Actual: <strong>{kpi.actual} {kpi.unit}</strong></span>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground transition-colors shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-6 space-y-6">
+          {/* Sparkline */}
+          {chartData.length >= 2 && (
+            <div>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Trend</h3>
+              <ResponsiveContainer width="100%" height={120}>
+                <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }} />
+                  <ReferenceLine y={kpi.target} stroke="var(--primary)" strokeDasharray="4 2" label={{ value: "Target", fontSize: 10, fill: "var(--primary)" }} />
+                  <Line type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={2} dot={{ r: 3, fill: "#2563eb" }} activeDot={{ r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Add measurement form */}
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Record New Measurement</h3>
+            <form onSubmit={handleAdd} className="flex items-end gap-2 flex-wrap">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-muted-foreground">Date</label>
+                <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className={`${inputClass} w-36`} required />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-muted-foreground">Value ({kpi.unit})</label>
+                <input type="number" value={newValue} onChange={(e) => setNewValue(e.target.value)} className={`${inputClass} w-28`} placeholder="0" step="any" required />
+              </div>
+              <div className="flex flex-col gap-1 flex-1">
+                <label className="text-[10px] text-muted-foreground">Notes (optional)</label>
+                <input value={newNotes} onChange={(e) => setNewNotes(e.target.value)} className={`${inputClass}`} placeholder="e.g. Q1 measurement" />
+              </div>
+              <button type="submit" disabled={adding || !newValue} className="px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-50 hover:bg-primary/90 transition-colors shrink-0">
+                {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add"}
+              </button>
+            </form>
+          </div>
+
+          {/* Measurement history */}
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Measurement History ({measurements.length})</h3>
+            {isLoading && <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}
+            {!isLoading && measurements.length === 0 && (
+              <p className="text-sm text-muted-foreground italic">No measurements recorded yet.</p>
+            )}
+            {measurements.length > 0 && (
+              <div className="rounded-xl border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary/40 border-b border-border text-xs text-muted-foreground uppercase">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-semibold">Date</th>
+                      <th className="px-4 py-2 text-right font-semibold">Value</th>
+                      <th className="px-4 py-2 text-left font-semibold">Notes</th>
+                      <th className="px-4 py-2 text-left font-semibold">Recorded By</th>
+                      <th className="px-2 py-2 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {[...measurements].sort((a, b) => b.measuredAt.localeCompare(a.measuredAt)).map((m) => (
+                      <tr key={m.id} className="hover:bg-secondary/20 transition-colors">
+                        <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{m.measuredAt.slice(0, 10)}</td>
+                        <td className="px-4 py-2.5 font-mono font-bold text-right whitespace-nowrap">{m.value.toLocaleString()} {kpi.unit}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground text-xs">{m.notes ?? "—"}</td>
+                        <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{m.recordedByName ?? "—"}</td>
+                        <td className="px-2 py-2.5">
+                          <button onClick={() => handleDelete(m.id)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function KPIs() {
   const isAdmin = useIsAdmin();
   const { data, isLoading } = useListSpmoKpis({ type: "strategic" });
@@ -95,6 +249,7 @@ export default function KPIs() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<KpiForm>(emptyForm());
+  const [detailKpi, setDetailKpi] = useState<Kpi | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -329,14 +484,19 @@ export default function KPIs() {
                             <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.nextYearTarget, kpi.unit)}</td>
                             <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.target2030, kpi.unit)}</td>
                             <td className="px-4 py-4">
-                              {isAdmin && (
-                                <div className="flex items-center gap-1">
-                                  <button onClick={() => openEdit(kpi)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-border bg-secondary hover:bg-secondary/70 text-foreground transition-colors" title="Edit KPI">
-                                    <Pencil className="w-3 h-3" /> Edit
-                                  </button>
-                                  <button onClick={() => handleDelete(kpi.id, kpi.name)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
-                                </div>
-                              )}
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => setDetailKpi(kpi)} className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors" title="View detail & measurements">
+                                  <BarChart2 className="w-3.5 h-3.5" />
+                                </button>
+                                {isAdmin && (
+                                  <>
+                                    <button onClick={() => openEdit(kpi)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-border bg-secondary hover:bg-secondary/70 text-foreground transition-colors" title="Edit KPI">
+                                      <Pencil className="w-3 h-3" /> Edit
+                                    </button>
+                                    <button onClick={() => handleDelete(kpi.id, kpi.name)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                                  </>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -349,6 +509,8 @@ export default function KPIs() {
           })}
         </div>
       )}
+
+      {detailKpi && <KpiDetailModal kpi={detailKpi} onClose={() => setDetailKpi(null)} />}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? "Edit Strategic KPI" : "New Strategic KPI"}>
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, desc, and, asc, inArray, sql, ne } from "drizzle-orm";
+import { eq, desc, and, asc, inArray, sql, ne, isNotNull } from "drizzle-orm";
 import { getCachedAssessment, setCachedAssessment, ASSESSMENT_CACHE_TTL_MS } from "../lib/assessment-cache";
 import { db } from "@workspace/db";
 import { recalculateDownstreamStatuses } from "../lib/dep-engine";
@@ -23,6 +23,7 @@ import {
   spmoRaciTable,
   spmoDocumentsTable,
   spmoActionsTable,
+  spmoKpiMeasurementsTable,
   type InsertSpmoInitiative,
   type InsertSpmoProject,
   type InsertSpmoMilestone,
@@ -177,6 +178,58 @@ function dateToStr(d: Date | undefined | null): string | undefined | null {
   if (d instanceof Date) return d.toISOString().split("T")[0];
   return d as undefined | null;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Phase Gate Helpers
+// ─────────────────────────────────────────────────────────────
+
+type ProjectPhase = "not_started" | "planning" | "tendering" | "execution" | "closure" | "completed";
+
+function detectProjectPhase(milestones: Array<{ phaseGate: string | null; status: string; progress: number }>): ProjectPhase {
+  const planning = milestones.find((m) => m.phaseGate === "planning");
+  const tendering = milestones.find((m) => m.phaseGate === "tendering");
+  const closure = milestones.find((m) => m.phaseGate === "closure");
+  const executionMs = milestones.filter((m) => m.phaseGate === null);
+
+  if (!planning || planning.progress === 0) return "not_started";
+  if (planning.status !== "approved") return "planning";
+  if (tendering && tendering.status !== "approved") return "tendering";
+  if (closure && closure.status === "approved") return "completed";
+  const allExecApproved = executionMs.length > 0 && executionMs.every((m) => m.status === "approved");
+  if (allExecApproved) return "closure";
+  return "execution";
+}
+
+async function runPhaseGateMigration(): Promise<void> {
+  try {
+    const allProjects = await db.select().from(spmoProjectsTable);
+    for (const project of allProjects) {
+      const existingGates = await db.select({ id: spmoMilestonesTable.id })
+        .from(spmoMilestonesTable)
+        .where(and(eq(spmoMilestonesTable.projectId, project.id), isNotNull(spmoMilestonesTable.phaseGate)));
+      if (existingGates.length > 0) continue;
+
+      const existingMs = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, project.id));
+      const totalWeight = existingMs.reduce((s, m) => s + (m.weight ?? 0), 0);
+      if (totalWeight > 0) {
+        for (const m of existingMs) {
+          const newWeight = Math.round(((m.weight ?? 0) / totalWeight) * 85 * 10) / 10;
+          await db.update(spmoMilestonesTable).set({ weight: newWeight }).where(eq(spmoMilestonesTable.id, m.id));
+        }
+      }
+      await db.insert(spmoMilestonesTable).values([
+        { projectId: project.id, name: "Planning & Requirements", description: "Define scope, requirements, stakeholders, project plan.", weight: 5, effortDays: 0, progress: 100, status: "approved", depStatus: "ready", phaseGate: "planning" },
+        { projectId: project.id, name: "Tendering & Procurement", description: "Tender preparation, evaluation, contract award.", weight: 5, effortDays: 0, progress: project.status === "active" ? 100 : 0, status: project.status === "active" ? "approved" : "pending", depStatus: "ready", phaseGate: "tendering" },
+        { projectId: project.id, name: "Closure & Handover", description: "Final acceptance, documentation, knowledge transfer.", weight: 5, effortDays: 0, progress: 0, status: "pending", depStatus: "ready", phaseGate: "closure" },
+      ]);
+    }
+    console.log("[phase-gate-migration] Complete.");
+  } catch (err) {
+    console.error("[phase-gate-migration] Error:", err);
+  }
+}
+
+runPhaseGateMigration();
 
 // ─────────────────────────────────────────────────────────────
 // Programme Overview
@@ -652,7 +705,9 @@ router.get("/spmo/projects", async (req, res): Promise<void> => {
         p.budgetSpent,
         stats.rawProgress,
       );
-      return { ...p, ...stats, computedStatus, healthStatus: computedStatus.status };
+      const pMilestones = await db.select({ phaseGate: spmoMilestonesTable.phaseGate, status: spmoMilestonesTable.status, progress: spmoMilestonesTable.progress }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
+      const currentPhase = detectProjectPhase(pMilestones);
+      return { ...p, ...stats, computedStatus, healthStatus: computedStatus.status, currentPhase };
     })
   );
 
@@ -704,6 +759,14 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
     .insert(spmoProjectsTable)
     .values(insertProject)
     .returning();
+
+  const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
+  await db.insert(spmoMilestonesTable).values([
+    { projectId: project.id, name: "Planning & Requirements", description: "Define scope, requirements, stakeholders, project plan. Obtain charter approval.", weight: cfg?.defaultPlanningWeight ?? 5, effortDays: 30, progress: 0, status: "pending", depStatus: "ready", phaseGate: "planning" },
+    { projectId: project.id, name: "Tendering & Procurement", description: "Prepare RFP/RFQ, publish tender, evaluate proposals, award contract.", weight: cfg?.defaultTenderingWeight ?? 5, effortDays: 45, progress: 0, status: "pending", depStatus: "ready", phaseGate: "tendering" },
+    { projectId: project.id, name: "Execution & Delivery", description: "Implementation, development, testing, UAT, and go-live. Split into detailed milestones.", weight: cfg?.defaultExecutionWeight ?? 85, effortDays: 120, progress: 0, status: "pending", depStatus: "ready", phaseGate: null },
+    { projectId: project.id, name: "Closure & Handover", description: "Final acceptance, documentation, knowledge transfer, warranty activation, lessons learned.", weight: cfg?.defaultClosureWeight ?? 5, effortDays: 20, progress: 0, status: "pending", depStatus: "ready", phaseGate: "closure" },
+  ]);
 
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "project", project.id, project.name);
   res.status(201).json(project);
@@ -855,8 +918,16 @@ router.get("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
     .where(eq(spmoMilestonesTable.projectId, params.data.id))
     .orderBy(asc(spmoMilestonesTable.createdAt));
 
+  const PHASE_ORDER: Record<string, number> = { planning: 0, tendering: 1, closure: 3 };
+  const sorted = [...milestones].sort((a, b) => {
+    const aOrder = a.phaseGate ? PHASE_ORDER[a.phaseGate] : 2;
+    const bOrder = b.phaseGate ? PHASE_ORDER[b.phaseGate] : 2;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
+
   const withEvidence = await Promise.all(
-    milestones.map(async (m) => {
+    sorted.map(async (m) => {
       const evidence = await db.select().from(spmoEvidenceTable).where(eq(spmoEvidenceTable.milestoneId, m.id));
       const healthStatus = computeMilestoneHealth(m.status, m.dueDate);
       return { ...m, evidence, healthStatus };
@@ -1000,6 +1071,12 @@ router.delete("/spmo/milestones/:id", async (req, res): Promise<void> => {
   const params = DeleteSpmoMilestoneParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [existing] = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
+  if (existing?.phaseGate) {
+    res.status(403).json({ error: `Cannot delete mandatory phase gate "${existing.name}". Phase gates (Planning, Tendering, Closure) are required for programme reporting.` });
     return;
   }
 
@@ -2980,6 +3057,189 @@ router.put("/spmo/admin/users/:userId/role", async (req, res) => {
   if (!updated) { res.status(404).json({ error: "User not found" }); return; }
 
   res.json({ id: updated.id, email: updated.email, firstName: updated.firstName, lastName: updated.lastName, role: updated.role });
+});
+
+// ─────────────────────────────────────────────────────────────
+// KPI MEASUREMENTS
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/kpis/:id/measurements", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const kpiId = Number(req.params.id);
+  if (!kpiId) { res.status(400).json({ error: "Invalid kpi id" }); return; }
+  const rows = await db.select().from(spmoKpiMeasurementsTable).where(eq(spmoKpiMeasurementsTable.kpiId, kpiId)).orderBy(desc(spmoKpiMeasurementsTable.measuredAt));
+  res.json({ measurements: rows });
+});
+
+router.post("/spmo/kpis/:id/measurements", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const kpiId = Number(req.params.id);
+  if (!kpiId) { res.status(400).json({ error: "Invalid kpi id" }); return; }
+  const user = getAuthUser(req);
+  const body = z.object({
+    measuredAt: z.string(),
+    value: z.number(),
+    notes: z.string().optional(),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  const [row] = await db.insert(spmoKpiMeasurementsTable).values({
+    kpiId,
+    measuredAt: body.data.measuredAt,
+    value: body.data.value,
+    notes: body.data.notes,
+    recordedById: userId,
+    recordedByName: getUserDisplayName(user) ?? undefined,
+  }).returning();
+  await db.update(spmoKpisTable).set({ prevActual: spmoKpisTable.actual, prevActualDt: new Date().toISOString().split("T")[0], actual: body.data.value, updatedAt: new Date() }).where(eq(spmoKpisTable.id, kpiId));
+  res.status(201).json(row);
+});
+
+router.delete("/spmo/kpis/:kpiId/measurements/:id", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const id = Number(req.params.id);
+  if (!id) { res.status(400).json({ error: "Invalid measurement id" }); return; }
+  const [row] = await db.delete(spmoKpiMeasurementsTable).where(eq(spmoKpiMeasurementsTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────
+// MY TASKS
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/my-tasks/count", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+
+  const myProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.ownerId, userId));
+  const myProjectIds = myProjects.map((p) => p.id);
+
+  let pendingApprovals = 0;
+  if (myProjectIds.length > 0) {
+    const rows = await db.select({ id: spmoMilestonesTable.id }).from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), eq(spmoMilestonesTable.status, "submitted")));
+    pendingApprovals = rows.length;
+  }
+
+  const myMilestones = await db.select().from(spmoMilestonesTable).where(and(eq(spmoMilestonesTable.assigneeId, userId), ne(spmoMilestonesTable.status, "approved")));
+  const overdueCount = myMilestones.filter((m) => m.dueDate && m.dueDate < today).length;
+  const dueSoonCount = myMilestones.filter((m) => {
+    if (!m.dueDate || m.dueDate < today) return false;
+    const daysLeft = Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000);
+    return daysLeft >= 0 && daysLeft <= 7;
+  }).length;
+
+  const [cfg] = await db.select({ weeklyResetDay: spmoProgrammeConfigTable.weeklyResetDay }).from(spmoProgrammeConfigTable).limit(1);
+  const resetDay = cfg?.weeklyResetDay ?? 3;
+  const weekStart = getCurrentWeekStart(resetDay);
+  let weeklyDue = 0;
+  if (myProjectIds.length > 0) {
+    const existing = await db.select({ projectId: spmoProjectWeeklyReportsTable.projectId }).from(spmoProjectWeeklyReportsTable).where(and(inArray(spmoProjectWeeklyReportsTable.projectId, myProjectIds), eq(spmoProjectWeeklyReportsTable.weekStart, weekStart)));
+    weeklyDue = myProjectIds.length - existing.length;
+  }
+
+  const total = pendingApprovals + overdueCount + dueSoonCount + weeklyDue;
+  const critical = overdueCount;
+  const high = pendingApprovals;
+  res.json({ total, critical, high, medium: dueSoonCount + weeklyDue, low: 0 });
+});
+
+router.get("/spmo/my-tasks", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+
+  const myProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(eq(spmoProjectsTable.ownerId, userId));
+  const myProjectIds = myProjects.map((p) => p.id);
+  const projectNameMap = new Map(myProjects.map((p) => [p.id, p.name]));
+
+  let pendingApprovals: typeof spmoMilestonesTable.$inferSelect[] = [];
+  if (myProjectIds.length > 0) {
+    pendingApprovals = await db.select().from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), eq(spmoMilestonesTable.status, "submitted")));
+  }
+
+  const myMilestones = await db.select().from(spmoMilestonesTable).where(and(eq(spmoMilestonesTable.assigneeId, userId), ne(spmoMilestonesTable.status, "approved")));
+  const overdue = myMilestones.filter((m) => m.dueDate && m.dueDate < today && m.status !== "approved");
+  const dueSoon = myMilestones.filter((m) => {
+    if (!m.dueDate || m.status === "approved" || overdue.some((o) => o.id === m.id)) return false;
+    const daysLeft = Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000);
+    return daysLeft >= 0 && daysLeft <= 7;
+  });
+  const needsUpdate = myMilestones.filter((m) => m.progress < 100 && !overdue.some((o) => o.id === m.id) && !dueSoon.some((d) => d.id === m.id) && m.depStatus !== "blocked");
+  const blocked = myMilestones.filter((m) => m.depStatus === "blocked");
+
+  const [cfg] = await db.select({ weeklyResetDay: spmoProgrammeConfigTable.weeklyResetDay }).from(spmoProgrammeConfigTable).limit(1);
+  const resetDay = cfg?.weeklyResetDay ?? 3;
+  const weekStart = getCurrentWeekStart(resetDay);
+  let weeklyReportsDue: { id: number; name: string }[] = [];
+  if (myProjectIds.length > 0) {
+    const existing = await db.select({ projectId: spmoProjectWeeklyReportsTable.projectId }).from(spmoProjectWeeklyReportsTable).where(and(inArray(spmoProjectWeeklyReportsTable.projectId, myProjectIds), eq(spmoProjectWeeklyReportsTable.weekStart, weekStart)));
+    const reported = new Set(existing.map((r) => r.projectId));
+    weeklyReportsDue = myProjects.filter((p) => !reported.has(p.id));
+  }
+
+  const tasks: object[] = [];
+  for (const m of pendingApprovals) {
+    tasks.push({ id: `approve-${m.id}`, type: "approval", priority: "high", title: `Approve: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Submitted · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: null, daysLeft: null, action: "Review evidence and approve or reject", link: `/projects/${m.projectId}` });
+  }
+  for (const m of overdue) {
+    const daysOver = Math.ceil((now.getTime() - new Date(m.dueDate!).getTime()) / 86400000);
+    tasks.push({ id: `overdue-${m.id}`, type: "overdue", priority: "critical", title: `OVERDUE: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${daysOver}d overdue · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft: -daysOver, action: "Update progress and evidence immediately", link: `/projects/${m.projectId}` });
+  }
+  for (const m of dueSoon) {
+    const daysLeft = Math.ceil((new Date(m.dueDate!).getTime() - now.getTime()) / 86400000);
+    tasks.push({ id: `duesoon-${m.id}`, type: "due_soon", priority: "medium", title: `Due in ${daysLeft}d: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft, action: "Update progress before due date", link: `/projects/${m.projectId}` });
+  }
+  for (const p of weeklyReportsDue) {
+    tasks.push({ id: `weekly-${p.id}`, type: "weekly_report", priority: "medium", title: `Weekly Report: ${p.name}`, subtitle: `Week of ${weekStart} · Not yet submitted`, entityType: "project", entityId: p.id, projectId: p.id, dueDate: null, daysLeft: null, action: "Submit key achievements and next steps", link: `/projects/${p.id}` });
+  }
+  for (const m of needsUpdate) {
+    tasks.push({ id: `update-${m.id}`, type: "progress_update", priority: "low", title: `Update: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft: m.dueDate ? Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000) : null, action: "Update progress percentage", link: `/projects/${m.projectId}` });
+  }
+  for (const m of blocked) {
+    tasks.push({ id: `blocked-${m.id}`, type: "blocked", priority: "info", title: `Blocked: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Waiting on dependency`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft: null, action: "No action needed — blocked by upstream dependency", link: `/projects/${m.projectId}` });
+  }
+
+  const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  tasks.sort((a: Record<string, unknown>, b: Record<string, unknown>) => (priorityOrder[a.priority as string] ?? 5) - (priorityOrder[b.priority as string] ?? 5));
+
+  res.json({ userId, taskCount: tasks.length, criticalCount: tasks.filter((t: Record<string, unknown>) => t.priority === "critical").length, highCount: tasks.filter((t: Record<string, unknown>) => t.priority === "high").length, tasks });
+});
+
+// ─────────────────────────────────────────────────────────────
+// DASHBOARD - DEPARTMENT STATUS
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/dashboard/department-status", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const departments = await db.select().from(spmoDepartmentsTable);
+  const projects = await db.select().from(spmoProjectsTable);
+
+  const result = await Promise.all(departments.map(async (dept) => {
+    const deptProjects = projects.filter((p) => p.departmentId === dept.id);
+    const stats = { departmentId: dept.id, departmentName: dept.name, departmentColor: dept.color ?? "#2563EB", totalProjects: deptProjects.length, onTrack: 0, atRisk: 0, delayed: 0, completed: 0, notStarted: 0 };
+    for (const p of deptProjects) {
+      const milestones = await db.select({ phaseGate: spmoMilestonesTable.phaseGate, status: spmoMilestonesTable.status, progress: spmoMilestonesTable.progress }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
+      const pStats = await projectProgress(p.id);
+      const health = computeStatus(pStats.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, pStats.rawProgress);
+      const hs = health.status;
+      if (hs === "on_track") stats.onTrack++;
+      else if (hs === "at_risk") stats.atRisk++;
+      else if (hs === "delayed") stats.delayed++;
+      else if (hs === "completed") stats.completed++;
+      else stats.notStarted++;
+    }
+    return stats;
+  }));
+
+  res.json(result.filter((d) => d.totalProjects > 0));
 });
 
 export default router;

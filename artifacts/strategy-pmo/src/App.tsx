@@ -28,6 +28,7 @@ import ImportPage from "@/pages/import";
 import Dependencies from "@/pages/dependencies";
 import ProjectDetail from "@/pages/project-detail";
 import Documents from "@/pages/documents";
+import MyTasks from "@/pages/my-tasks";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +64,7 @@ function Router() {
           <Route path="/activity" component={ActivityLog} />
           <Route path="/import" component={ImportPage} />
           <Route path="/documents" component={Documents} />
+          <Route path="/my-tasks" component={MyTasks} />
           <Route path="/admin" component={Admin} />
           <Route component={NotFound} />
         </Switch>
