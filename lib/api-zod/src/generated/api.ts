@@ -1796,6 +1796,18 @@ export const CreateSpmoKpiBody = zod.object({
   periodEnd: zod.string().optional(),
   milestoneDue: zod.string().optional(),
   milestoneDone: zod.boolean().optional(),
+  formula: zod.string().optional(),
+  targetRationale: zod.string().optional(),
+  category: zod.string().optional(),
+  measurementFrequency: zod.enum(["annual", "quarterly", "monthly", "weekly"]).optional(),
+  target2026: zod.number().optional(),
+  target2027: zod.number().optional(),
+  target2028: zod.number().optional(),
+  target2029: zod.number().optional(),
+  actual2026: zod.number().optional(),
+  actual2027: zod.number().optional(),
+  actual2028: zod.number().optional(),
+  actual2029: zod.number().optional(),
 });
 
 /**
@@ -1828,6 +1840,18 @@ export const UpdateSpmoKpiBody = zod.object({
   periodEnd: zod.string().optional(),
   milestoneDue: zod.string().optional(),
   milestoneDone: zod.boolean().optional(),
+  formula: zod.string().optional(),
+  targetRationale: zod.string().optional(),
+  category: zod.string().optional(),
+  measurementFrequency: zod.enum(["annual", "quarterly", "monthly", "weekly"]).optional(),
+  target2026: zod.number().optional(),
+  target2027: zod.number().optional(),
+  target2028: zod.number().optional(),
+  target2029: zod.number().optional(),
+  actual2026: zod.number().optional(),
+  actual2027: zod.number().optional(),
+  actual2028: zod.number().optional(),
+  actual2029: zod.number().optional(),
 });
 
 export const UpdateSpmoKpiResponse = zod.object({

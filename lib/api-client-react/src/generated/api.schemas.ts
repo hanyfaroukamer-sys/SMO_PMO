@@ -612,6 +612,30 @@ export interface SpmoKpi {
   /** @nullable */
   milestoneDue?: string | null;
   milestoneDone: boolean;
+  /** @nullable */
+  formula?: string | null;
+  /** @nullable */
+  targetRationale?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  measurementFrequency?: string | null;
+  /** @nullable */
+  target2026?: number | null;
+  /** @nullable */
+  target2027?: number | null;
+  /** @nullable */
+  target2028?: number | null;
+  /** @nullable */
+  target2029?: number | null;
+  /** @nullable */
+  actual2026?: number | null;
+  /** @nullable */
+  actual2027?: number | null;
+  /** @nullable */
+  actual2028?: number | null;
+  /** @nullable */
+  actual2029?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1239,6 +1263,18 @@ export interface CreateSpmoKpiRequest {
   periodEnd?: string;
   milestoneDue?: string;
   milestoneDone?: boolean;
+  formula?: string;
+  targetRationale?: string;
+  category?: string;
+  measurementFrequency?: string;
+  target2026?: number;
+  target2027?: number;
+  target2028?: number;
+  target2029?: number;
+  actual2026?: number;
+  actual2027?: number;
+  actual2028?: number;
+  actual2029?: number;
 }
 
 export type UpdateSpmoKpiRequestStatus =
@@ -1273,6 +1309,18 @@ export interface UpdateSpmoKpiRequest {
   periodEnd?: string;
   milestoneDue?: string;
   milestoneDone?: boolean;
+  formula?: string;
+  targetRationale?: string;
+  category?: string;
+  measurementFrequency?: string;
+  target2026?: number;
+  target2027?: number;
+  target2028?: number;
+  target2029?: number;
+  actual2026?: number;
+  actual2027?: number;
+  actual2028?: number;
+  actual2029?: number;
 }
 
 export type CreateSpmoRiskRequestProbability =
