@@ -37,7 +37,8 @@ function requireAuth(req: any, res: any): string | null {
 
 function xe(val: unknown): string {
   if (val === null || val === undefined) return "";
-  return String(val)
+  const s = val instanceof Date ? val.toISOString() : String(val);
+  return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -186,13 +187,18 @@ function getRows(parsed: Record<string, unknown>, sectionTag: string, rowTag: st
   return [rows as Record<string, unknown>];
 }
 
+function camelToSnake(str: string): string {
+  return str.replace(/([A-Z])/g, "_$1").toLowerCase();
+}
+
 function buildInsertSql(table: string, rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return "";
-  const cols = Object.keys(rows[0]);
-  const colList = cols.map(c => `"${c}"`).join(", ");
+  const camelKeys = Object.keys(rows[0]);
+  const snakeCols = camelKeys.map(camelToSnake);
+  const colList = snakeCols.map(c => `"${c}"`).join(", ");
   const valuesList = rows.map(row => {
-    const vals = cols.map(c => {
-      const v = row[c];
+    const vals = camelKeys.map(k => {
+      const v = row[k];
       if (v === null || v === undefined) return "NULL";
       if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
       if (typeof v === "number") return String(v);
