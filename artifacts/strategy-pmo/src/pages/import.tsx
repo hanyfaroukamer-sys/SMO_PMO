@@ -484,17 +484,41 @@ function ReviewStep({
 function BackupRestorePanel({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const { toast } = useToast();
   const [restoring, setRestoring] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
-  const exportHref = `/api/spmo/data/export`;
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await fetch("/api/spmo/data/export", { credentials: "include" });
+      if (!res.ok) throw new Error("Export failed — are you logged in?");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `spmo-backup-${new Date().toISOString().slice(0, 10)}.xml`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Export failed", description: err instanceof Error ? err.message : "Unknown error" });
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function handleXmlFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = "";
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".xml") && file.type !== "text/xml" && file.type !== "application/xml") {
+      toast({ variant: "destructive", title: "Invalid file", description: "Please select an XML backup file (.xml) exported from this app." });
+      return;
+    }
     setPendingFile(file);
     setShowConfirm(true);
-    e.target.value = "";
   }
 
   async function handleRestoreConfirm() {
@@ -535,14 +559,13 @@ function BackupRestorePanel({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
             <p className="font-medium text-sm">Export Data</p>
             <p className="text-xs text-muted-foreground mt-0.5">Download all programme data as an XML file you can re-import later.</p>
           </div>
-          <a
-            href={exportHref}
-            download
-            className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors no-underline"
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <Download className="w-4 h-4" />
-            Download XML Backup
-          </a>
+            {exporting ? <><Loader2 className="w-4 h-4 animate-spin" />Preparing…</> : <><Download className="w-4 h-4" />Download XML Backup</>}
+          </button>
         </div>
 
         {/* Restore */}
@@ -563,7 +586,6 @@ function BackupRestorePanel({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
             }
             <input
               type="file"
-              accept=".xml,text/xml,application/xml"
               className="sr-only"
               disabled={restoring}
               onChange={handleXmlFileChange}
