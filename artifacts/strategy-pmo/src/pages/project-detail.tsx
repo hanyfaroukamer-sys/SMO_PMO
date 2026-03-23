@@ -4,6 +4,7 @@ import {
   useGetSpmoProject,
   useGetSpmaProjectWeeklyReport,
   useGetSpmaProjectWeeklyReportHistory,
+  useUpsertSpmaProjectWeeklyReport,
   useListSpmoRisks,
   useListSpmoPillars,
   useListSpmoInitiatives,
@@ -25,7 +26,7 @@ import {
   Loader2, ArrowLeft, CheckCircle2, XCircle, FileText, FileImage,
   FileArchive, FileSpreadsheet, Upload, AlertCircle, Clock, Target,
   Calendar, DollarSign, User, Building2, Layers, ChevronRight,
-  Sparkles, TrendingUp, ShieldAlert, Activity, ClipboardList,
+  Sparkles, TrendingUp, ShieldAlert, Activity, ClipboardList, Pencil, Save, X,
 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -366,24 +367,60 @@ type Props = {
 export default function ProjectDetail({ params }: Props) {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [editingReport, setEditingReport] = useState(false);
+  const [reportDraft, setReportDraft] = useState({ keyAchievements: "", nextSteps: "" });
   const projectId = parseInt(params?.id ?? "0");
 
   const { data: authData } = useGetCurrentAuthUser();
   const userRole = authData?.user?.role;
   const canApprove = userRole === "admin" || userRole === "approver";
+  const canEditReport = userRole === "admin" || userRole === "project-manager";
 
   const { data: project, isLoading } = useGetSpmoProject(projectId);
   const { data: pillarsData } = useListSpmoPillars();
   const { data: initiativesData } = useListSpmoInitiatives();
-  const { data: weeklyReport } = useGetSpmaProjectWeeklyReport(projectId);
-  const { data: reportHistory } = useGetSpmaProjectWeeklyReportHistory(projectId);
+  const { data: weeklyReport, queryKey: weeklyReportKey } = useGetSpmaProjectWeeklyReport(projectId);
+  const { data: reportHistory, queryKey: reportHistoryKey } = useGetSpmaProjectWeeklyReportHistory(projectId);
   const { data: risksData } = useListSpmoRisks();
+  const upsertReport = useUpsertSpmaProjectWeeklyReport();
 
+  const { toast } = useToast();
   const qc = useQueryClient();
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: [`/api/spmo/projects/${projectId}`] });
     qc.invalidateQueries({ queryKey: ["/api/spmo/projects"] });
+  };
+
+  const invalidateReport = () => {
+    qc.invalidateQueries({ queryKey: weeklyReportKey });
+    qc.invalidateQueries({ queryKey: reportHistoryKey });
+  };
+
+  const startEditing = () => {
+    setReportDraft({
+      keyAchievements: weeklyReport?.keyAchievements ?? "",
+      nextSteps: weeklyReport?.nextSteps ?? "",
+    });
+    setEditingReport(true);
+  };
+
+  const cancelEditing = () => {
+    setEditingReport(false);
+    setReportDraft({ keyAchievements: "", nextSteps: "" });
+  };
+
+  const saveReport = async () => {
+    await upsertReport.mutateAsync({
+      id: projectId,
+      data: {
+        keyAchievements: reportDraft.keyAchievements || undefined,
+        nextSteps: reportDraft.nextSteps || undefined,
+      },
+    });
+    toast({ title: "Weekly report saved" });
+    invalidateReport();
+    cancelEditing();
   };
 
   if (isLoading) {
@@ -696,29 +733,110 @@ export default function ProjectDetail({ params }: Props) {
             <div className="flex items-center gap-2 mb-4">
               <Activity className="w-4 h-4 text-primary" />
               <h3 className="font-semibold text-sm">Current Week Report</h3>
-              {weeklyReport?.weekStart && (
-                <span className="text-xs text-muted-foreground ml-auto">Week of {fmt(weeklyReport.weekStart)}</span>
+              {weeklyReport?.weekStart && !editingReport && (
+                <span className="text-xs text-muted-foreground">Week of {fmt(weeklyReport.weekStart)}</span>
               )}
+              <div className="ml-auto flex items-center gap-2">
+                {canEditReport && !editingReport && (
+                  <button
+                    onClick={startEditing}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border hover:bg-secondary/80 transition-colors text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    {weeklyReport?.keyAchievements || weeklyReport?.nextSteps ? "Edit Report" : "Add Report"}
+                  </button>
+                )}
+              </div>
             </div>
-            {weeklyReport?.keyAchievements || weeklyReport?.nextSteps ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            {editingReport ? (
+              /* ── EDIT MODE ── */
+              <div className="space-y-4">
                 <div>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Key Achievements</div>
-                  <p className="text-sm leading-relaxed whitespace-pre-line">{weeklyReport.keyAchievements ?? "—"}</p>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">
+                    Key Achievements This Week
+                  </label>
+                  <textarea
+                    value={reportDraft.keyAchievements}
+                    onChange={(e) => setReportDraft((d) => ({ ...d, keyAchievements: e.target.value }))}
+                    placeholder="Describe what was accomplished this week…"
+                    rows={5}
+                    className="w-full text-sm border border-border rounded-xl px-3.5 py-2.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 resize-none leading-relaxed placeholder:text-muted-foreground/50 transition-colors"
+                  />
                 </div>
                 <div>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Next Steps</div>
-                  <p className="text-sm leading-relaxed whitespace-pre-line">{weeklyReport.nextSteps ?? "—"}</p>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">
+                    Next Steps &amp; Planned Actions
+                  </label>
+                  <textarea
+                    value={reportDraft.nextSteps}
+                    onChange={(e) => setReportDraft((d) => ({ ...d, nextSteps: e.target.value }))}
+                    placeholder="Describe planned actions for next week…"
+                    rows={5}
+                    className="w-full text-sm border border-border rounded-xl px-3.5 py-2.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 resize-none leading-relaxed placeholder:text-muted-foreground/50 transition-colors"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-1 border-t border-border">
+                  <button
+                    onClick={saveReport}
+                    disabled={upsertReport.isPending}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-primary to-primary/80 text-white shadow-sm hover:-translate-y-0.5 transition-transform disabled:opacity-50"
+                  >
+                    {upsertReport.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Save Report
+                  </button>
+                  <button
+                    onClick={cancelEditing}
+                    disabled={upsertReport.isPending}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Cancel
+                  </button>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground italic">No weekly report submitted for this period.</p>
-            )}
-            {weeklyReport?.updatedByName && (
-              <div className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border">
-                Updated by {weeklyReport.updatedByName}
-                {weeklyReport.updatedAt && ` · ${fmt(weeklyReport.updatedAt)}`}
-              </div>
+              /* ── VIEW MODE ── */
+              <>
+                {weeklyReport?.keyAchievements || weeklyReport?.nextSteps ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="bg-success/5 border border-success/15 rounded-xl p-4">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                        <span className="text-xs font-semibold text-success uppercase tracking-wider">Key Achievements</span>
+                      </div>
+                      <p className="text-sm leading-relaxed whitespace-pre-line">{weeklyReport.keyAchievements ?? "—"}</p>
+                    </div>
+                    <div className="bg-primary/5 border border-primary/15 rounded-xl p-4">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Target className="w-3.5 h-3.5 text-primary" />
+                        <span className="text-xs font-semibold text-primary uppercase tracking-wider">Next Steps</span>
+                      </div>
+                      <p className="text-sm leading-relaxed whitespace-pre-line">{weeklyReport.nextSteps ?? "—"}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <Activity className="w-8 h-8 text-muted-foreground/30 mb-2" />
+                    <p className="text-sm text-muted-foreground">No weekly report submitted for this period.</p>
+                    {canEditReport && (
+                      <button
+                        onClick={startEditing}
+                        className="mt-3 text-sm font-semibold text-primary hover:underline"
+                      >
+                        Add this week's report →
+                      </button>
+                    )}
+                  </div>
+                )}
+                {weeklyReport?.updatedByName && (
+                  <div className="text-xs text-muted-foreground mt-4 pt-3 border-t border-border flex items-center gap-1.5">
+                    <User className="w-3 h-3" />
+                    Updated by <span className="font-medium">{weeklyReport.updatedByName}</span>
+                    {weeklyReport.updatedAt && <span>· {fmt(weeklyReport.updatedAt)}</span>}
+                  </div>
+                )}
+              </>
             )}
           </Card>
 
