@@ -371,7 +371,13 @@ function computeStatusCore(
     return { status: "on_track", reason: `Not yet started. Begins ${start.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`, spi: 1, burnGap: Math.round(burnGap) };
   }
 
-  // RULE 3: Overdue — past end date with incomplete work
+  // RULE 3: Near completion (≥95%) — let it finish even if past end date
+  if (actualProgress >= t.nearCompletionPct) {
+    const bottleneckNote = isApprovalBottleneck ? ` Approval bottleneck suppressing ${Math.round(approvalDelta)}pts.` : "";
+    return { status: "on_track", reason: `${Math.round(actualProgress)}% — final stretch.${bottleneckNote}`, spi: r2(spi), burnGap: Math.round(burnGap) };
+  }
+
+  // RULE 4: Overdue — past end date with incomplete work
   if (elapsedPct > 100 && actualProgress < 100) {
     const overdueDays = Math.round(elapsedDays - totalDays);
     return {
@@ -380,12 +386,6 @@ function computeStatusCore(
       spi: r2(spi),
       burnGap: Math.round(burnGap),
     };
-  }
-
-  // RULE 4: Near completion (≥95%) — let it finish
-  if (actualProgress >= t.nearCompletionPct) {
-    const bottleneckNote = isApprovalBottleneck ? ` Approval bottleneck suppressing ${Math.round(approvalDelta)}pts.` : "";
-    return { status: "on_track", reason: `${Math.round(actualProgress)}% — final stretch.${bottleneckNote}`, spi: r2(spi), burnGap: Math.round(burnGap) };
   }
 
   // RULE 5: Early stage (<15% elapsed) — limited tolerance for stalls
