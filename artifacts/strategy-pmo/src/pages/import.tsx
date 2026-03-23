@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { Upload, FileText, X, CheckCircle2, AlertTriangle, Loader2, ChevronDown, ChevronUp, Plus, Trash2, ShieldCheck } from "lucide-react";
+import { Upload, FileText, X, CheckCircle2, AlertTriangle, Loader2, ChevronDown, ChevronUp, Plus, Trash2, ShieldCheck, Download, RotateCcw, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -479,6 +479,120 @@ function ReviewStep({
   );
 }
 
+// ─── BACKUP & RESTORE PANEL ──────────────────────────────────────────────────
+
+function BackupRestorePanel({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const { toast } = useToast();
+  const xmlInputRef = useRef<HTMLInputElement>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  function handleExport() {
+    const a = document.createElement("a");
+    a.href = "/api/spmo/data/export";
+    a.download = `spmo-backup-${new Date().toISOString().slice(0, 10)}.xml`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  function handleXmlFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPendingFile(file);
+    setShowConfirm(true);
+    e.target.value = "";
+  }
+
+  async function handleRestoreConfirm() {
+    if (!pendingFile) return;
+    setShowConfirm(false);
+    setRestoring(true);
+    try {
+      const form = new FormData();
+      form.append("file", pendingFile);
+      const res = await fetch("/api/spmo/data/import", { method: "POST", body: form, credentials: "include" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Restore failed" }));
+        throw new Error(err.error || "Restore failed");
+      }
+      const result = await res.json() as { summary: Record<string, number> };
+      const total = Object.values(result.summary).reduce((a, b) => a + b, 0);
+      qc.invalidateQueries();
+      toast({ title: "Restore complete", description: `${total} records loaded from backup.` });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Restore failed", description: err instanceof Error ? err.message : "Unknown error" });
+    } finally {
+      setRestoring(false);
+      setPendingFile(null);
+    }
+  }
+
+  return (
+    <div className="mb-8 rounded-xl border border-border bg-muted/20 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Database className="w-4 h-4 text-muted-foreground" />
+        <h3 className="font-semibold text-sm">Backup & Restore</h3>
+        <span className="text-xs text-muted-foreground">— export or restore the full database as XML</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Export */}
+        <div className="rounded-lg border border-border bg-background p-4 flex flex-col gap-3">
+          <div>
+            <p className="font-medium text-sm">Export Data</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Download all programme data as an XML file you can re-import later.</p>
+          </div>
+          <button
+            onClick={handleExport}
+            className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Download XML Backup
+          </button>
+        </div>
+
+        {/* Import */}
+        <div className="rounded-lg border border-border bg-background p-4 flex flex-col gap-3">
+          <div>
+            <p className="font-medium text-sm">Restore from Backup</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Upload a previously exported XML file. This will replace all existing data.</p>
+          </div>
+          <input ref={xmlInputRef} type="file" accept=".xml" className="hidden" onChange={handleXmlFileChange} />
+          <button
+            onClick={() => xmlInputRef.current?.click()}
+            disabled={restoring}
+            className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-destructive/60 text-destructive text-sm font-medium hover:bg-destructive/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {restoring ? <><Loader2 className="w-4 h-4 animate-spin" />Restoring…</> : <><RotateCcw className="w-4 h-4" />Upload & Restore</>}
+          </button>
+        </div>
+      </div>
+
+      {/* Confirm dialog */}
+      {showConfirm && pendingFile && (
+        <div className="mt-4 flex items-start gap-3 p-4 rounded-lg bg-destructive/10 border border-destructive/30">
+          <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-destructive">This will replace all existing data</p>
+            <p className="text-xs text-destructive/80 mt-0.5">
+              Restoring <strong>{pendingFile.name}</strong> will permanently overwrite all pillars, projects, milestones, KPIs, and all other programme data. This cannot be undone.
+            </p>
+            <div className="flex gap-2 mt-3">
+              <button onClick={handleRestoreConfirm} className="px-4 py-1.5 rounded-lg bg-destructive text-white text-sm font-semibold hover:bg-destructive/90 transition-colors">
+                Yes, restore now
+              </button>
+              <button onClick={() => { setShowConfirm(false); setPendingFile(null); }} className="px-4 py-1.5 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
 export default function ImportPage() {
@@ -559,6 +673,13 @@ export default function ImportPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      <BackupRestorePanel qc={qc} />
+
+      <div className="relative mb-8">
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
+        <div className="relative flex justify-center"><span className="bg-background px-3 text-xs text-muted-foreground font-medium uppercase tracking-wider">or import from documents with AI</span></div>
+      </div>
+
       {/* Progress stepper */}
       <div className="flex items-center gap-2 mb-8">
         {[{ label: "Upload Documents", active: step === "upload", done: step === "review" }, { label: "Review & Edit", active: step === "review", done: false }].map((s, i) => (
