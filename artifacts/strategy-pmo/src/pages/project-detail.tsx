@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import {
   useGetSpmoProject,
@@ -1089,9 +1089,60 @@ const CR_STATUS_COLORS: Record<string, string> = {
   rejected: "text-red-700 bg-red-50 border-red-200",
   withdrawn: "text-gray-600 bg-gray-50 border-gray-200",
 };
+const CR_STATUSES = ["draft", "submitted", "under_review", "approved", "rejected", "withdrawn"] as const;
 
-type CRFormData = { title: string; changeType: string; description: string; impact: string; budgetImpact: string; timelineImpact: string };
-const emptyCRForm = (): CRFormData => ({ title: "", changeType: "other", description: "", impact: "", budgetImpact: "", timelineImpact: "" });
+type CRFormData = { title: string; changeType: string; description: string; impact: string; budgetImpact: string; timelineImpact: string; status: string };
+const emptyCRForm = (): CRFormData => ({ title: "", changeType: "other", description: "", impact: "", budgetImpact: "", timelineImpact: "", status: "draft" });
+
+function CRInlineForm({
+  initial, onSave, onCancel, saving,
+}: {
+  initial: CRFormData;
+  onSave: (data: CRFormData) => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState<CRFormData>(initial);
+  const f = <K extends keyof CRFormData>(k: K) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm((v) => ({ ...v, [k]: e.target.value }));
+  return (
+    <div className="grid grid-cols-2 gap-3 pt-2">
+      <div className="col-span-2">
+        <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Title *</label>
+        <input autoFocus value={form.title} onChange={f("title")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Brief description of the change" />
+      </div>
+      <div>
+        <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Type</label>
+        <select value={form.changeType} onChange={f("changeType")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+          {Object.entries(CR_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Status</label>
+        <select value={form.status} onChange={f("status")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+          {CR_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Budget Impact (SAR)</label>
+        <input type="number" value={form.budgetImpact} onChange={f("budgetImpact")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="e.g. 500000" />
+      </div>
+      <div>
+        <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Timeline Impact (days)</label>
+        <input type="number" value={form.timelineImpact} onChange={f("timelineImpact")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="e.g. 14" />
+      </div>
+      <div className="col-span-2">
+        <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Description</label>
+        <textarea value={form.description} onChange={f("description")} rows={2} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" placeholder="What is changing and why?" />
+      </div>
+      <div className="col-span-2 flex gap-2">
+        <button onClick={() => onSave(form)} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-50 hover:-translate-y-0.5 transition-transform">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
+        </button>
+        <button onClick={onCancel} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+      </div>
+    </div>
+  );
+}
 
 function ChangeControlTab({
   projectId, changeRequests, isAdmin, canEdit, currentUser, onCreate, onUpdate, onDelete,
@@ -1106,40 +1157,51 @@ function ChangeControlTab({
   onDelete: (id: number) => Promise<unknown>;
 }) {
   const { toast } = useToast();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<CRFormData>(emptyCRForm());
+  const [editingId, setEditingId] = useState<number | "new" | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const handleCreate = async () => {
+  const handleCreate = async (form: CRFormData) => {
     if (!form.title.trim()) { toast({ title: "Title required", variant: "destructive" }); return; }
     setSaving(true);
     try {
       await onCreate({
         title: form.title,
         changeType: form.changeType as SpmoChangeRequest["changeType"],
+        status: form.status as SpmoChangeRequest["status"],
         description: form.description || undefined,
         impact: form.impact || undefined,
         budgetImpact: form.budgetImpact ? parseFloat(form.budgetImpact) : undefined,
         timelineImpact: form.timelineImpact ? parseInt(form.timelineImpact) : undefined,
       });
       toast({ title: "Change request created" });
-      setForm(emptyCRForm());
-      setShowForm(false);
+      setEditingId(null);
     } finally { setSaving(false); }
   };
 
-  const handleStatusChange = async (cr: SpmoChangeRequest, status: SpmoChangeRequest["status"]) => {
-    await onUpdate(cr.id, { status });
-    toast({ title: `Request ${status}` });
+  const handleUpdate = async (cr: SpmoChangeRequest, form: CRFormData) => {
+    if (!form.title.trim()) { toast({ title: "Title required", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      await onUpdate(cr.id, {
+        title: form.title,
+        changeType: form.changeType as SpmoChangeRequest["changeType"],
+        status: form.status as SpmoChangeRequest["status"],
+        description: form.description || undefined,
+        budgetImpact: form.budgetImpact ? parseFloat(form.budgetImpact) : undefined,
+        timelineImpact: form.timelineImpact ? parseInt(form.timelineImpact) : undefined,
+      });
+      toast({ title: "Updated" });
+      setEditingId(null);
+    } finally { setSaving(false); }
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{changeRequests.length} change request{changeRequests.length !== 1 ? "s" : ""}</p>
-        {canEdit && (
+        {canEdit && editingId !== "new" && (
           <button
-            onClick={() => setShowForm((v) => !v)}
+            onClick={() => setEditingId("new")}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" /> New Request
@@ -1147,79 +1209,73 @@ function ChangeControlTab({
         )}
       </div>
 
-      {showForm && (
-        <Card className="p-4 space-y-3 border-primary/20">
-          <h4 className="text-sm font-semibold">New Change Request</h4>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Title *</label>
-              <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Brief description of the change" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Change Type</label>
-              <select value={form.changeType} onChange={(e) => setForm((f) => ({ ...f, changeType: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
-                {Object.entries(CR_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Budget Impact (SAR)</label>
-              <input type="number" value={form.budgetImpact} onChange={(e) => setForm((f) => ({ ...f, budgetImpact: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="e.g. 500000" />
-            </div>
-            <div className="col-span-2">
-              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Description</label>
-              <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" placeholder="Detailed description of the change..." />
-            </div>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <button onClick={handleCreate} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:-translate-y-0.5 transition-transform disabled:opacity-50">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Submit
-            </button>
-            <button onClick={() => { setShowForm(false); setForm(emptyCRForm()); }} className="px-3 py-2 rounded-lg text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
-          </div>
-        </Card>
-      )}
-
-      {changeRequests.length === 0 && !showForm ? (
-        <Card className="text-center py-14">
+      {changeRequests.length === 0 && editingId !== "new" && (
+        <Card className="text-center py-12">
           <GitPullRequest className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
           <h3 className="font-bold">No change requests</h3>
           <p className="text-sm text-muted-foreground mt-1">Log change requests to track scope, budget, and timeline changes.</p>
+          {canEdit && (
+            <button onClick={() => setEditingId("new")} className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors mx-auto">
+              <Plus className="w-4 h-4" /> Add First Request
+            </button>
+          )}
         </Card>
-      ) : (
-        <div className="space-y-3">
-          {changeRequests.map((cr) => (
-            <Card key={cr.id} className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="font-semibold text-sm">{cr.title}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium capitalize ${CR_STATUS_COLORS[cr.status] ?? ""}`}>{cr.status.replace("_", " ")}</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary text-muted-foreground font-medium">{CR_TYPE_LABELS[cr.changeType]}</span>
-                  </div>
-                  {cr.description && <p className="text-xs text-muted-foreground">{cr.description}</p>}
-                  <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-muted-foreground">
-                    {cr.budgetImpact != null && <span>Budget: <span className={`font-semibold ${cr.budgetImpact > 0 ? "text-destructive" : "text-success"}`}>{cr.budgetImpact > 0 ? "+" : ""}{formatCurrency(cr.budgetImpact)}</span></span>}
-                    {cr.timelineImpact != null && <span>Timeline: <span className={`font-semibold ${cr.timelineImpact > 0 ? "text-warning" : "text-success"}`}>{cr.timelineImpact > 0 ? "+" : ""}{cr.timelineImpact}d</span></span>}
-                    <span>By: {cr.requestedByName}</span>
-                    <span>{new Date(cr.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
-                  </div>
+      )}
+
+      {changeRequests.map((cr) => (
+        <Card key={cr.id} className={`p-4 transition-all ${editingId === cr.id ? "ring-2 ring-primary/30 border-primary/30" : "hover:shadow-md"}`}>
+          {editingId === cr.id ? (
+            <>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-primary">Editing request</span>
+                <button onClick={() => setEditingId(null)} className="p-1 rounded text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+              </div>
+              <CRInlineForm
+                initial={{ title: cr.title, changeType: cr.changeType, description: cr.description ?? "", impact: cr.impact ?? "", budgetImpact: cr.budgetImpact != null ? String(cr.budgetImpact) : "", timelineImpact: cr.timelineImpact != null ? String(cr.timelineImpact) : "", status: cr.status }}
+                onSave={(form) => handleUpdate(cr, form)}
+                onCancel={() => setEditingId(null)}
+                saving={saving}
+              />
+            </>
+          ) : (
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className="font-semibold text-sm">{cr.title}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium capitalize ${CR_STATUS_COLORS[cr.status] ?? ""}`}>{cr.status.replace(/_/g, " ")}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary text-muted-foreground font-medium">{CR_TYPE_LABELS[cr.changeType]}</span>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {(isAdmin || canEdit) && cr.status === "submitted" && (
-                    <>
-                      <button onClick={() => handleStatusChange(cr, "approved")} className="px-2 py-1 rounded text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors">Approve</button>
-                      <button onClick={() => handleStatusChange(cr, "rejected")} className="px-2 py-1 rounded text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors">Reject</button>
-                    </>
-                  )}
-                  {(canEdit) && cr.status === "draft" && (
-                    <button onClick={() => handleStatusChange(cr, "submitted")} className="px-2 py-1 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors">Submit</button>
-                  )}
-                  <button onClick={() => onDelete(cr.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                {cr.description && <p className="text-xs text-muted-foreground">{cr.description}</p>}
+                <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-muted-foreground">
+                  {cr.budgetImpact != null && <span>Budget: <span className={`font-semibold ${cr.budgetImpact > 0 ? "text-destructive" : "text-success"}`}>{cr.budgetImpact > 0 ? "+" : ""}{formatCurrency(cr.budgetImpact)}</span></span>}
+                  {cr.timelineImpact != null && <span>Timeline: <span className={`font-semibold ${cr.timelineImpact > 0 ? "text-warning" : "text-success"}`}>{cr.timelineImpact > 0 ? "+" : ""}{cr.timelineImpact}d</span></span>}
+                  <span>By: {cr.requestedByName}</span>
+                  <span>{new Date(cr.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
                 </div>
               </div>
-            </Card>
-          ))}
-        </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {canEdit && (
+                  <button onClick={() => setEditingId(cr.id)} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-colors" title="Edit">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button onClick={() => onDelete(cr.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors" title="Delete">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </Card>
+      ))}
+
+      {editingId === "new" && canEdit && (
+        <Card className="p-4 border-primary/30 ring-2 ring-primary/20">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold text-primary">New Change Request</span>
+            <button onClick={() => setEditingId(null)} className="p-1 rounded text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+          </div>
+          <CRInlineForm initial={emptyCRForm()} onSave={handleCreate} onCancel={() => setEditingId(null)} saving={saving} />
+        </Card>
       )}
     </div>
   );
@@ -1234,7 +1290,74 @@ const RACI_COLORS: Record<string, string> = {
   informed: "bg-gray-100 text-gray-600 border-gray-200",
 };
 const RACI_LETTERS: Record<string, string> = { responsible: "R", accountable: "A", consulted: "C", informed: "I" };
-const RACI_CYCLE: Array<SpmoRaci["role"] | null> = ["responsible", "accountable", "consulted", "informed", null];
+const RACI_ROLES = ["responsible", "accountable", "consulted", "informed"] as const;
+const RACI_TOOLTIPS: Record<string, string> = {
+  responsible: "Responsible — does the work",
+  accountable: "Accountable — owns the outcome",
+  consulted: "Consulted — provides input",
+  informed: "Informed — kept in the loop",
+};
+
+function RaciCellPopover({
+  cell, canEdit, onSelect, onClear,
+}: {
+  cell: SpmoRaci | undefined;
+  canEdit: boolean;
+  onSelect: (role: SpmoRaci["role"]) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handle = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  const currentRole = cell?.role;
+
+  return (
+    <div ref={ref} className="relative flex items-center justify-center">
+      <button
+        onClick={() => canEdit && setOpen((v) => !v)}
+        title={currentRole ? RACI_TOOLTIPS[currentRole] : canEdit ? "Click to assign role" : "—"}
+        className={`w-9 h-9 rounded-lg text-xs font-bold border transition-all ${
+          currentRole
+            ? `${RACI_COLORS[currentRole]} shadow-sm`
+            : "border-dashed border-border/60 text-muted-foreground/30 hover:border-primary/40 hover:text-primary/40"
+        } ${canEdit ? "cursor-pointer hover:scale-105" : "cursor-default"}`}
+      >
+        {currentRole ? RACI_LETTERS[currentRole] : "·"}
+      </button>
+
+      {open && canEdit && (
+        <div className="absolute z-50 top-10 left-1/2 -translate-x-1/2 bg-white border border-border rounded-xl shadow-xl p-2 flex flex-col gap-1 min-w-[140px]">
+          <p className="text-[9px] font-semibold text-muted-foreground uppercase px-1 pb-1 border-b border-border">Assign role</p>
+          {RACI_ROLES.map((role) => (
+            <button
+              key={role}
+              onClick={() => { onSelect(role); setOpen(false); }}
+              className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:opacity-80 ${currentRole === role ? RACI_COLORS[role] + " ring-1 ring-inset ring-current" : "hover:bg-muted"}`}
+            >
+              <span className={`w-5 h-5 rounded font-bold border flex items-center justify-center text-[10px] ${RACI_COLORS[role]}`}>{RACI_LETTERS[role]}</span>
+              <span className="capitalize font-normal">{role}</span>
+            </button>
+          ))}
+          {currentRole && (
+            <button
+              onClick={() => { onClear(); setOpen(false); }}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors mt-0.5 border-t border-border pt-1.5"
+            >
+              <X className="w-3.5 h-3.5" /> Clear
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function RaciTab({
   projectId, milestones, raciRows, canEdit, onUpsert, onDelete,
@@ -1246,7 +1369,6 @@ function RaciTab({
   onUpsert: (data: Partial<SpmoRaci>) => Promise<unknown>;
   onDelete: (id: number) => Promise<unknown>;
 }) {
-  const [addingPerson, setAddingPerson] = useState(false);
   const [newPersonName, setNewPersonName] = useState("");
 
   const people = Array.from(new Set(raciRows.map((r) => r.userId))).map((uid) => ({
@@ -1256,29 +1378,22 @@ function RaciTab({
 
   const handleAddPerson = () => {
     if (!newPersonName.trim()) return;
-    const userId = newPersonName.trim().toLowerCase().replace(/\s+/g, "_");
+    const userId = `person_${newPersonName.trim().toLowerCase().replace(/\s+/g, "_")}_${Date.now()}`;
     const firstMs = milestones[0];
     if (firstMs) {
       onUpsert({ projectId, milestoneId: firstMs.id, userId, userName: newPersonName.trim(), role: "informed" });
     }
     setNewPersonName("");
-    setAddingPerson(false);
   };
 
   const getCell = (msId: number, userId: string) =>
     raciRows.find((r) => r.milestoneId === msId && r.userId === userId);
 
-  const cycleRole = (msId: number, userId: string, userName: string, current: SpmoRaci | undefined) => {
-    if (!canEdit) return;
-    const currentRole = current?.role ?? null;
-    const idx = RACI_CYCLE.indexOf(currentRole);
-    const next = RACI_CYCLE[(idx + 1) % RACI_CYCLE.length];
-    if (next === null) {
-      if (current) onDelete(current.id);
-    } else {
-      onUpsert({ projectId, milestoneId: msId, userId, userName, role: next });
-    }
+  const handleSelect = (msId: number, userId: string, userName: string, role: SpmoRaci["role"]) => {
+    onUpsert({ projectId, milestoneId: msId, userId, userName, role });
   };
+
+  const handleClear = (cell: SpmoRaci) => onDelete(cell.id);
 
   if (milestones.length === 0) return (
     <Card className="text-center py-14">
@@ -1290,64 +1405,74 @@ function RaciTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          {Object.entries(RACI_LETTERS).map(([role, letter]) => (
-            <span key={role} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-bold ${RACI_COLORS[role]}`}>
-              {letter} = <span className="font-normal capitalize">{role}</span>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {RACI_ROLES.map((role) => (
+            <span key={role} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-semibold ${RACI_COLORS[role]}`}>
+              <span className="font-bold">{RACI_LETTERS[role]}</span>
+              <span className="font-normal opacity-80 capitalize">{role}</span>
             </span>
           ))}
         </div>
         {canEdit && (
-          <button onClick={() => setAddingPerson(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-            <Plus className="w-3.5 h-3.5" /> Add Person
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              value={newPersonName}
+              onChange={(e) => setNewPersonName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddPerson()}
+              placeholder="Add team member…"
+              className="text-sm border border-border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-44"
+            />
+            <button
+              onClick={handleAddPerson}
+              disabled={!newPersonName.trim()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add
+            </button>
+          </div>
         )}
       </div>
 
-      {addingPerson && (
-        <div className="flex items-center gap-2">
-          <input value={newPersonName} onChange={(e) => setNewPersonName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAddPerson()} placeholder="Person name…" className="text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 flex-1 max-w-xs" autoFocus />
-          <button onClick={handleAddPerson} className="px-3 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground">Add</button>
-          <button onClick={() => { setAddingPerson(false); setNewPersonName(""); }} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground">Cancel</button>
-        </div>
-      )}
-
       {people.length === 0 ? (
         <Card className="text-center py-10">
-          <p className="text-sm text-muted-foreground">Add team members using "Add Person" to build the RACI matrix.</p>
+          <Grid3X3 className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+          <p className="text-sm text-muted-foreground">Type a name above and press <kbd className="px-1 py-0.5 rounded bg-muted border border-border text-xs">Enter</kbd> to add the first team member.</p>
         </Card>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-xs border-collapse">
             <thead>
-              <tr className="border-b border-border">
-                <th className="text-left px-3 py-2 font-semibold text-muted-foreground w-48">Milestone</th>
+              <tr className="bg-muted/40 border-b border-border">
+                <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Milestone</th>
                 {people.map((p) => (
-                  <th key={p.userId} className="px-3 py-2 text-center font-semibold min-w-[80px]">{p.userName}</th>
+                  <th key={p.userId} className="px-3 py-2.5 text-center font-semibold text-sm min-w-[90px]">{p.userName}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {milestones.map((ms) => {
+              {milestones.map((ms, i) => {
                 const hasMissingA = !raciRows.find((r) => r.milestoneId === ms.id && r.role === "accountable");
                 return (
-                  <tr key={ms.id} className={`border-b border-border/50 ${hasMissingA ? "bg-amber-50/30" : ""}`}>
-                    <td className="px-3 py-2 font-medium text-sm">
-                      {ms.name}
-                      {hasMissingA && <span className="ml-1 text-[9px] text-amber-600 font-semibold">No A</span>}
+                  <tr key={ms.id} className={`border-b border-border/50 last:border-0 ${i % 2 === 0 ? "bg-white" : "bg-muted/20"} ${hasMissingA && people.length > 0 ? "border-l-2 border-l-amber-400" : ""}`}>
+                    <td className="px-4 py-3 font-medium text-sm">
+                      <div className="flex items-center gap-2">
+                        {ms.name}
+                        {hasMissingA && people.length > 0 && (
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200 font-bold">No A</span>
+                        )}
+                      </div>
                     </td>
                     {people.map((p) => {
                       const cell = getCell(ms.id, p.userId);
                       return (
                         <td key={p.userId} className="px-3 py-2 text-center">
-                          <button
-                            onClick={() => cycleRole(ms.id, p.userId, p.userName!, cell)}
-                            title={canEdit ? "Click to cycle role" : cell?.role ?? "—"}
-                            className={`w-8 h-8 rounded-lg text-xs font-bold border transition-colors ${cell ? RACI_COLORS[cell.role] : "border-dashed border-border text-muted-foreground/40 hover:border-primary/40"} ${canEdit ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
-                          >
-                            {cell ? RACI_LETTERS[cell.role] : "·"}
-                          </button>
+                          <RaciCellPopover
+                            cell={cell}
+                            canEdit={canEdit}
+                            onSelect={(role) => handleSelect(ms.id, p.userId, p.userName!, role)}
+                            onClear={() => cell && handleClear(cell)}
+                          />
                         </td>
                       );
                     })}
@@ -1356,12 +1481,12 @@ function RaciTab({
               })}
             </tbody>
           </table>
-          {milestones.some((ms) => !raciRows.find((r) => r.milestoneId === ms.id && r.role === "accountable")) && (
-            <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-              <AlertCircle className="w-3.5 h-3.5" /> Some milestones are missing an Accountable (A) person.
-            </p>
-          )}
         </div>
+      )}
+      {people.length > 0 && milestones.some((ms) => !raciRows.find((r) => r.milestoneId === ms.id && r.role === "accountable")) && (
+        <p className="text-xs text-amber-600 flex items-center gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5" /> Some milestones are missing an Accountable (A) person.
+        </p>
       )}
     </div>
   );
@@ -1375,9 +1500,210 @@ const ACTION_PRIORITY_COLORS: Record<string, string> = {
   high: "text-amber-600 bg-amber-50 border-amber-200",
   urgent: "text-red-600 bg-red-50 border-red-200",
 };
+const ACTION_STATUS_COLORS: Record<string, string> = {
+  open: "text-foreground bg-background border-border",
+  in_progress: "text-blue-700 bg-blue-50 border-blue-200",
+  done: "text-green-700 bg-green-50 border-green-200",
+  cancelled: "text-gray-500 bg-gray-50 border-gray-200",
+};
 
-type ActionFormData = { title: string; description: string; assigneeName: string; dueDate: string; priority: string; milestoneId: string };
-const emptyActionForm = (): ActionFormData => ({ title: "", description: "", assigneeName: "", dueDate: "", priority: "medium", milestoneId: "" });
+type ActionEditState = { title: string; assigneeName: string; dueDate: string; priority: string; status: string; milestoneId: string };
+
+function ActionRow({
+  action, milestones, canEdit, onUpdate, onDelete,
+}: {
+  action: SpmoAction;
+  milestones: SpmoMilestoneWithEvidence[];
+  canEdit: boolean;
+  onUpdate: (id: number, data: Partial<SpmoAction>) => Promise<unknown>;
+  onDelete: (id: number) => Promise<unknown>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<ActionEditState>({
+    title: action.title,
+    assigneeName: action.assigneeName ?? "",
+    dueDate: action.dueDate ?? "",
+    priority: action.priority,
+    status: action.status,
+    milestoneId: action.milestoneId ? String(action.milestoneId) : "",
+  });
+  const [saving, setSaving] = useState(false);
+  const today = new Date().toISOString().split("T")[0];
+  const isOverdue = action.dueDate && action.dueDate < today && action.status !== "done" && action.status !== "cancelled";
+  const f = <K extends keyof ActionEditState>(k: K) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm((v) => ({ ...v, [k]: e.target.value }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onUpdate(action.id, {
+        title: form.title,
+        assigneeName: form.assigneeName || undefined,
+        dueDate: form.dueDate || undefined,
+        priority: form.priority as SpmoAction["priority"],
+        status: form.status as SpmoAction["status"],
+        milestoneId: form.milestoneId ? parseInt(form.milestoneId) : undefined,
+      });
+      setEditing(false);
+    } finally { setSaving(false); }
+  };
+
+  if (editing) {
+    return (
+      <Card className="p-4 ring-2 ring-primary/20 border-primary/30 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Title</label>
+            <input autoFocus value={form.title} onChange={f("title")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Assignee</label>
+            <input value={form.assigneeName} onChange={f("assigneeName")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Name" />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Due Date</label>
+            <input type="date" value={form.dueDate} onChange={f("dueDate")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Priority</label>
+            <select value={form.priority} onChange={f("priority")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+              {["low", "medium", "high", "urgent"].map((p) => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Status</label>
+            <select value={form.status} onChange={f("status")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+              {["open", "in_progress", "done", "cancelled"].map((s) => <option key={s} value={s}>{s.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}</option>)}
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Milestone</label>
+            <select value={form.milestoneId} onChange={f("milestoneId")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <option value="">None</option>
+              {milestones.map((ms) => <option key={ms.id} value={ms.id}>{ms.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-50 hover:-translate-y-0.5 transition-transform">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
+          </button>
+          <button onClick={() => setEditing(false)} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className={`p-3 flex items-center gap-3 group transition-all hover:shadow-md ${action.status === "done" ? "opacity-60" : ""}`}>
+      <select
+        value={action.status}
+        onChange={(e) => canEdit && onUpdate(action.id, { status: e.target.value as SpmoAction["status"] })}
+        disabled={!canEdit}
+        className={`text-[10px] font-semibold px-2 py-1 rounded-lg border cursor-pointer focus:outline-none shrink-0 ${ACTION_STATUS_COLORS[action.status]}`}
+        title="Change status"
+      >
+        {["open", "in_progress", "done", "cancelled"].map((s) => <option key={s} value={s}>{s.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())}</option>)}
+      </select>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-sm font-medium ${action.status === "done" ? "line-through text-muted-foreground" : ""}`}>{action.title}</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${ACTION_PRIORITY_COLORS[action.priority]}`}>{action.priority}</span>
+        </div>
+        <div className="flex flex-wrap gap-3 mt-0.5 text-[11px] text-muted-foreground">
+          {action.assigneeName && <span className="flex items-center gap-1"><User className="w-3 h-3" />{action.assigneeName}</span>}
+          {action.dueDate && (
+            <span className={`flex items-center gap-1 ${isOverdue ? "text-destructive font-semibold" : ""}`}>
+              <Calendar className="w-3 h-3" />{isOverdue ? "⚠ " : ""}{new Date(action.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+            </span>
+          )}
+        </div>
+      </div>
+      {canEdit && (
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <button onClick={() => setEditing(true)} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-colors" title="Edit">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => onDelete(action.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors" title="Delete">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function QuickAddAction({
+  projectId, milestones, onCreate,
+}: {
+  projectId: number;
+  milestones: SpmoMilestoneWithEvidence[];
+  onCreate: (data: Partial<SpmoAction>) => Promise<unknown>;
+}) {
+  const [title, setTitle] = useState("");
+  const [assigneeName, setAssigneeName] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [priority, setPriority] = useState("medium");
+  const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      await onCreate({
+        title: title.trim(),
+        assigneeName: assigneeName || undefined,
+        dueDate: dueDate || undefined,
+        priority: priority as SpmoAction["priority"],
+      });
+      setTitle("");
+      setAssigneeName("");
+      setDueDate("");
+      setPriority("medium");
+      setExpanded(false);
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="border border-dashed border-border rounded-xl p-3 bg-muted/20 hover:bg-muted/30 transition-colors">
+      <div className="flex items-center gap-2">
+        <Plus className="w-4 h-4 text-muted-foreground shrink-0" />
+        <input
+          value={title}
+          onChange={(e) => { setTitle(e.target.value); if (e.target.value) setExpanded(true); }}
+          onFocus={() => setExpanded(true)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) handleSubmit(); if (e.key === "Escape") { setExpanded(false); setTitle(""); } }}
+          placeholder="Add an action item… (press Enter to save)"
+          className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
+        />
+        {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />}
+      </div>
+      {expanded && (
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <input
+            value={assigneeName}
+            onChange={(e) => setAssigneeName(e.target.value)}
+            placeholder="Assignee"
+            className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+            className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            {["low", "medium", "high", "urgent"].map((p) => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ActionsTab({
   projectId, milestones, actions, canEdit, currentUser, onCreate, onUpdate, onDelete,
@@ -1391,131 +1717,38 @@ function ActionsTab({
   onUpdate: (id: number, data: Partial<SpmoAction>) => Promise<unknown>;
   onDelete: (id: number) => Promise<unknown>;
 }) {
-  const { toast } = useToast();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<ActionFormData>(emptyActionForm());
-  const [saving, setSaving] = useState(false);
-  const today = new Date().toISOString().split("T")[0];
-
-  const handleCreate = async () => {
-    if (!form.title.trim()) { toast({ title: "Title required", variant: "destructive" }); return; }
-    setSaving(true);
-    try {
-      await onCreate({
-        title: form.title,
-        description: form.description || undefined,
-        assigneeName: form.assigneeName || undefined,
-        assigneeId: form.assigneeName ? form.assigneeName.toLowerCase().replace(/\s+/g, "_") : undefined,
-        dueDate: form.dueDate || undefined,
-        priority: form.priority as SpmoAction["priority"],
-        milestoneId: form.milestoneId ? parseInt(form.milestoneId) : undefined,
-      });
-      toast({ title: "Action item created" });
-      setForm(emptyActionForm());
-      setShowForm(false);
-    } finally { setSaving(false); }
-  };
-
-  const cycleStatus = (action: SpmoAction) => {
-    const CYCLE: SpmoAction["status"][] = ["open", "in_progress", "done", "cancelled"];
-    const idx = CYCLE.indexOf(action.status);
-    const next = CYCLE[(idx + 1) % CYCLE.length];
-    onUpdate(action.id, { status: next });
-  };
-
-  const statusColor = (s: string) => s === "done" ? "text-success" : s === "cancelled" ? "text-muted-foreground" : s === "in_progress" ? "text-blue-600" : "text-foreground";
+  const openCount = actions.filter((a) => a.status !== "done" && a.status !== "cancelled").length;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-2">
+      <div className="flex items-center justify-between pb-1">
         <p className="text-sm text-muted-foreground">
-          {actions.filter((a) => a.status !== "done" && a.status !== "cancelled").length} open action{actions.filter((a) => a.status !== "done" && a.status !== "cancelled").length !== 1 ? "s" : ""}
+          {openCount} open action{openCount !== 1 ? "s" : ""}
+          {actions.length > openCount && <span className="ml-1.5 text-xs">· {actions.length - openCount} closed</span>}
         </p>
-        {canEdit && (
-          <button onClick={() => setShowForm((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-            <Plus className="w-3.5 h-3.5" /> New Action
-          </button>
-        )}
+        <p className="text-xs text-muted-foreground">Hover a row to edit · Change status inline</p>
       </div>
 
-      {showForm && (
-        <Card className="p-4 space-y-3 border-primary/20">
-          <h4 className="text-sm font-semibold">New Action Item</h4>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Title *</label>
-              <input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="What needs to be done?" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Assignee</label>
-              <input value={form.assigneeName} onChange={(e) => setForm((f) => ({ ...f, assigneeName: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Name" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Due Date</label>
-              <input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Priority</label>
-              <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
-                {["low", "medium", "high", "urgent"].map((p) => <option key={p} value={p} className="capitalize">{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Link to Milestone</label>
-              <select value={form.milestoneId} onChange={(e) => setForm((f) => ({ ...f, milestoneId: e.target.value }))} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30">
-                <option value="">None</option>
-                {milestones.map((ms) => <option key={ms.id} value={ms.id}>{ms.name}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <button onClick={handleCreate} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:-translate-y-0.5 transition-transform disabled:opacity-50">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Create
-            </button>
-            <button onClick={() => { setShowForm(false); setForm(emptyActionForm()); }} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground">Cancel</button>
-          </div>
+      {actions.length === 0 && (
+        <Card className="text-center py-10">
+          <ListTodo className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-40" />
+          <p className="text-sm text-muted-foreground">No action items yet. Use the box below to add one.</p>
         </Card>
       )}
 
-      {actions.length === 0 && !showForm ? (
-        <Card className="text-center py-14">
-          <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
-          <h3 className="font-bold">No action items yet</h3>
-          <p className="text-sm text-muted-foreground mt-1">Create action items to track small tasks and follow-ups.</p>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {actions.map((action) => {
-            const isOverdue = action.dueDate && action.dueDate < today && action.status !== "done" && action.status !== "cancelled";
-            return (
-              <Card key={action.id} className={`p-3 flex items-center gap-3 ${action.status === "done" ? "opacity-60" : ""}`}>
-                <button
-                  onClick={() => canEdit && cycleStatus(action)}
-                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${action.status === "done" ? "border-success bg-success/20" : action.status === "in_progress" ? "border-blue-500 bg-blue-50" : "border-border hover:border-primary"}`}
-                  title="Click to cycle status"
-                >
-                  {action.status === "done" && <CheckCircle2 className="w-3.5 h-3.5 text-success" />}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-sm font-medium ${action.status === "done" ? "line-through text-muted-foreground" : statusColor(action.status)}`}>{action.title}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${ACTION_PRIORITY_COLORS[action.priority]}`}>{action.priority}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-0.5 text-[11px] text-muted-foreground">
-                    {action.assigneeName && <span>→ {action.assigneeName}</span>}
-                    {action.dueDate && (
-                      <span className={isOverdue ? "text-destructive font-semibold" : ""}>{isOverdue ? "⚠ Overdue: " : "Due: "}{new Date(action.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
-                    )}
-                    <span className="capitalize">{action.status.replace("_", " ")}</span>
-                  </div>
-                </div>
-                {canEdit && (
-                  <button onClick={() => onDelete(action.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
-                )}
-              </Card>
-            );
-          })}
-        </div>
+      {actions.map((action) => (
+        <ActionRow
+          key={action.id}
+          action={action}
+          milestones={milestones}
+          canEdit={canEdit}
+          onUpdate={onUpdate}
+          onDelete={onDelete}
+        />
+      ))}
+
+      {canEdit && (
+        <QuickAddAction projectId={projectId} milestones={milestones} onCreate={onCreate} />
       )}
     </div>
   );
