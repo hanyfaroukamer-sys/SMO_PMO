@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import {
   useGetSpmoProject,
   useGetSpmaProjectWeeklyReport,
@@ -26,7 +26,7 @@ import {
   Loader2, ArrowLeft, CheckCircle2, XCircle, FileText, FileImage,
   FileArchive, FileSpreadsheet, Upload, AlertCircle, Clock, Target,
   Calendar, DollarSign, User, Building2, Layers, ChevronRight,
-  Sparkles, TrendingUp, ShieldAlert, Activity, ClipboardList, Pencil, Save, X,
+  Sparkles, TrendingUp, ShieldAlert, Activity, ClipboardList, Pencil, Save, X, Plus, ExternalLink,
 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -874,43 +874,88 @@ export default function ProjectDetail({ params }: Props) {
       {/* ── RISKS ── */}
       {activeTab === "risks" && (
         <div className="space-y-3">
+          {/* Header bar with action button */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {projectRisks.length === 0
+                ? "No risks logged for this project."
+                : `${projectRisks.length} risk${projectRisks.length !== 1 ? "s" : ""} linked to this project.`}
+            </p>
+            <Link
+              to={`/risks?project=${projectId}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add / Manage Risks
+              <ExternalLink className="w-3 h-3 opacity-60" />
+            </Link>
+          </div>
+
           {projectRisks.length === 0 ? (
-            <Card className="text-center py-16">
+            <Card className="text-center py-14">
               <ShieldAlert className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
-              <h3 className="font-bold">No risks logged</h3>
-              <p className="text-sm text-muted-foreground mt-1">No risks are currently linked to this project.</p>
+              <h3 className="font-bold">No risks logged yet</h3>
+              <p className="text-sm text-muted-foreground mt-1 mb-4">Log risks to track threats and mitigations for this project.</p>
+              <Link
+                to={`/risks?project=${projectId}`}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 text-white hover:-translate-y-0.5 transition-transform shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Log a Risk
+              </Link>
             </Card>
           ) : (
-            projectRisks.map((risk) => {
-              const scoreColor = risk.riskScore >= 9 ? "text-destructive" : risk.riskScore >= 5 ? "text-warning" : "text-success";
-              const scoreBg = risk.riskScore >= 9 ? "bg-destructive/10 border-destructive/20" : risk.riskScore >= 5 ? "bg-warning/10 border-warning/20" : "bg-success/10 border-success/20";
-              return (
-                <Card key={risk.id} className="p-4">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-display font-bold border ${scoreColor} ${scoreBg} shrink-0`}>
-                      {risk.riskScore}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                        <h4 className="font-semibold text-sm">{risk.title}</h4>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary text-muted-foreground font-medium capitalize">{risk.status}</span>
-                        {risk.category && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary text-muted-foreground font-medium">{risk.category}</span>
+            <>
+              {projectRisks.map((risk) => {
+                const scoreColor = risk.riskScore >= 9 ? "text-destructive" : risk.riskScore >= 5 ? "text-warning" : "text-success";
+                const scoreBg = risk.riskScore >= 9 ? "bg-destructive/10 border-destructive/20" : risk.riskScore >= 5 ? "bg-warning/10 border-warning/20" : "bg-success/10 border-success/20";
+                return (
+                  <Card key={risk.id} className="p-4">
+                    <div className="flex items-start gap-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-display font-bold border ${scoreColor} ${scoreBg} shrink-0`}>
+                        {risk.riskScore}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <h4 className="font-semibold text-sm">{risk.title}</h4>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary text-muted-foreground font-medium capitalize">{risk.status}</span>
+                          {risk.category && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary text-muted-foreground font-medium">{risk.category}</span>
+                          )}
+                        </div>
+                        {risk.description && (
+                          <p className="text-xs text-muted-foreground leading-relaxed">{risk.description}</p>
                         )}
+                        <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-muted-foreground">
+                          <span>Probability: <span className="font-semibold capitalize text-foreground">{risk.probability}</span></span>
+                          <span>Impact: <span className="font-semibold capitalize text-foreground">{risk.impact}</span></span>
+                          {risk.owner && <span>Owner: <span className="font-semibold text-foreground">{risk.owner}</span></span>}
+                        </div>
                       </div>
-                      {risk.description && (
-                        <p className="text-xs text-muted-foreground leading-relaxed">{risk.description}</p>
-                      )}
-                      <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-muted-foreground">
-                        <span>Probability: <span className="font-semibold capitalize text-foreground">{risk.probability}</span></span>
-                        <span>Impact: <span className="font-semibold capitalize text-foreground">{risk.impact}</span></span>
-                        {risk.owner && <span>Owner: <span className="font-semibold text-foreground">{risk.owner}</span></span>}
-                      </div>
+                      <Link
+                        to={`/risks?project=${projectId}`}
+                        className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                        title="Edit in Risk Register"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
                     </div>
-                  </div>
-                </Card>
-              );
-            })
+                  </Card>
+                );
+              })}
+
+              {/* Footer link */}
+              <div className="flex justify-center pt-1">
+                <Link
+                  to={`/risks?project=${projectId}`}
+                  className="flex items-center gap-1.5 text-sm font-semibold text-amber-600 hover:text-amber-700 hover:underline transition-colors"
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                  Open full Risk Register for this project
+                  <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+                </Link>
+              </div>
+            </>
           )}
         </div>
       )}
