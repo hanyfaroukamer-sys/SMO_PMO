@@ -3116,11 +3116,17 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
 
+  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const isApprover = userRow?.role === "admin" || userRow?.role === "approver";
+
   const myProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.ownerId, userId));
   const myProjectIds = myProjects.map((p) => p.id);
 
   let pendingApprovals = 0;
-  if (myProjectIds.length > 0) {
+  if (isApprover) {
+    const rows = await db.select({ id: spmoMilestonesTable.id }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.status, "submitted"));
+    pendingApprovals = rows.length;
+  } else if (myProjectIds.length > 0) {
     const rows = await db.select({ id: spmoMilestonesTable.id }).from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), eq(spmoMilestonesTable.status, "submitted")));
     pendingApprovals = rows.length;
   }
@@ -3154,12 +3160,23 @@ router.get("/spmo/my-tasks", async (req, res) => {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
 
+  const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  const isApprover = userRow?.role === "admin" || userRow?.role === "approver";
+
   const myProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(eq(spmoProjectsTable.ownerId, userId));
   const myProjectIds = myProjects.map((p) => p.id);
   const projectNameMap = new Map(myProjects.map((p) => [p.id, p.name]));
 
   let pendingApprovals: typeof spmoMilestonesTable.$inferSelect[] = [];
-  if (myProjectIds.length > 0) {
+  if (isApprover) {
+    pendingApprovals = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.status, "submitted"));
+    // Build project name map for all submitted milestone projects
+    const submittedProjectIds = [...new Set(pendingApprovals.map((m) => m.projectId))];
+    if (submittedProjectIds.length > 0) {
+      const extraProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(inArray(spmoProjectsTable.id, submittedProjectIds));
+      for (const p of extraProjects) if (!projectNameMap.has(p.id)) projectNameMap.set(p.id, p.name);
+    }
+  } else if (myProjectIds.length > 0) {
     pendingApprovals = await db.select().from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), eq(spmoMilestonesTable.status, "submitted")));
   }
 
