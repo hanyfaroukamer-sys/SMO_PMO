@@ -158,7 +158,8 @@ export default function OpKPIs() {
     e.preventDefault();
     const nyt = form.nextYearTarget ? parseFloat(form.nextYearTarget) : undefined;
     const t2030 = form.target2030 ? parseFloat(form.target2030) : undefined;
-    const shared = {
+    const parsedInitiativeId = form.initiativeId ? parseInt(form.initiativeId) : undefined;
+    const baseFields = {
       name: form.name,
       description: form.description || undefined,
       unit: form.unit,
@@ -167,7 +168,6 @@ export default function OpKPIs() {
       baseline: parseFloat(form.baseline) || 0,
       nextYearTarget: nyt,
       target2030: t2030,
-      initiativeId: form.initiativeId ? parseInt(form.initiativeId) : undefined,
       kpiType: form.kpiType as CreateSpmoKpiRequest["kpiType"],
       direction: form.direction as CreateSpmoKpiRequest["direction"],
       measurementPeriod: form.measurementPeriod as CreateSpmoKpiRequest["measurementPeriod"],
@@ -178,12 +178,12 @@ export default function OpKPIs() {
     };
 
     if (editId) {
-      updateMutation.mutate({ id: editId, data: shared }, {
+      updateMutation.mutate({ id: editId, data: { ...baseFields, initiativeId: parsedInitiativeId ?? null } }, {
         onSuccess: () => { toast({ title: "KPI updated" }); setModalOpen(false); invalidate(); },
         onError: () => toast({ title: "Update failed", variant: "destructive" }),
       });
     } else {
-      createMutation.mutate({ data: { ...shared, type: "operational" } }, {
+      createMutation.mutate({ data: { ...baseFields, type: "operational", initiativeId: parsedInitiativeId } }, {
         onSuccess: () => { toast({ title: "KPI created" }); setModalOpen(false); invalidate(); },
         onError: () => toast({ title: "Create failed", variant: "destructive" }),
       });

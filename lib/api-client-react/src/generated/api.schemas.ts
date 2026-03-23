@@ -1250,7 +1250,8 @@ export interface UpdateSpmoKpiRequest {
   target?: number;
   actual?: number;
   status?: UpdateSpmoKpiRequestStatus;
-  initiativeId?: number;
+  pillarId?: number | null;
+  initiativeId?: number | null;
   ownerId?: string;
   ownerName?: string;
   nextYearTarget?: number;

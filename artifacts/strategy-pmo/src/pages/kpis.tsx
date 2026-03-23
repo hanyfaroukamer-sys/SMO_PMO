@@ -159,6 +159,7 @@ export default function KPIs() {
       baseline: parseFloat(form.baseline) || 0,
       nextYearTarget: nyt,
       target2030: t2030,
+      pillarId: form.pillarId ? parseInt(form.pillarId) : null,
       kpiType: form.kpiType as CreateSpmoKpiRequest["kpiType"],
       direction: form.direction as CreateSpmoKpiRequest["direction"],
       measurementPeriod: form.measurementPeriod as CreateSpmoKpiRequest["measurementPeriod"],
