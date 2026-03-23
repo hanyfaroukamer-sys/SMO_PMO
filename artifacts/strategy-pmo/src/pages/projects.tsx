@@ -37,7 +37,7 @@ import { Modal, FormField, FormActions, inputClass, selectClass } from "@/compon
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge, ShieldAlert, Telescope, Download } from "lucide-react";
-import { exportToXlsx } from "@/lib/export";
+import { exportToXlsx, exportMultiSheetXlsx } from "@/lib/export";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -536,16 +536,47 @@ export default function Projects() {
             </button>
           </div>
           <button
-            onClick={() => exportToXlsx(projects.map((p) => ({
-              Name: p.name,
-              Status: p.healthStatus,
-              Progress: Math.round(p.progress) + "%",
-              Budget: p.budget,
-              Spent: p.budgetSpent,
-              "Start Date": p.startDate,
-              "End Date": p.targetDate,
-              "Owner": p.ownerName ?? "",
-            })), "projects-export")}
+            onClick={async () => {
+              const projectRows = projects.map((p) => ({
+                Name: p.name,
+                Status: p.healthStatus,
+                Progress: Math.round(p.progress) + "%",
+                "Budget (SAR)": p.budget ?? 0,
+                "Spent (SAR)": p.budgetSpent ?? 0,
+                "Start Date": p.startDate ?? "",
+                "End Date": p.targetDate ?? "",
+                Owner: p.ownerName ?? "",
+              }));
+              try {
+                const res = await fetch("/api/spmo/milestones/all", { credentials: "include" });
+                const json = await res.json();
+                const items = (json.items ?? []) as Array<{
+                  milestone: { name: string; progress: number; status: string; dueDate?: string | null; effortDays?: number | null };
+                  project: { name: string };
+                  initiative: { name: string };
+                  pillar: { name: string };
+                }>;
+                const milestoneRows = items.map((item) => ({
+                  "Milestone Name": item.milestone.name,
+                  "Project": item.project.name,
+                  "Initiative": item.initiative.name,
+                  "Pillar": item.pillar.name,
+                  "Progress": Math.round(item.milestone.progress) + "%",
+                  "Status": item.milestone.status,
+                  "Due Date": item.milestone.dueDate ?? "",
+                  "Effort (days)": item.milestone.effortDays ?? "",
+                }));
+                exportMultiSheetXlsx(
+                  [
+                    { name: "Projects", data: projectRows },
+                    { name: "Milestones", data: milestoneRows },
+                  ],
+                  "projects-milestones-export",
+                );
+              } catch {
+                exportToXlsx(projectRows, "projects-export");
+              }
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
           >
             <Download className="w-3.5 h-3.5" /> Export

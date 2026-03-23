@@ -7,6 +7,18 @@ export function exportToXlsx(data: Record<string, unknown>[], filename: string) 
   XLSX.writeFile(wb, `${filename}.xlsx`);
 }
 
+export function exportMultiSheetXlsx(
+  sheets: { name: string; data: Record<string, unknown>[] }[],
+  filename: string,
+) {
+  const wb = XLSX.utils.book_new();
+  for (const sheet of sheets) {
+    const ws = XLSX.utils.json_to_sheet(sheet.data.length > 0 ? sheet.data : [{}]);
+    XLSX.utils.book_append_sheet(wb, ws, sheet.name.slice(0, 31));
+  }
+  XLSX.writeFile(wb, `${filename}.xlsx`);
+}
+
 export function exportToCsv(data: Record<string, unknown>[], filename: string) {
   if (data.length === 0) return;
   const headers = Object.keys(data[0]);

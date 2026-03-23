@@ -8,6 +8,7 @@ import usersRouter from "./users";
 import spmoRouter from "./spmo";
 import importRouter from "./import";
 import dependenciesRouter from "./dependencies";
+import reportsRouter from "./reports";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(usersRouter);
 router.use(spmoRouter);
 router.use(importRouter);
 router.use(dependenciesRouter);
+router.use("/spmo/reports", reportsRouter);
 
 export default router;

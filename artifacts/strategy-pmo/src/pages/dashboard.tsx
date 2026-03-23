@@ -12,7 +12,7 @@ import {
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
 
-import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload } from "lucide-react";
+import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload, FileText, BarChart2 } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Link } from "wouter";
@@ -246,15 +246,51 @@ export default function Dashboard() {
         title="Programme Dashboard"
         description={`Weighted progress cascade · last updated ${format(new Date(data.lastUpdated), "MMM d, yyyy HH:mm")}`}
       >
-        {isAdmin && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleRunAi}
-            className="flex items-center gap-2 bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-700 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm"
+            onClick={async () => {
+              const res = await fetch("/api/spmo/reports/pdf", { method: "POST", credentials: "include" });
+              if (!res.ok) { alert("Failed to generate PDF"); return; }
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `Programme-Report-${new Date().toISOString().slice(0, 10)}.pdf`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="flex items-center gap-2 bg-white border border-border hover:bg-muted/50 text-foreground px-3 py-2 rounded-lg text-sm font-medium transition-colors"
           >
-            <Sparkles className="w-4 h-4" />
-            AI Assessment
+            <FileText className="w-4 h-4" />
+            Export PDF
           </button>
-        )}
+          <button
+            onClick={async () => {
+              const res = await fetch("/api/spmo/reports/pptx", { method: "POST", credentials: "include" });
+              if (!res.ok) { alert("Failed to generate PPTX"); return; }
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `Programme-Report-${new Date().toISOString().slice(0, 10)}.pptx`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="flex items-center gap-2 bg-white border border-border hover:bg-muted/50 text-foreground px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            <BarChart2 className="w-4 h-4" />
+            Export PPTX
+          </button>
+          {isAdmin && (
+            <button
+              onClick={handleRunAi}
+              className="flex items-center gap-2 bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-700 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm"
+            >
+              <Sparkles className="w-4 h-4" />
+              AI Assessment
+            </button>
+          )}
+        </div>
       </PageHeader>
 
       {data.pillarSummaries.length === 0 && (

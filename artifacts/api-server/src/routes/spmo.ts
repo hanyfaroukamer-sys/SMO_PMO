@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { eq, desc, and, asc, inArray, sql, ne } from "drizzle-orm";
+import { getCachedAssessment, setCachedAssessment, ASSESSMENT_CACHE_TTL_MS } from "../lib/assessment-cache";
 import { db } from "@workspace/db";
 import { recalculateDownstreamStatuses } from "../lib/dep-engine";
 import {
@@ -1908,19 +1909,14 @@ router.get("/spmo/activity-log", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────
 // AI: Programme Assessment
 // ─────────────────────────────────────────────────────────────
-let cachedAssessment: {
-  result: unknown;
-  cachedAt: Date;
-} | null = null;
-
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 router.post("/spmo/ai/assessment", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;
 
   // Use cache if fresh
-  if (cachedAssessment && Date.now() - cachedAssessment.cachedAt.getTime() < CACHE_TTL_MS) {
+  const cachedAssessment = getCachedAssessment();
+  if (cachedAssessment && Date.now() - cachedAssessment.cachedAt.getTime() < ASSESSMENT_CACHE_TTL_MS) {
     res.json(cachedAssessment.result);
     return;
   }
@@ -1994,7 +1990,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
     };
 
     const result = { ...parsed, cachedAt: new Date() };
-    cachedAssessment = { result, cachedAt: new Date() };
+    setCachedAssessment(result);
 
     const user = getAuthUser(req);
     await logSpmoActivity(userId, getUserDisplayName(user), "ran_ai_assessment", "programme", 0, "StrategyPMO");
