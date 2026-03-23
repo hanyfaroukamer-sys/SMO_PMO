@@ -483,19 +483,11 @@ function ReviewStep({
 
 function BackupRestorePanel({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const { toast } = useToast();
-  const xmlInputRef = useRef<HTMLInputElement>(null);
   const [restoring, setRestoring] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
-  function handleExport() {
-    const a = document.createElement("a");
-    a.href = "/api/spmo/data/export";
-    a.download = `spmo-backup-${new Date().toISOString().slice(0, 10)}.xml`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
+  const exportHref = `/api/spmo/data/export`;
 
   function handleXmlFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -543,29 +535,40 @@ function BackupRestorePanel({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
             <p className="font-medium text-sm">Export Data</p>
             <p className="text-xs text-muted-foreground mt-0.5">Download all programme data as an XML file you can re-import later.</p>
           </div>
-          <button
-            onClick={handleExport}
-            className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors"
+          <a
+            href={exportHref}
+            download
+            className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors no-underline"
           >
             <Download className="w-4 h-4" />
             Download XML Backup
-          </button>
+          </a>
         </div>
 
-        {/* Import */}
+        {/* Restore */}
         <div className="rounded-lg border border-border bg-background p-4 flex flex-col gap-3">
           <div>
             <p className="font-medium text-sm">Restore from Backup</p>
             <p className="text-xs text-muted-foreground mt-0.5">Upload a previously exported XML file. This will replace all existing data.</p>
           </div>
-          <input ref={xmlInputRef} type="file" accept=".xml" className="hidden" onChange={handleXmlFileChange} />
-          <button
-            onClick={() => xmlInputRef.current?.click()}
-            disabled={restoring}
-            className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-destructive/60 text-destructive text-sm font-medium hover:bg-destructive/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          <label
+            className={cn(
+              "flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-destructive/60 text-destructive text-sm font-medium transition-colors",
+              restoring ? "opacity-50 cursor-not-allowed pointer-events-none" : "hover:bg-destructive/5 cursor-pointer"
+            )}
           >
-            {restoring ? <><Loader2 className="w-4 h-4 animate-spin" />Restoring…</> : <><RotateCcw className="w-4 h-4" />Upload & Restore</>}
-          </button>
+            {restoring
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Restoring…</>
+              : <><RotateCcw className="w-4 h-4" />Upload & Restore</>
+            }
+            <input
+              type="file"
+              accept=".xml,text/xml,application/xml"
+              className="sr-only"
+              disabled={restoring}
+              onChange={handleXmlFileChange}
+            />
+          </label>
         </div>
       </div>
 
