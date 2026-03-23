@@ -665,11 +665,19 @@ export default function KPIs() {
                         const result = computeKpiStatus(engineInput);
 
                         return (
-                          <tr key={kpi.id} className="hover:bg-secondary/20 transition-colors group">
+                          <tr
+                            key={kpi.id}
+                            onClick={() => setDetailKpi(kpi)}
+                            className="hover:bg-primary/5 transition-colors group cursor-pointer"
+                          >
                             <td className="px-6 py-4">
-                              <div className="font-semibold text-sm">{kpi.name}</div>
+                              <div className="font-semibold text-sm text-primary group-hover:underline underline-offset-2 flex items-center gap-1.5">
+                                {kpi.name}
+                                <BarChart2 className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+                              </div>
                               <div className="flex items-center gap-2 mt-0.5">
                                 <span className="text-xs text-muted-foreground capitalize bg-secondary/60 px-1.5 py-0.5 rounded">{kpi.kpiType ?? "rate"}</span>
+                                {kpi.category && <span className="text-xs text-muted-foreground border border-border/60 px-1.5 py-0.5 rounded">{kpi.category}</span>}
                               </div>
                               {kpi.description && (
                                 <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{kpi.description}</div>
@@ -695,17 +703,20 @@ export default function KPIs() {
                             </td>
                             <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.nextYearTarget, kpi.unit)}</td>
                             <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.target2030, kpi.unit)}</td>
-                            <td className="px-4 py-4">
-                              <div className="flex items-center gap-1">
-                                <button onClick={() => setDetailKpi(kpi)} className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors" title="View detail & measurements">
-                                  <BarChart2 className="w-3.5 h-3.5" />
+                            <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setDetailKpi(kpi); }}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors whitespace-nowrap"
+                                >
+                                  <BarChart2 className="w-3 h-3" /> Deep Dive
                                 </button>
                                 {isAdmin && (
                                   <>
-                                    <button onClick={() => openEdit(kpi)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-border bg-secondary hover:bg-secondary/70 text-foreground transition-colors" title="Edit KPI">
-                                      <Pencil className="w-3 h-3" /> Edit
+                                    <button onClick={(e) => { e.stopPropagation(); openEdit(kpi); }} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground border border-border transition-colors" title="Edit KPI">
+                                      <Pencil className="w-3 h-3" />
                                     </button>
-                                    <button onClick={() => handleDelete(kpi.id, kpi.name)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(kpi.id, kpi.name); }} className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
                                   </>
                                 )}
                               </div>
