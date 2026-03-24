@@ -708,6 +708,7 @@ export const ListSpmoPillarsResponse = zod.object({
         id: zod.number(),
         name: zod.string(),
         description: zod.string().nullable(),
+        pillarType: zod.enum(["pillar", "enabler"]).default("pillar"),
         weight: zod
           .number()
           .describe("Relative weight in programme progress (0–100)"),
@@ -2046,6 +2047,8 @@ export const listSpmoBudgetResponseEntriesItemCurrencyDefault = `USD`;
 
 export const ListSpmoBudgetResponse = zod.object({
   totalAllocated: zod.number(),
+  totalCapex: zod.number().optional().default(0),
+  totalOpex: zod.number().optional().default(0),
   totalSpent: zod.number(),
   utilizationPct: zod.number(),
   entries: zod.array(

@@ -745,6 +745,8 @@ export interface SpmoBudgetEntry {
 
 export interface SpmoBudgetSummary {
   totalAllocated: number;
+  totalCapex?: number;
+  totalOpex?: number;
   totalSpent: number;
   utilizationPct: number;
   entries: SpmoBudgetEntry[];

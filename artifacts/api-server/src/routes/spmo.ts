@@ -1677,20 +1677,55 @@ router.get("/spmo/budget", async (req, res): Promise<void> => {
     return;
   }
 
-  let entries = await db.select().from(spmoBudgetTable).orderBy(asc(spmoBudgetTable.period));
+  // Always compute authoritative totals from projects (bottom-up)
+  let projectsQ = db
+    .select({
+      budget: spmoProjectsTable.budget,
+      budgetCapex: spmoProjectsTable.budgetCapex,
+      budgetOpex: spmoProjectsTable.budgetOpex,
+      budgetSpent: spmoProjectsTable.budgetSpent,
+      initiativeId: spmoProjectsTable.initiativeId,
+    })
+    .from(spmoProjectsTable);
 
+  const allProjects = await projectsQ;
+
+  // Apply filters when provided
+  let filteredProjects = allProjects;
   if (qp.data.projectId) {
+    // single-project view: fall back to budget entries
+    let entries = await db.select().from(spmoBudgetTable).orderBy(asc(spmoBudgetTable.period));
     entries = entries.filter((e) => e.projectId === qp.data.projectId);
+    const totalAllocated = entries.reduce((s, e) => s + e.allocated, 0);
+    const totalSpent = entries.reduce((s, e) => s + e.spent, 0);
+    const utilizationPct = totalAllocated > 0 ? Math.round((totalSpent / totalAllocated) * 1000) / 10 : 0;
+    res.json({ totalAllocated, totalSpent, utilizationPct, entries });
+    return;
   }
+
+  if (qp.data.pillarId) {
+    // Resolve initiative IDs belonging to this pillar
+    const pillarInitiatives = await db
+      .select({ id: spmoInitiativesTable.id })
+      .from(spmoInitiativesTable)
+      .where(eq(spmoInitiativesTable.pillarId, qp.data.pillarId));
+    const iniIds = new Set(pillarInitiatives.map((i) => i.id));
+    filteredProjects = allProjects.filter((p) => p.initiativeId !== null && iniIds.has(p.initiativeId));
+  }
+
+  const totalAllocated = filteredProjects.reduce((s, p) => s + (p.budget ?? 0), 0);
+  const totalCapex    = filteredProjects.reduce((s, p) => s + (p.budgetCapex ?? 0), 0);
+  const totalOpex     = filteredProjects.reduce((s, p) => s + (p.budgetOpex ?? 0), 0);
+  const totalSpent    = filteredProjects.reduce((s, p) => s + (p.budgetSpent ?? 0), 0);
+  const utilizationPct = totalAllocated > 0 ? Math.round((totalSpent / totalAllocated) * 1000) / 10 : 0;
+
+  // Also fetch manual entries for the detailed entries tab
+  let entries = await db.select().from(spmoBudgetTable).orderBy(asc(spmoBudgetTable.period));
   if (qp.data.pillarId) {
     entries = entries.filter((e) => e.pillarId === qp.data.pillarId);
   }
 
-  const totalAllocated = entries.reduce((s, e) => s + e.allocated, 0);
-  const totalSpent = entries.reduce((s, e) => s + e.spent, 0);
-  const utilizationPct = totalAllocated > 0 ? Math.round((totalSpent / totalAllocated) * 1000) / 10 : 0;
-
-  res.json({ totalAllocated, totalSpent, utilizationPct, entries });
+  res.json({ totalAllocated, totalCapex, totalOpex, totalSpent, utilizationPct, entries });
 });
 
 router.post("/spmo/budget", async (req, res): Promise<void> => {

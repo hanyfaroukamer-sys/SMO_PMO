@@ -323,9 +323,9 @@ export default function Dashboard() {
   const totalAllocated = budgetData?.totalAllocated ?? 0;
   const totalSpent = budgetData?.totalSpent ?? 0;
 
-  // CAPEX/OPEX breakdowns computed from project-level budgets
-  const totalCapex = projects.reduce((s, p) => s + ((p as { budgetCapex?: number }).budgetCapex ?? 0), 0);
-  const totalOpex  = projects.reduce((s, p) => s + ((p as { budgetOpex?: number }).budgetOpex ?? 0), 0);
+  // CAPEX/OPEX breakdowns from budget API (bottom-up from projects)
+  const totalCapex = budgetData?.totalCapex ?? 0;
+  const totalOpex  = budgetData?.totalOpex  ?? 0;
   const budgetViewAllocated = budgetView === "capex" ? totalCapex : budgetView === "opex" ? totalOpex : totalAllocated || (totalCapex + totalOpex);
   const budgetViewLabel = budgetView === "capex" ? "CAPEX" : budgetView === "opex" ? "OPEX" : "Total";
   const initiativesOnTrack = initiatives.filter((i) => {
