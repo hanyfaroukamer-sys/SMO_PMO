@@ -1886,10 +1886,11 @@ function WeeklyReportSection({ projectId }: { projectId: number }) {
 }
 
 const HEALTH_BADGE_MAP: Record<SpmoHealthStatus, { label: string; className: string }> = {
-  completed: { label: "Completed", className: "bg-success/10 text-success border border-success/30" },
-  on_track:  { label: "On Track",  className: "bg-primary/10 text-primary border border-primary/30" },
-  at_risk:   { label: "At Risk",   className: "bg-warning/10 text-warning border border-warning/30" },
-  delayed:   { label: "Delayed",   className: "bg-destructive/10 text-destructive border border-destructive/30" },
+  completed:   { label: "Completed",   className: "bg-success/10 text-success border border-success/30" },
+  on_track:    { label: "On Track",    className: "bg-primary/10 text-primary border border-primary/30" },
+  at_risk:     { label: "At Risk",     className: "bg-warning/10 text-warning border border-warning/30" },
+  delayed:     { label: "Delayed",     className: "bg-destructive/10 text-destructive border border-destructive/30" },
+  not_started: { label: "Not Started", className: "bg-muted text-muted-foreground border border-border" },
 };
 
 function HealthBadge({ status }: { status: SpmoHealthStatus | undefined }) {

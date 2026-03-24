@@ -438,7 +438,7 @@ export interface SpmoProject {
   updatedAt: string;
 }
 
-export type SpmoHealthStatus = "on_track" | "at_risk" | "delayed" | "completed";
+export type SpmoHealthStatus = "on_track" | "at_risk" | "delayed" | "completed" | "not_started";
 
 export interface SpmoStatusResult {
   status: SpmoHealthStatus;

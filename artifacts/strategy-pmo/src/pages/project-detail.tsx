@@ -66,10 +66,11 @@ function fileIcon(contentType: string | null | undefined) {
 }
 
 const HEALTH_CONFIG: Record<SpmoHealthStatus, { label: string; color: string; bg: string; border: string }> = {
-  on_track:  { label: "On Track",  color: "text-success",     bg: "bg-success/10",     border: "border-success/20" },
-  at_risk:   { label: "At Risk",   color: "text-warning",     bg: "bg-warning/10",     border: "border-warning/20" },
-  delayed:   { label: "Delayed",   color: "text-destructive", bg: "bg-destructive/10", border: "border-destructive/20" },
-  completed: { label: "Completed", color: "text-success",     bg: "bg-success/10",     border: "border-success/20" },
+  on_track:    { label: "On Track",    color: "text-success",          bg: "bg-success/10",     border: "border-success/20" },
+  at_risk:     { label: "At Risk",     color: "text-warning",          bg: "bg-warning/10",     border: "border-warning/20" },
+  delayed:     { label: "Delayed",     color: "text-destructive",      bg: "bg-destructive/10", border: "border-destructive/20" },
+  completed:   { label: "Completed",   color: "text-success",          bg: "bg-success/10",     border: "border-success/20" },
+  not_started: { label: "Not Started", color: "text-muted-foreground", bg: "bg-muted",          border: "border-border" },
 };
 
 function HealthBadge({ status }: { status: SpmoHealthStatus | null | undefined }) {

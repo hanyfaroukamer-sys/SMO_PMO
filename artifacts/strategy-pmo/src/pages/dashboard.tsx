@@ -32,10 +32,11 @@ function calcPlannedProgress(startDate: string | null | undefined, endDate: stri
 }
 
 const HEALTH_BADGE_MAP: Record<SpmoHealthStatus, { label: string; cls: string }> = {
-  completed: { label: "Completed", cls: "bg-success/10 text-success border border-success/30" },
-  on_track:  { label: "On Track",  cls: "bg-primary/10 text-primary border border-primary/30" },
-  at_risk:   { label: "At Risk",   cls: "bg-warning/10 text-warning border border-warning/30" },
-  delayed:   { label: "Delayed",   cls: "bg-destructive/10 text-destructive border border-destructive/30" },
+  completed:   { label: "Completed",   cls: "bg-success/10 text-success border border-success/30" },
+  on_track:    { label: "On Track",    cls: "bg-primary/10 text-primary border border-primary/30" },
+  at_risk:     { label: "At Risk",     cls: "bg-warning/10 text-warning border border-warning/30" },
+  delayed:     { label: "Delayed",     cls: "bg-destructive/10 text-destructive border border-destructive/30" },
+  not_started: { label: "Not Started", cls: "bg-muted text-muted-foreground border border-border" },
 };
 
 function ComputedStatusBadge({ cs }: { cs: SpmoStatusResult | undefined }) {

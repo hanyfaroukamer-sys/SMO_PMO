@@ -289,7 +289,7 @@ export function computeRiskScore(probability: string, impact: string): number {
 // Milestones keep manual status (pending/in_progress/submitted/approved/rejected).
 // ─────────────────────────────────────────────────────────────
 
-export type HealthStatus = "on_track" | "at_risk" | "delayed" | "completed";
+export type HealthStatus = "on_track" | "at_risk" | "delayed" | "completed" | "not_started";
 
 export interface StatusResult {
   status: HealthStatus;
@@ -368,7 +368,7 @@ function computeStatusCore(
 
   // RULE 2: Not yet started
   if (elapsedPct <= 0) {
-    return { status: "on_track", reason: `Not yet started. Begins ${start.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`, spi: 1, burnGap: Math.round(burnGap) };
+    return { status: "not_started", reason: `Not yet started. Begins ${start.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`, spi: 1, burnGap: Math.round(burnGap) };
   }
 
   // RULE 3: Near completion (≥95%) — let it finish even if past end date
@@ -466,7 +466,7 @@ export function computeInitiativeStatus(
     .sort((a, b) => a.computedStatus.spi - b.computedStatus.spi);
 
   // ESCALATION 1: Any delayed child → initiative minimum at-risk
-  if (delayed.length > 0 && result.status === "on_track") {
+  if (delayed.length > 0 && (result.status === "on_track" || result.status === "not_started")) {
     result.status = "at_risk";
     result.reason = `Contains ${delayed.length} delayed project${delayed.length > 1 ? "s" : ""}.`;
   }
