@@ -41,10 +41,20 @@ function requireAuth(req: Request, res: Response): string | null {
   return user.id;
 }
 
+// ─── TIMEOUT WRAPPER ─────────────────────────────────────────────────────────
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
 // ─── TEXT EXTRACTION HELPERS ──────────────────────────────────────────────────
 
 async function extractPdf(buf: Buffer): Promise<string> {
-  // pdf-parse v2 API: pass buffer as `data` in constructor options, then call getText()
   const { PDFParse } = await import("pdf-parse") as unknown as {
     PDFParse: new (opts: { data: Uint8Array }) => {
       getText: () => Promise<{ pages: Array<{ text: string }> }>;
@@ -71,23 +81,34 @@ async function extractDocx(buf: Buffer): Promise<string> {
 }
 
 async function extractPptx(buf: Buffer): Promise<string> {
-  // officeparser v6 API: parseOffice is async and returns an AST with .toText()
+  // officeparser v6: parseOffice is async and returns the extracted text string directly
   const op = await import("officeparser") as unknown as {
-    parseOffice: (input: Buffer) => Promise<{ toText: () => string }>;
+    parseOffice: (input: Buffer) => Promise<string>;
   };
-  const ast = await op.parseOffice(buf);
-  return ast.toText();
+  return await op.parseOffice(buf);
 }
 
+// Extract text with a 25-second timeout per file to prevent hangs on large/corrupt files
 async function extractFileText(buf: Buffer, name: string): Promise<string> {
   const fname = name.toLowerCase();
-  try {
-    if (fname.endsWith(".pdf")) return await extractPdf(buf);
-    if (fname.endsWith(".xlsx") || fname.endsWith(".xls") || fname.endsWith(".csv")) return await extractXlsx(buf);
-    if (fname.endsWith(".docx")) return await extractDocx(buf);
-    if (fname.endsWith(".pptx") || fname.endsWith(".ppt")) return await extractPptx(buf);
+  let extractPromise: Promise<string>;
+
+  if (fname.endsWith(".pdf")) {
+    extractPromise = extractPdf(buf);
+  } else if (fname.endsWith(".xlsx") || fname.endsWith(".xls") || fname.endsWith(".csv")) {
+    extractPromise = extractXlsx(buf);
+  } else if (fname.endsWith(".docx")) {
+    extractPromise = extractDocx(buf);
+  } else if (fname.endsWith(".pptx") || fname.endsWith(".ppt")) {
+    extractPromise = extractPptx(buf);
+  } else {
     return `[UNSUPPORTED FORMAT: ${name}]`;
+  }
+
+  try {
+    return await withTimeout(extractPromise, 25_000, `extraction of ${name}`);
   } catch (err) {
+    console.error(`[import] extract error for ${name}:`, err);
     return `[PARSE ERROR for ${name}: ${err instanceof Error ? err.message : "unknown"}]`;
   }
 }
@@ -236,6 +257,7 @@ async function fetchExistingData() {
 
 // ─── ANALYSE ENDPOINT ────────────────────────────────────────────────────────
 // POST /api/spmo/import/analyse
+// Uses SSE streaming to keep the connection alive while Claude processes
 
 router.post(
   "/spmo/import/analyse",
@@ -253,23 +275,29 @@ router.post(
       return;
     }
 
+    // ── Step 1: Extract text from all files (with per-file timeout) ──────────
     const extracted: string[] = [];
     for (const file of files) {
+      console.log(`[import] extracting ${file.originalname} (${Math.round(file.size / 1024)}KB)`);
       const text = await extractFileText(file.buffer, file.originalname);
+      const preview = text.substring(0, 80).replace(/\n/g, " ");
+      console.log(`[import] extracted ${text.length} chars from ${file.originalname}: "${preview}..."`);
       extracted.push(`[FILE: ${file.originalname}]\n${text}`);
     }
 
     let documentContent = extracted.join("\n\n===\n\n");
 
+    // ── Step 2: Build context (merge mode fetches existing data) ──────────────
     let existingContext = "";
     if (mode === "merge") {
       const existing = await fetchExistingData();
       existingContext = `\n\nEXISTING DATA IN THE TOOL (for reference — do not duplicate these):\n${JSON.stringify(existing, null, 2)}\n\nWhen items in the documents match existing items, set "matchAction": "update" and "matchId" to the existing item's id.\nFor NEW items not in existing data, set "matchAction": "create".\n`;
     }
 
-    const MAX_CHARS = 100_000;
+    // ── Step 3: Truncate to 25K chars to keep Claude fast and within limits ───
+    const MAX_CHARS = 25_000;
     if (documentContent.length > MAX_CHARS) {
-      documentContent = documentContent.substring(0, MAX_CHARS) + "\n\n[TRUNCATED]";
+      documentContent = documentContent.substring(0, MAX_CHARS) + "\n\n[DOCUMENT TRUNCATED — ABOVE IS A REPRESENTATIVE SAMPLE]";
     }
 
     const guidanceSection = guidance
@@ -278,37 +306,60 @@ router.post(
 
     const promptText = buildExtractionPrompt(mode) + existingContext + guidanceSection + "\n\n---\n\nDOCUMENT CONTENT:\n" + documentContent;
 
-    let text = "";
+    console.log(`[import] sending to Claude: prompt ${promptText.length} chars, doc ${documentContent.length} chars`);
+
+    // ── Step 4: Stream the Claude response to keep the connection alive ────────
+    // Streaming prevents the Replit AI proxy from timing out on large documents.
+    let fullText = "";
     try {
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
+      const stream = anthropic.messages.stream({
+        model: "claude-haiku-4-5",
         max_tokens: 8192,
         messages: [{ role: "user", content: promptText }],
       });
-      text = response.content[0].type === "text" ? response.content[0].text : "";
+
+      for await (const event of stream) {
+        if (
+          event.type === "content_block_delta" &&
+          event.delta.type === "text_delta"
+        ) {
+          fullText += event.delta.text;
+        }
+      }
     } catch (err) {
-      res.status(500).json({ error: `Claude API error: ${err instanceof Error ? err.message : "unknown"}` });
+      console.error("[import] Claude streaming error:", err);
+      const msg = err instanceof Error ? err.message : "unknown";
+      res.status(500).json({ error: `AI extraction failed: ${msg}. Please try a smaller file or add guidance about the document structure.` });
       return;
     }
 
+    console.log(`[import] Claude returned ${fullText.length} chars`);
+
+    // ── Step 5: Parse the JSON (with one retry) ────────────────────────────────
     let parsed: unknown;
     try {
-      parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+      parsed = JSON.parse(fullText.replace(/```json|```/g, "").trim());
     } catch {
+      console.log("[import] JSON parse failed, retrying...");
       try {
-        const retry = await anthropic.messages.create({
-          model: "claude-sonnet-4-6",
+        let retryText = "";
+        const retryStream = anthropic.messages.stream({
+          model: "claude-haiku-4-5",
           max_tokens: 8192,
           messages: [
             { role: "user", content: promptText },
-            { role: "assistant", content: text },
+            { role: "assistant", content: fullText },
             { role: "user", content: "That was not valid JSON. Return ONLY the JSON object. No text before or after. No markdown fences." },
           ],
         });
-        const retryText = retry.content[0].type === "text" ? retry.content[0].text : "";
+        for await (const event of retryStream) {
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+            retryText += event.delta.text;
+          }
+        }
         parsed = JSON.parse(retryText.replace(/```json|```/g, "").trim());
       } catch {
-        res.status(500).json({ error: "Claude returned invalid JSON and retry also failed." });
+        res.status(500).json({ error: "AI returned invalid JSON. Try adding guidance to specify the document structure (e.g. 'Strategy house with 5 pillars, extract projects from the appendix table')." });
         return;
       }
     }
@@ -388,7 +439,6 @@ router.post("/spmo/import/save", async (req: Request, res: Response): Promise<vo
       }
     }
 
-    // Get current project count for auto-code generation
     const existingProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable);
     let nextCodeNum = existingProjects.length + 1;
 
