@@ -11,7 +11,9 @@ import {
   useGetCurrentAuthUser,
   useApproveSpmoMilestone,
   useRejectSpmoMilestone,
+  useCreateSpmoMilestone,
   useUpdateSpmoMilestone,
+  useDeleteSpmoMilestone,
   useAddSpmoEvidence,
   useRunSpmoAiValidateEvidence,
   useListSpmoChangeRequests,
@@ -265,122 +267,448 @@ function EvidenceSection({
   );
 }
 
+// ─── Milestones tab (list + add form) ──────────────────────────────────────────
+
+function MilestonesTab({
+  projectId,
+  milestones,
+  milestoneApproved,
+  pendingApprovals,
+  canApprove,
+  canEdit,
+  onInvalidate,
+}: {
+  projectId: number;
+  milestones: SpmoMilestoneWithEvidence[];
+  milestoneApproved: number;
+  pendingApprovals: number;
+  canApprove: boolean;
+  canEdit: boolean;
+  onInvalidate: () => void;
+}) {
+  const createMilestone = useCreateSpmoMilestone();
+  const { toast } = useToast();
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: "", weight: "", effortDays: "", dueDate: "", description: "" });
+
+  const inputCls = "w-full text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50";
+
+  const handleCreate = async () => {
+    if (!form.name.trim()) return;
+    await createMilestone.mutateAsync({
+      id: projectId,
+      data: {
+        name: form.name.trim(),
+        weight: form.weight !== "" ? Number(form.weight) : 0,
+        effortDays: form.effortDays !== "" ? Number(form.effortDays) : 0,
+        dueDate: form.dueDate || new Date().toISOString().slice(0, 10),
+        description: form.description || undefined,
+      },
+    });
+    toast({ title: "Milestone created" });
+    onInvalidate();
+    setForm({ name: "", weight: "", effortDays: "", dueDate: "", description: "" });
+    setShowAdd(false);
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Header bar */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-muted-foreground font-medium">
+          {milestones.length} milestone{milestones.length !== 1 ? "s" : ""}
+        </span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-success" /> {milestoneApproved} approved</span>
+            {pendingApprovals > 0 && (
+              <span className="flex items-center gap-1 text-warning font-semibold"><AlertCircle className="w-3.5 h-3.5" /> {pendingApprovals} pending</span>
+            )}
+          </div>
+          {canEdit && !showAdd && (
+            <button
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Milestone
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Add milestone form */}
+      {showAdd && (
+        <Card className="p-4 border-primary/30 ring-1 ring-primary/20">
+          <div className="flex items-center gap-2 mb-3">
+            <Plus className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs font-semibold text-primary">New Milestone</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="col-span-2">
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Name *</label>
+              <input className={inputCls} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Milestone name" />
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Weight (%)</label>
+              <input type="number" min={0} max={100} className={inputCls} value={form.weight} onChange={(e) => setForm((f) => ({ ...f, weight: e.target.value }))} placeholder="0" />
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Effort (days)</label>
+              <input type="number" min={0} className={inputCls} value={form.effortDays} onChange={(e) => setForm((f) => ({ ...f, effortDays: e.target.value }))} placeholder="—" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Due Date</label>
+              <input type="date" className={inputCls} value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Description</label>
+              <textarea rows={2} className={`${inputCls} resize-none`} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Optional description…" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              onClick={handleCreate}
+              disabled={createMilestone.isPending || !form.name.trim()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              <Save className="w-3 h-3" />
+              {createMilestone.isPending ? "Creating…" : "Create Milestone"}
+            </button>
+            <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border hover:bg-secondary transition-colors">
+              Cancel
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {/* Empty state */}
+      {milestones.length === 0 && !showAdd && (
+        <Card className="text-center py-16">
+          <ClipboardList className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+          <h3 className="font-bold">No milestones yet</h3>
+          {canEdit ? (
+            <button onClick={() => setShowAdd(true)} className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors mx-auto">
+              <Plus className="w-4 h-4" /> Add First Milestone
+            </button>
+          ) : (
+            <p className="text-sm text-muted-foreground mt-1">No milestones have been added yet.</p>
+          )}
+        </Card>
+      )}
+
+      {/* List */}
+      {milestones.map((m) => (
+        <MilestoneRow key={m.id} milestone={m} canApprove={canApprove} canEdit={canEdit} onInvalidate={onInvalidate} />
+      ))}
+    </div>
+  );
+}
+
 // ─── Milestone row ─────────────────────────────────────────────────────────────
 
 function MilestoneRow({
   milestone,
   canApprove,
+  canEdit,
   onInvalidate,
 }: {
   milestone: SpmoMilestoneWithEvidence;
   canApprove: boolean;
+  canEdit: boolean;
   onInvalidate: () => void;
 }) {
-  const qc = useQueryClient();
   const updateMilestone = useUpdateSpmoMilestone();
+  const deleteMilestone = useDeleteSpmoMilestone();
   const { toast } = useToast();
-  const [editing, setEditing] = useState(false);
+
+  const [progressEditing, setProgressEditing] = useState(false);
   const [progress, setProgress] = useState(milestone.progress ?? 0);
+
+  const [detailEditing, setDetailEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [draft, setDraft] = useState({
+    name: milestone.name,
+    weight: milestone.weight ?? 0,
+    description: milestone.description ?? "",
+    dueDate: milestone.dueDate ? milestone.dueDate.toString().slice(0, 10) : "",
+    effortDays: milestone.effortDays ?? "",
+  });
 
   const isApproved = milestone.status === "approved";
   const isRejected = milestone.status === "rejected";
   const isSubmitted = milestone.status === "submitted";
+  const isPhaseGate = !!(milestone as { phaseGate?: string | null }).phaseGate;
 
   const saveProgress = async () => {
     await updateMilestone.mutateAsync({ id: milestone.id, data: { progress } });
     toast({ title: "Progress updated" });
     onInvalidate();
-    setEditing(false);
+    setProgressEditing(false);
   };
 
-  const isPhaseGate = !!(milestone as { phaseGate?: string | null }).phaseGate;
+  const openDetailEdit = () => {
+    setDraft({
+      name: milestone.name,
+      weight: milestone.weight ?? 0,
+      description: milestone.description ?? "",
+      dueDate: milestone.dueDate ? milestone.dueDate.toString().slice(0, 10) : "",
+      effortDays: milestone.effortDays ?? "",
+    });
+    setDetailEditing(true);
+  };
+
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const saveDetails = async () => {
+    if (!draft.name.trim()) return;
+    setSaveError(null);
+    try {
+      await updateMilestone.mutateAsync({
+        id: milestone.id,
+        data: {
+          name: draft.name.trim(),
+          weight: Number(draft.weight) || 0,
+          description: draft.description || undefined,
+          dueDate: draft.dueDate || undefined,
+          effortDays: draft.effortDays !== "" ? Number(draft.effortDays) : undefined,
+        },
+      });
+      toast({ title: "Milestone updated" });
+      onInvalidate();
+      setDetailEditing(false);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Failed to save. Check the weight — total cannot exceed 100%.";
+      setSaveError(msg);
+    }
+  };
+
+  const handleDelete = async () => {
+    await deleteMilestone.mutateAsync({ id: milestone.id });
+    toast({ title: "Milestone deleted" });
+    onInvalidate();
+    setConfirmDelete(false);
+  };
+
+  const inputCls = "w-full text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50";
 
   return (
     <div className={`rounded-xl border ${isPhaseGate ? "border-blue-300 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800" : isApproved ? "border-success/30 bg-success/5" : isRejected ? "border-destructive/30 bg-destructive/5" : isSubmitted ? "border-primary/30 bg-primary/5" : "border-border bg-background"} p-4 transition-colors`}>
-      {/* Header row */}
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="font-semibold text-sm">{milestone.name}</span>
+
+      {/* ── Detail edit form ── */}
+      {detailEditing ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Pencil className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs font-semibold text-primary">Edit Milestone</span>
             {isPhaseGate && (
               <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700">
-                <Lock className="w-2.5 h-2.5" />
-                PHASE GATE
+                <Lock className="w-2.5 h-2.5" /> PHASE GATE
               </span>
             )}
-            <StatusBadge status={milestone.status} />
-            <HealthBadge status={milestone.healthStatus} />
           </div>
-          {milestone.description && (
-            <p className="text-xs text-muted-foreground mb-2 leading-relaxed">{milestone.description}</p>
-          )}
-
-          {/* Progress */}
-          <div className="flex items-center gap-3 mb-2">
-            <div className="flex-1 max-w-[200px]">
-              <div className="flex justify-between text-[10px] text-muted-foreground mb-0.5">
-                <span>Progress</span>
-                <span className="font-semibold text-foreground">{milestone.progress ?? 0}%</span>
-              </div>
-              <ProgressBar progress={milestone.progress ?? 0} showLabel={false} />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="col-span-2">
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Name *</label>
+              <input
+                className={inputCls}
+                value={draft.name}
+                onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                placeholder="Milestone name"
+              />
             </div>
-            {!isApproved && (
-              editing ? (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={progress}
-                    onChange={(e) => setProgress(Math.min(100, Math.max(0, +e.target.value)))}
-                    className="w-16 text-xs border border-border rounded-lg px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  />
-                  <button onClick={saveProgress} disabled={updateMilestone.isPending} className="text-[10px] font-semibold text-success hover:underline">
-                    {updateMilestone.isPending ? "…" : "Save"}
-                  </button>
-                  <button onClick={() => setEditing(false)} className="text-[10px] text-muted-foreground hover:text-foreground">Cancel</button>
-                </div>
-              ) : (
-                <button onClick={() => setEditing(true)} className="text-[10px] font-semibold text-primary hover:underline">
-                  Update %
-                </button>
-              )
-            )}
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Weight (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                className={inputCls}
+                value={draft.weight}
+                onChange={(e) => setDraft((d) => ({ ...d, weight: +e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Effort (days)</label>
+              <input
+                type="number"
+                min={0}
+                className={inputCls}
+                value={draft.effortDays}
+                onChange={(e) => setDraft((d) => ({ ...d, effortDays: e.target.value }))}
+                placeholder="—"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Due Date</label>
+              <input
+                type="date"
+                className={inputCls}
+                value={draft.dueDate}
+                onChange={(e) => setDraft((d) => ({ ...d, dueDate: e.target.value }))}
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Description</label>
+              <textarea
+                rows={2}
+                className={`${inputCls} resize-none`}
+                value={draft.description}
+                onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                placeholder="Optional description…"
+              />
+            </div>
           </div>
-
-          {/* Meta */}
-          <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
-            {milestone.dueDate && (
-              <div className="flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                Due {fmt(milestone.dueDate)}
-              </div>
-            )}
-            {milestone.effortDays && (
-              <div className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {milestone.effortDays}d effort
-              </div>
-            )}
-            {milestone.weight > 0 && (
-              <div className="flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />
-                {milestone.weight}% weight
-              </div>
-            )}
-          </div>
-
-          {/* Rejection reason */}
-          {isRejected && milestone.rejectionReason && (
-            <div className="flex items-start gap-1.5 mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg text-xs text-destructive">
+          {saveError && (
+            <div className="flex items-start gap-1.5 p-2 bg-destructive/10 border border-destructive/20 rounded-lg text-xs text-destructive">
               <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span>{milestone.rejectionReason}</span>
+              <span>{saveError}</span>
             </div>
           )}
-
-          <EvidenceSection milestone={milestone} canApprove={canApprove} onInvalidate={onInvalidate} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={saveDetails}
+              disabled={updateMilestone.isPending || !draft.name.trim()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              <Save className="w-3 h-3" />
+              {updateMilestone.isPending ? "Saving…" : "Save Changes"}
+            </button>
+            <button
+              onClick={() => { setDetailEditing(false); setSaveError(null); }}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border hover:bg-secondary transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Header row */}
+          <div className="flex items-start gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="font-semibold text-sm">{milestone.name}</span>
+                {isPhaseGate && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700">
+                    <Lock className="w-2.5 h-2.5" />
+                    PHASE GATE
+                  </span>
+                )}
+                <StatusBadge status={milestone.status} />
+                <HealthBadge status={milestone.healthStatus} />
+              </div>
+              {milestone.description && (
+                <p className="text-xs text-muted-foreground mb-2 leading-relaxed">{milestone.description}</p>
+              )}
+
+              {/* Progress */}
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex-1 max-w-[200px]">
+                  <div className="flex justify-between text-[10px] text-muted-foreground mb-0.5">
+                    <span>Progress</span>
+                    <span className="font-semibold text-foreground">{milestone.progress ?? 0}%</span>
+                  </div>
+                  <ProgressBar progress={milestone.progress ?? 0} showLabel={false} />
+                </div>
+                {!isApproved && (
+                  progressEditing ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={progress}
+                        onChange={(e) => setProgress(Math.min(100, Math.max(0, +e.target.value)))}
+                        className="w-16 text-xs border border-border rounded-lg px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                      <button onClick={saveProgress} disabled={updateMilestone.isPending} className="text-[10px] font-semibold text-success hover:underline">
+                        {updateMilestone.isPending ? "…" : "Save"}
+                      </button>
+                      <button onClick={() => setProgressEditing(false)} className="text-[10px] text-muted-foreground hover:text-foreground">Cancel</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setProgressEditing(true)} className="text-[10px] font-semibold text-primary hover:underline">
+                      Update %
+                    </button>
+                  )
+                )}
+              </div>
+
+              {/* Meta */}
+              <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
+                {milestone.dueDate && (
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    Due {fmt(milestone.dueDate)}
+                  </div>
+                )}
+                {milestone.effortDays && (
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {milestone.effortDays}d effort
+                  </div>
+                )}
+                {milestone.weight > 0 && (
+                  <div className="flex items-center gap-1">
+                    <TrendingUp className="w-3 h-3" />
+                    {milestone.weight}% weight
+                  </div>
+                )}
+              </div>
+
+              {/* Rejection reason */}
+              {isRejected && milestone.rejectionReason && (
+                <div className="flex items-start gap-1.5 mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg text-xs text-destructive">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>{milestone.rejectionReason}</span>
+                </div>
+              )}
+
+              <EvidenceSection milestone={milestone} canApprove={canApprove} onInvalidate={onInvalidate} />
+            </div>
+
+            {/* Action buttons */}
+            {canEdit && (
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={openDetailEdit}
+                  title="Edit milestone"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                {!isPhaseGate && (
+                  confirmDelete ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={handleDelete}
+                        disabled={deleteMilestone.isPending}
+                        className="px-2 py-1 rounded text-[10px] font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                      >
+                        {deleteMilestone.isPending ? "…" : "Confirm"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelete(false)}
+                        className="px-2 py-1 rounded text-[10px] border border-border hover:bg-secondary transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      title="Delete milestone"
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -771,30 +1099,15 @@ export default function ProjectDetail({ params }: Props) {
 
       {/* ── MILESTONES ── */}
       {activeTab === "milestones" && (
-        <div className="space-y-3">
-          {milestones.length === 0 ? (
-            <Card className="text-center py-16">
-              <ClipboardList className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
-              <h3 className="font-bold">No milestones yet</h3>
-              <p className="text-sm text-muted-foreground mt-1">Add milestones from the Projects page to get started.</p>
-            </Card>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground font-medium">{milestones.length} milestone{milestones.length !== 1 ? "s" : ""}</span>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-success" /> {milestoneApproved} approved</span>
-                  {project.pendingApprovals > 0 && (
-                    <span className="flex items-center gap-1 text-warning font-semibold"><AlertCircle className="w-3.5 h-3.5" /> {project.pendingApprovals} pending</span>
-                  )}
-                </div>
-              </div>
-              {milestones.map((m) => (
-                <MilestoneRow key={m.id} milestone={m} canApprove={canApprove} onInvalidate={invalidate} />
-              ))}
-            </>
-          )}
-        </div>
+        <MilestonesTab
+          projectId={projectId}
+          milestones={milestones}
+          milestoneApproved={milestoneApproved}
+          pendingApprovals={project.pendingApprovals}
+          canApprove={canApprove}
+          canEdit={isAdmin || canEditReport}
+          onInvalidate={invalidate}
+        />
       )}
 
       {/* ── WEEKLY REPORT ── */}
