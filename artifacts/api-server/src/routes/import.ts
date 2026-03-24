@@ -44,10 +44,15 @@ function requireAuth(req: Request, res: Response): string | null {
 // ─── TEXT EXTRACTION HELPERS ──────────────────────────────────────────────────
 
 async function extractPdf(buf: Buffer): Promise<string> {
-  const pdfMod = await import("pdf-parse");
-  const pdfParse = (pdfMod as unknown as { default?: (buf: Buffer) => Promise<{ text: string }> }).default ?? (pdfMod as unknown as (buf: Buffer) => Promise<{ text: string }>);
-  const result = await pdfParse(buf);
-  return result.text;
+  // pdf-parse v2 API: pass buffer as `data` in constructor options, then call getText()
+  const { PDFParse } = await import("pdf-parse") as unknown as {
+    PDFParse: new (opts: { data: Uint8Array }) => {
+      getText: () => Promise<{ pages: Array<{ text: string }> }>;
+    };
+  };
+  const parser = new PDFParse({ data: new Uint8Array(buf) });
+  const result = await parser.getText();
+  return result.pages.map(p => p.text).join("\n");
 }
 
 async function extractXlsx(buf: Buffer): Promise<string> {
@@ -66,14 +71,12 @@ async function extractDocx(buf: Buffer): Promise<string> {
 }
 
 async function extractPptx(buf: Buffer): Promise<string> {
-  const officeparser = await import("officeparser");
-  return await new Promise<string>((resolve, reject) => {
-    (officeparser as unknown as { parseOffice: (input: Buffer, cb: (err: Error | null, data: string) => void) => void })
-      .parseOffice(buf, (err, data) => {
-        if (err) reject(err);
-        else resolve(data);
-      });
-  });
+  // officeparser v6 API: parseOffice is async and returns an AST with .toText()
+  const op = await import("officeparser") as unknown as {
+    parseOffice: (input: Buffer) => Promise<{ toText: () => string }>;
+  };
+  const ast = await op.parseOffice(buf);
+  return ast.toText();
 }
 
 async function extractFileText(buf: Buffer, name: string): Promise<string> {
