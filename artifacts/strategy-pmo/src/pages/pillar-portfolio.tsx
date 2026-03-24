@@ -13,9 +13,9 @@ import {
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
 const fmtCurrency = (n: number) => {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n.toLocaleString()}`;
+  if (n >= 1_000_000) return `SAR ${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `SAR ${(n / 1_000).toFixed(0)}K`;
+  return `SAR ${n.toLocaleString()}`;
 };
 
 type StatusCategory = "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold";

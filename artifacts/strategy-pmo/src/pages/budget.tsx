@@ -340,7 +340,7 @@ export default function Budget() {
             <BarChart data={quarterlyChartData} margin={{ top: 4, right: 8, left: 20, bottom: 8 }} barGap={4} barCategoryGap="30%">
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600 }} />
-              <YAxis tickFormatter={(v) => `$${(v / 1_000_000).toFixed(1)}M`} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={(v) => `SAR ${(v / 1_000_000).toFixed(1)}M`} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
               <Tooltip
                 formatter={(val: number, name: string) => [formatCurrency(val), name]}
                 contentStyle={{ borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "12px" }}
@@ -360,7 +360,7 @@ export default function Budget() {
             <BarChart data={chartData} margin={{ top: 0, right: 0, left: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} dy={10} />
-              <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={(v) => `SAR ${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
               <Tooltip formatter={(val: number) => formatCurrency(val)} contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0" }} />
               <Legend wrapperStyle={{ paddingTop: "12px" }} />
               <Bar dataKey="Allocated" fill="hsl(220 14% 90%)" radius={[4, 4, 0, 0]} />
