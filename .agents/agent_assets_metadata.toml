@@ -6,3 +6,9 @@ id = "qrw4-X3jAYmRgqlcDRbSE"
 uri = "file://strategy-pmo.zip"
 type = "unspecified"
 title = "StrategyPMO — Full Source Code (5 MB)"
+
+[[outputs]]
+id = "ysm0tviTD_uiZhcV3fI1O"
+uri = "file://strategyPMO-deploy.tar.gz"
+type = "unspecified"
+title = "StrategyPMO — Full Deployment Archive (13 MB)"
