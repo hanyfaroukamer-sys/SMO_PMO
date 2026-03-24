@@ -14,7 +14,7 @@ import {
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 
-import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload, FileText, BarChart2 } from "lucide-react";
+import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload, FileText, BarChart2, Layers, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Link } from "wouter";
@@ -283,6 +283,111 @@ function DepartmentHealthBarChart({ depts }: { depts: SpmoDepartmentStatus[] }) 
   );
 }
 
+function BudgetStackedBarChart({
+  totalAllocated, totalCapex, totalOpex, totalSpent,
+  budgetUsed, budgetView, setBudgetView,
+}: {
+  totalAllocated: number; totalCapex: number; totalOpex: number; totalSpent: number;
+  budgetUsed: number;
+  budgetView: "total" | "capex" | "opex";
+  setBudgetView: (v: "total" | "capex" | "opex") => void;
+}) {
+  const M = 1_000_000;
+  // Proportionally split spent between CAPEX/OPEX
+  const capexRatio = totalAllocated > 0 ? totalCapex / totalAllocated : 0.5;
+  const capexSpent = Math.round(totalSpent * capexRatio);
+  const opexSpent  = totalSpent - capexSpent;
+
+  const chartData = (() => {
+    if (budgetView === "capex") return [
+      { name: "Allocated", CAPEX: totalCapex / M },
+      { name: "Spent",     CAPEX: capexSpent / M },
+    ];
+    if (budgetView === "opex") return [
+      { name: "Allocated", OPEX: totalOpex / M },
+      { name: "Spent",     OPEX: opexSpent / M },
+    ];
+    return [
+      { name: "Allocated", CAPEX: totalCapex / M, OPEX: totalOpex / M },
+      { name: "Spent",     CAPEX: capexSpent / M, OPEX: opexSpent / M },
+    ];
+  })();
+
+  const maxVal = Math.max(totalAllocated / M, totalSpent / M);
+  const fmt = (v: number) => `${v.toFixed(0)}M SAR`;
+
+  return (
+    <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-warning/10">
+            <Wallet className="w-4 h-4 text-warning" />
+          </div>
+          <div>
+            <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight">Budget Overview</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {(totalAllocated / M).toFixed(0)}M SAR allocated · {budgetUsed.toFixed(1)}% utilized
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* CAPEX / OPEX / Total toggle */}
+          <div className="flex rounded-lg border border-border overflow-hidden text-[11px] font-bold">
+            {(["total", "capex", "opex"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setBudgetView(v)}
+                className={`px-3 py-1 transition-colors ${budgetView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
+              >
+                {v === "total" ? "TOTAL" : v.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          {/* Key numbers */}
+          <div className="hidden sm:flex gap-4 text-xs">
+            {budgetView !== "opex" && (
+              <div className="text-center">
+                <div className="font-bold" style={{ color: "#2563EB" }}>{(totalCapex / M).toFixed(0)}M</div>
+                <div className="text-muted-foreground">CAPEX</div>
+              </div>
+            )}
+            {budgetView !== "capex" && (
+              <div className="text-center">
+                <div className="font-bold" style={{ color: "#D97706" }}>{(totalOpex / M).toFixed(0)}M</div>
+                <div className="text-muted-foreground">OPEX</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={180}>
+        <BarChart data={chartData} margin={{ top: 4, right: 24, left: 20, bottom: 4 }} barCategoryGap="35%">
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+          <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600, fill: "var(--foreground)" }} axisLine={false} tickLine={false} />
+          <YAxis
+            tickFormatter={(v) => `${v.toFixed(0)}M`}
+            domain={[0, Math.ceil(maxVal * 1.15)]}
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            axisLine={false} tickLine={false}
+            unit=" M"
+          />
+          <Tooltip
+            formatter={(val: number, name: string) => [fmt(val), name]}
+            contentStyle={{ borderRadius: 10, border: "1px solid var(--border)", background: "var(--background)", fontSize: 12 }}
+          />
+          <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
+          {(budgetView === "total" || budgetView === "capex") && (
+            <Bar dataKey="CAPEX" stackId="a" fill="#2563EB" radius={budgetView === "capex" ? [6, 6, 0, 0] : [0, 0, 0, 0]} maxBarSize={80} />
+          )}
+          {(budgetView === "total" || budgetView === "opex") && (
+            <Bar dataKey="OPEX" stackId="a" fill="#D97706" radius={[6, 6, 0, 0]} maxBarSize={80} />
+          )}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { data, isLoading, error } = useGetSpmoOverview();
   const { data: alertsData } = useListSpmoAlerts();
@@ -457,49 +562,20 @@ export default function Dashboard() {
           bg="bg-success/10"
           accent="linear-gradient(90deg, #059669, #34d399)"
         />
-        <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-warning/10">
-                <Wallet className="w-4 h-4 text-warning" />
-              </div>
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Budget Allocation
-              </div>
-            </div>
-            {/* CAPEX / OPEX / Total toggle */}
-            <div className="flex rounded-md border border-border overflow-hidden text-[10px] font-bold">
-              {(["total", "capex", "opex"] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setBudgetView(v)}
-                  className={`px-2 py-0.5 transition-colors ${budgetView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
-                >
-                  {v.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="text-2xl font-display font-bold text-foreground">
-            {budgetViewAllocated > 0 ? `${(budgetViewAllocated / 1_000_000).toFixed(0)}M SAR` : "—"}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {budgetViewLabel} budget · {budgetView === "total" ? `${budgetUsed.toFixed(1)}% utilized` : `${((totalCapex + totalOpex) > 0 ? (budgetViewAllocated / (totalCapex + totalOpex) * 100) : 0).toFixed(0)}% of total`}
-          </div>
-          {budgetView === "total" && totalCapex > 0 && (
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50">
-              <div>
-                <div className="text-[10px] text-muted-foreground uppercase font-semibold">CAPEX</div>
-                <div className="text-sm font-bold">{(totalCapex / 1_000_000).toFixed(0)}M</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-muted-foreground uppercase font-semibold">OPEX</div>
-                <div className="text-sm font-bold">{(totalOpex / 1_000_000).toFixed(0)}M</div>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
+
+      {/* Budget Stacked Bar Chart — full width */}
+      {(totalAllocated > 0 || totalCapex > 0) && (
+        <BudgetStackedBarChart
+          totalAllocated={totalAllocated}
+          totalCapex={totalCapex}
+          totalOpex={totalOpex}
+          totalSpent={totalSpent}
+          budgetUsed={budgetUsed}
+          budgetView={budgetView}
+          setBudgetView={setBudgetView}
+        />
+      )}
 
       {/* Charts Row — Status + Phase */}
       {projects.length > 0 && (
@@ -514,193 +590,154 @@ export default function Dashboard() {
         <DepartmentHealthBarChart depts={deptStatus ?? []} />
       )}
 
-      {/* Pillar Groups — Initiatives + Project Status Counts */}
-      <section>
-        <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2 mb-4">Pillars &amp; Initiatives</h2>
-        <div className="space-y-5">
-          {data.pillarSummaries.map((pillar) => {
-            const isPillarExpanded = expandedPillars.has(pillar.id);
-            const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);
-            // Derive pillar planned progress from its initiatives' date range
-            const pillarPlanned = (() => {
-              if (pillarInitiatives.length === 0) return 0;
-              const minStart = pillarInitiatives.reduce((m, i) => i.startDate < m ? i.startDate : m, pillarInitiatives[0].startDate);
-              const maxEnd = pillarInitiatives.reduce((m, i) => i.targetDate > m ? i.targetDate : m, pillarInitiatives[0].targetDate);
-              return calcPlannedProgress(minStart, maxEnd);
-            })();
+      {/* Strategic Pillars section */}
+      {(() => {
+        const strategicPillars = data.pillarSummaries.filter((p) => (p.pillarType ?? "pillar") === "pillar");
+        const enablers = data.pillarSummaries.filter((p) => p.pillarType === "enabler");
 
-            return (
-              <div key={pillar.id} className="rounded-[14px] border border-border overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-                {/* Pillar header — clickable (expand/collapse) */}
-                <div
-                  className="bg-card border-b border-border"
-                  style={{ borderLeft: `4px solid ${pillar.color}` }}
-                >
-                  <button
-                    onClick={() => togglePillar(pillar.id)}
-                    className="w-full px-6 pt-4 pb-3 text-left hover:bg-secondary/20 transition-colors focus:outline-none"
-                  >
-                    <div className="flex items-start justify-between gap-4 flex-wrap">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: pillar.color }}>
-                          Pillar
-                        </div>
-                        <h3 className="font-bold text-base">{pillar.name}</h3>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right shrink-0">
-                          <div className="text-2xl font-display font-bold" style={{ color: pillar.color }}>
-                            {Math.round(pillar.progress)}%
+        const renderPillarGroup = (group: typeof data.pillarSummaries, groupLabel: string, groupIcon: React.ReactNode) => {
+          if (group.length === 0) return null;
+          return (
+            <section key={groupLabel}>
+              <div className="flex items-center gap-2 mb-4">
+                {groupIcon}
+                <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2">{groupLabel}</h2>
+              </div>
+              <div className="space-y-5">
+                {group.map((pillar) => {
+                  const isPillarExpanded = expandedPillars.has(pillar.id);
+                  const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);
+                  const pillarPlanned = (() => {
+                    if (pillarInitiatives.length === 0) return 0;
+                    const minStart = pillarInitiatives.reduce((m, i) => i.startDate < m ? i.startDate : m, pillarInitiatives[0].startDate);
+                    const maxEnd = pillarInitiatives.reduce((m, i) => i.targetDate > m ? i.targetDate : m, pillarInitiatives[0].targetDate);
+                    return calcPlannedProgress(minStart, maxEnd);
+                  })();
+                  const typeLabel = pillar.pillarType === "enabler" ? "Cross-Cutting Enabler" : "Strategic Pillar";
+                  return (
+                    <div key={pillar.id} className="rounded-[14px] border border-border overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+                      <div className="bg-card border-b border-border" style={{ borderLeft: `4px solid ${pillar.color}` }}>
+                        <button onClick={() => togglePillar(pillar.id)} className="w-full px-6 pt-4 pb-3 text-left hover:bg-secondary/20 transition-colors focus:outline-none">
+                          <div className="flex items-start justify-between gap-4 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: pillar.color }}>{typeLabel}</div>
+                              <h3 className="font-bold text-base">{pillar.name}</h3>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="text-right shrink-0">
+                                <div className="text-2xl font-display font-bold" style={{ color: pillar.color }}>{Math.round(pillar.progress)}%</div>
+                                {pillarPlanned > 0 && <div className="text-[10px] text-muted-foreground">plan {pillarPlanned}%</div>}
+                                <div className="text-[10px] text-muted-foreground">{pillar.projectCount} project{pillar.projectCount !== 1 ? "s" : ""}</div>
+                              </div>
+                              <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0" style={{ transform: isPillarExpanded ? "rotate(0deg)" : "rotate(-90deg)" }} />
+                            </div>
                           </div>
-                          {pillarPlanned > 0 && (
-                            <div className="text-[10px] text-muted-foreground">plan {pillarPlanned}%</div>
-                          )}
-                          <div className="text-[10px] text-muted-foreground">{pillar.projectCount} project{pillar.projectCount !== 1 ? "s" : ""}</div>
+                          <div className="relative h-1.5 bg-secondary rounded-full overflow-hidden mt-3">
+                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(100, pillar.progress)}%`, backgroundColor: pillar.color }} />
+                            {pillarPlanned > 0 && <div className="absolute top-0 bottom-0 w-0.5 bg-warning/80" style={{ left: `${Math.min(100, pillarPlanned)}%`, transform: "translateX(-50%)" }} />}
+                          </div>
+                        </button>
+                        <div className="px-6 pb-3 flex justify-end">
+                          <Link to={`/pillars/${pillar.id}/portfolio`} onClick={(e) => e.stopPropagation()} className="text-[11px] font-semibold hover:underline flex items-center gap-1" style={{ color: pillar.color }}>
+                            View Pillar Dashboard <ChevronRight className="w-3 h-3" />
+                          </Link>
                         </div>
-                        <ChevronDown
-                          className="w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0"
-                          style={{ transform: isPillarExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
-                        />
                       </div>
-                    </div>
-
-                    <div className="relative h-1.5 bg-secondary rounded-full overflow-hidden mt-3">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${Math.min(100, pillar.progress)}%`, backgroundColor: pillar.color }}
-                      />
-                      {pillarPlanned > 0 && (
-                        <div
-                          className="absolute top-0 bottom-0 w-0.5 bg-warning/80"
-                          style={{ left: `${Math.min(100, pillarPlanned)}%`, transform: "translateX(-50%)" }}
-                        />
-                      )}
-                    </div>
-                  </button>
-
-                  {/* Deep-dive link */}
-                  <div className="px-6 pb-3 flex justify-end">
-                    <Link
-                      to={`/pillars/${pillar.id}/portfolio`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-[11px] font-semibold text-muted-foreground hover:underline flex items-center gap-1"
-                      style={{ color: pillar.color }}
-                    >
-                      View Pillar Dashboard <ChevronRight className="w-3 h-3" />
-                    </Link>
-                  </div>
-                </div>
-
-                {/* Initiative rows — shown when pillar is expanded */}
-                {isPillarExpanded && (
-                  <>
-                    {pillarInitiatives.length > 0 ? (
-                      <div className="divide-y divide-border/40 bg-secondary/10">
-                        {pillarInitiatives.map((initiative) => {
-                          const isInitExpanded = expandedInitiatives.has(initiative.id);
-                          const progress = initiative.progress ?? 0;
-                          const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
-                          const initProjects = projectsByInitiative.get(initiative.id) ?? [];
-                          const initCounts: Record<ProjectStatusCategory, number> = {
-                            on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0, on_hold: 0,
-                          };
-                          for (const p of initProjects) {
-                            initCounts[classifyProject(p)]++;
-                          }
-
-                          return (
-                            <div key={initiative.id}>
-                              {/* Initiative row — clickable */}
-                              <button
-                                onClick={() => toggleInitiative(initiative.id)}
-                                className="w-full flex items-start gap-4 px-6 py-3.5 hover:bg-secondary/30 transition-colors text-left focus:outline-none"
-                              >
-                                <div className="w-1 h-10 rounded-full shrink-0 mt-1" style={{ backgroundColor: pillar.color }} />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-semibold text-sm">
-                                          Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}
-                                        </span>
-                                        <ComputedStatusBadge cs={initiative.computedStatus} />
-                                        <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
-                                          {initProjects.length} project{initProjects.length !== 1 ? "s" : ""}
-                                        </span>
-                                      </div>
-                                      {initiative.computedStatus?.reason && (
-                                        <span className="text-[10px] text-muted-foreground truncate block">{initiative.computedStatus.reason}</span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      <div className="text-right">
-                                        <div className="text-sm font-bold" style={{ color: pillar.color }}>{Math.round(progress)}%</div>
-                                        {planned > 0 && <div className="text-[10px] text-muted-foreground">plan {planned}%</div>}
-                                      </div>
-                                      <ChevronDown
-                                        className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200"
-                                        style={{ transform: isInitExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
-                                      />
-                                    </div>
-                                  </div>
-                                  <ProgressBar progress={progress} planned={planned} showLabel={false} />
-                                  {/* Per-initiative project status chips */}
-                                  {initProjects.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                      {STATUS_ORDER.filter((s) => initCounts[s] > 0).map((s) => {
-                                        const { label, bg, text } = STATUS_CHIPS[s];
-                                        return (
-                                          <span key={s} className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${bg} ${text}`}>
-                                            <span className="font-bold leading-none">{initCounts[s]}</span>
-                                            {label}
-                                          </span>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              </button>
-
-                              {/* Project list — shown when initiative is expanded */}
-                              {isInitExpanded && initProjects.length > 0 && (
-                                <div className="divide-y divide-border/30 bg-card border-t border-border/40">
-                                  {initProjects.map((proj) => (
-                                    <Link key={proj.id} to={`/projects?project=${proj.id}`}>
-                                      <div className="flex items-center gap-4 px-10 py-2.5 hover:bg-secondary/30 transition-colors cursor-pointer">
-                                        <div className="w-0.5 h-6 rounded-full shrink-0" style={{ backgroundColor: pillar.color }} />
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            {proj.projectCode && (
-                                              <span className="font-mono text-[11px] text-muted-foreground">{proj.projectCode}:</span>
-                                            )}
-                                            <span className="text-sm font-medium truncate">{proj.name}</span>
-                                            <ComputedStatusBadge cs={proj.computedStatus} />
+                      {isPillarExpanded && (
+                        <>
+                          {pillarInitiatives.length > 0 ? (
+                            <div className="divide-y divide-border/40 bg-secondary/10">
+                              {pillarInitiatives.map((initiative) => {
+                                const isInitExpanded = expandedInitiatives.has(initiative.id);
+                                const progress = initiative.progress ?? 0;
+                                const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
+                                const initProjects = projectsByInitiative.get(initiative.id) ?? [];
+                                const initCounts: Record<ProjectStatusCategory, number> = { on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0, on_hold: 0 };
+                                for (const p of initProjects) { initCounts[classifyProject(p)]++; }
+                                return (
+                                  <div key={initiative.id}>
+                                    <button onClick={() => toggleInitiative(initiative.id)} className="w-full flex items-start gap-4 px-6 py-3.5 hover:bg-secondary/30 transition-colors text-left focus:outline-none">
+                                      <div className="w-1 h-10 rounded-full shrink-0 mt-1" style={{ backgroundColor: pillar.color }} />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className="font-semibold text-sm">Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}</span>
+                                              <ComputedStatusBadge cs={initiative.computedStatus} />
+                                              <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{initProjects.length} project{initProjects.length !== 1 ? "s" : ""}</span>
+                                            </div>
+                                            {initiative.computedStatus?.reason && <span className="text-[10px] text-muted-foreground truncate block">{initiative.computedStatus.reason}</span>}
+                                          </div>
+                                          <div className="flex items-center gap-2 shrink-0">
+                                            <div className="text-right">
+                                              <div className="text-sm font-bold" style={{ color: pillar.color }}>{Math.round(progress)}%</div>
+                                              {planned > 0 && <div className="text-[10px] text-muted-foreground">plan {planned}%</div>}
+                                            </div>
+                                            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200" style={{ transform: isInitExpanded ? "rotate(0deg)" : "rotate(-90deg)" }} />
                                           </div>
                                         </div>
-                                        <div className="text-right shrink-0">
-                                          <div className="text-sm font-bold" style={{ color: pillar.color }}>{proj.progress}%</div>
-                                        </div>
+                                        <ProgressBar progress={progress} planned={planned} showLabel={false} />
+                                        {initProjects.length > 0 && (
+                                          <div className="flex flex-wrap gap-1 mt-2">
+                                            {STATUS_ORDER.filter((s) => initCounts[s] > 0).map((s) => {
+                                              const { label, bg, text } = STATUS_CHIPS[s];
+                                              return (
+                                                <span key={s} className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${bg} ${text}`}>
+                                                  <span className="font-bold leading-none">{initCounts[s]}</span> {label}
+                                                </span>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
                                       </div>
-                                    </Link>
-                                  ))}
-                                </div>
-                              )}
+                                    </button>
+                                    {isInitExpanded && initProjects.length > 0 && (
+                                      <div className="divide-y divide-border/30 bg-card border-t border-border/40">
+                                        {initProjects.map((proj) => (
+                                          <Link key={proj.id} to={`/projects?project=${proj.id}`}>
+                                            <div className="flex items-center gap-4 px-10 py-2.5 hover:bg-secondary/30 transition-colors cursor-pointer">
+                                              <div className="w-0.5 h-6 rounded-full shrink-0" style={{ backgroundColor: pillar.color }} />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                  {proj.projectCode && <span className="font-mono text-[11px] text-muted-foreground">{proj.projectCode}:</span>}
+                                                  <span className="text-sm font-medium truncate">{proj.name}</span>
+                                                  <ComputedStatusBadge cs={proj.computedStatus} />
+                                                </div>
+                                              </div>
+                                              <div className="text-sm font-bold shrink-0" style={{ color: pillar.color }}>{proj.progress}%</div>
+                                            </div>
+                                          </Link>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="px-6 py-3 text-xs text-muted-foreground bg-secondary/10">
-                        No initiatives linked to this pillar yet.
-                      </div>
-                    )}
-                  </>
-                )}
+                          ) : (
+                            <div className="px-6 py-3 text-xs text-muted-foreground bg-secondary/10">No initiatives linked yet.</div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </section>
+          );
+        };
 
-          {data.pillarSummaries.length === 0 && initiatives.length > 0 && (
+        return (
+          <>
+            {renderPillarGroup(strategicPillars, "Strategic Pillars", <Layers className="w-4 h-4 text-primary" />)}
+            {enablers.length > 0 && strategicPillars.length > 0 && <div className="pt-2" />}
+            {renderPillarGroup(enablers, "Cross-Cutting Enablers", <Zap className="w-4 h-4 text-warning" />)}
+          </>
+        );
+      })()}
+
+      {/* Fallback: initiatives with no pillars */}
+      {data.pillarSummaries.length === 0 && initiatives.length > 0 && (
             <Card noPadding className="overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
               <div className="divide-y divide-border">
                 {initiatives.map((initiative) => {

@@ -267,6 +267,7 @@ router.get("/spmo/programme", async (req, res): Promise<void> => {
       id: pillar.id,
       name: pillar.name,
       description: pillar.description,
+      pillarType: pillar.pillarType,
       weight: pillar.weight,
       color: pillar.color,
       iconName: pillar.iconName,

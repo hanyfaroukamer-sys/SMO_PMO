@@ -671,6 +671,7 @@ export const GetSpmoOverviewResponse = zod.object({
         id: zod.number(),
         name: zod.string(),
         description: zod.string().nullable(),
+        pillarType: zod.enum(["pillar", "enabler"]).default("pillar"),
         weight: zod
           .number()
           .describe("Relative weight in programme progress (0–100)"),

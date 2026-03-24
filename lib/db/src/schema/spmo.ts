@@ -176,7 +176,7 @@ export const spmoMilestonesTable = pgTable("spmo_milestones", {
   })
     .notNull()
     .default("pending"),
-  phaseGate: text("phase_gate", { enum: ["planning", "tendering", "closure"] }),
+  phaseGate: text("phase_gate", { enum: ["planning", "tendering", "execution", "closure"] }),
   assigneeId: text("assignee_id"),
   assigneeName: text("assignee_name"),
   startDate: date("start_date"),
@@ -291,6 +291,7 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
   actual2027: real("actual_2027"),
   actual2028: real("actual_2028"),
   actual2029: real("actual_2029"),
+  actual2030: real("actual_2030"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
