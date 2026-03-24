@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { eq, desc, and, asc, inArray, sql, ne, isNotNull } from "drizzle-orm";
+import { ObjectStorageService } from "../lib/objectStorage";
 import { getCachedAssessment, setCachedAssessment, ASSESSMENT_CACHE_TTL_MS } from "../lib/assessment-cache";
 import { db } from "@workspace/db";
 import { recalculateDownstreamStatuses } from "../lib/dep-engine";
@@ -117,6 +118,7 @@ import { logSpmoActivity } from "../lib/spmo-activity";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 
 const router: IRouter = Router();
+const objectStorageService = new ObjectStorageService();
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
@@ -1247,8 +1249,38 @@ router.post("/spmo/milestones/:id/reject", async (req, res): Promise<void> => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// Evidence
+// Evidence uploads
 // ─────────────────────────────────────────────────────────────
+router.post("/spmo/uploads/request-url", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const parsed = z.object({ milestoneId: z.number().int() }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "milestoneId is required" });
+    return;
+  }
+
+  const [milestone] = await db
+    .select()
+    .from(spmoMilestonesTable)
+    .where(eq(spmoMilestonesTable.id, parsed.data.milestoneId));
+
+  if (!milestone) {
+    res.status(404).json({ error: "Milestone not found" });
+    return;
+  }
+
+  try {
+    const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+    res.json({ uploadURL, objectPath });
+  } catch (err) {
+    req.log.error({ err }, "Error generating SPMO upload URL");
+    res.status(500).json({ error: "Failed to generate upload URL" });
+  }
+});
+
 router.post("/spmo/milestones/:id/evidence", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;
