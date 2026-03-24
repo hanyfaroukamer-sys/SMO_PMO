@@ -36,7 +36,7 @@ const navItems = [
   { title: "Initiatives",      href: "/initiatives",  icon: Flag,             adminOnly: true,  hidden: false },
   { title: "Projects",         href: "/projects",     icon: Briefcase,        adminOnly: false, hidden: false },
   { title: "Progress Proof",   href: "/progress",     icon: CheckSquare,      adminOnly: true,  hidden: false },
-  { title: "KPIs",             href: "/kpis",         icon: LineChart,        adminOnly: false, hidden: false },
+  { title: "Strategic KPIs",   href: "/kpis",         icon: LineChart,        adminOnly: false, hidden: false },
   { title: "Op. KPIs",         href: "/op-kpis",      icon: Activity,         adminOnly: false, hidden: false },
   { title: "Budget",           href: "/budget",       icon: Wallet,           adminOnly: true,  hidden: false },
   { title: "Procurement",      href: "/procurement",  icon: ShoppingCart,     adminOnly: true,  hidden: false },
