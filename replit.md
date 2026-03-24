@@ -71,7 +71,7 @@ artifacts-monorepo/
 - `spmo_projects` — id, initiativeId, name, description, ownerId, ownerName, budget, startDate, targetDate, weight, status
 - `spmo_milestones` — id, projectId, name, description, weight, progress, status, dueDate, submittedAt, approvedAt, approvedById, rejectedAt, rejectedById, rejectionReason
 - `spmo_evidence` — id, milestoneId, fileName, contentType, objectPath, uploadedById, uploadedByName, description, aiValidated, aiScore, aiReasoning
-- `spmo_kpis` — id, projectId, name, type, unit, baseline, target, actual, status, description
+- `spmo_kpis` — id, pillarId, name, type (strategic/operational), unit, kpiType (rate/cumul/reduc), direction (higher/lower), baseline, actual, target, target_2026–2030, formula, measurementPeriod, measurementFrequency, status, description — 42 KFCA KPIs seeded across 9 pillars/enablers (pillar_ids 14–22)
 - `spmo_risks` — id, pillarId, projectId, title, description, category, probability, impact, riskScore, status, owner
 - `spmo_mitigations` — id, riskId, description, status, dueDate
 - `spmo_budget` — id, projectId, pillarId, period, allocated, spent, currency, category, label
