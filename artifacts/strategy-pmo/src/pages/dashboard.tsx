@@ -12,7 +12,7 @@ import {
   type SpmoDepartmentStatus,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LabelList } from "recharts";
 
 import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload, FileText, BarChart2, Layers, Zap } from "lucide-react";
 import { format } from "date-fns";
@@ -287,11 +287,21 @@ function DepartmentHealthBarChart({ depts }: { depts: SpmoDepartmentStatus[] }) 
           />
           <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }} />
           <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="On Track"    stackId="a" fill="#86efac" />
-          <Bar dataKey="At Risk"     stackId="a" fill="#f59e0b" />
-          <Bar dataKey="Delayed"     stackId="a" fill="#ef4444" />
-          <Bar dataKey="Completed"   stackId="a" fill="#16a34a" />
-          <Bar dataKey="Not Started" stackId="a" fill="#d1d5db" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="On Track"    stackId="a" fill="#86efac">
+            <LabelList dataKey="On Track"    position="center" formatter={(v: number) => v > 0 ? `${v}` : ""} style={{ fill: "#166534", fontSize: 10, fontWeight: 700 }} />
+          </Bar>
+          <Bar dataKey="At Risk"     stackId="a" fill="#f59e0b">
+            <LabelList dataKey="At Risk"     position="center" formatter={(v: number) => v > 0 ? `${v}` : ""} style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} />
+          </Bar>
+          <Bar dataKey="Delayed"     stackId="a" fill="#ef4444">
+            <LabelList dataKey="Delayed"     position="center" formatter={(v: number) => v > 0 ? `${v}` : ""} style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} />
+          </Bar>
+          <Bar dataKey="Completed"   stackId="a" fill="#16a34a">
+            <LabelList dataKey="Completed"   position="center" formatter={(v: number) => v > 0 ? `${v}` : ""} style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} />
+          </Bar>
+          <Bar dataKey="Not Started" stackId="a" fill="#d1d5db" radius={[0, 4, 4, 0]}>
+            <LabelList dataKey="Not Started" position="center" formatter={(v: number) => v > 0 ? `${v}` : ""} style={{ fill: "#374151", fontSize: 10, fontWeight: 700 }} />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -376,15 +386,14 @@ function BudgetStackedBarChart({
         </div>
       </div>
       <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={chartData} margin={{ top: 4, right: 24, left: 20, bottom: 4 }} barCategoryGap="35%">
+        <BarChart data={chartData} margin={{ top: 20, right: 24, left: 20, bottom: 4 }} barCategoryGap="35%">
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
           <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 600, fill: "var(--foreground)" }} axisLine={false} tickLine={false} />
           <YAxis
-            tickFormatter={(v) => `${v.toFixed(0)}M`}
-            domain={[0, Math.ceil(maxVal * 1.15)]}
+            tickFormatter={(v: number) => `${v.toFixed(0)}M`}
+            domain={[0, Math.ceil(maxVal * 1.2)]}
             tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
             axisLine={false} tickLine={false}
-            unit=" M"
           />
           <Tooltip
             formatter={(val: number, name: string) => [fmt(val), name]}
@@ -392,10 +401,14 @@ function BudgetStackedBarChart({
           />
           <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
           {(budgetView === "total" || budgetView === "capex") && (
-            <Bar dataKey="CAPEX" stackId="a" fill="#2563EB" radius={budgetView === "capex" ? [6, 6, 0, 0] : [0, 0, 0, 0]} maxBarSize={80} />
+            <Bar dataKey="CAPEX" stackId="a" fill="#2563EB" radius={budgetView === "capex" ? [6, 6, 0, 0] : [0, 0, 0, 0]} maxBarSize={80}>
+              <LabelList dataKey="CAPEX" position="center" formatter={(v: number) => v > 0 ? `${v.toFixed(0)}M` : ""} style={{ fill: "#fff", fontSize: 11, fontWeight: 700 }} />
+            </Bar>
           )}
           {(budgetView === "total" || budgetView === "opex") && (
-            <Bar dataKey="OPEX" stackId="a" fill="#D97706" radius={[6, 6, 0, 0]} maxBarSize={80} />
+            <Bar dataKey="OPEX" stackId="a" fill="#D97706" radius={[6, 6, 0, 0]} maxBarSize={80}>
+              <LabelList dataKey="OPEX" position="insideTop" offset={6} formatter={(v: number) => v > 0 ? `${v.toFixed(0)}M` : ""} style={{ fill: "#fff", fontSize: 11, fontWeight: 700 }} />
+            </Bar>
           )}
         </BarChart>
       </ResponsiveContainer>
