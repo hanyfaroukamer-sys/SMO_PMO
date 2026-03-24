@@ -4,15 +4,48 @@ import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 
 export async function seedIfEmpty(): Promise<void> {
-  const res = await db.execute(sql`SELECT count(*)::int AS n FROM spmo_pillars`);
-  const n = (res.rows[0] as { n: number }).n;
+  const forceReseed = process.env.FORCE_RESEED === "1" || process.env.FORCE_RESEED === "true";
 
-  if (n > 0) {
-    console.log("[seed] Data already present — skipping full seed.");
-    return;
+  if (!forceReseed) {
+    const res = await db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM spmo_pillars)  AS pillars,
+        (SELECT count(*)::int FROM spmo_projects) AS projects
+    `);
+    const { pillars, projects } = res.rows[0] as { pillars: number; projects: number };
+
+    if (pillars >= 9 && projects >= 50) {
+      console.log(`[seed] Data already present (${pillars} pillars, ${projects} projects) — skipping full seed.`);
+      return;
+    }
+
+    console.log(`[seed] Incomplete data detected (${pillars} pillars, ${projects} projects) — reloading full dataset...`);
+  } else {
+    console.log("[seed] FORCE_RESEED=1 — forcing full dataset reload...");
   }
 
-  console.log("[seed] Empty database — loading full dataset...");
+  // Truncate all SPMO tables before reloading
+  await db.execute(sql`
+    TRUNCATE TABLE
+      spmo_raci,
+      spmo_mitigations,
+      spmo_change_requests,
+      spmo_actions,
+      spmo_evidence,
+      spmo_kpi_measurements,
+      spmo_procurement,
+      spmo_budget_entries,
+      spmo_risks,
+      spmo_kpis,
+      spmo_milestones,
+      spmo_projects,
+      spmo_initiatives,
+      spmo_programme_config,
+      spmo_pillars,
+      spmo_departments
+    RESTART IDENTITY CASCADE
+  `);
+  console.log("[seed] All SPMO tables truncated.");
 
   await db.execute(sql`SET session_replication_role = replica`);
   try {
