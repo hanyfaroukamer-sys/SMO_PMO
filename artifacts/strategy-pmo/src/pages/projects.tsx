@@ -350,26 +350,33 @@ export default function Projects() {
   const deepLinkMilestoneId = useRef<number | null>(null);
 
   useEffect(() => {
-    if (didDeepLink.current || !data?.projects?.length) return;
+    if (didDeepLink.current || !data?.projects?.length || !initiativesData?.initiatives || !pillarsData?.pillars) return;
     const params = new URLSearchParams(window.location.search);
     const rawId = params.get("project");
     if (!rawId) return;
     const targetId = parseInt(rawId, 10);
     if (isNaN(targetId)) return;
-    const exists = data.projects.some((p) => p.id === targetId);
-    if (!exists) return;
+    const project = data.projects.find((p) => p.id === targetId);
+    if (!project) return;
     didDeepLink.current = true;
     const rawMilestoneId = params.get("milestone");
     if (rawMilestoneId) {
       const mid = parseInt(rawMilestoneId, 10);
       if (!isNaN(mid)) deepLinkMilestoneId.current = mid;
     }
+    // Expand the pillar and initiative that contain this project
+    const initiative = initiativesData.initiatives.find((i) => i.id === project.initiativeId);
+    if (initiative) {
+      setExpandedInitiatives((prev) => new Set([...prev, initiative.id]));
+      const pillar = pillarsData.pillars.find((p) => p.id === initiative.pillarId);
+      if (pillar) setExpandedPillars((prev) => new Set([...prev, pillar.id]));
+    }
     setExpandedProject(targetId);
     setTimeout(() => {
       const el = document.getElementById(`project-${targetId}`);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 150);
-  }, [data]);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 200);
+  }, [data, initiativesData, pillarsData]);
 
   const createMutation = useCreateSpmoProject();
   const updateMutation = useUpdateSpmoProject();
