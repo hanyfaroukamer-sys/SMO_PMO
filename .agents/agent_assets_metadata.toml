@@ -12,3 +12,9 @@ id = "ysm0tviTD_uiZhcV3fI1O"
 uri = "file://strategyPMO-deploy.tar.gz"
 type = "unspecified"
 title = "StrategyPMO — Deployment Archive (updated, 25 MB)"
+
+[[outputs]]
+id = "-wQOAkogkDjRjjDeQdVKh"
+uri = "file://strategy-pmo-workspace.tar.gz"
+type = "unspecified"
+title = "StrategyPMO Workspace (.tar.gz)"
