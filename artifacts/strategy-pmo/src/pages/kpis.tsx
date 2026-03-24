@@ -10,7 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, Download, BarChart2 } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Download, BarChart2, TrendingUp } from "lucide-react";
 import { exportToXlsx } from "@/lib/export";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
