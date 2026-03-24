@@ -251,32 +251,47 @@ function ProjectPhasePieChart({ projects }: { projects: SpmoProjectWithProgress[
   );
 }
 
-// Department health stacked bar chart
+// Department health stacked bar chart — horizontal layout handles long names naturally
 function DepartmentHealthBarChart({ depts }: { depts: SpmoDepartmentStatus[] }) {
   if (depts.length === 0) return null;
   const chartData = depts.map((d) => ({
-    name: d.departmentName.length > 14 ? d.departmentName.slice(0, 13) + "…" : d.departmentName,
+    name: d.departmentName,
     "On Track": d.onTrack,
     "At Risk": d.atRisk,
     "Delayed": d.delayed,
     "Completed": d.completed,
     "Not Started": d.notStarted,
   }));
+  const chartHeight = Math.max(180, depts.length * 44);
   return (
     <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
       <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2 mb-4">Department Health Overview</h2>
-      <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-          <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} allowDecimals={false} />
+      <ResponsiveContainer width="100%" height={chartHeight}>
+        <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+          <XAxis
+            type="number"
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            axisLine={false}
+            tickLine={false}
+            allowDecimals={false}
+          />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={160}
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 21) + "…" : v}
+          />
           <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }} />
           <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="On Track" stackId="a" fill="#86efac" radius={[0, 0, 0, 0]} />
-          <Bar dataKey="At Risk" stackId="a" fill="#f59e0b" />
-          <Bar dataKey="Delayed" stackId="a" fill="#ef4444" />
-          <Bar dataKey="Completed" stackId="a" fill="#16a34a" />
-          <Bar dataKey="Not Started" stackId="a" fill="#d1d5db" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="On Track"    stackId="a" fill="#86efac" />
+          <Bar dataKey="At Risk"     stackId="a" fill="#f59e0b" />
+          <Bar dataKey="Delayed"     stackId="a" fill="#ef4444" />
+          <Bar dataKey="Completed"   stackId="a" fill="#16a34a" />
+          <Bar dataKey="Not Started" stackId="a" fill="#d1d5db" radius={[0, 4, 4, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
