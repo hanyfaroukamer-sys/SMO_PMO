@@ -669,13 +669,12 @@ function MilestoneRow({
 
             {/* Action buttons */}
             {canEdit && (
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex flex-col items-end gap-1 shrink-0">
                 <button
                   onClick={openDetailEdit}
-                  title="Edit milestone"
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-primary/30 text-primary bg-primary/5 hover:bg-primary/15 transition-colors"
                 >
-                  <Pencil className="w-3.5 h-3.5" />
+                  <Pencil className="w-3 h-3" /> Edit
                 </button>
                 {!isPhaseGate && (
                   confirmDelete ? (
@@ -685,7 +684,7 @@ function MilestoneRow({
                         disabled={deleteMilestone.isPending}
                         className="px-2 py-1 rounded text-[10px] font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
                       >
-                        {deleteMilestone.isPending ? "…" : "Confirm"}
+                        {deleteMilestone.isPending ? "…" : "Confirm delete"}
                       </button>
                       <button
                         onClick={() => setConfirmDelete(false)}
@@ -697,10 +696,9 @@ function MilestoneRow({
                   ) : (
                     <button
                       onClick={() => setConfirmDelete(true)}
-                      title="Delete milestone"
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-destructive/30 text-destructive bg-destructive/5 hover:bg-destructive/15 transition-colors"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" /> Delete
                     </button>
                   )
                 )}
