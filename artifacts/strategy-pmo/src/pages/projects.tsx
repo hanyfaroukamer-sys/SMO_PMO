@@ -1652,9 +1652,9 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
                     </button>
                   )}
 
-                  {/* Delete + Link Dep (hover, admin only) */}
+                  {/* Delete + Link Dep (admin only) */}
                   {isAdmin && (
-                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => setAddDepForMilestoneId(m.id)}
                         className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
@@ -1665,10 +1665,10 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
                       {!isApproved && (
                         <button
                           onClick={() => handleDelete(m.id, m.name)}
-                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          title="Delete"
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold border border-destructive/40 text-destructive bg-destructive/5 hover:bg-destructive/15 transition-colors"
+                          title="Delete milestone"
                         >
-                          <X className="w-4 h-4" />
+                          <X className="w-3.5 h-3.5" /> Delete
                         </button>
                       )}
                     </div>
@@ -1961,11 +1961,12 @@ function InlineEdit({
 
   return (
     <span
-      className={`${className} cursor-pointer hover:underline`}
+      className={`${className} cursor-pointer inline-flex items-center gap-1 group/ie`}
       onClick={() => { setDraft(value); setEditing(true); }}
-      title="Click to edit"
+      title="Tap to edit"
     >
-      {value}
+      <span className="group-hover/ie:underline">{value}</span>
+      <Pencil className="w-3 h-3 text-muted-foreground/50 group-hover/ie:text-primary transition-colors shrink-0" />
     </span>
   );
 }
