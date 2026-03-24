@@ -333,6 +333,8 @@ export interface SpmoPillar {
   name: string;
   /** @nullable */
   description: string | null;
+  /** Whether this entry is a strategic pillar or a cross-cutting enabler */
+  pillarType: 'pillar' | 'enabler';
   /** Relative weight in programme progress (0–100) */
   weight: number;
   color: string;
@@ -423,8 +425,12 @@ export interface SpmoProject {
   startDate: string;
   targetDate: string;
   weight: number;
-  /** Allocated budget in base currency */
+  /** Allocated budget in base currency (CAPEX + OPEX) */
   budget: number;
+  /** Capital expenditure component of budget */
+  budgetCapex: number;
+  /** Operational expenditure component of budget */
+  budgetOpex: number;
   /** Actual spend to date */
   budgetSpent: number;
   status: SpmoProjectStatus;
@@ -1033,6 +1039,7 @@ export interface CreateSpmoPillarRequest {
   /** @minLength 1 */
   name: string;
   description?: string;
+  pillarType?: 'pillar' | 'enabler';
   /**
    * @minimum 0
    * @maximum 100
@@ -1046,6 +1053,7 @@ export interface CreateSpmoPillarRequest {
 export interface UpdateSpmoPillarRequest {
   name?: string;
   description?: string;
+  pillarType?: 'pillar' | 'enabler';
   weight?: number;
   color?: string;
   iconName?: string;

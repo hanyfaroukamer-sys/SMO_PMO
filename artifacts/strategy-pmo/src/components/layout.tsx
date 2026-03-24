@@ -32,7 +32,7 @@ const navItems = [
   { title: "Dashboard",        href: "/",             icon: LayoutDashboard, adminOnly: false, hidden: false },
   { title: "My Tasks",         href: "/my-tasks",     icon: ClipboardList,    adminOnly: false, hidden: false, badge: true },
   { title: "Strategy Map",     href: "/strategy-map", icon: Network,          adminOnly: false, hidden: true  },
-  { title: "Pillars",          href: "/pillars",      icon: Layers,           adminOnly: true,  hidden: false },
+  { title: "Pillars & Enablers", href: "/pillars",    icon: Layers,           adminOnly: true,  hidden: false },
   { title: "Initiatives",      href: "/initiatives",  icon: Flag,             adminOnly: true,  hidden: false },
   { title: "Projects",         href: "/projects",     icon: Briefcase,        adminOnly: false, hidden: false },
   { title: "Progress Proof",   href: "/progress",     icon: CheckSquare,      adminOnly: true,  hidden: false },

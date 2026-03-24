@@ -294,6 +294,7 @@ export default function Dashboard() {
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
   const [expandedInitiatives, setExpandedInitiatives] = useState<Set<number>>(new Set());
+  const [budgetView, setBudgetView] = useState<"total" | "capex" | "opex">("total");
   const aiMutation = useRunSpmoAiAssessment();
 
   const togglePillar = (id: number) =>
@@ -321,6 +322,12 @@ export default function Dashboard() {
 
   const totalAllocated = budgetData?.totalAllocated ?? 0;
   const totalSpent = budgetData?.totalSpent ?? 0;
+
+  // CAPEX/OPEX breakdowns computed from project-level budgets
+  const totalCapex = projects.reduce((s, p) => s + ((p as { budgetCapex?: number }).budgetCapex ?? 0), 0);
+  const totalOpex  = projects.reduce((s, p) => s + ((p as { budgetOpex?: number }).budgetOpex ?? 0), 0);
+  const budgetViewAllocated = budgetView === "capex" ? totalCapex : budgetView === "opex" ? totalOpex : totalAllocated || (totalCapex + totalOpex);
+  const budgetViewLabel = budgetView === "capex" ? "CAPEX" : budgetView === "opex" ? "OPEX" : "Total";
   const initiativesOnTrack = initiatives.filter((i) => {
     const s = i.computedStatus?.status ?? i.healthStatus;
     return s === "on_track" || s === "completed";
@@ -450,19 +457,48 @@ export default function Dashboard() {
           bg="bg-success/10"
           accent="linear-gradient(90deg, #059669, #34d399)"
         />
-        <SummaryCard
-          icon={Wallet}
-          label="Budget Used"
-          value={`${budgetUsed.toFixed(1)}%`}
-          sub={
-            totalAllocated > 0
-              ? `Spent ${(totalSpent / 1_000_000).toFixed(0)}M / ${(totalAllocated / 1_000_000).toFixed(0)}M SAR`
-              : budgetUsed > 90 ? "Over budget threshold" : "Of total allocation"
-          }
-          color={budgetUsed > 90 ? "text-destructive" : "text-warning"}
-          bg={budgetUsed > 90 ? "bg-destructive/10" : "bg-warning/10"}
-          accent={budgetUsed > 90 ? "linear-gradient(90deg, #dc2626, #f87171)" : "linear-gradient(90deg, #d97706, #fbbf24)"}
-        />
+        <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-warning/10">
+                <Wallet className="w-4 h-4 text-warning" />
+              </div>
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Budget Allocation
+              </div>
+            </div>
+            {/* CAPEX / OPEX / Total toggle */}
+            <div className="flex rounded-md border border-border overflow-hidden text-[10px] font-bold">
+              {(["total", "capex", "opex"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setBudgetView(v)}
+                  className={`px-2 py-0.5 transition-colors ${budgetView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}
+                >
+                  {v.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="text-2xl font-display font-bold text-foreground">
+            {budgetViewAllocated > 0 ? `${(budgetViewAllocated / 1_000_000).toFixed(0)}M SAR` : "—"}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {budgetViewLabel} budget · {budgetView === "total" ? `${budgetUsed.toFixed(1)}% utilized` : `${((totalCapex + totalOpex) > 0 ? (budgetViewAllocated / (totalCapex + totalOpex) * 100) : 0).toFixed(0)}% of total`}
+          </div>
+          {budgetView === "total" && totalCapex > 0 && (
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50">
+              <div>
+                <div className="text-[10px] text-muted-foreground uppercase font-semibold">CAPEX</div>
+                <div className="text-sm font-bold">{(totalCapex / 1_000_000).toFixed(0)}M</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-muted-foreground uppercase font-semibold">OPEX</div>
+                <div className="text-sm font-bold">{(totalOpex / 1_000_000).toFixed(0)}M</div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Charts Row — Status + Phase */}

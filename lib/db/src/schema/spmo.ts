@@ -20,6 +20,7 @@ export const spmoPillarsTable = pgTable("spmo_pillars", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  pillarType: text("pillar_type", { enum: ["pillar", "enabler"] }).notNull().default("pillar"),
   weight: real("weight").notNull().default(0),
   color: text("color").notNull().default("#3B82F6"),
   iconName: text("icon_name").notNull().default("LayoutGrid"),
@@ -129,6 +130,8 @@ export const spmoProjectsTable = pgTable("spmo_projects", {
   targetDate: date("target_date").notNull(),
   weight: real("weight").notNull().default(0),
   budget: real("budget").notNull().default(0),
+  budgetCapex: real("budget_capex").notNull().default(0),
+  budgetOpex: real("budget_opex").notNull().default(0),
   budgetSpent: real("budget_spent").notNull().default(0),
   status: text("status", {
     enum: ["active", "on_hold", "completed", "cancelled"],

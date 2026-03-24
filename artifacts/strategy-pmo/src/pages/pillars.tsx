@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass } from "@/components/modal";
-import { Loader2, Pencil, Trash2, Plus } from "lucide-react";
+import { Loader2, Pencil, Trash2, Plus, Layers, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -21,13 +21,14 @@ const COLORS = [
 type PillarForm = {
   name: string;
   description: string;
+  pillarType: "pillar" | "enabler";
   weight: string;
   color: string;
   sortOrder: string;
 };
 
 const emptyForm = (): PillarForm => ({
-  name: "", description: "", weight: "25", color: COLORS[0], sortOrder: "0",
+  name: "", description: "", pillarType: "pillar", weight: "25", color: COLORS[0], sortOrder: "0",
 });
 
 export default function Pillars() {
@@ -59,9 +60,11 @@ export default function Pillars() {
 
   function openEdit(pillar: NonNullable<typeof data>["pillars"][number]) {
     setEditId(pillar.id);
+    const pt = (pillar as { pillarType?: string }).pillarType;
     setForm({
       name: pillar.name,
       description: pillar.description ?? "",
+      pillarType: (pt === "enabler" ? "enabler" : "pillar"),
       weight: String(pillar.weight),
       color: pillar.color ?? COLORS[0],
       sortOrder: String(pillar.sortOrder ?? 0),
@@ -110,6 +113,7 @@ export default function Pillars() {
     const payload = {
       name: form.name,
       description: form.description || undefined,
+      pillarType: form.pillarType,
       weight: parseFloat(form.weight) || 0,
       color: form.color,
       sortOrder: parseInt(form.sortOrder) || 0,
@@ -151,77 +155,132 @@ export default function Pillars() {
   if (isLoading)
     return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
+  const allItems = data?.pillars ?? [];
+  const strategicPillars = allItems.filter(p => (p as { pillarType?: string }).pillarType !== "enabler");
+  const enablers = allItems.filter(p => (p as { pillarType?: string }).pillarType === "enabler");
+
+  function PillarCard({ pillar, typeLabel, typeColor, TypeIcon }: {
+    pillar: NonNullable<typeof data>["pillars"][number];
+    typeLabel: string;
+    typeColor: string;
+    TypeIcon: typeof Layers;
+  }) {
+    return (
+      <Card key={pillar.id} className="flex flex-col group hover:shadow-md transition-shadow">
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex-1 min-w-0 pr-4">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span
+                className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded"
+                style={{ backgroundColor: typeColor + "18", color: typeColor }}
+              >
+                <TypeIcon className="w-2.5 h-2.5" />
+                {typeLabel}
+              </span>
+            </div>
+            <h3 className="text-xl font-bold flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: pillar.color ?? "#6366f1" }} />
+              {pillar.name}
+            </h3>
+            <p className="text-muted-foreground text-sm mt-1">{pillar.description || "No description provided."}</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="bg-secondary px-3 py-1 rounded-md text-sm font-bold border border-border">
+              {pillar.weight}% Weight
+            </div>
+            {isAdmin && (
+              <>
+                <button
+                  onClick={() => openEdit(pillar)}
+                  className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                  title="Edit"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(pillar.id, pillar.name)}
+                  className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-auto pt-6">
+          <div className="flex justify-between text-sm mb-2 font-medium">
+            <span className="text-muted-foreground">Overall Progress</span>
+            <span>{Math.round(pillar.progress ?? 0)}%</span>
+          </div>
+          <ProgressBar progress={pillar.progress ?? 0} showLabel={false} />
+
+          <div className="grid grid-cols-4 gap-4 mt-6 pt-4 border-t border-border/50">
+            <Stat label="Initiatives" val={pillar.initiativeCount ?? 0} />
+            <Stat label="Projects" val={pillar.projectCount ?? 0} />
+            <Stat label="Milestones" val={pillar.milestoneCount ?? 0} />
+            <Stat label="Approvals" val={pillar.pendingApprovals ?? 0} alert={(pillar.pendingApprovals ?? 0) > 0} />
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <div className="space-y-8 animate-in fade-in">
-      <PageHeader title="Strategic Pillars" description="The core foundations of the programme.">
+    <div className="space-y-10 animate-in fade-in">
+      <PageHeader title="Pillars & Enablers" description="Strategic pillars define what KFCA delivers; enablers define how.">
         {isAdmin && (
           <button
             onClick={openCreate}
             className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
           >
-            <Plus className="w-4 h-4" /> Add Pillar
+            <Plus className="w-4 h-4" /> Add
           </button>
         )}
       </PageHeader>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {data?.pillars.map((pillar) => (
-          <Card key={pillar.id} className="flex flex-col group hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex-1 min-w-0 pr-4">
-                <h3 className="text-xl font-bold flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: pillar.color ?? "#6366f1" }} />
-                  {pillar.name}
-                </h3>
-                <p className="text-muted-foreground text-sm mt-1">{pillar.description || "No description provided."}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="bg-secondary px-3 py-1 rounded-md text-sm font-bold border border-border">
-                  {pillar.weight}% Weight
-                </div>
-                {isAdmin && (
-                  <>
-                    <button
-                      onClick={() => openEdit(pillar)}
-                      className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                      title="Edit"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(pillar.id, pillar.name)}
-                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-auto pt-6">
-              <div className="flex justify-between text-sm mb-2 font-medium">
-                <span className="text-muted-foreground">Overall Progress</span>
-                <span>{Math.round(pillar.progress ?? 0)}%</span>
-              </div>
-              <ProgressBar progress={pillar.progress ?? 0} showLabel={false} />
-
-              <div className="grid grid-cols-4 gap-4 mt-6 pt-4 border-t border-border/50">
-                <Stat label="Initiatives" val={pillar.initiativeCount ?? 0} />
-                <Stat label="Projects" val={pillar.projectCount ?? 0} />
-                <Stat label="Milestones" val={pillar.milestoneCount ?? 0} />
-                <Stat label="Approvals" val={pillar.pendingApprovals ?? 0} alert={(pillar.pendingApprovals ?? 0) > 0} />
-              </div>
-            </div>
-          </Card>
-        ))}
-        {data?.pillars.length === 0 && (
-          <div className="col-span-2 p-12 text-center text-muted-foreground bg-card border border-border rounded-xl">
-            No pillars defined yet.
+      {/* Strategic Pillars */}
+      {strategicPillars.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Layers className="w-4 h-4 text-primary" />
+            <h2 className="text-[15px] font-display font-bold tracking-tight border-l-[3px] border-primary pl-2">
+              Strategic Pillars
+              <span className="ml-2 text-[11px] font-normal text-muted-foreground">({strategicPillars.length})</span>
+            </h2>
           </div>
-        )}
-      </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {strategicPillars.map((pillar) => (
+              <PillarCard key={pillar.id} pillar={pillar} typeLabel="Pillar" typeColor="#2563EB" TypeIcon={Layers} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Cross-cutting Enablers */}
+      {enablers.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Zap className="w-4 h-4 text-amber-600" />
+            <h2 className="text-[15px] font-display font-bold tracking-tight border-l-[3px] border-amber-500 pl-2">
+              Cross-Cutting Enablers
+              <span className="ml-2 text-[11px] font-normal text-muted-foreground">({enablers.length})</span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {enablers.map((pillar) => (
+              <PillarCard key={pillar.id} pillar={pillar} typeLabel="Enabler" typeColor="#D97706" TypeIcon={Zap} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {allItems.length === 0 && (
+        <div className="p-12 text-center text-muted-foreground bg-card border border-border rounded-xl">
+          No pillars or enablers defined yet.
+        </div>
+      )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? "Edit Pillar" : "New Pillar"}>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -243,6 +302,17 @@ export default function Pillars() {
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="What does this pillar represent?"
             />
+          </FormField>
+
+          <FormField label="Type">
+            <select
+              className={inputClass}
+              value={form.pillarType}
+              onChange={(e) => setForm({ ...form, pillarType: e.target.value as "pillar" | "enabler" })}
+            >
+              <option value="pillar">Strategic Pillar</option>
+              <option value="enabler">Cross-Cutting Enabler</option>
+            </select>
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">

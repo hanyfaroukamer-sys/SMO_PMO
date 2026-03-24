@@ -81,11 +81,12 @@ async function extractDocx(buf: Buffer): Promise<string> {
 }
 
 async function extractPptx(buf: Buffer): Promise<string> {
-  // officeparser v6: parseOffice is async and returns the extracted text string directly
+  // officeparser v6: parseOffice returns an AST object; call .toText() to get the plain text
   const op = await import("officeparser") as unknown as {
-    parseOffice: (input: Buffer) => Promise<string>;
+    parseOffice: (input: Buffer) => Promise<{ toText: () => string }>;
   };
-  return await op.parseOffice(buf);
+  const ast = await op.parseOffice(buf);
+  return ast.toText();
 }
 
 // Extract text with a 25-second timeout per file to prevent hangs on large/corrupt files

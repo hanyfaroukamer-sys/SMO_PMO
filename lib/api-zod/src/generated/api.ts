@@ -740,6 +740,7 @@ export const createSpmoPillarBodyWeightMax = 100;
 export const CreateSpmoPillarBody = zod.object({
   name: zod.string().min(1),
   description: zod.string().optional(),
+  pillarType: zod.enum(["pillar", "enabler"]).optional().default("pillar"),
   weight: zod
     .number()
     .min(createSpmoPillarBodyWeightMin)
@@ -821,6 +822,7 @@ export const UpdateSpmoPillarParams = zod.object({
 export const UpdateSpmoPillarBody = zod.object({
   name: zod.string().optional(),
   description: zod.string().optional(),
+  pillarType: zod.enum(["pillar", "enabler"]).optional(),
   weight: zod.number().optional(),
   color: zod.string().optional(),
   iconName: zod.string().optional(),

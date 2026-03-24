@@ -643,12 +643,26 @@ export default function ProjectDetail({ params }: Props) {
               </div>
               <div className="font-semibold text-sm">{fmt(project.targetDate)}</div>
             </Card>
-            <Card className="p-4">
-              <div className="flex items-center gap-2 mb-2">
+            <Card className="p-4 col-span-1 lg:col-span-2">
+              <div className="flex items-center gap-2 mb-3">
                 <DollarSign className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground font-medium">Budget Allocated</span>
+                <span className="text-xs text-muted-foreground font-medium">Budget Allocation</span>
               </div>
-              <div className="font-bold text-sm font-mono">{formatCurrency(project.budget)}</div>
+              <div className="font-bold text-base font-mono mb-2">{formatCurrency(project.budget)} SAR total</div>
+              {((project as { budgetCapex?: number }).budgetCapex ?? 0) > 0 || ((project as { budgetOpex?: number }).budgetOpex ?? 0) > 0 ? (
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50">
+                  <div>
+                    <div className="text-[10px] font-semibold text-muted-foreground uppercase">CAPEX</div>
+                    <div className="font-bold text-sm font-mono">{formatCurrency((project as { budgetCapex?: number }).budgetCapex ?? 0)}</div>
+                    <div className="text-[10px] text-muted-foreground">{project.budget > 0 ? Math.round(((project as { budgetCapex?: number }).budgetCapex ?? 0) / project.budget * 100) : 0}% of total</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-semibold text-muted-foreground uppercase">OPEX</div>
+                    <div className="font-bold text-sm font-mono">{formatCurrency((project as { budgetOpex?: number }).budgetOpex ?? 0)}</div>
+                    <div className="text-[10px] text-muted-foreground">{project.budget > 0 ? Math.round(((project as { budgetOpex?: number }).budgetOpex ?? 0) / project.budget * 100) : 0}% of total</div>
+                  </div>
+                </div>
+              ) : null}
             </Card>
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-2">
