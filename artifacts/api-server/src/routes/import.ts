@@ -243,6 +243,7 @@ router.post(
 
     const files = req.files as Express.Multer.File[] | undefined;
     const mode = (req.body?.mode as string) || "new";
+    const guidance = (req.body?.guidance as string) || "";
 
     if (!files || files.length === 0) {
       res.status(400).json({ error: "No files uploaded" });
@@ -268,7 +269,11 @@ router.post(
       documentContent = documentContent.substring(0, MAX_CHARS) + "\n\n[TRUNCATED]";
     }
 
-    const promptText = buildExtractionPrompt(mode) + existingContext + "\n\n---\n\nDOCUMENT CONTENT:\n" + documentContent;
+    const guidanceSection = guidance
+      ? `\n\n---\n\nUSER GUIDANCE (follow these instructions carefully — the user knows the document structure):\n${guidance}\n`
+      : "";
+
+    const promptText = buildExtractionPrompt(mode) + existingContext + guidanceSection + "\n\n---\n\nDOCUMENT CONTENT:\n" + documentContent;
 
     let text = "";
     try {

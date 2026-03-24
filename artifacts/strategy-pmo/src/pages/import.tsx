@@ -109,14 +109,16 @@ function InlineNumber({ value, onChange, placeholder }: { value: number | null; 
 // ─── STEP 1: UPLOAD ──────────────────────────────────────────────────────────
 
 function UploadStep({
-  files, mode,
-  onFilesChange, onModeChange,
+  files, mode, guidance,
+  onFilesChange, onModeChange, onGuidanceChange,
   onAnalyse, analysing,
 }: {
   files: File[];
   mode: ImportMode;
+  guidance: string;
   onFilesChange: (f: File[]) => void;
   onModeChange: (m: ImportMode) => void;
+  onGuidanceChange: (v: string) => void;
   onAnalyse: () => void;
   analysing: boolean;
 }) {
@@ -181,6 +183,23 @@ function UploadStep({
           ))}
         </div>
       )}
+
+      {/* Guidance Prompt */}
+      <div className="space-y-2">
+        <div>
+          <label className="text-sm font-semibold">Guidance for Claude <span className="font-normal text-muted-foreground">(optional)</span></label>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Tell Claude where to find key information — e.g. which tab or section has the KPIs, what the column headers mean, or what to focus on.
+          </p>
+        </div>
+        <textarea
+          value={guidance}
+          onChange={e => onGuidanceChange(e.target.value)}
+          placeholder={`Examples:\n• "KPIs are in the 'Indicators' tab, column D is target, column E is actual"\n• "Pillars are the coloured sections on slide 3. Ignore the appendix."\n• "Budget figures are in SAR millions. Owner names are in column B."`}
+          rows={4}
+          className="w-full text-sm rounded-xl border border-border px-3 py-2.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none placeholder:text-muted-foreground/60 leading-relaxed"
+        />
+      </div>
 
       {/* Mode Selector */}
       <div className="space-y-2">
@@ -489,6 +508,7 @@ export default function ImportPage() {
   const [step, setStep] = useState<"upload" | "review">("upload");
   const [files, setFiles] = useState<File[]>([]);
   const [mode, setMode] = useState<ImportMode>("new");
+  const [guidance, setGuidance] = useState("");
   const [analysing, setAnalysing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [extracted, setExtracted] = useState<ExtractedData | null>(null);
@@ -508,6 +528,7 @@ export default function ImportPage() {
     try {
       const form = new FormData();
       form.append("mode", mode);
+      if (guidance.trim()) form.append("guidance", guidance.trim());
       for (const f of files) form.append("files", f);
 
       const res = await fetch("/api/spmo/import/analyse", { method: "POST", body: form, credentials: "include" });
@@ -576,8 +597,8 @@ export default function ImportPage() {
 
       {step === "upload" ? (
         <UploadStep
-          files={files} mode={mode}
-          onFilesChange={setFiles} onModeChange={setMode}
+          files={files} mode={mode} guidance={guidance}
+          onFilesChange={setFiles} onModeChange={setMode} onGuidanceChange={setGuidance}
           onAnalyse={handleAnalyse} analysing={analysing}
         />
       ) : extracted ? (
