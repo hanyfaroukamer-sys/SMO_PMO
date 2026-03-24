@@ -796,9 +796,7 @@ export default function Dashboard() {
                 })}
               </div>
             </Card>
-          )}
-        </div>
-      </section>
+      )}
 
       {/* AI Modal — admin only */}
       {isAdmin && isAiModalOpen && (
