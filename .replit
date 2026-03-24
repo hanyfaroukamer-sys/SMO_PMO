@@ -9,8 +9,8 @@ id = "artifacts/mockup-sandbox"
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
-build = ["bash", "-c", "pnpm run typecheck:libs && pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/strategy-pmo run build"]
-run = ["bash", "-c", "node artifacts/api-server/dist/index.cjs"]
+build = ["bash", "scripts/build-production.sh"]
+run = ["node", "artifacts/api-server/dist/index.cjs"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
@@ -29,15 +29,3 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
-
-[[ports]]
-localPort = 8080
-externalPort = 8080
-
-[[ports]]
-localPort = 8081
-externalPort = 8081
-
-[[ports]]
-localPort = 22880
-externalPort = 80
