@@ -1,18 +1,18 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-if (!process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL) {
+const directKey = process.env.ANTHROPIC_API_KEY;
+const integrationKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+const integrationBaseUrl = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
+
+if (!directKey && !integrationKey) {
   throw new Error(
-    "AI_INTEGRATIONS_ANTHROPIC_BASE_URL must be set. Did you forget to provision the Anthropic AI integration?",
+    "Either ANTHROPIC_API_KEY or AI_INTEGRATIONS_ANTHROPIC_API_KEY must be set.",
   );
 }
 
-if (!process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY) {
-  throw new Error(
-    "AI_INTEGRATIONS_ANTHROPIC_API_KEY must be set. Did you forget to provision the Anthropic AI integration?",
-  );
-}
-
-export const anthropic = new Anthropic({
-  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
-});
+export const anthropic = directKey
+  ? new Anthropic({ apiKey: directKey })
+  : new Anthropic({
+      apiKey: integrationKey!,
+      baseURL: integrationBaseUrl,
+    });
