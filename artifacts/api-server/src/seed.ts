@@ -162,34 +162,58 @@ const SEED_SQL: string[] = [
   "INSERT INTO spmo_procurement (id, project_id, title, stage, vendor, contract_value, currency, notes, award_date, completion_date, created_at, updated_at) VALUES (6, 9, 'Citizen Portal Development & Delivery Partner', 'completed', 'Accenture Arabia', 8.8e+07, 'SAR', 'Phase 1 portal migration complete. Phase 2 extension under negotiation.', '2024-01-15', '2024-12-31', '2026-03-20 16:01:40.323159+00', '2026-03-20 16:01:40.323159+00');",
 ];
 
+const KPI_SEED_SQL: string[] = [
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (1, 'strategic', 'Digital Service Adoption Rate', '%', 90, 64, NULL, 1, 'on_track', '2026-03-20 16:01:40.306086+00', '2026-03-20 16:01:40.306086+00', 'Percentage of eligible government transactions conducted digitally.', 38, NULL, NULL, NULL, NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (2, 'strategic', 'Process Automation Coverage', '%', 60, 31, NULL, 2, 'at_risk', '2026-03-20 16:01:40.306086+00', '2026-03-20 16:01:40.306086+00', 'Percentage of government administrative processes that are fully automated.', 12, NULL, NULL, NULL, NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (3, 'strategic', 'Citizen Satisfaction Index', 'score', 88, 74, NULL, 3, 'on_track', '2026-03-20 16:01:40.306086+00', '2026-03-20 16:01:40.306086+00', 'Composite citizen satisfaction score across all government digital services (0-100).', 61, NULL, NULL, NULL, NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (4, 'strategic', 'Government Carbon Footprint Reduction', '%', 40, 18, NULL, 4, 'on_track', '2026-03-20 16:01:40.306086+00', '2026-03-20 16:01:40.306086+00', 'Percentage reduction in government operations carbon emissions vs 2023 baseline.', 0, NULL, NULL, NULL, NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (5, 'operational', 'AI Signals Commissioned', 'signals', 2400, 1600, 1, NULL, 'on_track', '2026-03-20 16:01:40.309035+00', '2026-03-22 08:43:47.974+00', 'Number of AI-adaptive traffic signals installed and operational.', 0, 2, 'seed-system', 'Omar Al-Sheikh', NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (6, 'operational', 'IoT Sensors Live', 'sensors', 12000, 4800, 2, NULL, 'at_risk', '2026-03-20 16:01:40.309035+00', '2026-03-20 16:01:40.309035+00', 'Number of active traffic IoT sensors transmitting real-time data.', 0, NULL, NULL, NULL, NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (7, 'operational', 'Finance Module Entities Live', 'entities', 28, 19, 6, NULL, 'on_track', '2026-03-20 16:01:40.309035+00', '2026-03-22 08:34:35.006+00', 'Number of government entities fully live on the new finance system.', 0, 6, 'seed-system', 'Nora Al-Dosari', NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (8, 'operational', 'Services Migrated to New Portal', 'services', 200, 112, 9, NULL, 'on_track', '2026-03-20 16:01:40.309035+00', '2026-03-20 16:01:40.309035+00', 'Number of government services live on the redesigned citizen portal.', 0, NULL, NULL, NULL, NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (9, 'operational', 'Mobile App Active Users', 'users', 2000000, 385000, 10, NULL, 'off_track', '2026-03-20 16:01:40.309035+00', '2026-03-22 08:44:12.705+00', 'Monthly active users on the National Government Mobile App.', 0, 4, 'seed-system', 'Sara Al-Mutairi', NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (10, 'operational', 'EVs Delivered & Registered', 'vehicles', 8500, 3950, 11, NULL, 'on_track', '2026-03-20 16:01:40.309035+00', '2026-03-20 16:01:40.309035+00', 'Electric vehicles delivered, registered, and in operational service.', 0, NULL, NULL, NULL, NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (11, 'operational', 'Speed Cameras Operational', 'cameras', 800, 390, 13, NULL, 'at_risk', '2026-03-20 16:01:40.309035+00', '2026-03-20 16:01:40.309035+00', 'AI speed cameras installed and issuing automated penalties.', 0, NULL, NULL, NULL, NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+  "INSERT INTO spmo_kpis (id, type, name, unit, target, actual, project_id, pillar_id, status, created_at, updated_at, description, baseline, initiative_id, owner_id, owner_name, next_year_target, kpi_type, direction, measurement_period, period_start, period_end, milestone_due, milestone_done, prev_actual, prev_actual_dt, target_2030, formula, target_rationale, category, measurement_frequency, target_2026, target_2027, target_2028, target_2029, actual_2026, actual_2027, actual_2028, actual_2029) VALUES (12, 'operational', 'Government Entities Connected', 'entities', 32, 14, 4, NULL, 'on_track', '2026-03-20 16:01:40.309035+00', '2026-03-20 16:01:40.309035+00', 'Entities with live data feeds flowing into the Government Data Lake.', 0, NULL, NULL, NULL, NULL, 'rate', 'higher', 'annual', NULL, NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING",
+];
+
 export async function seedIfEmpty(): Promise<void> {
   const res = await db.execute(sql`SELECT count(*)::int AS n FROM spmo_pillars`);
   const n = (res.rows[0] as { n: number }).n;
-  if (n > 0) {
-    console.log("[seed] Data already present — skipping seed.");
-    return;
-  }
 
-  console.log("[seed] Empty database — loading demo data...");
   await db.execute(sql`SET session_replication_role = replica`);
   try {
-    for (const stmt of SEED_SQL) {
-      await db.execute(sql.raw(stmt));
+    if (n === 0) {
+      console.log("[seed] Empty database — loading demo data...");
+      for (const stmt of SEED_SQL) {
+        await db.execute(sql.raw(stmt));
+      }
+      await db.execute(sql`
+        SELECT setval('spmo_pillars_id_seq',          COALESCE((SELECT MAX(id) FROM spmo_pillars), 1));
+        SELECT setval('spmo_departments_id_seq',       COALESCE((SELECT MAX(id) FROM spmo_departments), 1));
+        SELECT setval('spmo_programme_config_id_seq',  COALESCE((SELECT MAX(id) FROM spmo_programme_config), 1));
+        SELECT setval('spmo_initiatives_id_seq',       COALESCE((SELECT MAX(id) FROM spmo_initiatives), 1));
+        SELECT setval('spmo_projects_id_seq',          COALESCE((SELECT MAX(id) FROM spmo_projects), 1));
+        SELECT setval('spmo_milestones_id_seq',        COALESCE((SELECT MAX(id) FROM spmo_milestones), 1));
+        SELECT setval('spmo_risks_id_seq',             COALESCE((SELECT MAX(id) FROM spmo_risks), 1));
+        SELECT setval('spmo_budget_entries_id_seq',    COALESCE((SELECT MAX(id) FROM spmo_budget_entries), 1));
+        SELECT setval('spmo_procurement_id_seq',       COALESCE((SELECT MAX(id) FROM spmo_procurement), 1));
+      `);
+      console.log(`[seed] Loaded ${SEED_SQL.length} rows successfully.`);
+    } else {
+      console.log("[seed] Data already present — skipping full seed.");
     }
-    // Reset sequences so new inserts get the right next ID
-    await db.execute(sql`
-      SELECT setval('spmo_pillars_id_seq',          COALESCE((SELECT MAX(id) FROM spmo_pillars), 1));
-      SELECT setval('spmo_departments_id_seq',       COALESCE((SELECT MAX(id) FROM spmo_departments), 1));
-      SELECT setval('spmo_programme_config_id_seq',  COALESCE((SELECT MAX(id) FROM spmo_programme_config), 1));
-      SELECT setval('spmo_initiatives_id_seq',       COALESCE((SELECT MAX(id) FROM spmo_initiatives), 1));
-      SELECT setval('spmo_projects_id_seq',          COALESCE((SELECT MAX(id) FROM spmo_projects), 1));
-      SELECT setval('spmo_milestones_id_seq',        COALESCE((SELECT MAX(id) FROM spmo_milestones), 1));
-      SELECT setval('spmo_kpis_id_seq',              COALESCE((SELECT MAX(id) FROM spmo_kpis), 1));
-      SELECT setval('spmo_risks_id_seq',             COALESCE((SELECT MAX(id) FROM spmo_risks), 1));
-      SELECT setval('spmo_budget_entries_id_seq',    COALESCE((SELECT MAX(id) FROM spmo_budget_entries), 1));
-      SELECT setval('spmo_procurement_id_seq',       COALESCE((SELECT MAX(id) FROM spmo_procurement), 1));
-    `);
-    console.log(`[seed] Loaded ${SEED_SQL.length} rows successfully.`);
+
+    const kpiRes = await db.execute(sql`SELECT count(*)::int AS n FROM spmo_kpis`);
+    const kpiCount = (kpiRes.rows[0] as { n: number }).n;
+    if (kpiCount === 0) {
+      console.log("[seed] KPI table empty — re-seeding KPIs...");
+      for (const stmt of KPI_SEED_SQL) {
+        await db.execute(sql.raw(stmt));
+      }
+      await db.execute(sql`SELECT setval('spmo_kpis_id_seq', COALESCE((SELECT MAX(id) FROM spmo_kpis), 1))`);
+      console.log("[seed] KPIs restored.");
+    }
   } finally {
     await db.execute(sql`SET session_replication_role = DEFAULT`);
   }
