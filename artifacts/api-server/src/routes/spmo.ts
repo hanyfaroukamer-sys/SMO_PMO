@@ -3129,7 +3129,13 @@ router.post("/spmo/kpis/:id/measurements", async (req, res) => {
     recordedById: userId,
     recordedByName: getUserDisplayName(user) ?? undefined,
   }).returning();
-  await db.update(spmoKpisTable).set({ prevActual: spmoKpisTable.actual, prevActualDt: new Date().toISOString().split("T")[0], actual: body.data.value, updatedAt: new Date() }).where(eq(spmoKpisTable.id, kpiId));
+  const measureYear = new Date(body.data.measuredAt).getFullYear();
+  const yearField: Record<string, unknown> = {};
+  if (measureYear === 2026) yearField.actual2026 = body.data.value;
+  else if (measureYear === 2027) yearField.actual2027 = body.data.value;
+  else if (measureYear === 2028) yearField.actual2028 = body.data.value;
+  else if (measureYear === 2029) yearField.actual2029 = body.data.value;
+  await db.update(spmoKpisTable).set({ prevActual: spmoKpisTable.actual, prevActualDt: new Date().toISOString().split("T")[0], actual: body.data.value, ...yearField, updatedAt: new Date() }).where(eq(spmoKpisTable.id, kpiId));
   res.status(201).json(row);
 });
 

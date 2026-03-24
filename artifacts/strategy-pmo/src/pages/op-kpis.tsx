@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type React from "react";
 import {
   useListSpmoKpis,
   useListSpmoInitiatives,
@@ -10,7 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Activity, Plus, Pencil, Trash2, User, ChevronRight, Download } from "lucide-react";
+import { Loader2, Activity, Plus, Pencil, Trash2, User, ChevronRight, Download, BarChart2 } from "lucide-react";
 import { exportToXlsx } from "@/lib/export";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,6 +22,7 @@ import {
   ENGINE_STATUS_ICON,
   type KpiEngineInput,
 } from "@/lib/kpi-engine";
+import { KpiDetailModal, type KpiDetail } from "@/components/kpi-detail-modal";
 
 type KpiForm = {
   name: string;
@@ -39,6 +41,18 @@ type KpiForm = {
   periodEnd: string;
   milestoneDue: string;
   milestoneDone: boolean;
+  formula: string;
+  targetRationale: string;
+  category: string;
+  measurementFrequency: string;
+  target2026: string;
+  target2027: string;
+  target2028: string;
+  target2029: string;
+  actual2026: string;
+  actual2027: string;
+  actual2028: string;
+  actual2029: string;
 };
 
 const emptyForm = (): KpiForm => ({
@@ -46,29 +60,12 @@ const emptyForm = (): KpiForm => ({
   baseline: "0", nextYearTarget: "", target2030: "", initiativeId: "",
   kpiType: "rate", direction: "higher", measurementPeriod: "annual",
   periodStart: "", periodEnd: "", milestoneDue: "", milestoneDone: false,
+  formula: "", targetRationale: "", category: "", measurementFrequency: "annual",
+  target2026: "", target2027: "", target2028: "", target2029: "",
+  actual2026: "", actual2027: "", actual2028: "", actual2029: "",
 });
 
-type Kpi = {
-  id: number;
-  name: string;
-  description?: string | null;
-  unit: string;
-  baseline: number;
-  target: number;
-  actual: number;
-  nextYearTarget?: number | null;
-  target2030?: number | null;
-  initiativeId: number | null;
-  ownerName?: string | null;
-  prevActual?: number | null;
-  prevActualDt?: string | null;
-  kpiType?: string | null;
-  direction?: string | null;
-  periodStart?: string | null;
-  periodEnd?: string | null;
-  milestoneDue?: string | null;
-  milestoneDone?: boolean | null;
-};
+type Kpi = KpiDetail & { initiativeId: number | null; ownerName?: string | null };
 
 function fmt(val: number | null | undefined, unit: string) {
   if (val == null) return "—";
@@ -97,6 +94,7 @@ export default function OpKPIs() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<KpiForm>(emptyForm());
+  const [detailKpi, setDetailKpi] = useState<Kpi | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -151,6 +149,18 @@ export default function OpKPIs() {
       periodEnd: kpi.periodEnd ?? "",
       milestoneDue: kpi.milestoneDue ?? "",
       milestoneDone: kpi.milestoneDone ?? false,
+      formula: kpi.formula ?? "",
+      targetRationale: kpi.targetRationale ?? "",
+      category: kpi.category ?? "",
+      measurementFrequency: kpi.measurementFrequency ?? "annual",
+      target2026: kpi.target2026 != null ? String(kpi.target2026) : "",
+      target2027: kpi.target2027 != null ? String(kpi.target2027) : "",
+      target2028: kpi.target2028 != null ? String(kpi.target2028) : "",
+      target2029: kpi.target2029 != null ? String(kpi.target2029) : "",
+      actual2026: kpi.actual2026 != null ? String(kpi.actual2026) : "",
+      actual2027: kpi.actual2027 != null ? String(kpi.actual2027) : "",
+      actual2028: kpi.actual2028 != null ? String(kpi.actual2028) : "",
+      actual2029: kpi.actual2029 != null ? String(kpi.actual2029) : "",
     });
     setModalOpen(true);
   }
@@ -176,6 +186,18 @@ export default function OpKPIs() {
       periodEnd: form.periodEnd || undefined,
       milestoneDue: form.milestoneDue || undefined,
       milestoneDone: form.milestoneDone,
+      formula: form.formula || undefined,
+      targetRationale: form.targetRationale || undefined,
+      category: form.category || undefined,
+      measurementFrequency: form.measurementFrequency as CreateSpmoKpiRequest["measurementFrequency"] || undefined,
+      target2026: form.target2026 ? parseFloat(form.target2026) : undefined,
+      target2027: form.target2027 ? parseFloat(form.target2027) : undefined,
+      target2028: form.target2028 ? parseFloat(form.target2028) : undefined,
+      target2029: form.target2029 ? parseFloat(form.target2029) : undefined,
+      actual2026: form.actual2026 ? parseFloat(form.actual2026) : undefined,
+      actual2027: form.actual2027 ? parseFloat(form.actual2027) : undefined,
+      actual2028: form.actual2028 ? parseFloat(form.actual2028) : undefined,
+      actual2029: form.actual2029 ? parseFloat(form.actual2029) : undefined,
     };
 
     if (editId) {
@@ -220,7 +242,7 @@ export default function OpKPIs() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <PageHeader title="Operational KPIs" description="Grouped by initiative — baseline, targets, actuals and next-year outlook.">
+      <PageHeader title="Operational KPIs" description="Grouped by initiative — baseline, targets, actuals and 2030 outlook.">
         <div className="flex items-center gap-2">
           <button
             onClick={() => exportToXlsx(kpis.map((k) => ({
@@ -230,6 +252,7 @@ export default function OpKPIs() {
               Target: k.target,
               Actual: k.actual,
               "Next Year Target": k.nextYearTarget,
+              "2030 Target": k.target2030,
               Status: (k as { status?: string }).status ?? "",
             })), "op-kpis-export")}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
@@ -320,11 +343,19 @@ export default function OpKPIs() {
                         const kpiColor = getPillarColor(kpi.initiativeId);
 
                         return (
-                          <tr key={kpi.id} className="hover:bg-secondary/20 transition-colors group">
+                          <tr
+                            key={kpi.id}
+                            onClick={() => setDetailKpi(kpi)}
+                            className="hover:bg-primary/5 transition-colors group cursor-pointer"
+                          >
                             <td className="px-6 py-4">
-                              <div className="font-semibold text-sm">{kpi.name}</div>
+                              <div className="font-semibold text-sm text-primary group-hover:underline underline-offset-2 flex items-center gap-1.5">
+                                {kpi.name}
+                                <BarChart2 className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+                              </div>
                               <div className="flex items-center gap-2 mt-0.5">
                                 <span className="text-xs text-muted-foreground capitalize bg-secondary/60 px-1.5 py-0.5 rounded">{kpi.kpiType ?? "rate"}</span>
+                                {kpi.category && <span className="text-xs text-muted-foreground border border-border/60 px-1.5 py-0.5 rounded">{kpi.category}</span>}
                               </div>
                               {kpi.description && (
                                 <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{kpi.description}</div>
@@ -350,7 +381,7 @@ export default function OpKPIs() {
                             </td>
                             <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.nextYearTarget, kpi.unit)}</td>
                             <td className="px-4 py-4 text-right font-mono text-sm text-muted-foreground whitespace-nowrap">{fmt(kpi.target2030, kpi.unit)}</td>
-                            <td className="px-4 py-4">
+                            <td className="px-4 py-4" onClick={(ev) => ev.stopPropagation()}>
                               {isAdmin && (
                                 <div className="flex items-center gap-1">
                                   <button onClick={() => openEdit(kpi)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-border bg-secondary hover:bg-secondary/70 text-foreground transition-colors" title="Edit KPI">
@@ -370,6 +401,17 @@ export default function OpKPIs() {
             );
           })}
         </div>
+      )}
+
+      {/* KPI Detail Modal */}
+      {detailKpi && (
+        <KpiDetailModal
+          kpi={detailKpi}
+          pillarName={getPillarName(detailKpi.initiativeId)}
+          pillarColor={getPillarColor(detailKpi.initiativeId)}
+          isAdmin={isAdmin}
+          onClose={() => setDetailKpi(null)}
+        />
       )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? "Edit Operational KPI" : "New Operational KPI"}>
@@ -435,15 +477,23 @@ export default function OpKPIs() {
                   <input type="date" className={inputClass} value={form.periodEnd} onChange={(e) => setForm({ ...form, periodEnd: e.target.value })} />
                 </FormField>
               </div>
-              <FormField label="Unit" required>
-                <input className={inputClass} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required placeholder="e.g. sensors, %" />
-              </FormField>
               <div className="grid grid-cols-2 gap-3">
+                <FormField label="Unit" required>
+                  <input className={inputClass} value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required placeholder="e.g. sensors, %" />
+                </FormField>
+                <FormField label="Category">
+                  <input className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Efficiency, Quality" />
+                </FormField>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
                 <FormField label={`${prevYear} (Baseline)`}>
                   <input className={inputClass} type="number" value={form.baseline} onChange={(e) => setForm({ ...form, baseline: e.target.value })} placeholder="0" step="any" />
                 </FormField>
                 <FormField label={`${thisYear} Target`} required>
                   <input className={inputClass} type="number" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} required placeholder="100" step="any" />
+                </FormField>
+                <FormField label={`${thisYear} Actual`}>
+                  <input className={inputClass} type="number" value={form.actual} onChange={(e) => setForm({ ...form, actual: e.target.value })} placeholder="0" step="any" />
                 </FormField>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -454,8 +504,38 @@ export default function OpKPIs() {
                   <input className={inputClass} type="number" value={form.target2030} onChange={(e) => setForm({ ...form, target2030: e.target.value })} placeholder="—" step="any" />
                 </FormField>
               </div>
-              <FormField label="Actual (Current)" required>
-                <input className={inputClass} type="number" value={form.actual} onChange={(e) => setForm({ ...form, actual: e.target.value })} required placeholder="0" step="any" />
+              <div className="border-t border-border pt-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Multi-Year Targets (2026–2029)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="2026 Target">
+                    <input className={inputClass} type="number" value={form.target2026} onChange={(e) => setForm({ ...form, target2026: e.target.value })} placeholder="—" step="any" />
+                  </FormField>
+                  <FormField label="2027 Target">
+                    <input className={inputClass} type="number" value={form.target2027} onChange={(e) => setForm({ ...form, target2027: e.target.value })} placeholder="—" step="any" />
+                  </FormField>
+                  <FormField label="2028 Target">
+                    <input className={inputClass} type="number" value={form.target2028} onChange={(e) => setForm({ ...form, target2028: e.target.value })} placeholder="—" step="any" />
+                  </FormField>
+                  <FormField label="2029 Target">
+                    <input className={inputClass} type="number" value={form.target2029} onChange={(e) => setForm({ ...form, target2029: e.target.value })} placeholder="—" step="any" />
+                  </FormField>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Measurement Frequency">
+                  <select className={selectClass} value={form.measurementFrequency} onChange={(e) => setForm({ ...form, measurementFrequency: e.target.value })}>
+                    <option value="annual">Annual</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="weekly">Weekly</option>
+                  </select>
+                </FormField>
+              </div>
+              <FormField label="Calculation Formula">
+                <textarea className={inputClass} rows={2} value={form.formula} onChange={(e) => setForm({ ...form, formula: e.target.value })} placeholder="e.g. (Completed tasks / Total tasks) × 100" />
+              </FormField>
+              <FormField label="Target Rationale">
+                <textarea className={inputClass} rows={2} value={form.targetRationale} onChange={(e) => setForm({ ...form, targetRationale: e.target.value })} placeholder="Why was this target set?" />
               </FormField>
             </>
           )}
