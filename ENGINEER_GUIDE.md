@@ -17,7 +17,7 @@ StrategyPMO is a **government-grade programme management dashboard** built for t
 | **Portfolio Views** | Pillar portfolio, department portfolio — drill-down from strategy to project |
 | **Project Management** | Full project lifecycle: milestones, phase gates, budget, RACI, risks, actions |
 | **Progress Proof Centre** | Evidence upload, AI validation, milestone approval workflow |
-| **KPI Management** | 42 KPIs (10 strategic, 32 operational) with measurement history and multi-year targets |
+| **KPI Management** | 42 KPIs (16 strategic, 26 operational) with measurement history and multi-year targets |
 | **Risk Register** | Project and pillar-level risks with mitigations |
 | **My Tasks** | Assignee-specific task view with status filters |
 | **Admin** | Programme config, pillar/initiative CRUD, KPI management, change requests |
@@ -429,7 +429,7 @@ The application is deployed via Replit's deployment platform (`.replit.app` doma
 ### Dashboard
 4. **TC-DASH-01**: Dashboard loads with pillar health heatmap showing all 9 pillars
 5. **TC-DASH-02**: Strategic pillars (3) and Cross-Cutting Enablers (6) are in separate sections
-6. **TC-DASH-03**: KPI cards show correct count (10 strategic, 32 operational)
+6. **TC-DASH-03**: KPI cards show correct count (16 strategic, 26 operational)
 7. **TC-DASH-04**: Projects with future start dates show grey "Not Started" badge (not "On Track")
 
 ### Projects & Milestones
@@ -449,7 +449,7 @@ The application is deployed via Replit's deployment platform (`.replit.app` doma
 19. **TC-EVID-06**: AI validation runs and returns quality score (requires ANTHROPIC_API_KEY)
 
 ### KPIs
-20. **TC-KPI-01**: KPI list loads 42 KPIs (10 strategic, 32 operational)
+20. **TC-KPI-01**: KPI list loads 42 KPIs (16 strategic, 26 operational)
 21. **TC-KPI-02**: Adding a measurement reading appears in the KPI sparkline chart
 22. **TC-KPI-03**: KPIs with `direction = 'lower_is_better'` show red when actual > target
 23. **TC-KPI-04**: Multi-year target columns (2026–2030) display correctly in the KPI modal

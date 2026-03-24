@@ -1,3 +1,7 @@
+import { db } from "@workspace/db";
+import { spmoProgrammeConfigTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+
 export type AiAssessmentResult = {
   overallHealth: string;
   summary: string;
@@ -13,12 +17,28 @@ export type AiAssessmentResult = {
 };
 
 let _cache: { result: AiAssessmentResult; cachedAt: Date } | null = null;
-export const ASSESSMENT_CACHE_TTL_MS = 5 * 60 * 1000;
+export const ASSESSMENT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-export function getCachedAssessment(): { result: AiAssessmentResult; cachedAt: Date } | null {
-  return _cache;
+export async function getCachedAssessment(): Promise<{ result: AiAssessmentResult; cachedAt: Date } | null> {
+  if (_cache) return _cache;
+  try {
+    const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
+    if (cfg?.lastAiAssessment && cfg?.lastAiAssessmentAt) {
+      const stored = cfg.lastAiAssessment as AiAssessmentResult;
+      stored.cachedAt = cfg.lastAiAssessmentAt;
+      _cache = { result: stored, cachedAt: cfg.lastAiAssessmentAt };
+      return _cache;
+    }
+  } catch {}
+  return null;
 }
 
-export function setCachedAssessment(result: AiAssessmentResult): void {
-  _cache = { result, cachedAt: new Date() };
+export async function setCachedAssessment(result: AiAssessmentResult): Promise<void> {
+  const now = new Date();
+  _cache = { result, cachedAt: now };
+  try {
+    await db.update(spmoProgrammeConfigTable)
+      .set({ lastAiAssessment: result, lastAiAssessmentAt: now })
+      .where(eq(spmoProgrammeConfigTable.id, 1));
+  } catch {}
 }

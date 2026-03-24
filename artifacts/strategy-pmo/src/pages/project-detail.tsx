@@ -290,7 +290,7 @@ function MilestonesTab({
   const createMilestone = useCreateSpmoMilestone();
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: "", weight: "", effortDays: "", dueDate: "", description: "" });
+  const [form, setForm] = useState({ name: "", weight: "", effortDays: "", startDate: "", dueDate: "", description: "" });
 
   const inputCls = "w-full text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50";
 
@@ -302,13 +302,14 @@ function MilestonesTab({
         name: form.name.trim(),
         weight: form.weight !== "" ? Number(form.weight) : 0,
         effortDays: form.effortDays !== "" ? Number(form.effortDays) : 0,
+        startDate: form.startDate || undefined,
         dueDate: form.dueDate || new Date().toISOString().slice(0, 10),
         description: form.description || undefined,
       },
     });
     toast({ title: "Milestone created" });
     onInvalidate();
-    setForm({ name: "", weight: "", effortDays: "", dueDate: "", description: "" });
+    setForm({ name: "", weight: "", effortDays: "", startDate: "", dueDate: "", description: "" });
     setShowAdd(false);
   };
 
@@ -357,7 +358,11 @@ function MilestonesTab({
               <label className="block text-[10px] text-muted-foreground mb-0.5">Effort (days)</label>
               <input type="number" min={0} className={inputCls} value={form.effortDays} onChange={(e) => setForm((f) => ({ ...f, effortDays: e.target.value }))} placeholder="—" />
             </div>
-            <div className="col-span-2">
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Start Date</label>
+              <input type="date" className={inputCls} value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} />
+            </div>
+            <div>
               <label className="block text-[10px] text-muted-foreground mb-0.5">Due Date</label>
               <input type="date" className={inputCls} value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
             </div>
@@ -431,6 +436,7 @@ function MilestoneRow({
     name: milestone.name,
     weight: milestone.weight ?? 0,
     description: milestone.description ?? "",
+    startDate: milestone.startDate ? milestone.startDate.toString().slice(0, 10) : "",
     dueDate: milestone.dueDate ? milestone.dueDate.toString().slice(0, 10) : "",
     effortDays: milestone.effortDays ?? "",
   });
@@ -452,6 +458,7 @@ function MilestoneRow({
       name: milestone.name,
       weight: milestone.weight ?? 0,
       description: milestone.description ?? "",
+      startDate: milestone.startDate ? milestone.startDate.toString().slice(0, 10) : "",
       dueDate: milestone.dueDate ? milestone.dueDate.toString().slice(0, 10) : "",
       effortDays: milestone.effortDays ?? "",
     });
@@ -470,6 +477,7 @@ function MilestoneRow({
           name: draft.name.trim(),
           weight: Number(draft.weight) || 0,
           description: draft.description || undefined,
+          startDate: draft.startDate || undefined,
           dueDate: draft.dueDate || undefined,
           effortDays: draft.effortDays !== "" ? Number(draft.effortDays) : undefined,
         },
@@ -539,7 +547,16 @@ function MilestoneRow({
                 placeholder="—"
               />
             </div>
-            <div className="col-span-2">
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Start Date</label>
+              <input
+                type="date"
+                className={inputCls}
+                value={draft.startDate}
+                onChange={(e) => setDraft((d) => ({ ...d, startDate: e.target.value }))}
+              />
+            </div>
+            <div>
               <label className="block text-[10px] text-muted-foreground mb-0.5">Due Date</label>
               <input
                 type="date"

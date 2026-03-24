@@ -40,14 +40,3 @@ export function exportToCsv(data: Record<string, unknown>[], filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export function ExportMenu({
-  data,
-  filename,
-  label = "Export",
-}: {
-  data: () => Record<string, unknown>[];
-  filename: string;
-  label?: string;
-}) {
-  return null;
-}

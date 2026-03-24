@@ -12,6 +12,7 @@ import {
   type SpmoDepartmentStatus,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LabelList } from "recharts";
 
 import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload, FileText, BarChart2, Layers, Zap } from "lucide-react";
@@ -478,6 +479,7 @@ export default function Dashboard() {
   }
 
   return (
+    <ErrorBoundary fallbackTitle="Dashboard failed to render">
     <div className="space-y-8 animate-in fade-in duration-500">
       <PageHeader
         title="Programme Dashboard"
@@ -963,6 +965,7 @@ export default function Dashboard() {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   );
 }
 

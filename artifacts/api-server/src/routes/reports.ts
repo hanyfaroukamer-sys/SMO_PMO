@@ -144,7 +144,7 @@ async function gatherReportData() {
     .sort((a, b) => (sevNum(b.impact) * sevNum(b.probability)) - (sevNum(a.impact) * sevNum(a.probability)))
     .slice(0, 5);
 
-  const aiAssessment = getCachedAssessment();
+  const aiAssessment = await getCachedAssessment();
 
   const initiativeRows = allInitiatives.map((init) => {
     const pillar = allPillars.find((pl) => pl.id === init.pillarId);
@@ -461,7 +461,8 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     const pillarBudgets = data.programme.pillarSummaries.map((ps) => {
       const inits = data.initiatives.filter((i) => i.pillarName === ps.pillar.name);
       const allocated = inits.reduce((s, i) => s + i.budget, 0);
-      const spent = allocated * (ps.progress / 100);
+      const pillarProjects = data.projects.filter((p) => inits.some((i) => i.id === p.initiativeId));
+      const spent = pillarProjects.reduce((s, p) => s + (p.budgetSpent ?? 0), 0);
       return { name: ps.pillar.name, allocated, spent, color: ps.pillar.color ?? C.primary };
     });
     const maxPillarBudget = Math.max(...pillarBudgets.map((p) => p.allocated), 1);
@@ -778,7 +779,8 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     const pillarBudgets2 = data.programme.pillarSummaries.map((ps) => {
       const inits = data.initiatives.filter((i) => i.pillarName === ps.pillar.name);
       const allocated = inits.reduce((s, i) => s + i.budget, 0);
-      const spent = allocated * (ps.progress / 100);
+      const pillarProjects2 = data.projects.filter((p) => inits.some((i) => i.id === p.initiativeId));
+      const spent = pillarProjects2.reduce((s, p) => s + (p.budgetSpent ?? 0), 0);
       return { name: ps.pillar.name, allocated, spent };
     });
 

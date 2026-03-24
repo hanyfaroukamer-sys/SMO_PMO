@@ -176,7 +176,7 @@ export const spmoMilestonesTable = pgTable("spmo_milestones", {
   })
     .notNull()
     .default("pending"),
-  phaseGate: text("phase_gate", { enum: ["planning", "tendering", "execution", "closure"] }),
+  phaseGate: text("phase_gate", { enum: ["planning", "tendering", "closure"] }),
   assigneeId: text("assignee_id"),
   assigneeName: text("assignee_name"),
   startDate: date("start_date"),
@@ -261,7 +261,7 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
   ownerName: text("owner_name"),
   nextYearTarget: real("next_year_target"),
   target2030: real("target_2030"),
-  status: text("status", { enum: ["on_track", "at_risk", "off_track"] })
+  status: text("status", { enum: ["exceeding", "on_track", "at_risk", "critical", "achieved", "not_started"] })
     .notNull()
     .default("on_track"),
   prevActual: real("prev_actual"),
@@ -490,6 +490,8 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   projectDelayedThreshold: integer("project_delayed_threshold").notNull().default(10),
   milestoneAtRiskThreshold: integer("milestone_at_risk_threshold").notNull().default(5),
   weeklyResetDay: integer("weekly_reset_day").notNull().default(3),
+  lastAiAssessment: jsonb("last_ai_assessment"),
+  lastAiAssessmentAt: timestamp("last_ai_assessment_at", { withTimezone: true }),
   defaultPlanningWeight: real("default_planning_weight").notNull().default(5),
   defaultTenderingWeight: real("default_tendering_weight").notNull().default(5),
   defaultExecutionWeight: real("default_execution_weight").notNull().default(85),

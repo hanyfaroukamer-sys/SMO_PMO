@@ -44,7 +44,7 @@ function simpleAvg(values: number[]): number {
 
 // ─────────────────────────────────────────────────────────────
 // Project-level progress from its milestones
-// Weight = effortDays (falls back to equal weight if all 0)
+// Weight = weight field (activity weight), falls back to effortDays, then equal weight
 // Returns both gated progress (99% cap) and raw progress (no cap)
 // ─────────────────────────────────────────────────────────────
 async function projectProgress(projectId: number): Promise<{
@@ -64,12 +64,12 @@ async function projectProgress(projectId: number): Promise<{
   }
 
   const gatedItems = milestones.map((m) => ({
-    value: milestoneEffectiveProgress(m),   // 99% cap
-    weight: m.effortDays ?? 0,
+    value: milestoneEffectiveProgress(m),
+    weight: m.weight ?? m.effortDays ?? 0,
   }));
   const rawItems = milestones.map((m) => ({
-    value: m.progress ?? 0,                 // no cap
-    weight: m.effortDays ?? 0,
+    value: m.progress ?? 0,
+    weight: m.weight ?? m.effortDays ?? 0,
   }));
 
   const approved = milestones.filter((m) => m.status === "approved").length;

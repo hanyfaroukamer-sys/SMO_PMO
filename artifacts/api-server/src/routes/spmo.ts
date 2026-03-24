@@ -195,7 +195,7 @@ function detectProjectPhase(milestones: Array<{ phaseGate: string | null; status
 
   if (!planning || planning.progress === 0) return "not_started";
   if (planning.status !== "approved") return "planning";
-  if (tendering && tendering.status !== "approved") return "tendering";
+  if (tendering && tendering.status !== "approved" && (tendering.progress > 0 || tendering.status !== "pending")) return "tendering";
   if (closure && closure.status === "approved") return "completed";
   const allExecApproved = executionMs.length > 0 && executionMs.every((m) => m.status === "approved");
   if (allExecApproved) return "closure";
@@ -2060,7 +2060,7 @@ router.post("/spmo/ai/assessment", async (req, res): Promise<void> => {
   if (!userId) return;
 
   // Use cache if fresh
-  const cachedAssessment = getCachedAssessment();
+  const cachedAssessment = await getCachedAssessment();
   if (cachedAssessment && Date.now() - cachedAssessment.cachedAt.getTime() < ASSESSMENT_CACHE_TTL_MS) {
     res.json(cachedAssessment.result);
     return;
@@ -2135,7 +2135,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
     };
 
     const result = { ...parsed, cachedAt: new Date() };
-    setCachedAssessment(result);
+    await setCachedAssessment(result);
 
     const user = getAuthUser(req);
     await logSpmoActivity(userId, getUserDisplayName(user), "ran_ai_assessment", "programme", 0, "StrategyPMO");
