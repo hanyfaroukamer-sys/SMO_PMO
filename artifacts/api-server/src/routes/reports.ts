@@ -82,14 +82,14 @@ function statusLabel(status: string): string {
 function kpiStatusColor(status: string): string {
   if (status === "on_track" || status === "achieved") return C.green;
   if (status === "at_risk") return C.amber;
-  if (status === "off_track" || status === "critical") return C.red;
+  if (status === "critical") return C.red;
   return C.secondary;
 }
 
 function kpiStatusPtxColor(status: string): string {
   if (status === "on_track" || status === "achieved") return PC.green;
   if (status === "at_risk") return PC.amber;
-  if (status === "off_track" || status === "critical") return PC.red;
+  if (status === "critical") return PC.red;
   return PC.grey;
 }
 
@@ -161,6 +161,7 @@ async function gatherReportData() {
           }, 0) / projects.length;
     const s = computeStatus(avg, init.startDate, init.targetDate, totalBudget, spent, avg);
     return {
+      id: init.id,
       name: init.name,
       pillarName: pillar?.name ?? "—",
       progress: Math.round(avg),

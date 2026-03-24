@@ -2643,7 +2643,7 @@ components:
           type: [integer, 'null']
         status:
           type: string
-          enum: [on_track, at_risk, off_track]
+          enum: [exceeding, on_track, at_risk, critical, achieved, not_started]
         createdAt:
           type: string
           format: date-time
@@ -3322,7 +3322,7 @@ components:
           type: number
         status:
           type: string
-          enum: [on_track, at_risk, off_track]
+          enum: [exceeding, on_track, at_risk, critical, achieved, not_started]
 
     CreateSpmoRiskRequest:
       type: object

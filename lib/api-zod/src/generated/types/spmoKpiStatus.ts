@@ -9,7 +9,10 @@
 export type SpmoKpiStatus = (typeof SpmoKpiStatus)[keyof typeof SpmoKpiStatus];
 
 export const SpmoKpiStatus = {
+  exceeding: "exceeding",
   on_track: "on_track",
   at_risk: "at_risk",
-  off_track: "off_track",
+  critical: "critical",
+  achieved: "achieved",
+  not_started: "not_started",
 } as const;

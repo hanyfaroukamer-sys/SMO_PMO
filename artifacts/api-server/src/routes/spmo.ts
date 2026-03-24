@@ -1843,7 +1843,7 @@ async function computeAlertCount(): Promise<number> {
     if (r.riskScore >= 9) count++;
   }
   for (const k of kpis) {
-    if (k.status === "off_track") count++;
+    if (k.status === "critical" || k.status === "at_risk") count++;
   }
 
   return count;
@@ -1949,7 +1949,7 @@ router.get("/spmo/alerts", async (req, res): Promise<void> => {
 
   const kpis = await db.select().from(spmoKpisTable);
   for (const k of kpis) {
-    if (k.status === "off_track") {
+    if (k.status === "critical") {
       alerts.push({
         id: `kpi-${k.id}`,
         severity: "critical",
@@ -2069,7 +2069,7 @@ router.post("/spmo/ai/assessment", async (req, res): Promise<void> => {
   const { programmeProgress, pillarSummaries } = await calcProgrammeProgress();
   const allMilestones = await db.select().from(spmoMilestonesTable);
   const openRisks = await db.select().from(spmoRisksTable).where(eq(spmoRisksTable.status, "open"));
-  const offTrackKpis = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.status, "off_track"));
+  const offTrackKpis = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.status, "critical"));
 
   const context = {
     programmeProgress,

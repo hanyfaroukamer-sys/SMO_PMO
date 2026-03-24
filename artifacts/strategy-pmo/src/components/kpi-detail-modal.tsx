@@ -109,9 +109,11 @@ export function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, onClose 
   const statusIcon = ENGINE_STATUS_ICON[statusResult.status];
   const statusLabel = ENGINE_STATUS_LABEL[statusResult.status];
   const statusColors: Record<string, string> = {
+    exceeding: "text-success bg-success/10 border-success/20",
     on_track: "text-success bg-success/10 border-success/20",
     at_risk: "text-warning bg-warning/10 border-warning/20",
-    off_track: "text-destructive bg-destructive/10 border-destructive/20",
+    critical: "text-destructive bg-destructive/10 border-destructive/20",
+    achieved: "text-success bg-success/10 border-success/20",
     not_started: "text-muted-foreground bg-secondary border-border",
     complete: "text-success bg-success/10 border-success/20",
   };
