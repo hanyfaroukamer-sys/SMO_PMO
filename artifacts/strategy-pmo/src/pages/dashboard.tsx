@@ -848,8 +848,13 @@ export default function Dashboard() {
                 </div>
               )}
               {aiMutation.isError && (
-                <div className="p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20 text-sm">
-                  Assessment failed. Please try again.
+                <div className="p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20 text-sm space-y-1">
+                  <div className="font-semibold">AI assessment failed.</div>
+                  {(() => {
+                    const detail = (aiMutation.error as { data?: { detail?: string } } | null)?.data?.detail;
+                    return detail ? <div className="text-destructive/80 text-xs">{detail}</div> : null;
+                  })()}
+                  <div className="text-destructive/70 text-xs">Please try again or contact support if the issue persists.</div>
                 </div>
               )}
               {aiMutation.isSuccess && aiMutation.data && (

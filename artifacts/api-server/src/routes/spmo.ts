@@ -2110,8 +2110,9 @@ Return ONLY valid JSON, no markdown or explanation.`,
 
     res.json(result);
   } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
     req.log.error({ err: e }, "AI assessment failed");
-    res.status(503).json({ error: "AI service temporarily unavailable" });
+    res.status(503).json({ error: "AI service temporarily unavailable", detail: errMsg });
   }
 });
 
