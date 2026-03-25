@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { eq, desc, and, asc, inArray, sql, ne, isNotNull } from "drizzle-orm";
+import { eq, desc, and, asc, inArray, sql, ne, isNotNull, gte, lte } from "drizzle-orm";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { getCachedAssessment, setCachedAssessment, ASSESSMENT_CACHE_TTL_MS } from "../lib/assessment-cache";
 import { db } from "@workspace/db";
@@ -2036,14 +2036,32 @@ router.get("/spmo/activity-log", async (req, res): Promise<void> => {
 
   const limit = qp.data.limit ?? 50;
   const offset = qp.data.offset ?? 0;
+  const from = qp.data.from ? new Date(qp.data.from) : null;
+  const to = qp.data.to ? new Date(qp.data.to) : null;
+  const entityTypeFilter = qp.data.entityType ?? null;
+  const actionFilter = qp.data.action ?? null;
+
+  const conditions = [];
+  if (from) conditions.push(gte(spmoActivityLogTable.createdAt, from));
+  if (to) {
+    const toEnd = new Date(to);
+    toEnd.setHours(23, 59, 59, 999);
+    conditions.push(lte(spmoActivityLogTable.createdAt, toEnd));
+  }
+  if (entityTypeFilter) conditions.push(eq(spmoActivityLogTable.entityType, entityTypeFilter));
+  if (actionFilter) conditions.push(eq(spmoActivityLogTable.action, actionFilter as "created" | "updated" | "deleted" | "submitted" | "approved" | "rejected" | "uploaded_evidence" | "ran_ai_assessment" | "weekly_report_submitted"));
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [totalRow] = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(spmoActivityLogTable);
+    .from(spmoActivityLogTable)
+    .where(whereClause);
 
   const entries = await db
     .select()
     .from(spmoActivityLogTable)
+    .where(whereClause)
     .orderBy(desc(spmoActivityLogTable.createdAt))
     .limit(limit)
     .offset(offset);

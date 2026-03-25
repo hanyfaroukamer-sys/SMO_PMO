@@ -1574,6 +1574,10 @@ export type ListSpmoAlerts200 = {
 export type ListSpmoActivityLogParams = {
   limit?: number;
   offset?: number;
+  from?: string;
+  to?: string;
+  entityType?: string;
+  action?: string;
 };
 
 export type ListSpmoActivityLog200 = {

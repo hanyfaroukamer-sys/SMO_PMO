@@ -7,7 +7,7 @@ import {
   useListSpmoAllMilestones,
   type SpmoProjectWithProgress,
 } from "@workspace/api-client-react";
-import { Loader2, ChevronDown, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, ZoomIn, ZoomOut, CalendarDays, X } from "lucide-react";
 
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
@@ -106,6 +106,8 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [zoom, setZoom] = useState(1);
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const containerRef = useRef<HTMLDivElement>(null);
 
   const pillars = (pillarsData?.pillars ?? []) as GanttPillar[];
@@ -153,7 +155,16 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
     }));
   }, [projectsData, departmentFilter, pillarFilter, initiativeMap, pillarMap, milestonesByProject]);
 
+  const userDateFrom = dateFrom ? new Date(dateFrom) : null;
+  const userDateTo = dateTo ? new Date(dateTo) : null;
+
   const { chartStart, chartEnd } = useMemo(() => {
+    if (userDateFrom && userDateTo && userDateFrom <= userDateTo) {
+      return {
+        chartStart: new Date(userDateFrom.getFullYear(), userDateFrom.getMonth(), 1),
+        chartEnd: new Date(userDateTo.getFullYear(), userDateTo.getMonth() + 2, 1),
+      };
+    }
     let minT = new Date(TODAY.getFullYear(), TODAY.getMonth() - 2, 1).getTime();
     let maxT = new Date(TODAY.getFullYear() + 1, TODAY.getMonth() + 2, 1).getTime();
     for (const g of groups) {
@@ -174,7 +185,8 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
       chartStart: new Date(s.getFullYear(), s.getMonth(), 1),
       chartEnd: new Date(e.getFullYear(), e.getMonth() + 2, 1),
     };
-  }, [groups]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, dateFrom, dateTo]);
 
   const monthHeaders = useMemo(() => {
     const months: Array<{ label: string; date: Date }> = [];
@@ -224,24 +236,55 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm relative">
       {/* Controls */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-secondary/20">
+      <div className="flex items-center justify-between gap-4 px-4 py-2.5 border-b border-border bg-secondary/20 flex-wrap">
         <span className="text-sm font-semibold text-foreground">Project Timeline</span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setZoom((z) => Math.max(1, z - 1))}
-            disabled={zoom === 1}
-            className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground disabled:opacity-30 transition-colors"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <span className="text-xs text-muted-foreground w-6 text-center">{zoom}x</span>
-          <button
-            onClick={() => setZoom((z) => Math.min(3, z + 1))}
-            disabled={zoom === 3}
-            className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground disabled:opacity-30 transition-colors"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Date range filter */}
+          <div className="flex items-center gap-2">
+            <CalendarDays className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="text-xs border border-border rounded-md px-2 py-1 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              title="Filter from date"
+            />
+            <span className="text-xs text-muted-foreground">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="text-xs border border-border rounded-md px-2 py-1 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              title="Filter to date"
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => { setDateFrom(""); setDateTo(""); }}
+                className="p-1 rounded-md hover:bg-secondary text-muted-foreground transition-colors"
+                title="Clear date filter"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {/* Zoom controls */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setZoom((z) => Math.max(1, z - 1))}
+              disabled={zoom === 1}
+              className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground disabled:opacity-30 transition-colors"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <span className="text-xs text-muted-foreground w-6 text-center">{zoom}x</span>
+            <button
+              onClick={() => setZoom((z) => Math.min(3, z + 1))}
+              disabled={zoom === 3}
+              className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground disabled:opacity-30 transition-colors"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 

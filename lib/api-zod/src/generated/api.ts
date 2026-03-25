@@ -2180,6 +2180,10 @@ export const listSpmoActivityLogQueryOffsetDefault = 0;
 export const ListSpmoActivityLogQueryParams = zod.object({
   limit: zod.coerce.number().default(listSpmoActivityLogQueryLimitDefault),
   offset: zod.coerce.number().default(listSpmoActivityLogQueryOffsetDefault),
+  from: zod.string().optional(),
+  to: zod.string().optional(),
+  entityType: zod.string().optional(),
+  action: zod.string().optional(),
 });
 
 export const ListSpmoActivityLogResponse = zod.object({

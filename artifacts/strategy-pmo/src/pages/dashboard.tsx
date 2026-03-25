@@ -13,7 +13,6 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { GanttChart } from "@/components/gantt-chart";
 import {
   PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LabelList,
@@ -22,7 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2,
   ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert,
-  Upload, FileText, BarChart2, Layers, Zap, Calendar,
+  Upload, FileText, BarChart2, Layers, Zap,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -395,12 +394,11 @@ function BudgetStackedBarChart({
   );
 }
 
-type DashTab = "overview" | "pillars" | "gantt";
+type DashTab = "overview" | "pillars";
 
 const TABS: { id: DashTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "overview",  label: "Overview",           icon: BarChart2 },
-  { id: "pillars",   label: "Strategic Pillars",  icon: Layers },
-  { id: "gantt",     label: "Gantt Chart",         icon: Calendar },
+  { id: "overview", label: "Overview",          icon: BarChart2 },
+  { id: "pillars",  label: "Strategic Pillars", icon: Layers },
 ];
 
 export default function Dashboard() {
@@ -870,9 +868,6 @@ export default function Dashboard() {
               </div>
             )}
 
-            {activeTab === "gantt" && (
-              <GanttChart pillarFilter="all" departmentFilter="all" />
-            )}
           </motion.div>
         </AnimatePresence>
 
