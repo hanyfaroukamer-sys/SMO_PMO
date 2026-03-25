@@ -4,7 +4,6 @@ import {
   text,
   integer,
   real,
-  numeric,
   timestamp,
   boolean,
   jsonb,
@@ -62,7 +61,7 @@ export const spmoInitiativesTable = pgTable("spmo_initiatives", {
   startDate: date("start_date").notNull(),
   targetDate: date("target_date").notNull(),
   weight: real("weight").notNull().default(0),
-  budget: numeric("budget", { precision: 15, scale: 2 }).notNull().default("0"),
+  budget: real("budget").notNull().default(0),
   status: text("status", {
     enum: ["active", "on_hold", "completed", "cancelled"],
   })
@@ -133,10 +132,10 @@ export const spmoProjectsTable = pgTable("spmo_projects", {
   startDate: date("start_date").notNull(),
   targetDate: date("target_date").notNull(),
   weight: real("weight").notNull().default(0),
-  budget: numeric("budget", { precision: 15, scale: 2 }).notNull().default("0"),
-  budgetCapex: numeric("budget_capex", { precision: 15, scale: 2 }).notNull().default("0"),
-  budgetOpex: numeric("budget_opex", { precision: 15, scale: 2 }).notNull().default("0"),
-  budgetSpent: numeric("budget_spent", { precision: 15, scale: 2 }).notNull().default("0"),
+  budget: real("budget").notNull().default(0),
+  budgetCapex: real("budget_capex").notNull().default(0),
+  budgetOpex: real("budget_opex").notNull().default(0),
+  budgetSpent: real("budget_spent").notNull().default(0),
   status: text("status", {
     enum: ["active", "on_hold", "completed", "cancelled"],
   })
@@ -436,8 +435,8 @@ export const spmoBudgetTable = pgTable("spmo_budget_entries", {
   pillarId: integer("pillar_id").references(() => spmoPillarsTable.id, { onDelete: "set null" }),
   category: text("category").notNull(),
   description: text("description"),
-  allocated: numeric("allocated", { precision: 15, scale: 2 }).notNull().default("0"),
-  spent: numeric("spent", { precision: 15, scale: 2 }).notNull().default("0"),
+  allocated: real("allocated").notNull().default(0),
+  spent: real("spent").notNull().default(0),
   currency: text("currency").notNull().default("SAR"),
   period: text("period").notNull(),
   fiscalYear: integer("fiscal_year"),
@@ -477,7 +476,7 @@ export const spmoProcurementTable = pgTable("spmo_procurement", {
     .notNull()
     .default("rfp_draft"),
   vendor: text("vendor"),
-  contractValue: numeric("contract_value", { precision: 15, scale: 2 }),
+  contractValue: real("contract_value"),
   currency: text("currency").notNull().default("SAR"),
   notes: text("notes"),
   awardDate: date("award_date"),

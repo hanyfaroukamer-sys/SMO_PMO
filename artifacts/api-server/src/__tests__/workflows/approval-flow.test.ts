@@ -51,13 +51,13 @@ describe("Approval flow: milestone 99%-gate lifecycle", () => {
     projectId = proj.id;
 
     const [m1] = await db.insert(spmoMilestonesTable).values({
-      projectId, name: uid() + " M1", progress: 0, effortDays: 30, status: "pending",
+      projectId, name: uid() + " M1", progress: 0, weight: 30, effortDays: 30, status: "pending",
     }).returning();
     const [m2] = await db.insert(spmoMilestonesTable).values({
-      projectId, name: uid() + " M2", progress: 0, effortDays: 35, status: "pending",
+      projectId, name: uid() + " M2", progress: 0, weight: 35, effortDays: 35, status: "pending",
     }).returning();
     const [m3] = await db.insert(spmoMilestonesTable).values({
-      projectId, name: uid() + " M3", progress: 0, effortDays: 35, status: "pending",
+      projectId, name: uid() + " M3", progress: 0, weight: 35, effortDays: 35, status: "pending",
     }).returning();
     ms1Id = m1.id; ms2Id = m2.id; ms3Id = m3.id;
   });

@@ -4,7 +4,7 @@ import {
   serial,
   integer,
   timestamp,
-  numeric,
+  real,
   date,
   pgEnum,
 } from "drizzle-orm/pg-core";
@@ -63,7 +63,7 @@ export const milestonesTable = pgTable("milestones", {
   title: text("title").notNull(),
   description: text("description"),
   status: milestoneStatusEnum("status").notNull().default("pending"),
-  weight: numeric("weight", { precision: 5, scale: 2 }).notNull().default("10"),
+  weight: real("weight").notNull().default(10),
   dueDate: text("due_date"),
   approvedById: text("approved_by_id").references(() => usersTable.id),
   approvedAt: timestamp("approved_at", { withTimezone: true }),

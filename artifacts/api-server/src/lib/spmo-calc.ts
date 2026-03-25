@@ -107,16 +107,14 @@ async function initiativeProgress(initiativeId: number): Promise<{
     return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [] };
   }
 
-  const totalBudget = projects.reduce((s, p) => s + Number(p.budget ?? 0), 0);
+  const totalBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
 
   const projectStats = await Promise.all(
     projects.map(async (p) => {
       const s = await projectProgress(p.id);
-      const pBudget = Number(p.budget ?? 0);
-      const pBudgetSpent = Number(p.budgetSpent ?? 0);
-      const projStatus = computeStatus(s.progress, p.startDate, p.targetDate, pBudget, pBudgetSpent, s.rawProgress);
-      const budgetWeight = totalBudget > 0 ? (pBudget / totalBudget) * 100 : (100 / projects.length);
-      return { value: s.progress, rawValue: s.rawProgress, weight: pBudget, ...s, budgetSpent: pBudgetSpent, projStatus, name: p.name, projectCode: p.projectCode ?? null, budgetWeight };
+      const projStatus = computeStatus(s.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, s.rawProgress);
+      const budgetWeight = totalBudget > 0 ? ((p.budget ?? 0) / totalBudget) * 100 : (100 / projects.length);
+      return { value: s.progress, rawValue: s.rawProgress, weight: p.budget ?? 0, ...s, budgetSpent: p.budgetSpent ?? 0, projStatus, name: p.name, projectCode: p.projectCode ?? null, budgetWeight };
     })
   );
 
@@ -175,7 +173,7 @@ async function pillarProgress(pillarId: number): Promise<{
   const initiativeStats = await Promise.all(
     initiatives.map(async (i) => {
       const s = await initiativeProgress(i.id);
-      return { value: s.progress, weight: Number(i.budget ?? 0), ...s };
+      return { value: s.progress, weight: i.budget ?? 0, ...s };
     })
   );
 

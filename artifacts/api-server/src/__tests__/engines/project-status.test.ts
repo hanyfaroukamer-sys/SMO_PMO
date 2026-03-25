@@ -134,11 +134,11 @@ describe("computeStatus — project status engine", () => {
     expect(result.status).toBe("on_track");
   });
 
-  it("14. Start date in future → on_track with 'not yet started' reason", () => {
+  it("14. Start date in future → not_started with 'not yet started' reason", () => {
     const startDate = daysFromToday(30);
     const endDate = daysFromToday(180);
     const result = computeStatus(0, startDate, endDate, 100, 0);
-    expect(result.status).toBe("on_track");
+    expect(result.status).toBe("not_started");
     expect(result.reason.toLowerCase()).toMatch(/not yet started/i);
   });
 });
