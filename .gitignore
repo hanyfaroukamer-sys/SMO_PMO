@@ -47,3 +47,16 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Build archives
+*.tar.gz
+*.zip
+
+# Lock files from wrong package managers
+package-lock.json
+yarn.lock

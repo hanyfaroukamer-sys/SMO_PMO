@@ -16,9 +16,14 @@ import { eq } from "drizzle-orm";
 
 const router = Router();
 
+const ALLOWED_EXTENSIONS = [".pdf", ".xlsx", ".xls", ".csv", ".docx", ".pptx", ".ppt"];
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024, files: 10 },
+  fileFilter: (_req, file, cb) => {
+    const ext = "." + (file.originalname.split(".").pop() || "").toLowerCase();
+    cb(null, ALLOWED_EXTENSIONS.includes(ext));
+  },
 });
 
 // ─── AUTH HELPERS ─────────────────────────────────────────────────────────────
@@ -66,12 +71,20 @@ async function extractPdf(buf: Buffer): Promise<string> {
 }
 
 async function extractXlsx(buf: Buffer): Promise<string> {
-  const XLSX = await import("xlsx");
-  const wb = XLSX.read(buf);
-  return wb.SheetNames.map((sn: string) => {
-    const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sn]);
-    return `[SHEET: ${sn}]\n${csv}`;
-  }).join("\n\n");
+  const ExcelJS = await import("exceljs");
+  const wb = new ExcelJS.default.Workbook();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await wb.xlsx.load(buf as any);
+  const parts: string[] = [];
+  wb.eachSheet((ws) => {
+    const rows: string[] = [];
+    ws.eachRow((row) => {
+      const vals = (row.values as unknown[]).slice(1); // exceljs row.values is 1-indexed
+      rows.push(vals.map((v) => (v == null ? "" : String(v))).join(","));
+    });
+    parts.push(`[SHEET: ${ws.name}]\n${rows.join("\n")}`);
+  });
+  return parts.join("\n\n");
 }
 
 async function extractDocx(buf: Buffer): Promise<string> {
@@ -90,7 +103,7 @@ async function extractPptx(buf: Buffer): Promise<string> {
 }
 
 // Extract text with a 25-second timeout per file to prevent hangs on large/corrupt files
-async function extractFileText(buf: Buffer, name: string): Promise<string> {
+async function extractFileText(buf: Buffer, name: string, log: Request["log"]): Promise<string> {
   const fname = name.toLowerCase();
   let extractPromise: Promise<string>;
 
@@ -109,7 +122,7 @@ async function extractFileText(buf: Buffer, name: string): Promise<string> {
   try {
     return await withTimeout(extractPromise, 25_000, `extraction of ${name}`);
   } catch (err) {
-    console.error(`[import] extract error for ${name}:`, err);
+    log.error({ err }, `[import] extract error for ${name}`);
     return `[PARSE ERROR for ${name}: ${err instanceof Error ? err.message : "unknown"}]`;
   }
 }
@@ -269,7 +282,9 @@ router.post(
 
     const files = req.files as Express.Multer.File[] | undefined;
     const mode = (req.body?.mode as string) || "new";
-    const guidance = (req.body?.guidance as string) || "";
+    const guidance = typeof req.body.guidance === "string"
+      ? req.body.guidance.slice(0, 500).replace(/[\x00-\x1f]/g, "")
+      : "";
 
     if (!files || files.length === 0) {
       res.status(400).json({ error: "No files uploaded" });
@@ -279,10 +294,10 @@ router.post(
     // ── Step 1: Extract text from all files (with per-file timeout) ──────────
     const extracted: string[] = [];
     for (const file of files) {
-      console.log(`[import] extracting ${file.originalname} (${Math.round(file.size / 1024)}KB)`);
-      const text = await extractFileText(file.buffer, file.originalname);
+      req.log.info(`[import] extracting ${file.originalname} (${Math.round(file.size / 1024)}KB)`);
+      const text = await extractFileText(file.buffer, file.originalname, req.log);
       const preview = text.substring(0, 80).replace(/\n/g, " ");
-      console.log(`[import] extracted ${text.length} chars from ${file.originalname}: "${preview}..."`);
+      req.log.info(`[import] extracted ${text.length} chars from ${file.originalname}: "${preview}..."`);
       extracted.push(`[FILE: ${file.originalname}]\n${text}`);
     }
 
@@ -307,7 +322,7 @@ router.post(
 
     const promptText = buildExtractionPrompt(mode) + existingContext + guidanceSection + "\n\n---\n\nDOCUMENT CONTENT:\n" + documentContent;
 
-    console.log(`[import] sending to Claude: prompt ${promptText.length} chars, doc ${documentContent.length} chars`);
+    req.log.info(`[import] sending to Claude: prompt ${promptText.length} chars, doc ${documentContent.length} chars`);
 
     // ── Step 4: Stream the Claude response to keep the connection alive ────────
     // Streaming prevents the Replit AI proxy from timing out on large documents.
@@ -328,20 +343,20 @@ router.post(
         }
       }
     } catch (err) {
-      console.error("[import] Claude streaming error:", err);
+      req.log.error({ err }, "[import] Claude streaming error");
       const msg = err instanceof Error ? err.message : "unknown";
       res.status(500).json({ error: `AI extraction failed: ${msg}. Please try a smaller file or add guidance about the document structure.` });
       return;
     }
 
-    console.log(`[import] Claude returned ${fullText.length} chars`);
+    req.log.info(`[import] Claude returned ${fullText.length} chars`);
 
     // ── Step 5: Parse the JSON (with one retry) ────────────────────────────────
     let parsed: unknown;
     try {
       parsed = JSON.parse(fullText.replace(/```json|```/g, "").trim());
     } catch {
-      console.log("[import] JSON parse failed, retrying...");
+      req.log.info("[import] JSON parse failed, retrying...");
       try {
         let retryText = "";
         const retryStream = anthropic.messages.stream({
@@ -401,116 +416,127 @@ router.post("/spmo/import/save", async (req: Request, res: Response): Promise<vo
   const { mode, data } = req.body as { mode: "new" | "merge" | "replace"; data: ImportData };
   if (!data) { res.status(400).json({ error: "Missing data" }); return; }
 
+  // Admin check for replace mode
+  if (mode === "replace") {
+    const user = getAuthUser(req);
+    if (user?.role !== "admin") {
+      res.status(403).json({ error: "Admin role required for replace mode" });
+      return;
+    }
+  }
+
   const today = new Date().toISOString().split("T")[0];
   const colorPalette = ["#2563EB", "#7C3AED", "#E8590C", "#0D9488", "#B91C1C", "#CA8A04", "#15803D", "#BE185D"];
 
   try {
-    if (mode === "replace") {
-      await db.delete(spmoPillarsTable);
-      await db.delete(spmoKpisTable);
-    }
-
-    let colorIdx = 0;
-    const pillarMap: Record<string, number> = {};
-    for (const p of data.pillars ?? []) {
-      if (!p.name?.trim()) continue;
-      const color = p.color || colorPalette[colorIdx++ % colorPalette.length];
-      if (p.matchAction === "update" && p.matchId) {
-        await db.update(spmoPillarsTable).set({ name: p.name, color, description: p.description || null, updatedAt: new Date() }).where(eq(spmoPillarsTable.id, p.matchId));
-        pillarMap[p.name] = p.matchId;
-      } else {
-        const [created] = await db.insert(spmoPillarsTable).values({ name: p.name, color, description: p.description || null }).returning({ id: spmoPillarsTable.id });
-        pillarMap[p.name] = created.id;
+    await db.transaction(async (tx: typeof db) => {
+      if (mode === "replace") {
+        await tx.delete(spmoPillarsTable);
+        await tx.delete(spmoKpisTable);
       }
-    }
 
-    const iniMap: Record<string, number> = {};
-    for (const ini of data.initiatives ?? []) {
-      if (!ini.name?.trim()) continue;
-      const pillarId = pillarMap[ini.pillar];
-      if (!pillarId) continue;
-      const startDate = ini.startDate || today;
-      const targetDate = ini.endDate || today;
-      if (ini.matchAction === "update" && ini.matchId) {
-        await db.update(spmoInitiativesTable).set({ name: ini.name, description: ini.description || null, ownerName: ini.owner || null, budget: ini.budgetAllocated ?? 0, startDate, targetDate, updatedAt: new Date() }).where(eq(spmoInitiativesTable.id, ini.matchId));
-        iniMap[ini.name] = ini.matchId;
-      } else {
-        const [created] = await db.insert(spmoInitiativesTable).values({ pillarId, name: ini.name, description: ini.description || null, ownerId: userId, ownerName: ini.owner || null, budget: ini.budgetAllocated ?? 0, startDate, targetDate }).returning({ id: spmoInitiativesTable.id });
-        iniMap[ini.name] = created.id;
+      let colorIdx = 0;
+      const pillarMap: Record<string, number> = {};
+      for (const p of data.pillars ?? []) {
+        if (!p.name?.trim()) continue;
+        const color = p.color || colorPalette[colorIdx++ % colorPalette.length];
+        if (p.matchAction === "update" && p.matchId) {
+          await tx.update(spmoPillarsTable).set({ name: p.name, color, description: p.description || null, updatedAt: new Date() }).where(eq(spmoPillarsTable.id, p.matchId));
+          pillarMap[p.name] = p.matchId;
+        } else {
+          const [created] = await tx.insert(spmoPillarsTable).values({ name: p.name, color, description: p.description || null }).returning({ id: spmoPillarsTable.id });
+          pillarMap[p.name] = created.id;
+        }
       }
-    }
 
-    const existingProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable);
-    let nextCodeNum = existingProjects.length + 1;
-
-    const projMap: Record<string, number> = {};
-    for (const proj of data.projects ?? []) {
-      if (!proj.name?.trim()) continue;
-      const initiativeId = iniMap[proj.initiative];
-      if (!initiativeId) continue;
-      const startDate = proj.startDate || today;
-      const targetDate = proj.endDate || today;
-      let projId: number;
-      if (proj.matchAction === "update" && proj.matchId) {
-        const updateFields: Record<string, unknown> = { name: proj.name, ownerName: proj.owner || null, budget: proj.budgetAllocated ?? 0, budgetSpent: proj.budgetSpent ?? 0, startDate, targetDate, updatedAt: new Date() };
-        if (proj.projectCode) updateFields.projectCode = proj.projectCode;
-        await db.update(spmoProjectsTable).set(updateFields).where(eq(spmoProjectsTable.id, proj.matchId));
-        projId = proj.matchId;
-      } else {
-        const projectCode = proj.projectCode?.trim() || `P${String(nextCodeNum).padStart(2, "0")}`;
-        nextCodeNum++;
-        const [created] = await db.insert(spmoProjectsTable).values({ initiativeId, name: proj.name, projectCode, ownerId: userId, ownerName: proj.owner || null, budget: proj.budgetAllocated ?? 0, budgetSpent: proj.budgetSpent ?? 0, startDate, targetDate }).returning({ id: spmoProjectsTable.id });
-        projId = created.id;
+      const iniMap: Record<string, number> = {};
+      for (const ini of data.initiatives ?? []) {
+        if (!ini.name?.trim()) continue;
+        const pillarId = pillarMap[ini.pillar];
+        if (!pillarId) continue;
+        const startDate = ini.startDate || today;
+        const targetDate = ini.endDate || today;
+        if (ini.matchAction === "update" && ini.matchId) {
+          await tx.update(spmoInitiativesTable).set({ name: ini.name, description: ini.description || null, ownerName: ini.owner || null, budget: ini.budgetAllocated ?? 0, startDate, targetDate, updatedAt: new Date() }).where(eq(spmoInitiativesTable.id, ini.matchId));
+          iniMap[ini.name] = ini.matchId;
+        } else {
+          const [created] = await tx.insert(spmoInitiativesTable).values({ pillarId, name: ini.name, description: ini.description || null, ownerId: userId, ownerName: ini.owner || null, budget: ini.budgetAllocated ?? 0, startDate, targetDate }).returning({ id: spmoInitiativesTable.id });
+          iniMap[ini.name] = created.id;
+        }
       }
-      projMap[proj.name] = projId;
 
-      for (const ms of proj.milestones ?? []) {
-        if (!ms.name?.trim()) continue;
-        await db.insert(spmoMilestonesTable).values({ projectId: projId, name: ms.name, progress: ms.progress ?? 0, effortDays: ms.effort ?? null, dueDate: ms.dueDate || null });
+      const existingProjects = await tx.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable);
+      let nextCodeNum = existingProjects.length + 1;
+
+      const projMap: Record<string, number> = {};
+      for (const proj of data.projects ?? []) {
+        if (!proj.name?.trim()) continue;
+        const initiativeId = iniMap[proj.initiative];
+        if (!initiativeId) continue;
+        const startDate = proj.startDate || today;
+        const targetDate = proj.endDate || today;
+        let projId: number;
+        if (proj.matchAction === "update" && proj.matchId) {
+          const updateFields: Record<string, unknown> = { name: proj.name, ownerName: proj.owner || null, budget: proj.budgetAllocated ?? 0, budgetSpent: proj.budgetSpent ?? 0, startDate, targetDate, updatedAt: new Date() };
+          if (proj.projectCode) updateFields.projectCode = proj.projectCode;
+          await tx.update(spmoProjectsTable).set(updateFields).where(eq(spmoProjectsTable.id, proj.matchId));
+          projId = proj.matchId;
+        } else {
+          const projectCode = proj.projectCode?.trim() || `P${String(nextCodeNum).padStart(2, "0")}`;
+          nextCodeNum++;
+          const [created] = await tx.insert(spmoProjectsTable).values({ initiativeId, name: proj.name, projectCode, ownerId: userId, ownerName: proj.owner || null, budget: proj.budgetAllocated ?? 0, budgetSpent: proj.budgetSpent ?? 0, startDate, targetDate }).returning({ id: spmoProjectsTable.id });
+          projId = created.id;
+        }
+        projMap[proj.name] = projId;
+
+        for (const ms of proj.milestones ?? []) {
+          if (!ms.name?.trim()) continue;
+          await tx.insert(spmoMilestonesTable).values({ projectId: projId, name: ms.name, progress: ms.progress ?? 0, effortDays: ms.effort ?? null, dueDate: ms.dueDate || null });
+        }
       }
-    }
 
-    for (const kpi of data.strategicKpis ?? []) {
-      if (!kpi.name?.trim()) continue;
-      const pillarId = kpi.pillar ? pillarMap[kpi.pillar] ?? null : null;
-      if (kpi.matchAction === "update" && kpi.matchId) {
-        await db.update(spmoKpisTable).set({ name: kpi.name, target: kpi.target ?? 0, actual: kpi.actual ?? 0, baseline: kpi.baseline ?? 0, unit: kpi.unit || "", pillarId, updatedAt: new Date() }).where(eq(spmoKpisTable.id, kpi.matchId));
-      } else {
-        await db.insert(spmoKpisTable).values({ type: "strategic", name: kpi.name, target: kpi.target ?? 0, actual: kpi.actual ?? 0, baseline: kpi.baseline ?? 0, unit: kpi.unit || "", pillarId });
+      for (const kpi of data.strategicKpis ?? []) {
+        if (!kpi.name?.trim()) continue;
+        const pillarId = kpi.pillar ? pillarMap[kpi.pillar] ?? null : null;
+        if (kpi.matchAction === "update" && kpi.matchId) {
+          await tx.update(spmoKpisTable).set({ name: kpi.name, target: kpi.target ?? 0, actual: kpi.actual ?? 0, baseline: kpi.baseline ?? 0, unit: kpi.unit || "", pillarId, updatedAt: new Date() }).where(eq(spmoKpisTable.id, kpi.matchId));
+        } else {
+          await tx.insert(spmoKpisTable).values({ type: "strategic", name: kpi.name, target: kpi.target ?? 0, actual: kpi.actual ?? 0, baseline: kpi.baseline ?? 0, unit: kpi.unit || "", pillarId });
+        }
       }
-    }
 
-    for (const kpi of data.operationalKpis ?? []) {
-      if (!kpi.name?.trim()) continue;
-      const projectId = kpi.project ? projMap[kpi.project] ?? null : null;
-      if (kpi.matchAction === "update" && kpi.matchId) {
-        await db.update(spmoKpisTable).set({ name: kpi.name, target: kpi.target ?? 0, actual: kpi.actual ?? 0, unit: kpi.unit || "", projectId, updatedAt: new Date() }).where(eq(spmoKpisTable.id, kpi.matchId));
-      } else {
-        await db.insert(spmoKpisTable).values({ type: "operational", name: kpi.name, target: kpi.target ?? 0, actual: kpi.actual ?? 0, unit: kpi.unit || "", projectId });
+      for (const kpi of data.operationalKpis ?? []) {
+        if (!kpi.name?.trim()) continue;
+        const projectId = kpi.project ? projMap[kpi.project] ?? null : null;
+        if (kpi.matchAction === "update" && kpi.matchId) {
+          await tx.update(spmoKpisTable).set({ name: kpi.name, target: kpi.target ?? 0, actual: kpi.actual ?? 0, unit: kpi.unit || "", projectId, updatedAt: new Date() }).where(eq(spmoKpisTable.id, kpi.matchId));
+        } else {
+          await tx.insert(spmoKpisTable).values({ type: "operational", name: kpi.name, target: kpi.target ?? 0, actual: kpi.actual ?? 0, unit: kpi.unit || "", projectId });
+        }
       }
-    }
 
-    if (data.vision || data.mission) {
-      const existing = await db.select().from(spmoProgrammeConfigTable).limit(1);
-      if (existing.length > 0) {
-        await db.update(spmoProgrammeConfigTable).set({ vision: data.vision || existing[0].vision, mission: data.mission || existing[0].mission });
-      } else {
-        await db.insert(spmoProgrammeConfigTable).values({ vision: data.vision || null, mission: data.mission || null });
+      if (data.vision || data.mission) {
+        const existing = await tx.select().from(spmoProgrammeConfigTable).limit(1);
+        if (existing.length > 0) {
+          await tx.update(spmoProgrammeConfigTable).set({ vision: data.vision || existing[0].vision, mission: data.mission || existing[0].mission });
+        } else {
+          await tx.insert(spmoProgrammeConfigTable).values({ vision: data.vision || null, mission: data.mission || null });
+        }
       }
-    }
 
-    const user = getAuthUser(req);
-    const displayName = getUserDisplayName(user);
-    const pCount = (data.pillars ?? []).length;
-    const iCount = (data.initiatives ?? []).length;
-    const prCount = (data.projects ?? []).length;
-    const summary = `Strategy imported (${mode}): ${pCount} pillars, ${iCount} initiatives, ${prCount} projects`;
-    await db.insert(spmoActivityLogTable).values({ actorId: userId, actorName: displayName, action: "created", entityType: "programme", entityId: 0, entityName: summary });
+      const user = getAuthUser(req);
+      const displayName = getUserDisplayName(user);
+      const pCount = (data.pillars ?? []).length;
+      const iCount = (data.initiatives ?? []).length;
+      const prCount = (data.projects ?? []).length;
+      const summary = `Strategy imported (${mode}): ${pCount} pillars, ${iCount} initiatives, ${prCount} projects`;
+      await tx.insert(spmoActivityLogTable).values({ actorId: userId, actorName: displayName, action: "created", entityType: "programme", entityId: 0, entityName: summary });
+    });
 
     res.json({ success: true });
   } catch (err) {
-    console.error("Import save error:", err);
-    res.status(500).json({ error: err instanceof Error ? err.message : "Import failed" });
+    req.log.error({ err }, "Import save error");
+    res.status(500).json({ error: "Import failed" });
   }
 });
 

@@ -15,9 +15,6 @@ import {
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────
-const TODAY = new Date();
-TODAY.setHours(0, 0, 0, 0);
-
 const ROW_H = 52;
 const GROUP_H = 36;
 const HEADER_H = 58;  // quarter row + month row
@@ -106,6 +103,11 @@ interface HoverCard {
 
 // ─── Component ────────────────────────────────────────────────────
 export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) {
+  const TODAY = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
   const [, setLocation] = useLocation();
   const { data: projectsData, isLoading: projLoading } = useListSpmoProjects();
   const { data: pillarsData } = useListSpmoPillars();
