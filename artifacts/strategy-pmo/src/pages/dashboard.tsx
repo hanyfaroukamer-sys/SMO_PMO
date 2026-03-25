@@ -13,9 +13,17 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LabelList } from "recharts";
-
-import { Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2, ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert, Upload, FileText, BarChart2, Layers, Zap } from "lucide-react";
+import { GanttChart } from "@/components/gantt-chart";
+import {
+  PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LabelList,
+} from "recharts";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2,
+  ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert,
+  Upload, FileText, BarChart2, Layers, Zap, Calendar,
+} from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Link } from "wouter";
@@ -86,24 +94,23 @@ function classifyProject(project: SpmoProjectWithProgress): ProjectStatusCategor
 }
 
 const STATUS_CHIPS: Record<ProjectStatusCategory, { label: string; bg: string; text: string }> = {
-  on_track:    { label: "On Track",       bg: "bg-primary/10 border border-primary/20",        text: "text-primary"      },
-  at_risk:     { label: "Risk of Delay",  bg: "bg-warning/10 border border-warning/20",        text: "text-warning"      },
+  on_track:    { label: "On Track",       bg: "bg-primary/10 border border-primary/20",         text: "text-primary" },
+  at_risk:     { label: "Risk of Delay",  bg: "bg-warning/10 border border-warning/20",         text: "text-warning" },
   delayed:     { label: "Delayed",        bg: "bg-destructive/10 border border-destructive/20", text: "text-destructive" },
-  completed:   { label: "Completed",      bg: "bg-success/10 border border-success/20",        text: "text-success"      },
-  not_started: { label: "Not Started",    bg: "bg-secondary border border-border",             text: "text-muted-foreground" },
-  on_hold:     { label: "On Hold",        bg: "bg-orange-100 border border-orange-200",        text: "text-orange-600"   },
+  completed:   { label: "Completed",      bg: "bg-success/10 border border-success/20",         text: "text-success" },
+  not_started: { label: "Not Started",    bg: "bg-secondary border border-border",              text: "text-muted-foreground" },
+  on_hold:     { label: "On Hold",        bg: "bg-orange-100 border border-orange-200",         text: "text-orange-600" },
 };
 
 const STATUS_ORDER: ProjectStatusCategory[] = ["on_track", "at_risk", "delayed", "completed", "not_started", "on_hold"];
 
-// Exact colours per user spec
 const PIE_COLOURS: Record<ProjectStatusCategory, string> = {
-  on_track:    "#86efac", // light green
-  completed:   "#16a34a", // dark green
-  at_risk:     "#f59e0b", // amber
-  delayed:     "#ef4444", // red
-  on_hold:     "#9ca3af", // grey
-  not_started: "#d1d5db", // light grey
+  on_track:    "#86efac",
+  completed:   "#16a34a",
+  at_risk:     "#f59e0b",
+  delayed:     "#ef4444",
+  on_hold:     "#9ca3af",
+  not_started: "#d1d5db",
 };
 
 const PIE_LABELS: Record<ProjectStatusCategory, string> = {
@@ -120,79 +127,49 @@ function ProjectStatusPieChart({ projects }: { projects: SpmoProjectWithProgress
     on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0, on_hold: 0,
   };
   for (const p of projects) counts[classifyProject(p)]++;
-
-  const chartData = STATUS_ORDER
-    .filter((s) => counts[s] > 0)
-    .map((s) => ({ name: PIE_LABELS[s], value: counts[s], key: s }));
-
+  const chartData = STATUS_ORDER.filter((s) => counts[s] > 0).map((s) => ({ name: PIE_LABELS[s], value: counts[s], key: s }));
   if (chartData.length === 0) return null;
-
   const total = projects.length;
-
   return (
-    <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm transition-shadow duration-200 hover:shadow-md">
+    <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
       <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2 mb-4">Project Status Breakdown</h2>
       <div className="flex flex-col sm:flex-row items-center gap-6">
-        {/* Pie */}
         <div className="relative w-52 h-52 shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="50%"
-                innerRadius={58}
-                outerRadius={88}
-                paddingAngle={2}
-                dataKey="value"
-                strokeWidth={0}
-              >
+              <Pie data={chartData} cx="50%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={2} dataKey="value" strokeWidth={0}>
                 {chartData.map((entry) => (
                   <Cell key={entry.key} fill={PIE_COLOURS[entry.key as ProjectStatusCategory]} />
                 ))}
               </Pie>
-              <Tooltip
+              <RechartsTooltip
                 formatter={(value: number, name: string) => [`${value} project${value !== 1 ? "s" : ""}`, name]}
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }}
               />
             </PieChart>
           </ResponsiveContainer>
-          {/* Centre label */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             <span className="text-3xl font-display font-bold leading-none">{total}</span>
             <span className="text-[11px] text-muted-foreground mt-1">projects</span>
           </div>
         </div>
-
-        {/* Legend + counts — always show all 6 categories */}
         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-y-2.5 gap-x-6 w-full">
           {STATUS_ORDER.map((s) => (
             <div key={s} className="flex items-center gap-2.5">
-              <span
-                className="w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: PIE_COLOURS[s], opacity: counts[s] === 0 ? 0.35 : 1 }}
-              />
-              <span className={`text-sm flex-1 ${counts[s] === 0 ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
-                {PIE_LABELS[s]}
-              </span>
-              <span className={`text-sm font-bold tabular-nums ${counts[s] === 0 ? "text-muted-foreground/40" : ""}`}>
-                {counts[s]}
-              </span>
+              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: PIE_COLOURS[s], opacity: counts[s] === 0 ? 0.35 : 1 }} />
+              <span className={`text-sm flex-1 ${counts[s] === 0 ? "text-muted-foreground/50" : "text-muted-foreground"}`}>{PIE_LABELS[s]}</span>
+              <span className={`text-sm font-bold tabular-nums ${counts[s] === 0 ? "text-muted-foreground/40" : ""}`}>{counts[s]}</span>
               {total > 0 && counts[s] > 0 && (
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {Math.round((counts[s] / total) * 100)}%
-                </span>
+                <span className="text-xs text-muted-foreground tabular-nums">{Math.round((counts[s] / total) * 100)}%</span>
               )}
             </div>
           ))}
         </div>
-
       </div>
     </div>
   );
 }
 
-// Phase distribution pie chart
 const PHASE_COLOURS: Record<string, string> = {
   planning:  "#60a5fa",
   tendering: "#a78bfa",
@@ -202,12 +179,8 @@ const PHASE_COLOURS: Record<string, string> = {
   unknown:   "#d1d5db",
 };
 const PHASE_LABELS: Record<string, string> = {
-  planning:  "Planning",
-  tendering: "Tendering",
-  execution: "Execution",
-  closure:   "Closure",
-  completed: "Completed",
-  unknown:   "Not Started",
+  planning: "Planning", tendering: "Tendering", execution: "Execution",
+  closure: "Closure", completed: "Completed", unknown: "Not Started",
 };
 const PHASE_ORDER = ["planning", "tendering", "execution", "closure", "completed", "unknown"];
 
@@ -231,7 +204,7 @@ function ProjectPhasePieChart({ projects }: { projects: SpmoProjectWithProgress[
                   <Cell key={entry.key} fill={PHASE_COLOURS[entry.key] ?? "#9ca3af"} />
                 ))}
               </Pie>
-              <Tooltip formatter={(v: number, n: string) => [`${v} project${v !== 1 ? "s" : ""}`, n]} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }} />
+              <RechartsTooltip formatter={(v: number, n: string) => [`${v} project${v !== 1 ? "s" : ""}`, n]} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }} />
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -253,59 +226,66 @@ function ProjectPhasePieChart({ projects }: { projects: SpmoProjectWithProgress[
   );
 }
 
-// Department health stacked bar chart — horizontal layout handles long names naturally
-function DepartmentHealthBarChart({ depts }: { depts: SpmoDepartmentStatus[] }) {
+const DEPT_STATUS_COLORS = {
+  onTrack:    { bg: "#86efac", label: "On Track" },
+  atRisk:     { bg: "#f59e0b", label: "At Risk" },
+  delayed:    { bg: "#ef4444", label: "Delayed" },
+  completed:  { bg: "#16a34a", label: "Completed" },
+  notStarted: { bg: "#d1d5db", label: "Not Started" },
+};
+
+function DepartmentHealthSegmentedChart({ depts }: { depts: SpmoDepartmentStatus[] }) {
   if (depts.length === 0) return null;
-  const chartData = depts.map((d) => ({
-    name: d.departmentName,
-    "On Track": d.onTrack,
-    "At Risk": d.atRisk,
-    "Delayed": d.delayed,
-    "Completed": d.completed,
-    "Not Started": d.notStarted,
-  }));
-  const chartHeight = Math.max(180, depts.length * 44);
   return (
     <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
-      <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2 mb-4">Department Health Overview</h2>
-      <ResponsiveContainer width="100%" height={chartHeight}>
-        <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-          <XAxis
-            type="number"
-            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-            axisLine={false}
-            tickLine={false}
-            allowDecimals={false}
-          />
-          <YAxis
-            type="category"
-            dataKey="name"
-            width={160}
-            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-            axisLine={false}
-            tickLine={false}
-            tickFormatter={(v: string) => v.length > 22 ? v.slice(0, 21) + "…" : v}
-          />
-          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }} />
-          <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="On Track"    stackId="a" fill="#86efac">
-            <LabelList dataKey="On Track"    position="center" formatter={(v: number) => v > 0 ? `${v}` : ""} style={{ fill: "#166534", fontSize: 10, fontWeight: 700 }} />
-          </Bar>
-          <Bar dataKey="At Risk"     stackId="a" fill="#f59e0b">
-            <LabelList dataKey="At Risk"     position="center" formatter={(v: number) => v > 0 ? `${v}` : ""} style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} />
-          </Bar>
-          <Bar dataKey="Delayed"     stackId="a" fill="#ef4444">
-            <LabelList dataKey="Delayed"     position="center" formatter={(v: number) => v > 0 ? `${v}` : ""} style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} />
-          </Bar>
-          <Bar dataKey="Completed"   stackId="a" fill="#16a34a">
-            <LabelList dataKey="Completed"   position="center" formatter={(v: number) => v > 0 ? `${v}` : ""} style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} />
-          </Bar>
-          <Bar dataKey="Not Started" stackId="a" fill="#d1d5db" radius={[0, 4, 4, 0]}>
-            <LabelList dataKey="Not Started" position="center" formatter={(v: number) => v > 0 ? `${v}` : ""} style={{ fill: "#374151", fontSize: 10, fontWeight: 700 }} />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+      <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2 mb-1">Department Health Overview</h2>
+      <div className="flex flex-wrap gap-x-5 gap-y-1 mb-4 mt-2">
+        {Object.values(DEPT_STATUS_COLORS).map((c) => (
+          <div key={c.label} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ background: c.bg }} />
+            <span>{c.label}</span>
+          </div>
+        ))}
+      </div>
+      <div className="space-y-3">
+        {depts.map((dept, idx) => {
+          const total = (dept.onTrack + dept.atRisk + dept.delayed + dept.completed + dept.notStarted) || 1;
+          const segments = [
+            { key: "onTrack",    value: dept.onTrack,    ...DEPT_STATUS_COLORS.onTrack },
+            { key: "atRisk",     value: dept.atRisk,     ...DEPT_STATUS_COLORS.atRisk },
+            { key: "delayed",    value: dept.delayed,    ...DEPT_STATUS_COLORS.delayed },
+            { key: "completed",  value: dept.completed,  ...DEPT_STATUS_COLORS.completed },
+            { key: "notStarted", value: dept.notStarted, ...DEPT_STATUS_COLORS.notStarted },
+          ].filter((s) => s.value > 0);
+          return (
+            <div key={dept.departmentId ?? idx}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-foreground truncate max-w-[200px] sm:max-w-none">
+                  {dept.departmentName}
+                </span>
+                <span className="text-xs text-muted-foreground ml-2 shrink-0">{total} project{total !== 1 ? "s" : ""}</span>
+              </div>
+              <div className="flex h-5 rounded-full overflow-hidden gap-px bg-secondary">
+                {segments.map((seg) => (
+                  <motion.div
+                    key={seg.key}
+                    className="h-full first:rounded-l-full last:rounded-r-full flex items-center justify-center"
+                    style={{ background: seg.bg, minWidth: 4 }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(seg.value / total) * 100}%` }}
+                    transition={{ duration: 0.7, delay: idx * 0.04, ease: "easeOut" }}
+                    title={`${seg.label}: ${seg.value}`}
+                  >
+                    {seg.value > 0 && (seg.value / total) > 0.07 && (
+                      <span className="text-[9px] font-bold text-white drop-shadow-sm">{seg.value}</span>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -320,7 +300,6 @@ function BudgetStackedBarChart({
   setBudgetView: (v: "total" | "capex" | "opex") => void;
 }) {
   const M = 1_000_000;
-  // Proportionally split spent between CAPEX/OPEX
   const capexRatio = totalAllocated > 0 ? totalCapex / totalAllocated : 0.5;
   const capexSpent = Math.round(totalSpent * capexRatio);
   const opexSpent  = totalSpent - capexSpent;
@@ -358,7 +337,6 @@ function BudgetStackedBarChart({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* CAPEX / OPEX / Total toggle */}
           <div className="flex rounded-lg border border-border overflow-hidden text-[11px] font-bold">
             {(["total", "capex", "opex"] as const).map((v) => (
               <button
@@ -370,7 +348,6 @@ function BudgetStackedBarChart({
               </button>
             ))}
           </div>
-          {/* Key numbers */}
           <div className="hidden sm:flex gap-4 text-xs">
             {budgetView !== "opex" && (
               <div className="text-center">
@@ -397,7 +374,7 @@ function BudgetStackedBarChart({
             tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
             axisLine={false} tickLine={false}
           />
-          <Tooltip
+          <RechartsTooltip
             formatter={(val: number, name: string) => [fmt(val), name]}
             contentStyle={{ borderRadius: 10, border: "1px solid var(--border)", background: "var(--background)", fontSize: 12 }}
           />
@@ -418,6 +395,14 @@ function BudgetStackedBarChart({
   );
 }
 
+type DashTab = "overview" | "pillars" | "gantt";
+
+const TABS: { id: DashTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "overview",  label: "Overview",           icon: BarChart2 },
+  { id: "pillars",   label: "Strategic Pillars",  icon: Layers },
+  { id: "gantt",     label: "Gantt Chart",         icon: Calendar },
+];
+
 export default function Dashboard() {
   const { data, isLoading, error } = useGetSpmoOverview();
   const { data: alertsData } = useListSpmoAlerts();
@@ -426,6 +411,7 @@ export default function Dashboard() {
   const { data: projectsData } = useListSpmoProjects();
   const { data: deptStatus } = useGetSpmoDepartmentStatus();
   const isAdmin = useIsAdmin();
+  const [activeTab, setActiveTab] = useState<DashTab>("overview");
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
   const [expandedInitiatives, setExpandedInitiatives] = useState<Set<number>>(new Set());
@@ -439,9 +425,7 @@ export default function Dashboard() {
 
   const handleRunAi = () => {
     setIsAiModalOpen(true);
-    if (!aiMutation.data) {
-      aiMutation.mutate();
-    }
+    if (!aiMutation.data) aiMutation.mutate();
   };
 
   if (isLoading)
@@ -457,20 +441,14 @@ export default function Dashboard() {
 
   const totalAllocated = budgetData?.totalAllocated ?? 0;
   const totalSpent = budgetData?.totalSpent ?? 0;
-
-  // CAPEX/OPEX breakdowns from budget API (bottom-up from projects)
   const totalCapex = budgetData?.totalCapex ?? 0;
   const totalOpex  = budgetData?.totalOpex  ?? 0;
-  const budgetViewAllocated = budgetView === "capex" ? totalCapex : budgetView === "opex" ? totalOpex : totalAllocated || (totalCapex + totalOpex);
-  const budgetViewLabel = budgetView === "capex" ? "CAPEX" : budgetView === "opex" ? "OPEX" : "Total";
   const initiativesOnTrack = initiatives.filter((i) => {
     const s = i.computedStatus?.status ?? i.healthStatus;
     return s === "on_track" || s === "completed";
   }).length;
   const projectsNeedAttention = data.pillarSummaries.reduce((s, p) => s + p.pendingApprovals, 0);
-
   const initiativeCodeMap = new Map(initiatives.map((ini, idx) => [ini.id, ini.initiativeCode ?? String(idx + 1).padStart(2, "0")]));
-
   const projectsByInitiative = new Map<number, SpmoProjectWithProgress[]>();
   for (const proj of projects) {
     const list = projectsByInitiative.get(proj.initiativeId) ?? [];
@@ -478,412 +456,477 @@ export default function Dashboard() {
     projectsByInitiative.set(proj.initiativeId, list);
   }
 
-  return (
-    <ErrorBoundary fallbackTitle="Dashboard failed to render">
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <PageHeader
-        title="Programme Dashboard"
-        description={`Weighted progress cascade · last updated ${format(new Date(data.lastUpdated), "MMM d, yyyy HH:mm")}`}
-      >
-        <div className="flex items-center gap-2">
-          <button
-            onClick={async () => {
-              const res = await fetch("/api/spmo/reports/pdf", { method: "POST", credentials: "include" });
-              if (!res.ok) { alert("Failed to generate PDF"); return; }
-              const blob = await res.blob();
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `Programme-Report-${new Date().toISOString().slice(0, 10)}.pdf`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-            className="flex items-center gap-2 bg-white border border-border hover:bg-muted/50 text-foreground px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            <FileText className="w-4 h-4" />
-            Export PDF
-          </button>
-          <button
-            onClick={async () => {
-              const res = await fetch("/api/spmo/reports/pptx", { method: "POST", credentials: "include" });
-              if (!res.ok) { alert("Failed to generate PPTX"); return; }
-              const blob = await res.blob();
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `Programme-Report-${new Date().toISOString().slice(0, 10)}.pptx`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-            className="flex items-center gap-2 bg-white border border-border hover:bg-muted/50 text-foreground px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            <BarChart2 className="w-4 h-4" />
-            Export PPTX
-          </button>
-          {isAdmin && (
-            <button
-              onClick={handleRunAi}
-              className="flex items-center gap-2 bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-700 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm"
-            >
-              <Sparkles className="w-4 h-4" />
-              AI Assessment
-            </button>
-          )}
+  const pillarSummaries = data.pillarSummaries;
+  const strategicPillars = pillarSummaries.filter((p) => (p.pillarType ?? "pillar") === "pillar");
+  const enablers = pillarSummaries.filter((p) => p.pillarType === "enabler");
+
+  function renderPillarGroup(group: typeof pillarSummaries, groupLabel: string, groupIcon: React.ReactNode) {
+    if (group.length === 0) return null;
+    return (
+      <section key={groupLabel}>
+        <div className="flex items-center gap-2 mb-4">
+          {groupIcon}
+          <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2">{groupLabel}</h2>
         </div>
-      </PageHeader>
-
-      {data.pillarSummaries.length === 0 && (
-        <div className="flex items-center gap-4 p-5 rounded-xl bg-gradient-to-r from-blue-50 to-violet-50 border border-blue-200">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shrink-0">
-            <Upload className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold text-sm">No programme data yet</div>
-            <div className="text-xs text-muted-foreground mt-0.5">Import your strategy documents to auto-populate the programme structure, or create pillars manually.</div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Link href="/import" className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
-              Import from documents
-            </Link>
-            <Link href="/admin" className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors">
-              Create manually
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {criticalAlerts.length > 0 && (
-        <div className="flex items-center gap-3 bg-destructive/10 border border-destructive/30 rounded-xl p-3.5">
-          <AlertCircle className="w-5 h-5 text-destructive shrink-0" />
-          <div className="flex-1 text-sm font-medium text-destructive">
-            {criticalAlerts.length} critical alert{criticalAlerts.length > 1 ? "s" : ""} require immediate attention.
-          </div>
-          <Link href="/alerts" className="flex items-center gap-1 text-sm font-semibold text-destructive hover:underline shrink-0">
-            View Alerts <ChevronRight className="w-4 h-4" />
-          </Link>
-        </div>
-      )}
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-        <SummaryCard
-          icon={Target}
-          label="Strategy Progress"
-          value={`${Math.round(data.programmeProgress)}%`}
-          sub={`${data.approvedMilestones} of ${data.totalMilestones} milestones approved`}
-          color="text-primary"
-          bg="bg-primary/10"
-          accent="linear-gradient(90deg, #2563eb, #7c3aed)"
-        />
-        <SummaryCard
-          icon={Sparkles}
-          label="Initiatives"
-          value={String(data.pillarSummaries.reduce((s, p) => s + p.initiativeCount, 0))}
-          sub={`${initiativesOnTrack} on track`}
-          color="text-violet-600"
-          bg="bg-violet-100"
-          accent="linear-gradient(90deg, #7c3aed, #a78bfa)"
-        />
-        <SummaryCard
-          icon={FolderOpen}
-          label="Projects"
-          value={String(totalProjects)}
-          sub={`${projectsNeedAttention} need attention`}
-          color="text-success"
-          bg="bg-success/10"
-          accent="linear-gradient(90deg, #059669, #34d399)"
-        />
-      </div>
-
-      {/* Budget Stacked Bar Chart — full width */}
-      {(totalAllocated > 0 || totalCapex > 0) && (
-        <BudgetStackedBarChart
-          totalAllocated={totalAllocated}
-          totalCapex={totalCapex}
-          totalOpex={totalOpex}
-          totalSpent={totalSpent}
-          budgetUsed={budgetUsed}
-          budgetView={budgetView}
-          setBudgetView={setBudgetView}
-        />
-      )}
-
-      {/* Charts Row — Status + Phase */}
-      {projects.length > 0 && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          <ProjectStatusPieChart projects={projects} />
-          <ProjectPhasePieChart projects={projects} />
-        </div>
-      )}
-
-      {/* Department Health Bar Chart */}
-      {(deptStatus ?? []).length > 0 && (
-        <DepartmentHealthBarChart depts={deptStatus ?? []} />
-      )}
-
-      {/* Strategic Pillars section */}
-      {(() => {
-        const strategicPillars = data.pillarSummaries.filter((p) => (p.pillarType ?? "pillar") === "pillar");
-        const enablers = data.pillarSummaries.filter((p) => p.pillarType === "enabler");
-
-        const renderPillarGroup = (group: typeof data.pillarSummaries, groupLabel: string, groupIcon: React.ReactNode) => {
-          if (group.length === 0) return null;
-          return (
-            <section key={groupLabel}>
-              <div className="flex items-center gap-2 mb-4">
-                {groupIcon}
-                <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight border-l-[3px] border-primary pl-2">{groupLabel}</h2>
-              </div>
-              <div className="space-y-5">
-                {group.map((pillar) => {
-                  const isPillarExpanded = expandedPillars.has(pillar.id);
-                  const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);
-                  const pillarPlanned = (() => {
-                    if (pillarInitiatives.length === 0) return 0;
-                    const minStart = pillarInitiatives.reduce((m, i) => i.startDate < m ? i.startDate : m, pillarInitiatives[0].startDate);
-                    const maxEnd = pillarInitiatives.reduce((m, i) => i.targetDate > m ? i.targetDate : m, pillarInitiatives[0].targetDate);
-                    return calcPlannedProgress(minStart, maxEnd);
-                  })();
-                  const typeLabel = pillar.pillarType === "enabler" ? "Cross-Cutting Enabler" : "Strategic Pillar";
-                  return (
-                    <div key={pillar.id} className="rounded-[14px] border border-border overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-                      <div className="bg-card border-b border-border" style={{ borderLeft: `4px solid ${pillar.color}` }}>
-                        <button onClick={() => togglePillar(pillar.id)} className="w-full px-6 pt-4 pb-3 text-left hover:bg-secondary/20 transition-colors focus:outline-none">
-                          <div className="flex items-start justify-between gap-4 flex-wrap">
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: pillar.color }}>{typeLabel}</div>
-                              <h3 className="font-bold text-base">{pillar.name}</h3>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <div className="text-right shrink-0">
-                                <div className="text-2xl font-display font-bold" style={{ color: pillar.color }}>{Math.round(pillar.progress)}%</div>
-                                {pillarPlanned > 0 && <div className="text-[10px] text-muted-foreground">plan {pillarPlanned}%</div>}
-                                <div className="text-[10px] text-muted-foreground">{pillar.projectCount} project{pillar.projectCount !== 1 ? "s" : ""}</div>
-                              </div>
-                              <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0" style={{ transform: isPillarExpanded ? "rotate(0deg)" : "rotate(-90deg)" }} />
-                            </div>
-                          </div>
-                          <div className="relative h-1.5 bg-secondary rounded-full overflow-hidden mt-3">
-                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(100, pillar.progress)}%`, backgroundColor: pillar.color }} />
-                            {pillarPlanned > 0 && <div className="absolute top-0 bottom-0 w-0.5 bg-warning/80" style={{ left: `${Math.min(100, pillarPlanned)}%`, transform: "translateX(-50%)" }} />}
-                          </div>
-                        </button>
-                        <div className="px-6 pb-3 flex justify-end">
-                          <Link to={`/pillars/${pillar.id}/portfolio`} onClick={(e) => e.stopPropagation()} className="text-[11px] font-semibold hover:underline flex items-center gap-1" style={{ color: pillar.color }}>
-                            View Pillar Dashboard <ChevronRight className="w-3 h-3" />
-                          </Link>
-                        </div>
+        <div className="space-y-5">
+          {group.map((pillar) => {
+            const isPillarExpanded = expandedPillars.has(pillar.id);
+            const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);
+            const pillarPlanned = (() => {
+              if (pillarInitiatives.length === 0) return 0;
+              const minStart = pillarInitiatives.reduce((m, i) => i.startDate < m ? i.startDate : m, pillarInitiatives[0].startDate);
+              const maxEnd = pillarInitiatives.reduce((m, i) => i.targetDate > m ? i.targetDate : m, pillarInitiatives[0].targetDate);
+              return calcPlannedProgress(minStart, maxEnd);
+            })();
+            const typeLabel = pillar.pillarType === "enabler" ? "Cross-Cutting Enabler" : "Strategic Pillar";
+            return (
+              <div key={pillar.id} className="rounded-[14px] border border-border overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+                <div className="bg-card border-b border-border" style={{ borderLeft: `4px solid ${pillar.color}` }}>
+                  <button onClick={() => togglePillar(pillar.id)} className="w-full px-6 pt-4 pb-3 text-left hover:bg-secondary/20 transition-colors focus:outline-none">
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: pillar.color }}>{typeLabel}</div>
+                        <h3 className="font-bold text-base">{pillar.name}</h3>
                       </div>
-                      {isPillarExpanded && (
-                        <>
-                          {pillarInitiatives.length > 0 ? (
-                            <div className="divide-y divide-border/40 bg-secondary/10">
-                              {pillarInitiatives.map((initiative) => {
-                                const isInitExpanded = expandedInitiatives.has(initiative.id);
-                                const progress = initiative.progress ?? 0;
-                                const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
-                                const initProjects = projectsByInitiative.get(initiative.id) ?? [];
-                                const initCounts: Record<ProjectStatusCategory, number> = { on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0, on_hold: 0 };
-                                for (const p of initProjects) { initCounts[classifyProject(p)]++; }
-                                return (
-                                  <div key={initiative.id}>
-                                    <button onClick={() => toggleInitiative(initiative.id)} className="w-full flex items-start gap-4 px-6 py-3.5 hover:bg-secondary/30 transition-colors text-left focus:outline-none">
-                                      <div className="w-1 h-10 rounded-full shrink-0 mt-1" style={{ backgroundColor: pillar.color }} />
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
-                                          <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                              <span className="font-semibold text-sm">Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}</span>
-                                              <ComputedStatusBadge cs={initiative.computedStatus} />
-                                              <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{initProjects.length} project{initProjects.length !== 1 ? "s" : ""}</span>
-                                            </div>
-                                            {initiative.computedStatus?.reason && <span className="text-[10px] text-muted-foreground truncate block">{initiative.computedStatus.reason}</span>}
-                                          </div>
-                                          <div className="flex items-center gap-2 shrink-0">
-                                            <div className="text-right">
-                                              <div className="text-sm font-bold" style={{ color: pillar.color }}>{Math.round(progress)}%</div>
-                                              {planned > 0 && <div className="text-[10px] text-muted-foreground">plan {planned}%</div>}
-                                            </div>
-                                            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200" style={{ transform: isInitExpanded ? "rotate(0deg)" : "rotate(-90deg)" }} />
+                      <div className="flex items-center gap-3">
+                        <div className="text-right shrink-0">
+                          <div className="text-2xl font-display font-bold" style={{ color: pillar.color }}>{Math.round(pillar.progress)}%</div>
+                          {pillarPlanned > 0 && <div className="text-[10px] text-muted-foreground">plan {pillarPlanned}%</div>}
+                          <div className="text-[10px] text-muted-foreground">{pillar.projectCount} project{pillar.projectCount !== 1 ? "s" : ""}</div>
+                        </div>
+                        <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0" style={{ transform: isPillarExpanded ? "rotate(0deg)" : "rotate(-90deg)" }} />
+                      </div>
+                    </div>
+                    <div className="relative h-1.5 bg-secondary rounded-full overflow-hidden mt-3">
+                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(100, pillar.progress)}%`, backgroundColor: pillar.color }} />
+                      {pillarPlanned > 0 && <div className="absolute top-0 bottom-0 w-0.5 bg-warning/80" style={{ left: `${Math.min(100, pillarPlanned)}%`, transform: "translateX(-50%)" }} />}
+                    </div>
+                  </button>
+                  <div className="px-6 pb-3 flex justify-end">
+                    <Link to={`/pillars/${pillar.id}/portfolio`} onClick={(e) => e.stopPropagation()} className="text-[11px] font-semibold hover:underline flex items-center gap-1" style={{ color: pillar.color }}>
+                      View Pillar Dashboard <ChevronRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+                {isPillarExpanded && (
+                  <>
+                    {pillarInitiatives.length > 0 ? (
+                      <div className="divide-y divide-border/40 bg-secondary/10">
+                        {pillarInitiatives.map((initiative) => {
+                          const isInitExpanded = expandedInitiatives.has(initiative.id);
+                          const progress = initiative.progress ?? 0;
+                          const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
+                          const initProjects = projectsByInitiative.get(initiative.id) ?? [];
+                          const initCounts: Record<ProjectStatusCategory, number> = { on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0, on_hold: 0 };
+                          for (const p of initProjects) { initCounts[classifyProject(p)]++; }
+                          return (
+                            <div key={initiative.id}>
+                              <button onClick={() => toggleInitiative(initiative.id)} className="w-full flex items-start gap-4 px-6 py-3.5 hover:bg-secondary/30 transition-colors text-left focus:outline-none">
+                                <div className="w-1 h-10 rounded-full shrink-0 mt-1" style={{ backgroundColor: pillar.color }} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-semibold text-sm">Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}</span>
+                                        <ComputedStatusBadge cs={initiative.computedStatus} />
+                                        <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">{initProjects.length} project{initProjects.length !== 1 ? "s" : ""}</span>
+                                      </div>
+                                      {initiative.computedStatus?.reason && <span className="text-[10px] text-muted-foreground truncate block">{initiative.computedStatus.reason}</span>}
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <div className="text-right">
+                                        <div className="text-sm font-bold" style={{ color: pillar.color }}>{Math.round(progress)}%</div>
+                                        {planned > 0 && <div className="text-[10px] text-muted-foreground">plan {planned}%</div>}
+                                      </div>
+                                      <ChevronDown className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200" style={{ transform: isInitExpanded ? "rotate(0deg)" : "rotate(-90deg)" }} />
+                                    </div>
+                                  </div>
+                                  <ProgressBar progress={progress} planned={planned} showLabel={false} />
+                                  {initProjects.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                      {STATUS_ORDER.filter((s) => initCounts[s] > 0).map((s) => {
+                                        const { label, bg, text } = STATUS_CHIPS[s];
+                                        return (
+                                          <span key={s} className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${bg} ${text}`}>
+                                            <span className="font-bold leading-none">{initCounts[s]}</span> {label}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                              {isInitExpanded && initProjects.length > 0 && (
+                                <div className="divide-y divide-border/30 bg-card border-t border-border/40">
+                                  {initProjects.map((proj) => (
+                                    <Link key={proj.id} to={`/projects?project=${proj.id}`}>
+                                      <div className="flex items-center gap-4 px-10 py-2.5 hover:bg-secondary/30 transition-colors cursor-pointer">
+                                        <div className="w-0.5 h-6 rounded-full shrink-0" style={{ backgroundColor: pillar.color }} />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            {proj.projectCode && <span className="font-mono text-[11px] text-muted-foreground">{proj.projectCode}:</span>}
+                                            <span className="text-sm font-medium truncate">{proj.name}</span>
+                                            <ComputedStatusBadge cs={proj.computedStatus} />
                                           </div>
                                         </div>
-                                        <ProgressBar progress={progress} planned={planned} showLabel={false} />
-                                        {initProjects.length > 0 && (
-                                          <div className="flex flex-wrap gap-1 mt-2">
-                                            {STATUS_ORDER.filter((s) => initCounts[s] > 0).map((s) => {
-                                              const { label, bg, text } = STATUS_CHIPS[s];
-                                              return (
-                                                <span key={s} className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${bg} ${text}`}>
-                                                  <span className="font-bold leading-none">{initCounts[s]}</span> {label}
-                                                </span>
-                                              );
-                                            })}
-                                          </div>
-                                        )}
+                                        <div className="text-sm font-bold shrink-0" style={{ color: pillar.color }}>{proj.progress}%</div>
                                       </div>
-                                    </button>
-                                    {isInitExpanded && initProjects.length > 0 && (
-                                      <div className="divide-y divide-border/30 bg-card border-t border-border/40">
-                                        {initProjects.map((proj) => (
-                                          <Link key={proj.id} to={`/projects?project=${proj.id}`}>
-                                            <div className="flex items-center gap-4 px-10 py-2.5 hover:bg-secondary/30 transition-colors cursor-pointer">
-                                              <div className="w-0.5 h-6 rounded-full shrink-0" style={{ backgroundColor: pillar.color }} />
-                                              <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                  {proj.projectCode && <span className="font-mono text-[11px] text-muted-foreground">{proj.projectCode}:</span>}
-                                                  <span className="text-sm font-medium truncate">{proj.name}</span>
-                                                  <ComputedStatusBadge cs={proj.computedStatus} />
-                                                </div>
-                                              </div>
-                                              <div className="text-sm font-bold shrink-0" style={{ color: pillar.color }}>{proj.progress}%</div>
-                                            </div>
-                                          </Link>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="px-6 py-3 text-xs text-muted-foreground bg-secondary/10">No initiatives linked yet.</div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        };
-
-        return (
-          <>
-            {renderPillarGroup(strategicPillars, "Strategic Pillars", <Layers className="w-4 h-4 text-primary" />)}
-            {enablers.length > 0 && strategicPillars.length > 0 && <div className="pt-2" />}
-            {renderPillarGroup(enablers, "Cross-Cutting Enablers", <Zap className="w-4 h-4 text-warning" />)}
-          </>
-        );
-      })()}
-
-      {/* Fallback: initiatives with no pillars */}
-      {data.pillarSummaries.length === 0 && initiatives.length > 0 && (
-            <Card noPadding className="overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
-              <div className="divide-y divide-border">
-                {initiatives.map((initiative) => {
-                  const isInitExpanded = expandedInitiatives.has(initiative.id);
-                  const progress = initiative.progress ?? 0;
-                  const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
-                  const initProjects = projectsByInitiative.get(initiative.id) ?? [];
-                  return (
-                    <div key={initiative.id}>
-                      <button
-                        onClick={() => toggleInitiative(initiative.id)}
-                        className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-secondary/30 transition-colors text-left focus:outline-none"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1 gap-2">
-                            <div className="flex-1 min-w-0">
-                              <span className="font-semibold text-sm truncate block">Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}</span>
-                            </div>
-                            <div className="flex items-center gap-3 shrink-0">
-                              <div className="text-right">
-                                <div className="text-sm font-bold">{Math.round(progress)}%</div>
-                                {planned > 0 && <div className="text-[10px] text-muted-foreground">plan {planned}%</div>}
-                              </div>
-                              <ComputedStatusBadge cs={initiative.computedStatus} />
-                              <ChevronDown
-                                className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200"
-                                style={{ transform: isInitExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
-                              />
-                            </div>
-                          </div>
-                          <ProgressBar progress={progress} planned={planned} showLabel={false} />
-                        </div>
-                      </button>
-                      {isInitExpanded && initProjects.length > 0 && (
-                        <div className="divide-y divide-border/30 bg-secondary/10 border-t border-border/40">
-                          {initProjects.map((proj) => (
-                            <Link key={proj.id} to={`/projects?project=${proj.id}`}>
-                              <div className="flex items-center gap-4 px-8 py-2.5 hover:bg-secondary/40 transition-colors cursor-pointer">
-                                <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                                  {proj.projectCode && (
-                                    <span className="font-mono text-[11px] text-muted-foreground">{proj.projectCode}:</span>
-                                  )}
-                                  <span className="text-sm font-medium truncate">{proj.name}</span>
-                                  <ComputedStatusBadge cs={proj.computedStatus} />
+                                    </Link>
+                                  ))}
                                 </div>
-                                <div className="text-right shrink-0">
-                                  <div className="text-sm font-bold">{proj.progress}%</div>
-                                </div>
-                              </div>
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="px-6 py-3 text-xs text-muted-foreground bg-secondary/10">No initiatives linked yet.</div>
+                    )}
+                  </>
+                )}
               </div>
-            </Card>
-      )}
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
 
-      {/* AI Modal — admin only */}
-      {isAdmin && isAiModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-border flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-violet-600/10 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-violet-600" />
-                </div>
-                <h2 className="text-xl font-display font-bold">AI Programme Assessment</h2>
-              </div>
-              <button onClick={() => setIsAiModalOpen(false)} className="text-muted-foreground hover:text-foreground text-lg font-bold">✕</button>
+  return (
+    <ErrorBoundary fallbackTitle="Dashboard failed to render">
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <PageHeader
+          title="Programme Dashboard"
+          description={`Weighted progress cascade · last updated ${format(new Date(data.lastUpdated), "MMM d, yyyy HH:mm")}`}
+        >
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                const res = await fetch("/api/spmo/reports/pdf", { method: "POST", credentials: "include" });
+                if (!res.ok) { alert("Failed to generate PDF"); return; }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `Programme-Report-${new Date().toISOString().slice(0, 10)}.pdf`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="flex items-center gap-2 bg-white border border-border hover:bg-muted/50 text-foreground px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              Export PDF
+            </button>
+            <button
+              onClick={async () => {
+                const res = await fetch("/api/spmo/reports/pptx", { method: "POST", credentials: "include" });
+                if (!res.ok) { alert("Failed to generate PPTX"); return; }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `Programme-Report-${new Date().toISOString().slice(0, 10)}.pptx`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="flex items-center gap-2 bg-white border border-border hover:bg-muted/50 text-foreground px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              <BarChart2 className="w-4 h-4" />
+              Export PPTX
+            </button>
+            {isAdmin && (
+              <button
+                onClick={handleRunAi}
+                className="flex items-center gap-2 bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-700 text-white px-4 py-2 rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all text-sm"
+              >
+                <Sparkles className="w-4 h-4" />
+                AI Assessment
+              </button>
+            )}
+          </div>
+        </PageHeader>
+
+        {/* No-data banner */}
+        {data.pillarSummaries.length === 0 && (
+          <div className="flex items-center gap-4 p-5 rounded-xl bg-gradient-to-r from-blue-50 to-violet-50 border border-blue-200">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shrink-0">
+              <Upload className="w-5 h-5 text-white" />
             </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-sm">No programme data yet</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Import your strategy documents to auto-populate the programme structure, or create pillars manually.</div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link href="/import" className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
+                Import from documents
+              </Link>
+              <Link href="/admin" className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors">
+                Create manually
+              </Link>
+            </div>
+          </div>
+        )}
 
-            <div className="p-6 overflow-y-auto flex-1">
-              {aiMutation.isPending && (
-                <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <Loader2 className="w-10 h-10 animate-spin text-primary" />
-                  <p className="text-muted-foreground animate-pulse font-medium">Claude is analyzing your programme…</p>
-                </div>
-              )}
-              {aiMutation.isError && (
-                <div className="p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20 text-sm space-y-1">
-                  <div className="font-semibold">AI assessment failed.</div>
-                  {(() => {
-                    const detail = (aiMutation.error as { data?: { detail?: string } } | null)?.data?.detail;
-                    return detail ? <div className="text-destructive/80 text-xs">{detail}</div> : null;
-                  })()}
-                  <div className="text-destructive/70 text-xs">Please try again or contact support if the issue persists.</div>
-                </div>
-              )}
-              {aiMutation.isSuccess && aiMutation.data && (
-                <div className="space-y-5">
-                  <div className="flex items-center gap-4 p-4 bg-secondary/40 rounded-xl border border-border">
-                    <div className="shrink-0">
-                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Overall Health</p>
-                      {(() => {
-                        const s = aiMutation.data.overallHealth as string;
-                        const entry = Object.entries(HEALTH_BADGE_MAP).find(([k]) => k === s);
-                        const { label, cls } = entry ? entry[1] : { label: s, cls: "bg-secondary text-foreground border border-border" };
-                        return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>;
-                      })()}
-                    </div>
-                    <p className="flex-1 text-sm leading-relaxed text-foreground/80">{aiMutation.data.summary}</p>
+        {/* Critical alert banner */}
+        {criticalAlerts.length > 0 && (
+          <div className="flex items-center gap-3 bg-destructive/10 border border-destructive/30 rounded-xl p-3.5">
+            <AlertCircle className="w-5 h-5 text-destructive shrink-0" />
+            <div className="flex-1 text-sm font-medium text-destructive">
+              {criticalAlerts.length} critical alert{criticalAlerts.length > 1 ? "s" : ""} require immediate attention.
+            </div>
+            <Link href="/alerts" className="flex items-center gap-1 text-sm font-semibold text-destructive hover:underline shrink-0">
+              View Alerts <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
+        )}
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          {[
+            {
+              icon: Target,
+              label: "Strategy Progress",
+              value: `${Math.round(data.programmeProgress)}%`,
+              sub: `${data.approvedMilestones} of ${data.totalMilestones} milestones approved`,
+              color: "text-primary",
+              bg: "bg-primary/10",
+              accent: "linear-gradient(90deg, #2563eb, #7c3aed)",
+            },
+            {
+              icon: Sparkles,
+              label: "Initiatives",
+              value: String(data.pillarSummaries.reduce((s, p) => s + p.initiativeCount, 0)),
+              sub: `${initiativesOnTrack} on track`,
+              color: "text-violet-600",
+              bg: "bg-violet-100",
+              accent: "linear-gradient(90deg, #7c3aed, #a78bfa)",
+            },
+            {
+              icon: FolderOpen,
+              label: "Projects",
+              value: String(totalProjects),
+              sub: `${projectsNeedAttention} need attention`,
+              color: "text-success",
+              bg: "bg-success/10",
+              accent: "linear-gradient(90deg, #059669, #34d399)",
+            },
+            {
+              icon: Wallet,
+              label: "Budget Utilized",
+              value: `${budgetUsed.toFixed(1)}%`,
+              sub: `${((totalAllocated) / 1_000_000).toFixed(0)}M SAR allocated`,
+              color: "text-warning",
+              bg: "bg-warning/10",
+              accent: "linear-gradient(90deg, #d97706, #f59e0b)",
+            },
+          ].map((card, idx) => (
+            <motion.div
+              key={card.label}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: idx * 0.07 }}
+            >
+              <SummaryCard {...card} />
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Tab bar */}
+        <div className="flex items-center gap-1 border-b border-border">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
+                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+                {isActive && (
+                  <motion.div
+                    layoutId="tab-indicator"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
+                    transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tab content */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.22 }}
+          >
+            {activeTab === "overview" && (
+              <div className="space-y-5">
+                {/* Budget chart */}
+                {(totalAllocated > 0 || totalCapex > 0) && (
+                  <BudgetStackedBarChart
+                    totalAllocated={totalAllocated}
+                    totalCapex={totalCapex}
+                    totalOpex={totalOpex}
+                    totalSpent={totalSpent}
+                    budgetUsed={budgetUsed}
+                    budgetView={budgetView}
+                    setBudgetView={setBudgetView}
+                  />
+                )}
+
+                {/* Status + Phase donuts */}
+                {projects.length > 0 && (
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                    <ProjectStatusPieChart projects={projects} />
+                    <ProjectPhasePieChart projects={projects} />
                   </div>
+                )}
 
-                  {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "positive").length > 0 && (
-                    <div>
-                      <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
-                        <ThumbsUp className="w-4 h-4 text-success" /> Positive Highlights
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {aiMutation.data.pillarInsights
-                          .filter((pi) => pi.sentiment === "positive")
-                          .map((pi, i) => (
+                {/* Department health — custom segmented horizontal bars */}
+                {(deptStatus ?? []).length > 0 && (
+                  <DepartmentHealthSegmentedChart depts={deptStatus ?? []} />
+                )}
+
+                {/* Fallback: initiatives with no pillars */}
+                {data.pillarSummaries.length === 0 && initiatives.length > 0 && (
+                  <Card noPadding className="overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+                    <div className="divide-y divide-border">
+                      {initiatives.map((initiative) => {
+                        const isInitExpanded = expandedInitiatives.has(initiative.id);
+                        const progress = initiative.progress ?? 0;
+                        const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
+                        const initProjects = projectsByInitiative.get(initiative.id) ?? [];
+                        return (
+                          <div key={initiative.id}>
+                            <button
+                              onClick={() => toggleInitiative(initiative.id)}
+                              className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-secondary/30 transition-colors text-left focus:outline-none"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1 gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="font-semibold text-sm truncate block">Initiative {initiativeCodeMap.get(initiative.id) ?? "??"}: {initiative.name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    <div className="text-right">
+                                      <div className="text-sm font-bold">{Math.round(progress)}%</div>
+                                      {planned > 0 && <div className="text-[10px] text-muted-foreground">plan {planned}%</div>}
+                                    </div>
+                                    <ComputedStatusBadge cs={initiative.computedStatus} />
+                                    <ChevronDown
+                                      className="w-3.5 h-3.5 text-muted-foreground transition-transform duration-200"
+                                      style={{ transform: isInitExpanded ? "rotate(0deg)" : "rotate(-90deg)" }}
+                                    />
+                                  </div>
+                                </div>
+                                <ProgressBar progress={progress} planned={planned} showLabel={false} />
+                              </div>
+                            </button>
+                            {isInitExpanded && initProjects.length > 0 && (
+                              <div className="divide-y divide-border/30 bg-secondary/10 border-t border-border/40">
+                                {initProjects.map((proj) => (
+                                  <Link key={proj.id} to={`/projects?project=${proj.id}`}>
+                                    <div className="flex items-center gap-4 px-8 py-2.5 hover:bg-secondary/40 transition-colors cursor-pointer">
+                                      <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                                        {proj.projectCode && (
+                                          <span className="font-mono text-[11px] text-muted-foreground">{proj.projectCode}:</span>
+                                        )}
+                                        <span className="text-sm font-medium truncate">{proj.name}</span>
+                                        <ComputedStatusBadge cs={proj.computedStatus} />
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <div className="text-sm font-bold">{proj.progress}%</div>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            )}
+
+            {activeTab === "pillars" && (
+              <div className="space-y-8">
+                {renderPillarGroup(strategicPillars, "Strategic Pillars", <Layers className="w-4 h-4 text-primary" />)}
+                {enablers.length > 0 && strategicPillars.length > 0 && <div className="pt-2" />}
+                {renderPillarGroup(enablers, "Cross-Cutting Enablers", <Zap className="w-4 h-4 text-warning" />)}
+                {data.pillarSummaries.length === 0 && (
+                  <p className="text-center text-muted-foreground py-16 text-sm">No strategic pillars configured yet.</p>
+                )}
+              </div>
+            )}
+
+            {activeTab === "gantt" && (
+              <GanttChart pillarFilter="all" departmentFilter="all" />
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* AI Modal — admin only */}
+        {isAdmin && isAiModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-card border border-border shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-5 border-b border-border flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-violet-600/10 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-violet-600" />
+                  </div>
+                  <h2 className="text-xl font-display font-bold">AI Programme Assessment</h2>
+                </div>
+                <button onClick={() => setIsAiModalOpen(false)} className="text-muted-foreground hover:text-foreground text-lg font-bold">✕</button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1">
+                {aiMutation.isPending && (
+                  <div className="flex flex-col items-center justify-center py-12 gap-4">
+                    <Loader2 className="w-10 h-10 animate-spin text-primary" />
+                    <p className="text-muted-foreground animate-pulse font-medium">Claude is analyzing your programme…</p>
+                  </div>
+                )}
+                {aiMutation.isError && (
+                  <div className="p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20 text-sm space-y-1">
+                    <div className="font-semibold">AI assessment failed.</div>
+                    {(() => {
+                      const detail = (aiMutation.error as { data?: { detail?: string } } | null)?.data?.detail;
+                      return detail ? <div className="text-destructive/80 text-xs">{detail}</div> : null;
+                    })()}
+                    <div className="text-destructive/70 text-xs">Please try again or contact support if the issue persists.</div>
+                  </div>
+                )}
+                {aiMutation.isSuccess && aiMutation.data && (
+                  <div className="space-y-5">
+                    <div className="flex items-center gap-4 p-4 bg-secondary/40 rounded-xl border border-border">
+                      <div className="shrink-0">
+                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Overall Health</p>
+                        {(() => {
+                          const s = aiMutation.data.overallHealth as string;
+                          const entry = Object.entries(HEALTH_BADGE_MAP).find(([k]) => k === s);
+                          const { label, cls } = entry ? entry[1] : { label: s, cls: "bg-secondary text-foreground border border-border" };
+                          return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>;
+                        })()}
+                      </div>
+                      <p className="flex-1 text-sm leading-relaxed text-foreground/80">{aiMutation.data.summary}</p>
+                    </div>
+                    {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "positive").length > 0 && (
+                      <div>
+                        <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
+                          <ThumbsUp className="w-4 h-4 text-success" /> Positive Highlights
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "positive").map((pi, i) => (
                             <div key={i} className="flex items-start gap-2 bg-success/5 p-2.5 rounded-lg border border-success/15 text-sm">
                               <span className="text-success font-bold shrink-0">✓</span>
                               <div>
@@ -892,24 +935,21 @@ export default function Dashboard() {
                               </div>
                             </div>
                           ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <div>
-                      <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
-                        <ShieldAlert className="w-4 h-4 text-warning" /> Concerns
-                      </h3>
-                      <ul className="space-y-1.5">
-                        {aiMutation.data.riskFlags.map((risk, i) => (
-                          <li key={i} className="flex items-start gap-2 bg-destructive/5 text-destructive p-2.5 rounded-lg border border-destructive/10 text-sm">
-                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{risk}
-                          </li>
-                        ))}
-                        {aiMutation.data.pillarInsights
-                          .filter((pi) => pi.sentiment === "negative")
-                          .map((pi, i) => (
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
+                          <ShieldAlert className="w-4 h-4 text-warning" /> Concerns
+                        </h3>
+                        <ul className="space-y-1.5">
+                          {aiMutation.data.riskFlags.map((risk, i) => (
+                            <li key={i} className="flex items-start gap-2 bg-destructive/5 text-destructive p-2.5 rounded-lg border border-destructive/10 text-sm">
+                              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{risk}
+                            </li>
+                          ))}
+                          {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "negative").map((pi, i) => (
                             <li key={`neg-${i}`} className="flex items-start gap-2 bg-warning/5 p-2.5 rounded-lg border border-warning/15 text-sm">
                               <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
                               <div>
@@ -918,53 +958,50 @@ export default function Dashboard() {
                               </div>
                             </li>
                           ))}
-                      </ul>
+                        </ul>
+                      </div>
+                      <div>
+                        <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
+                          <Lightbulb className="w-4 h-4 text-primary" /> Actions
+                        </h3>
+                        <ul className="space-y-1.5">
+                          {aiMutation.data.recommendations.map((rec, i) => (
+                            <li key={i} className="flex items-start gap-2 bg-primary/5 p-2.5 rounded-lg border border-primary/10 text-sm">
+                              <span className="shrink-0 mt-0.5 text-primary font-bold">→</span>
+                              <span className="text-foreground">{rec}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
-                        <Lightbulb className="w-4 h-4 text-primary" /> Actions
-                      </h3>
-                      <ul className="space-y-1.5">
-                        {aiMutation.data.recommendations.map((rec, i) => (
-                          <li key={i} className="flex items-start gap-2 bg-primary/5 p-2.5 rounded-lg border border-primary/10 text-sm">
-                            <span className="shrink-0 mt-0.5 text-primary font-bold">→</span>
-                            <span className="text-foreground">{rec}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "neutral").length > 0 && (
-                    <div>
-                      <h3 className="font-bold mb-2 text-sm text-muted-foreground uppercase tracking-wider">Pillar Notes</h3>
-                      <div className="space-y-1.5">
-                        {aiMutation.data.pillarInsights
-                          .filter((pi) => pi.sentiment === "neutral")
-                          .map((pi, i) => (
+                    {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "neutral").length > 0 && (
+                      <div>
+                        <h3 className="font-bold mb-2 text-sm text-muted-foreground uppercase tracking-wider">Pillar Notes</h3>
+                        <div className="space-y-1.5">
+                          {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "neutral").map((pi, i) => (
                             <div key={i} className="flex items-start gap-2 bg-secondary/40 p-2.5 rounded-lg border border-border text-sm">
                               <span className="font-semibold text-muted-foreground text-xs shrink-0 mt-0.5">{pi.pillarName}:</span>
                               <span className="text-foreground/80">{pi.insight}</span>
                             </div>
                           ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t border-border flex justify-end">
-              <button
-                onClick={() => setIsAiModalOpen(false)}
-                className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors text-sm"
-              >
-                Close
-              </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t border-border flex justify-end">
+                <button
+                  onClick={() => setIsAiModalOpen(false)}
+                  className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors text-sm"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
     </ErrorBoundary>
   );
 }
