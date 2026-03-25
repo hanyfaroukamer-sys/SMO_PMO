@@ -17,6 +17,7 @@ import {
   SESSION_COOKIE,
   SESSION_TTL,
   ISSUER_URL,
+  CLIENT_ID,
   type SessionData,
 } from "../lib/auth";
 
@@ -40,9 +41,9 @@ setInterval(() => {
 }, 60_000);
 
 function getOrigin(req: Request): string {
+  if (process.env.APP_URL) return process.env.APP_URL;
   const proto = req.headers["x-forwarded-proto"] || "https";
-  const host =
-    req.headers["x-forwarded-host"] || req.headers["host"] || "localhost";
+  const host = req.headers["x-forwarded-host"] || req.headers["host"] || "localhost";
   return `${proto}://${host}`;
 }
 
@@ -50,7 +51,7 @@ function setSessionCookie(res: Response, sid: string) {
   res.cookie(SESSION_COOKIE, sid, {
     httpOnly: true,
     secure: true,
-    sameSite: "none",
+    sameSite: (process.env.COOKIE_SAMESITE as "strict" | "lax" | "none") || "lax",
     path: "/",
     maxAge: SESSION_TTL,
   });
@@ -100,12 +101,15 @@ async function upsertUser(claims: Record<string, unknown>) {
       .where(eq(usersTable.role, "admin"))
       .limit(1);
     if (admins.length === 0) {
-      const [promoted] = await db
-        .update(usersTable)
-        .set({ role: "admin" })
-        .where(eq(usersTable.id, user.id))
-        .returning();
-      return promoted;
+      const adminEmail = process.env.INITIAL_ADMIN_EMAIL;
+      if (!adminEmail || (userData.email && userData.email === adminEmail)) {
+        const [promoted] = await db
+          .update(usersTable)
+          .set({ role: "admin" })
+          .where(eq(usersTable.id, user.id))
+          .returning();
+        return promoted;
+      }
     }
   }
   return user;
@@ -128,6 +132,11 @@ router.get("/login", async (req: Request, res: Response) => {
   const nonce = oidc.randomNonce();
   const codeVerifier = oidc.randomPKCECodeVerifier();
   const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
+
+  if (oidcStateStore.size >= 1000) {
+    res.status(503).json({ error: "Too many pending logins, try again" });
+    return;
+  }
 
   oidcStateStore.set(state, {
     nonce,
@@ -229,7 +238,7 @@ router.get("/logout", async (req: Request, res: Response) => {
   await clearSession(res, sid);
 
   const endSessionUrl = oidc.buildEndSessionUrl(config, {
-    client_id: process.env.REPL_ID!,
+    client_id: CLIENT_ID,
     post_logout_redirect_uri: origin,
   });
 

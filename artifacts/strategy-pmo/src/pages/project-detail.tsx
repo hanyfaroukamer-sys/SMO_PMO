@@ -169,7 +169,7 @@ function EvidenceSection({
                 <a
                   href={`/api/storage/objects${ev.objectPath}`}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="text-primary hover:underline font-semibold shrink-0 text-[10px]"
                 >
                   View
