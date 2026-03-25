@@ -88,11 +88,12 @@ describe("projectProgress (DB integration)", () => {
     expect(result.milestoneCount).toBe(0);
   });
 
-  it("single milestone at 50% with effort 100 → project progress = 50%", async () => {
+  it("single milestone at 50% with weight 100 → project progress = 50%", async () => {
     const [ms] = await db.insert(spmoMilestonesTable).values({
       projectId,
       name: uid(),
       progress: 50,
+      weight: 100,
       effortDays: 100,
       status: "in_progress",
     }).returning();
@@ -103,12 +104,12 @@ describe("projectProgress (DB integration)", () => {
     await db.delete(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, ms.id));
   });
 
-  it("two milestones at 80% and 40% with equal effort → project = 60%", async () => {
+  it("two milestones at 80% and 40% with equal weight → project = 60%", async () => {
     const [ms1] = await db.insert(spmoMilestonesTable).values({
-      projectId, name: uid(), progress: 80, effortDays: 50, status: "in_progress",
+      projectId, name: uid(), progress: 80, weight: 50, effortDays: 50, status: "in_progress",
     }).returning();
     const [ms2] = await db.insert(spmoMilestonesTable).values({
-      projectId, name: uid(), progress: 40, effortDays: 50, status: "in_progress",
+      projectId, name: uid(), progress: 40, weight: 50, effortDays: 50, status: "in_progress",
     }).returning();
 
     const result = await projectProgress(projectId);
@@ -117,12 +118,12 @@ describe("projectProgress (DB integration)", () => {
     await db.delete(spmoMilestonesTable).where(inArray(spmoMilestonesTable.id, [ms1.id, ms2.id]));
   });
 
-  it("two milestones 80%/40% with unequal effort 30/70 → project = 52%", async () => {
+  it("two milestones 80%/40% with unequal weight 30/70 → project = 52%", async () => {
     const [ms1] = await db.insert(spmoMilestonesTable).values({
-      projectId, name: uid(), progress: 80, effortDays: 30, status: "in_progress",
+      projectId, name: uid(), progress: 80, weight: 30, effortDays: 30, status: "in_progress",
     }).returning();
     const [ms2] = await db.insert(spmoMilestonesTable).values({
-      projectId, name: uid(), progress: 40, effortDays: 70, status: "in_progress",
+      projectId, name: uid(), progress: 40, weight: 70, effortDays: 70, status: "in_progress",
     }).returning();
 
     const result = await projectProgress(projectId);
@@ -134,7 +135,7 @@ describe("projectProgress (DB integration)", () => {
 
   it("milestone at 100% but status pending → gated progress = 99% (not 100)", async () => {
     const [ms] = await db.insert(spmoMilestonesTable).values({
-      projectId, name: uid(), progress: 100, effortDays: 100, status: "pending",
+      projectId, name: uid(), progress: 100, weight: 100, effortDays: 100, status: "pending",
     }).returning();
 
     const result = await projectProgress(projectId);
@@ -145,7 +146,7 @@ describe("projectProgress (DB integration)", () => {
 
   it("milestone at 100% and approved → gated progress = 100%", async () => {
     const [ms] = await db.insert(spmoMilestonesTable).values({
-      projectId, name: uid(), progress: 100, effortDays: 100, status: "approved",
+      projectId, name: uid(), progress: 100, weight: 100, effortDays: 100, status: "approved",
     }).returning();
 
     const result = await projectProgress(projectId);
@@ -171,10 +172,10 @@ describe("projectProgress (DB integration)", () => {
 
   it("all milestones at 100% and approved → project = 100%", async () => {
     const [ms1] = await db.insert(spmoMilestonesTable).values({
-      projectId, name: uid(), progress: 100, effortDays: 50, status: "approved",
+      projectId, name: uid(), progress: 100, weight: 50, effortDays: 50, status: "approved",
     }).returning();
     const [ms2] = await db.insert(spmoMilestonesTable).values({
-      projectId, name: uid(), progress: 100, effortDays: 50, status: "approved",
+      projectId, name: uid(), progress: 100, weight: 50, effortDays: 50, status: "approved",
     }).returning();
 
     const result = await projectProgress(projectId);
