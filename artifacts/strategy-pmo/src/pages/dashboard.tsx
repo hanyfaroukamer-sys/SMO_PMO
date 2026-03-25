@@ -394,11 +394,12 @@ function BudgetStackedBarChart({
   );
 }
 
-type DashTab = "overview" | "pillars";
+type DashTab = "overview" | "pillars" | "ai";
 
-const TABS: { id: DashTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const TABS: { id: DashTab; label: string; icon: React.ComponentType<{ className?: string }>; adminOnly?: boolean }[] = [
   { id: "overview", label: "Overview",          icon: BarChart2 },
   { id: "pillars",  label: "Strategic Pillars", icon: Layers },
+  { id: "ai",       label: "AI Insights",       icon: Sparkles, adminOnly: true },
 ];
 
 export default function Dashboard() {
@@ -410,7 +411,6 @@ export default function Dashboard() {
   const { data: deptStatus } = useGetSpmoDepartmentStatus();
   const isAdmin = useIsAdmin();
   const [activeTab, setActiveTab] = useState<DashTab>("overview");
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
   const [expandedInitiatives, setExpandedInitiatives] = useState<Set<number>>(new Set());
   const [budgetView, setBudgetView] = useState<"total" | "capex" | "opex">("total");
@@ -422,7 +422,7 @@ export default function Dashboard() {
     setExpandedInitiatives((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
   const handleRunAi = () => {
-    setIsAiModalOpen(true);
+    setActiveTab("ai");
     if (!aiMutation.data) aiMutation.mutate();
   };
 
@@ -731,23 +731,31 @@ export default function Dashboard() {
 
         {/* Tab bar */}
         <div className="flex items-center gap-1 border-b border-border">
-          {TABS.map((tab) => {
+          {TABS.filter(t => !t.adminOnly || isAdmin).map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  if (tab.id === "ai" && !aiMutation.data && !aiMutation.isPending) aiMutation.mutate();
+                }}
                 className={`relative flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  isActive
+                    ? tab.id === "ai" ? "text-violet-600" : "text-primary"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Icon className="w-4 h-4" />
                 {tab.label}
+                {tab.id === "ai" && aiMutation.isPending && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
+                )}
                 {isActive && (
                   <motion.div
                     layoutId="tab-indicator"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
+                    className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-full ${tab.id === "ai" ? "bg-violet-500" : "bg-primary"}`}
                     transition={{ type: "spring", stiffness: 500, damping: 40 }}
                   />
                 )}
@@ -868,136 +876,188 @@ export default function Dashboard() {
               </div>
             )}
 
+            {activeTab === "ai" && isAdmin && (
+              <AiInsightsTab aiMutation={aiMutation} onRerun={() => aiMutation.mutate()} healthBadgeMap={HEALTH_BADGE_MAP} />
+            )}
+
           </motion.div>
         </AnimatePresence>
 
-        {/* AI Modal — admin only */}
-        {isAdmin && isAiModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-card border border-border shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-              <div className="p-5 border-b border-border flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-violet-600/10 flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-violet-600" />
-                  </div>
-                  <h2 className="text-xl font-display font-bold">AI Programme Assessment</h2>
-                </div>
-                <button onClick={() => setIsAiModalOpen(false)} className="text-muted-foreground hover:text-foreground text-lg font-bold">✕</button>
-              </div>
-              <div className="p-6 overflow-y-auto flex-1">
-                {aiMutation.isPending && (
-                  <div className="flex flex-col items-center justify-center py-12 gap-4">
-                    <Loader2 className="w-10 h-10 animate-spin text-primary" />
-                    <p className="text-muted-foreground animate-pulse font-medium">Claude is analyzing your programme…</p>
-                  </div>
-                )}
-                {aiMutation.isError && (
-                  <div className="p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20 text-sm space-y-1">
-                    <div className="font-semibold">AI assessment failed.</div>
-                    {(() => {
-                      const detail = (aiMutation.error as { data?: { detail?: string } } | null)?.data?.detail;
-                      return detail ? <div className="text-destructive/80 text-xs">{detail}</div> : null;
-                    })()}
-                    <div className="text-destructive/70 text-xs">Please try again or contact support if the issue persists.</div>
-                  </div>
-                )}
-                {aiMutation.isSuccess && aiMutation.data && (
-                  <div className="space-y-5">
-                    <div className="flex items-center gap-4 p-4 bg-secondary/40 rounded-xl border border-border">
-                      <div className="shrink-0">
-                        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Overall Health</p>
-                        {(() => {
-                          const s = aiMutation.data.overallHealth as string;
-                          const entry = Object.entries(HEALTH_BADGE_MAP).find(([k]) => k === s);
-                          const { label, cls } = entry ? entry[1] : { label: s, cls: "bg-secondary text-foreground border border-border" };
-                          return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cls}`}>{label}</span>;
-                        })()}
-                      </div>
-                      <p className="flex-1 text-sm leading-relaxed text-foreground/80">{aiMutation.data.summary}</p>
-                    </div>
-                    {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "positive").length > 0 && (
-                      <div>
-                        <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
-                          <ThumbsUp className="w-4 h-4 text-success" /> Positive Highlights
-                        </h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "positive").map((pi, i) => (
-                            <div key={i} className="flex items-start gap-2 bg-success/5 p-2.5 rounded-lg border border-success/15 text-sm">
-                              <span className="text-success font-bold shrink-0">✓</span>
-                              <div>
-                                <span className="font-semibold text-success/80 text-xs block">{pi.pillarName}</span>
-                                <span className="text-foreground">{pi.insight}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      <div>
-                        <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
-                          <ShieldAlert className="w-4 h-4 text-warning" /> Concerns
-                        </h3>
-                        <ul className="space-y-1.5">
-                          {aiMutation.data.riskFlags.map((risk, i) => (
-                            <li key={i} className="flex items-start gap-2 bg-destructive/5 text-destructive p-2.5 rounded-lg border border-destructive/10 text-sm">
-                              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{risk}
-                            </li>
-                          ))}
-                          {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "negative").map((pi, i) => (
-                            <li key={`neg-${i}`} className="flex items-start gap-2 bg-warning/5 p-2.5 rounded-lg border border-warning/15 text-sm">
-                              <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
-                              <div>
-                                <span className="font-semibold text-warning/80 text-xs block">{pi.pillarName}</span>
-                                <span className="text-foreground">{pi.insight}</span>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <h3 className="font-bold mb-2 flex items-center gap-2 text-base">
-                          <Lightbulb className="w-4 h-4 text-primary" /> Actions
-                        </h3>
-                        <ul className="space-y-1.5">
-                          {aiMutation.data.recommendations.map((rec, i) => (
-                            <li key={i} className="flex items-start gap-2 bg-primary/5 p-2.5 rounded-lg border border-primary/10 text-sm">
-                              <span className="shrink-0 mt-0.5 text-primary font-bold">→</span>
-                              <span className="text-foreground">{rec}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                    {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "neutral").length > 0 && (
-                      <div>
-                        <h3 className="font-bold mb-2 text-sm text-muted-foreground uppercase tracking-wider">Pillar Notes</h3>
-                        <div className="space-y-1.5">
-                          {aiMutation.data.pillarInsights.filter((pi) => pi.sentiment === "neutral").map((pi, i) => (
-                            <div key={i} className="flex items-start gap-2 bg-secondary/40 p-2.5 rounded-lg border border-border text-sm">
-                              <span className="font-semibold text-muted-foreground text-xs shrink-0 mt-0.5">{pi.pillarName}:</span>
-                              <span className="text-foreground/80">{pi.insight}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="p-4 border-t border-border flex justify-end">
-                <button
-                  onClick={() => setIsAiModalOpen(false)}
-                  className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors text-sm"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </ErrorBoundary>
+  );
+}
+
+// ─── AI Insights Tab ──────────────────────────────────────────────────────────
+type AiMutation = ReturnType<typeof useRunSpmoAiAssessment>;
+
+function AiInsightsTab({
+  aiMutation,
+  onRerun,
+  healthBadgeMap,
+}: {
+  aiMutation: AiMutation;
+  onRerun: () => void;
+  healthBadgeMap: Record<string, { label: string; cls: string }>;
+}) {
+  const isLoading = aiMutation.isPending;
+  const isError = aiMutation.isError;
+  const data = aiMutation.isSuccess ? aiMutation.data : null;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-violet-600/10 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-violet-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold">AI Programme Assessment</h2>
+            <p className="text-xs text-muted-foreground">Powered by Claude · Analyses project health, risks, and strategic alignment</p>
+          </div>
+        </div>
+        <button
+          onClick={onRerun}
+          disabled={isLoading}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+        >
+          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {data ? "Refresh" : "Run Assessment"}
+        </button>
+      </div>
+
+      {isLoading && (
+        <Card className="flex flex-col items-center justify-center py-16 gap-4">
+          <div className="w-16 h-16 rounded-full bg-violet-100 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+          </div>
+          <div className="text-center">
+            <p className="font-semibold text-foreground">Analysing your programme…</p>
+            <p className="text-sm text-muted-foreground mt-1 animate-pulse">Claude is reviewing all pillars, projects, KPIs, and risks</p>
+          </div>
+        </Card>
+      )}
+
+      {isError && !isLoading && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-destructive">Assessment failed</p>
+              <p className="text-sm text-muted-foreground mt-1">Could not connect to the AI service. Please check your API key configuration and try again.</p>
+              <button onClick={onRerun} className="mt-3 text-sm text-primary underline hover:no-underline">Retry</button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {!isLoading && !isError && !data && (
+        <Card className="flex flex-col items-center justify-center py-16 gap-4 border-dashed">
+          <div className="w-16 h-16 rounded-full bg-violet-50 flex items-center justify-center">
+            <Sparkles className="w-8 h-8 text-violet-300" />
+          </div>
+          <div className="text-center">
+            <p className="font-semibold text-foreground">No assessment yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Click "Run Assessment" to get an AI-powered analysis of your programme.</p>
+          </div>
+        </Card>
+      )}
+
+      {data && !isLoading && (
+        <div className="space-y-5">
+          {/* Health banner */}
+          <div className="flex items-center gap-6 p-5 bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 rounded-2xl border border-violet-200/50">
+            <div className="shrink-0">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-violet-500/70 mb-2">Overall Programme Health</p>
+              {(() => {
+                const s = data.overallHealth as string;
+                const entry = Object.entries(healthBadgeMap).find(([k]) => k === s);
+                const { label, cls } = entry ? entry[1] : { label: s, cls: "bg-secondary text-foreground border border-border" };
+                return <span className={`text-sm font-bold px-3 py-1.5 rounded-lg ${cls}`}>{label}</span>;
+              })()}
+            </div>
+            <p className="flex-1 text-sm leading-relaxed text-foreground/80">{data.summary}</p>
+          </div>
+
+          {/* 3-column insights grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Positive highlights */}
+            <div className="space-y-3">
+              <h3 className="font-bold flex items-center gap-2 text-success text-sm">
+                <ThumbsUp className="w-4 h-4" /> Positive Highlights
+                <span className="ml-auto text-[10px] font-normal text-muted-foreground">{data.pillarInsights.filter(p => p.sentiment === "positive").length} items</span>
+              </h3>
+              {data.pillarInsights.filter(p => p.sentiment === "positive").length === 0 && (
+                <p className="text-xs text-muted-foreground italic">No positive highlights identified.</p>
+              )}
+              {data.pillarInsights.filter(p => p.sentiment === "positive").map((pi, i) => (
+                <div key={i} className="bg-success/5 border border-success/15 rounded-xl p-3 text-sm">
+                  <span className="text-[10px] font-bold text-success/70 block mb-1 uppercase tracking-wider">{pi.pillarName}</span>
+                  <span className="text-foreground/80 leading-snug">{pi.insight}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Concerns */}
+            <div className="space-y-3">
+              <h3 className="font-bold flex items-center gap-2 text-warning text-sm">
+                <ShieldAlert className="w-4 h-4" /> Concerns
+                <span className="ml-auto text-[10px] font-normal text-muted-foreground">{data.riskFlags.length + data.pillarInsights.filter(p => p.sentiment === "negative").length} items</span>
+              </h3>
+              {data.riskFlags.map((risk, i) => (
+                <div key={`rf-${i}`} className="bg-destructive/5 border border-destructive/15 rounded-xl p-3 text-sm flex items-start gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />
+                  <span className="text-foreground/80 leading-snug">{risk}</span>
+                </div>
+              ))}
+              {data.pillarInsights.filter(p => p.sentiment === "negative").map((pi, i) => (
+                <div key={`neg-${i}`} className="bg-warning/5 border border-warning/15 rounded-xl p-3 text-sm">
+                  <span className="text-[10px] font-bold text-warning/70 block mb-1 uppercase tracking-wider">{pi.pillarName}</span>
+                  <span className="text-foreground/80 leading-snug">{pi.insight}</span>
+                </div>
+              ))}
+              {data.riskFlags.length === 0 && data.pillarInsights.filter(p => p.sentiment === "negative").length === 0 && (
+                <p className="text-xs text-muted-foreground italic">No concerns identified.</p>
+              )}
+            </div>
+
+            {/* Recommendations */}
+            <div className="space-y-3">
+              <h3 className="font-bold flex items-center gap-2 text-primary text-sm">
+                <Lightbulb className="w-4 h-4" /> Recommendations
+                <span className="ml-auto text-[10px] font-normal text-muted-foreground">{data.recommendations.length} items</span>
+              </h3>
+              {data.recommendations.map((rec, i) => (
+                <div key={i} className="bg-primary/5 border border-primary/15 rounded-xl p-3 text-sm flex items-start gap-2">
+                  <span className="text-primary font-bold shrink-0">→</span>
+                  <span className="text-foreground/80 leading-snug">{rec}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Neutral pillar notes */}
+          {data.pillarInsights.filter(p => p.sentiment === "neutral").length > 0 && (
+            <div>
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider mb-3">Pillar Notes</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {data.pillarInsights.filter(p => p.sentiment === "neutral").map((pi, i) => (
+                  <div key={i} className="bg-secondary/40 border border-border rounded-xl p-3 text-sm flex items-start gap-2">
+                    <span className="font-bold text-muted-foreground text-[11px] shrink-0 mt-0.5 min-w-[80px]">{pi.pillarName}:</span>
+                    <span className="text-foreground/80 leading-snug">{pi.insight}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="text-[10px] text-muted-foreground/60 text-right">
+            Assessment generated by Claude AI · Results cached for 5 minutes
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 

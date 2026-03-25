@@ -1115,15 +1115,18 @@ export default function ProjectDetail({ params }: Props) {
 
       {/* ── MILESTONES ── */}
       {activeTab === "milestones" && (
-        <MilestonesTab
-          projectId={projectId}
-          milestones={milestones}
-          milestoneApproved={milestoneApproved}
-          pendingApprovals={project.pendingApprovals}
-          canApprove={canApprove}
-          canEdit={isAdmin || canEditReport}
-          onInvalidate={invalidate}
-        />
+        <div className="space-y-6">
+          {milestones.length > 0 && <MilestoneTimeline milestones={milestones} />}
+          <MilestonesTab
+            projectId={projectId}
+            milestones={milestones}
+            milestoneApproved={milestoneApproved}
+            pendingApprovals={project.pendingApprovals}
+            canApprove={canApprove}
+            canEdit={isAdmin || canEditReport}
+            onInvalidate={invalidate}
+          />
+        </div>
       )}
 
       {/* ── WEEKLY REPORT ── */}
@@ -2244,6 +2247,86 @@ function DocumentsTab({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Milestone Timeline ────────────────────────────────────────────────────────
+const MS_STATUS_STYLE: Record<string, { dot: string }> = {
+  approved:    { dot: "bg-success border-success" },
+  pending:     { dot: "bg-warning border-warning" },
+  submitted:   { dot: "bg-primary border-primary" },
+  not_started: { dot: "bg-muted border-border" },
+  in_progress: { dot: "bg-blue-500 border-blue-500" },
+  delayed:     { dot: "bg-destructive border-destructive" },
+};
+
+function MilestoneTimeline({ milestones }: { milestones: SpmoMilestoneWithEvidence[] }) {
+  const sorted = [...milestones].sort((a, b) => {
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+  });
+  const today = new Date();
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="min-w-[480px]">
+        <div className="flex items-center gap-2 mb-4">
+          <Calendar className="w-4 h-4 text-primary" />
+          <h3 className="font-bold text-sm">Milestone Timeline</h3>
+          <span className="text-xs text-muted-foreground">({sorted.length} total)</span>
+        </div>
+
+        <div className="relative">
+          <div className="absolute left-0 right-0 top-[52px] h-0.5 bg-border z-0" />
+          <div className="flex justify-between relative">
+            {sorted.map((m, i) => {
+              const style = MS_STATUS_STYLE[m.status ?? "not_started"] ?? MS_STATUS_STYLE["not_started"];
+              const isOverdue = m.dueDate && new Date(m.dueDate) < today && m.status !== "approved";
+              const dateStr = m.dueDate
+                ? new Date(m.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+                : null;
+
+              return (
+                <div key={m.id} className="flex flex-col items-center z-10" style={{ flexBasis: `${100 / sorted.length}%`, minWidth: 64 }}>
+                  <div className="flex flex-col items-center" style={{ minHeight: 44 }}>
+                    {i % 2 === 0 && (
+                      <>
+                        <p className="text-[9px] font-semibold text-center leading-tight max-w-[72px] line-clamp-2">{m.name}</p>
+                        {dateStr && (
+                          <p className={`text-[8px] mt-0.5 font-medium ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>{dateStr}</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  <div className={`w-3 h-3 rounded-full border-2 shrink-0 ${style.dot} ${isOverdue ? "ring-2 ring-destructive/20" : ""}`} />
+                  <div className="flex flex-col items-center" style={{ minHeight: 44, marginTop: 4 }}>
+                    {i % 2 === 1 && (
+                      <>
+                        <p className="text-[9px] font-semibold text-center leading-tight max-w-[72px] line-clamp-2">{m.name}</p>
+                        {dateStr && (
+                          <p className={`text-[8px] mt-0.5 font-medium ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>{dateStr}</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 mt-3 text-[10px] text-muted-foreground border-t border-border pt-3">
+          {(["approved", "submitted", "pending", "in_progress", "not_started", "delayed"] as const).map((s) => (
+            <span key={s} className="flex items-center gap-1.5">
+              <span className={`w-2.5 h-2.5 rounded-full border-2 inline-block ${MS_STATUS_STYLE[s].dot}`} />
+              <span className="capitalize">{s.replace(/_/g, " ")}</span>
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
