@@ -4,7 +4,8 @@ import {
   serial,
   integer,
   timestamp,
-  numeric,
+  real,
+  date,
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
@@ -48,10 +49,10 @@ export const initiativesTable = pgTable("initiatives", {
     .references(() => usersTable.id, { onDelete: "cascade" }),
   status: initiativeStatusEnum("status").notNull().default("draft"),
   priority: priorityEnum("priority"),
-  startDate: text("start_date"),
-  targetDate: text("target_date"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  startDate: date("start_date"),
+  targetDate: date("target_date"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const milestonesTable = pgTable("milestones", {
@@ -62,13 +63,13 @@ export const milestonesTable = pgTable("milestones", {
   title: text("title").notNull(),
   description: text("description"),
   status: milestoneStatusEnum("status").notNull().default("pending"),
-  weight: numeric("weight", { precision: 5, scale: 2 }).notNull().default("10"),
+  weight: real("weight").notNull().default(10),
   dueDate: text("due_date"),
   approvedById: text("approved_by_id").references(() => usersTable.id),
-  approvedAt: timestamp("approved_at"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
   rejectionReason: text("rejection_reason"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const approvalsTable = pgTable("approvals", {
@@ -81,7 +82,7 @@ export const approvalsTable = pgTable("approvals", {
     .references(() => usersTable.id),
   action: approvalActionEnum("action").notNull(),
   comment: text("comment"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const uploadIntentsTable = pgTable("upload_intents", {
@@ -93,9 +94,9 @@ export const uploadIntentsTable = pgTable("upload_intents", {
     .notNull()
     .references(() => milestonesTable.id, { onDelete: "cascade" }),
   objectPath: text("object_path").notNull().unique(),
-  expiresAt: timestamp("expires_at").notNull(),
-  usedAt: timestamp("used_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const fileAttachmentsTable = pgTable("file_attachments", {
@@ -109,7 +110,7 @@ export const fileAttachmentsTable = pgTable("file_attachments", {
   uploadedById: text("uploaded_by_id")
     .notNull()
     .references(() => usersTable.id),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const insertInitiativeSchema = createInsertSchema(initiativesTable).omit({

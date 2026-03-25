@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
 interface ModalProps {
@@ -10,6 +10,23 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg" }: ModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (open && modalRef.current) {
+      modalRef.current.focus();
+    }
+  }, [open]);
+
   if (!open) return null;
 
   return (
@@ -19,10 +36,15 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg" }:
         onClick={onClose}
       />
       <div
-        className={`relative bg-card border border-border rounded-2xl shadow-2xl w-full ${maxWidth} flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200`}
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        tabIndex={-1}
+        className={`relative bg-card border border-border rounded-2xl shadow-2xl w-full ${maxWidth} flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 outline-none`}
       >
         <div className="flex items-center justify-between p-6 border-b border-border shrink-0">
-          <h2 className="text-xl font-bold font-display">{title}</h2>
+          <h2 id="modal-title" className="text-xl font-bold font-display">{title}</h2>
           <button
             onClick={onClose}
             className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-secondary"

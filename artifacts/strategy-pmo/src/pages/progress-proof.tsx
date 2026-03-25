@@ -475,7 +475,7 @@ function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
                 <a
                   href={`/api/storage/objects/${ev.objectPath}`}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="text-primary hover:underline ml-3 font-semibold shrink-0"
                 >
                   View

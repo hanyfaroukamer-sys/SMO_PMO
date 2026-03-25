@@ -9,6 +9,7 @@ import {
   jsonb,
   date,
   unique,
+  index,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -52,7 +53,7 @@ export const spmoInitiativesTable = pgTable("spmo_initiatives", {
   pillarId: integer("pillar_id")
     .notNull()
     .references(() => spmoPillarsTable.id, { onDelete: "cascade" }),
-  initiativeCode: text("initiative_code"),
+  initiativeCode: text("initiative_code").unique(),
   name: text("name").notNull(),
   description: text("description"),
   ownerId: text("owner_id").notNull(),
@@ -74,7 +75,9 @@ export const spmoInitiativesTable = pgTable("spmo_initiatives", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("idx_initiatives_pillar_id").on(t.pillarId),
+]);
 
 export const insertSpmoInitiativeSchema = createInsertSchema(
   spmoInitiativesTable
@@ -116,7 +119,7 @@ export type SpmoDepartment = typeof spmoDepartmentsTable.$inferSelect;
 export const spmoProjectsTable = pgTable("spmo_projects", {
   id: serial("id").primaryKey(),
   depStatus: text("dep_status", { enum: ["blocked", "ready"] }).notNull().default("ready"),
-  projectCode: text("project_code"),
+  projectCode: text("project_code").unique(),
   initiativeId: integer("initiative_id")
     .notNull()
     .references(() => spmoInitiativesTable.id, { onDelete: "cascade" }),
@@ -145,7 +148,10 @@ export const spmoProjectsTable = pgTable("spmo_projects", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("idx_projects_initiative_id").on(t.initiativeId),
+  index("idx_projects_department_id").on(t.departmentId),
+]);
 
 export const insertSpmoProjectSchema = createInsertSchema(
   spmoProjectsTable
@@ -194,7 +200,9 @@ export const spmoMilestonesTable = pgTable("spmo_milestones", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("idx_milestones_project_id").on(t.projectId),
+]);
 
 export const insertSpmoMilestoneSchema = createInsertSchema(
   spmoMilestonesTable
@@ -226,7 +234,9 @@ export const spmoEvidenceTable = pgTable("spmo_evidence", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (t) => [
+  index("idx_evidence_milestone_id").on(t.milestoneId),
+]);
 
 export const insertSpmoEvidenceSchema = createInsertSchema(
   spmoEvidenceTable
@@ -251,8 +261,8 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
   baseline: real("baseline").notNull().default(0),
   target: real("target").notNull().default(0),
   actual: real("actual").notNull().default(0),
-  projectId: integer("project_id"),
-  pillarId: integer("pillar_id"),
+  projectId: integer("project_id").references(() => spmoProjectsTable.id, { onDelete: "set null" }),
+  pillarId: integer("pillar_id").references(() => spmoPillarsTable.id, { onDelete: "set null" }),
   initiativeId: integer("initiative_id").references(
     () => spmoInitiativesTable.id,
     { onDelete: "set null" }
@@ -299,7 +309,11 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("idx_kpis_pillar_id").on(t.pillarId),
+  index("idx_kpis_project_id").on(t.projectId),
+  index("idx_kpis_initiative_id").on(t.initiativeId),
+]);
 
 export const insertSpmoKpiSchema = createInsertSchema(spmoKpisTable).omit({
   id: true,
@@ -325,7 +339,9 @@ export const spmoKpiMeasurementsTable = pgTable("spmo_kpi_measurements", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (t) => [
+  index("idx_kpi_measurements_kpi_id").on(t.kpiId),
+]);
 
 export const insertSpmoKpiMeasurementSchema = createInsertSchema(spmoKpiMeasurementsTable).omit({
   id: true,
@@ -339,8 +355,8 @@ export type SpmoKpiMeasurement = typeof spmoKpiMeasurementsTable.$inferSelect;
 // ─────────────────────────────────────────────
 export const spmoRisksTable = pgTable("spmo_risks", {
   id: serial("id").primaryKey(),
-  pillarId: integer("pillar_id"),
-  projectId: integer("project_id"),
+  pillarId: integer("pillar_id").references(() => spmoPillarsTable.id, { onDelete: "set null" }),
+  projectId: integer("project_id").references(() => spmoProjectsTable.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   description: text("description"),
   category: text("category"),
@@ -368,7 +384,10 @@ export const spmoRisksTable = pgTable("spmo_risks", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("idx_risks_pillar_id").on(t.pillarId),
+  index("idx_risks_project_id").on(t.projectId),
+]);
 
 export const insertSpmoRiskSchema = createInsertSchema(spmoRisksTable).omit({
   id: true,
@@ -394,7 +413,9 @@ export const spmoMitigationsTable = pgTable("spmo_mitigations", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (t) => [
+  index("idx_mitigations_risk_id").on(t.riskId),
+]);
 
 export const insertSpmoMitigationSchema = createInsertSchema(
   spmoMitigationsTable
@@ -410,8 +431,8 @@ export type SpmoMitigation = typeof spmoMitigationsTable.$inferSelect;
 // ─────────────────────────────────────────────
 export const spmoBudgetTable = pgTable("spmo_budget_entries", {
   id: serial("id").primaryKey(),
-  projectId: integer("project_id"),
-  pillarId: integer("pillar_id"),
+  projectId: integer("project_id").references(() => spmoProjectsTable.id, { onDelete: "set null" }),
+  pillarId: integer("pillar_id").references(() => spmoPillarsTable.id, { onDelete: "set null" }),
   category: text("category").notNull(),
   description: text("description"),
   allocated: real("allocated").notNull().default(0),
@@ -427,7 +448,10 @@ export const spmoBudgetTable = pgTable("spmo_budget_entries", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("idx_budget_project_id").on(t.projectId),
+  index("idx_budget_pillar_id").on(t.pillarId),
+]);
 
 export const insertSpmoBudgetSchema = createInsertSchema(spmoBudgetTable).omit({
   id: true,
@@ -464,7 +488,9 @@ export const spmoProcurementTable = pgTable("spmo_procurement", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("idx_procurement_project_id").on(t.projectId),
+]);
 
 export const insertSpmoProcurementSchema = createInsertSchema(
   spmoProcurementTable
@@ -541,7 +567,9 @@ export const spmoActivityLogTable = pgTable("spmo_activity_log", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (t) => [
+  index("idx_activity_log_created_at").on(t.createdAt),
+]);
 
 export const insertSpmoActivityLogSchema = createInsertSchema(
   spmoActivityLogTable
@@ -575,7 +603,10 @@ export const spmoProjectWeeklyReportsTable = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (t) => [unique("uniq_project_week").on(t.projectId, t.weekStart)],
+  (t) => [
+    unique("uniq_project_week").on(t.projectId, t.weekStart),
+    index("idx_weekly_reports_project_id").on(t.projectId),
+  ],
 );
 
 export const insertSpmoProjectWeeklyReportSchema = createInsertSchema(
@@ -612,7 +643,9 @@ export const spmoChangeRequestsTable = pgTable("spmo_change_requests", {
   timelineImpact: integer("timeline_impact"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("idx_change_requests_project_id").on(t.projectId),
+]);
 
 export const insertSpmoChangeRequestSchema = createInsertSchema(spmoChangeRequestsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSpmoChangeRequest = z.infer<typeof insertSpmoChangeRequestSchema>;
@@ -637,7 +670,10 @@ export const spmoRaciTable = pgTable(
     }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [unique("uniq_raci_ms_user").on(t.milestoneId, t.userId)],
+  (t) => [
+    unique("uniq_raci_ms_user").on(t.milestoneId, t.userId),
+    index("idx_raci_project_id").on(t.projectId),
+  ],
 );
 
 export const insertSpmoRaciSchema = createInsertSchema(spmoRaciTable).omit({ id: true, createdAt: true });
@@ -665,7 +701,9 @@ export const spmoDocumentsTable = pgTable("spmo_documents", {
   tags: text("tags").array(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("idx_documents_project_id").on(t.projectId),
+]);
 
 export const insertSpmoDocumentSchema = createInsertSchema(spmoDocumentsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSpmoDocument = z.infer<typeof insertSpmoDocumentSchema>;
@@ -695,7 +733,9 @@ export const spmoActionsTable = pgTable("spmo_actions", {
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("idx_actions_project_id").on(t.projectId),
+]);
 
 export const insertSpmoActionSchema = createInsertSchema(spmoActionsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSpmoAction = z.infer<typeof insertSpmoActionSchema>;
@@ -720,7 +760,11 @@ export const spmoDependenciesTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     createdById: text("created_by_id"),
   },
-  (t) => [unique("uniq_dep_source_target").on(t.sourceId, t.targetId)],
+  (t) => [
+    unique("uniq_dep_source_target").on(t.sourceType, t.sourceId, t.targetType, t.targetId),
+    index("idx_dependencies_source_id").on(t.sourceId),
+    index("idx_dependencies_target_id").on(t.targetId),
+  ],
 );
 
 export const insertSpmoDependencySchema = createInsertSchema(spmoDependenciesTable).omit({
