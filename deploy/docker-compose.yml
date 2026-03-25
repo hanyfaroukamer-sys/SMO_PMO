@@ -1,0 +1,76 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: strategypmo
+      POSTGRES_USER: strategypmo
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme_in_production}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Remove this 'ports' section in production to block external DB access
+    # ports:
+    #   - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U strategypmo -d strategypmo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - internal
+
+  app:
+    image: ${APP_IMAGE:-strategypmo:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://strategypmo:${DB_PASSWORD:-changeme_in_production}@db:5432/strategypmo
+      PORT: "3000"
+      NODE_ENV: production
+      ISSUER_URL: ${ISSUER_URL:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_INTEGRATIONS_ANTHROPIC_API_KEY: ${AI_INTEGRATIONS_ANTHROPIC_API_KEY:-}
+      AI_INTEGRATIONS_ANTHROPIC_BASE_URL: ${AI_INTEGRATIONS_ANTHROPIC_BASE_URL:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      APP_URL: ${APP_URL:-}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      BASE_PATH: ${BASE_PATH:-/strategy-pmo/}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      FORCE_RESEED: ${FORCE_RESEED:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    networks:
+      - internal
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
