@@ -36,7 +36,7 @@ import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elem
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge, ShieldAlert, Telescope, Download } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge, ShieldAlert, Telescope, Download, Calendar } from "lucide-react";
 import { exportToXlsx, exportMultiSheetXlsx } from "@/lib/export";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
@@ -1099,10 +1099,106 @@ function ProjectRow({
       </div>
 
       {expanded && (
-        <>
-          <MilestoneSection projectId={project.id} pillarColor={pillarColor} isAdmin={isAdmin} targetMilestoneId={targetMilestoneId} />
-          <WeeklyReportSection projectId={project.id} />
-        </>
+        <div className="flex">
+          {/* Left: vertical milestone timeline */}
+          <VerticalMilestoneTimeline projectId={project.id} pillarColor={pillarColor} />
+          {/* Right: full milestone table + weekly report */}
+          <div className="flex-1 min-w-0">
+            <MilestoneSection projectId={project.id} pillarColor={pillarColor} isAdmin={isAdmin} targetMilestoneId={targetMilestoneId} />
+            <WeeklyReportSection projectId={project.id} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Vertical Milestone Timeline ──────────────────────────────────────────────
+const VMS_STYLE: Record<string, { dot: string; text: string }> = {
+  approved:    { dot: "bg-success border-success",           text: "text-success" },
+  submitted:   { dot: "bg-primary border-primary",           text: "text-primary" },
+  pending:     { dot: "bg-warning border-warning",           text: "text-warning" },
+  in_progress: { dot: "bg-blue-500 border-blue-500",         text: "text-blue-600" },
+  not_started: { dot: "bg-muted-foreground/30 border-border", text: "text-muted-foreground" },
+  delayed:     { dot: "bg-destructive border-destructive",   text: "text-destructive" },
+};
+
+function VerticalMilestoneTimeline({ projectId, pillarColor }: { projectId: number; pillarColor: string }) {
+  const { data, isLoading } = useListSpmoMilestones(projectId);
+  const milestones = (data?.milestones ?? []).slice().sort((a, b) => {
+    if (!a.dueDate && !b.dueDate) return 0;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+  });
+  const today = new Date();
+
+  return (
+    <div
+      className="shrink-0 border-t border-r border-border bg-secondary/5 flex flex-col"
+      style={{ width: 160 }}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/50 bg-secondary/30">
+        <Calendar className="w-3 h-3 text-muted-foreground" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Timeline</span>
+      </div>
+
+      {isLoading && (
+        <div className="flex justify-center py-6">
+          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {!isLoading && milestones.length === 0 && (
+        <div className="px-3 py-4 text-[10px] text-muted-foreground italic text-center">No milestones</div>
+      )}
+
+      {!isLoading && milestones.length > 0 && (
+        <div className="relative px-3 py-3 flex-1">
+          {/* Vertical rail — connects dot centres */}
+          <div
+            className="absolute left-[22px] top-[28px] bottom-[28px] w-0.5"
+            style={{ backgroundColor: pillarColor + "40" }}
+          />
+
+          <div className="space-y-0">
+            {milestones.map((m, idx) => {
+              const style = VMS_STYLE[m.status ?? "not_started"] ?? VMS_STYLE["not_started"];
+              const isOverdue = m.dueDate && new Date(m.dueDate) < today && m.status !== "approved";
+              const dateStr = m.dueDate
+                ? new Date(m.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" })
+                : null;
+              const isLast = idx === milestones.length - 1;
+
+              return (
+                <div key={m.id} className={`flex items-start gap-2 relative ${isLast ? "" : "pb-4"}`}>
+                  {/* Dot */}
+                  <div className="shrink-0 relative z-10 mt-0.5">
+                    <div className={`w-3.5 h-3.5 rounded-full border-2 ${style.dot} ${isOverdue ? "ring-2 ring-destructive/25" : ""}`} />
+                  </div>
+                  {/* Label */}
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className="text-[10px] font-semibold leading-tight line-clamp-2 text-foreground/80"
+                      title={m.name}
+                    >
+                      {m.name}
+                    </p>
+                    {dateStr && (
+                      <p className={`text-[9px] mt-0.5 font-medium ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
+                        {dateStr}
+                      </p>
+                    )}
+                    <span className={`text-[8px] font-bold capitalize ${style.text}`}>
+                      {(m.status ?? "not_started").replace(/_/g, " ")}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
