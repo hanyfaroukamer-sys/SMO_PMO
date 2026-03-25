@@ -506,7 +506,7 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
         stats.progress,
         i.startDate,
         i.targetDate,
-        i.budget,
+        Number(i.budget ?? 0),
         stats.budgetSpent,
         stats.rawProgress,
         stats.childProjects,
@@ -605,7 +605,7 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
   const projectsWithProgress = await Promise.all(
     projects.map(async (p) => {
       const ps = await projectProgress(p.id);
-      const projStatus: StatusResult = computeStatus(ps.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, ps.rawProgress);
+      const projStatus: StatusResult = computeStatus(ps.progress, p.startDate, p.targetDate, Number(p.budget ?? 0), Number(p.budgetSpent ?? 0), ps.rawProgress);
       return { ...p, ...ps, computedStatus: projStatus, healthStatus: projStatus.status };
     })
   );
@@ -733,8 +733,8 @@ router.get("/spmo/projects", async (req, res): Promise<void> => {
         stats.progress,
         p.startDate,
         p.targetDate,
-        p.budget,
-        p.budgetSpent,
+        Number(p.budget ?? 0),
+        Number(p.budgetSpent ?? 0),
         stats.rawProgress,
       );
       const pMilestones = await db.select({ phaseGate: spmoMilestonesTable.phaseGate, status: spmoMilestonesTable.status, progress: spmoMilestonesTable.progress }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
@@ -1774,10 +1774,10 @@ router.get("/spmo/budget", async (req, res): Promise<void> => {
     filteredProjects = allProjects.filter((p) => p.initiativeId !== null && iniIds.has(p.initiativeId));
   }
 
-  const totalAllocated = filteredProjects.reduce((s, p) => s + (p.budget ?? 0), 0);
-  const totalCapex    = filteredProjects.reduce((s, p) => s + (p.budgetCapex ?? 0), 0);
-  const totalOpex     = filteredProjects.reduce((s, p) => s + (p.budgetOpex ?? 0), 0);
-  const totalSpent    = filteredProjects.reduce((s, p) => s + (p.budgetSpent ?? 0), 0);
+  const totalAllocated = filteredProjects.reduce((s, p) => s + Number(p.budget ?? 0), 0);
+  const totalCapex    = filteredProjects.reduce((s, p) => s + Number(p.budgetCapex ?? 0), 0);
+  const totalOpex     = filteredProjects.reduce((s, p) => s + Number(p.budgetOpex ?? 0), 0);
+  const totalSpent    = filteredProjects.reduce((s, p) => s + Number(p.budgetSpent ?? 0), 0);
   const utilizationPct = totalAllocated > 0 ? Math.round((totalSpent / totalAllocated) * 1000) / 10 : 0;
 
   // Also fetch manual entries for the detailed entries tab
@@ -3405,7 +3405,7 @@ router.get("/spmo/dashboard/department-status", async (req, res) => {
     for (const p of deptProjects) {
       const milestones = await db.select({ phaseGate: spmoMilestonesTable.phaseGate, status: spmoMilestonesTable.status, progress: spmoMilestonesTable.progress }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
       const pStats = await projectProgress(p.id);
-      const health = computeStatus(pStats.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, pStats.rawProgress);
+      const health = computeStatus(pStats.progress, p.startDate, p.targetDate, Number(p.budget ?? 0), Number(p.budgetSpent ?? 0), pStats.rawProgress);
       const hs = health.status;
       if (hs === "on_track") stats.onTrack++;
       else if (hs === "at_risk") stats.atRisk++;
