@@ -42,6 +42,7 @@ import { Card, ProgressBar, StatusBadge, PageHeader } from "@/components/ui-elem
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useProjectPermissions } from "@/hooks/use-project-access";
 import {
   Loader2, ArrowLeft, CheckCircle2, XCircle, FileText, FileImage,
   FileArchive, FileSpreadsheet, Upload, AlertCircle, Clock, Target,
@@ -276,7 +277,8 @@ function MilestonesTab({
   milestoneApproved,
   pendingApprovals,
   canApprove,
-  canEdit,
+  canEditDetails,
+  canEditProgress,
   onInvalidate,
 }: {
   projectId: number;
@@ -284,7 +286,8 @@ function MilestonesTab({
   milestoneApproved: number;
   pendingApprovals: number;
   canApprove: boolean;
-  canEdit: boolean;
+  canEditDetails: boolean;
+  canEditProgress: boolean;
   onInvalidate: () => void;
 }) {
   const createMilestone = useCreateSpmoMilestone();
@@ -327,7 +330,7 @@ function MilestonesTab({
               <span className="flex items-center gap-1 text-warning font-semibold"><AlertCircle className="w-3.5 h-3.5" /> {pendingApprovals} pending</span>
             )}
           </div>
-          {canEdit && !showAdd && (
+          {canEditDetails && !showAdd && (
             <button
               onClick={() => setShowAdd(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -392,7 +395,7 @@ function MilestonesTab({
         <Card className="text-center py-16">
           <ClipboardList className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
           <h3 className="font-bold">No milestones yet</h3>
-          {canEdit ? (
+          {canEditDetails ? (
             <button onClick={() => setShowAdd(true)} className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors mx-auto">
               <Plus className="w-4 h-4" /> Add First Milestone
             </button>
@@ -404,7 +407,7 @@ function MilestonesTab({
 
       {/* List */}
       {milestones.map((m) => (
-        <MilestoneRow key={m.id} milestone={m} canApprove={canApprove} canEdit={canEdit} onInvalidate={onInvalidate} />
+        <MilestoneRow key={m.id} milestone={m} canApprove={canApprove} canEditDetails={canEditDetails} canEditProgress={canEditProgress} onInvalidate={onInvalidate} />
       ))}
     </div>
   );
@@ -415,12 +418,14 @@ function MilestonesTab({
 function MilestoneRow({
   milestone,
   canApprove,
-  canEdit,
+  canEditDetails,
+  canEditProgress,
   onInvalidate,
 }: {
   milestone: SpmoMilestoneWithEvidence;
   canApprove: boolean;
-  canEdit: boolean;
+  canEditDetails: boolean;
+  canEditProgress: boolean;
   onInvalidate: () => void;
 }) {
   const updateMilestone = useUpdateSpmoMilestone();
@@ -628,7 +633,7 @@ function MilestoneRow({
                   </div>
                   <ProgressBar progress={milestone.progress ?? 0} showLabel={false} />
                 </div>
-                {!isApproved && (
+                {!isApproved && canEditProgress && (
                   progressEditing ? (
                     <div className="flex items-center gap-1.5">
                       <input
@@ -685,8 +690,8 @@ function MilestoneRow({
               <EvidenceSection milestone={milestone} canApprove={canApprove} onInvalidate={onInvalidate} />
             </div>
 
-            {/* Action buttons */}
-            {canEdit && (
+            {/* Action buttons — admin-only full edit/delete */}
+            {canEditDetails && (
               <div className="flex flex-col items-end gap-1 shrink-0">
                 <button
                   onClick={openDetailEdit}
@@ -751,6 +756,11 @@ export default function ProjectDetail({ params }: Props) {
   const canApprove = userRole === "admin" || userRole === "approver";
   const canEditReport = userRole === "admin" || userRole === "project-manager";
   const isAdmin = userRole === "admin";
+
+  const perms = useProjectPermissions(projectId);
+  // Admins have full milestone control; PMs can only touch progress %
+  const canEditMilestoneDetails = isAdmin;
+  const canEditMilestoneProgress = isAdmin || (userRole === "project-manager" && (perms?.canManageMilestones ?? false));
 
   const { data: project, isLoading } = useGetSpmoProject(projectId);
   const { data: pillarsData } = useListSpmoPillars();
@@ -1123,7 +1133,8 @@ export default function ProjectDetail({ params }: Props) {
             milestoneApproved={milestoneApproved}
             pendingApprovals={project.pendingApprovals}
             canApprove={canApprove}
-            canEdit={isAdmin || canEditReport}
+            canEditDetails={canEditMilestoneDetails}
+            canEditProgress={canEditMilestoneProgress}
             onInvalidate={invalidate}
           />
         </div>
