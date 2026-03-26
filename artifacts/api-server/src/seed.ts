@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { readFileSync, existsSync } from "fs";
-import { resolve, dirname } from "path";
+import { resolve } from "path";
 
 export async function seedIfEmpty(): Promise<void> {
   const forceReseed = process.env.FORCE_RESEED === "1" || process.env.FORCE_RESEED === "true";
@@ -51,13 +51,8 @@ export async function seedIfEmpty(): Promise<void> {
   const seedFile = demoMode ? "seed-demo.sql" : "seed-full.sql";
   console.log(`[seed] Loading ${demoMode ? "DEMO (NSA)" : "full (KFCA)"} dataset from ${seedFile}…`);
 
-  let seedPath: string;
-  if (typeof __dirname !== "undefined") {
-    seedPath = resolve(__dirname, seedFile);
-  } else {
-    const { fileURLToPath } = await import("url");
-    seedPath = resolve(dirname(fileURLToPath(import.meta.url)), seedFile);
-  }
+  // In CJS builds (production), __dirname is always available
+  const seedPath = resolve(__dirname, seedFile);
   if (!existsSync(seedPath)) {
     console.log(`[seed] ${seedFile} not found at ${seedPath} — skipping.`);
     return;
