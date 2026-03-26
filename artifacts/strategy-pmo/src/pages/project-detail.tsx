@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { UserMentionInput } from "@/components/user-mention-input";
 import { useLocation, Link } from "wouter";
 import {
   useGetSpmoProject,
@@ -1947,7 +1948,7 @@ function ActionRow({
           </div>
           <div>
             <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Assignee</label>
-            <input value={form.assigneeName} onChange={f("assigneeName")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="Name" />
+            <UserMentionInput value={form.assigneeName} onChange={(name) => setForm((v) => ({ ...v, assigneeName: name }))} placeholder="Type @ to mention or search users…" />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Due Date</label>
@@ -2081,10 +2082,10 @@ function QuickAddAction({
       </div>
       {expanded && (
         <div className="mt-3 grid grid-cols-3 gap-2">
-          <input
+          <UserMentionInput
             value={assigneeName}
-            onChange={(e) => setAssigneeName(e.target.value)}
-            placeholder="Assignee"
+            onChange={(name) => setAssigneeName(name)}
+            placeholder="@ Assignee"
             className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
           <input
