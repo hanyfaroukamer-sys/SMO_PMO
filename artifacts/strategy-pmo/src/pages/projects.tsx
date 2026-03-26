@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { UserMentionInput } from "@/components/user-mention-input";
 import {
   useListSpmoProjects,
   useListSpmoInitiatives,
@@ -302,6 +303,7 @@ type ProjectForm = {
   description: string;
   initiativeId: string;
   departmentId: string;
+  ownerId: string;
   ownerName: string;
   weight: string;
   status: string;
@@ -311,7 +313,7 @@ type ProjectForm = {
 };
 
 const emptyProject = (): ProjectForm => ({
-  name: "", projectCode: "", description: "", initiativeId: "", departmentId: "", ownerName: "",
+  name: "", projectCode: "", description: "", initiativeId: "", departmentId: "", ownerId: "", ownerName: "",
   weight: "50", status: "active", budget: "", startDate: "", targetDate: "",
 });
 
@@ -402,6 +404,7 @@ export default function Projects() {
       description: project.description ?? "",
       initiativeId: String(project.initiativeId),
       departmentId: project.departmentId != null ? String(project.departmentId) : "",
+      ownerId: project.ownerId ?? "",
       ownerName: project.ownerName ?? "",
       weight: String(project.weight),
       status: project.status,
@@ -456,7 +459,7 @@ export default function Projects() {
       description: form.description || undefined,
       initiativeId: parseInt(form.initiativeId),
       departmentId: form.departmentId ? parseInt(form.departmentId) : null,
-      ownerId: "user",
+      ownerId: form.ownerId || "user",
       ownerName: form.ownerName || undefined,
       weight: parseFloat(form.weight) || 0,
       status: form.status as "active" | "on_hold" | "completed" | "cancelled",
@@ -889,7 +892,12 @@ export default function Projects() {
 
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Owner Name">
-              <input className={inputClass} value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} placeholder="e.g. Rania Ibrahim" />
+              <UserMentionInput
+                value={form.ownerName}
+                onChange={(name, userId) => setForm({ ...form, ownerName: name, ...(userId ? { ownerId: userId } : {}) })}
+                placeholder="Type @ to search users…"
+                className={inputClass}
+              />
             </FormField>
           </div>
 

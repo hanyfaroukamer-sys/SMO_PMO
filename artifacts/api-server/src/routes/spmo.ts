@@ -3523,6 +3523,18 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
     return daysLeft >= 0 && daysLeft <= 7;
   }).length;
 
+  // Count action items assigned to this user that are open/in_progress
+  const myActions = await db.select({ id: spmoActionsTable.id, dueDate: spmoActionsTable.dueDate, status: spmoActionsTable.status }).from(spmoActionsTable).where(and(eq(spmoActionsTable.assigneeId, userId), inArray(spmoActionsTable.status, ["open", "in_progress"])));
+  const overdueActions = myActions.filter((a) => a.dueDate && a.dueDate < today).length;
+  const pendingActions = myActions.length - overdueActions;
+
+  // Count project alerts for owned projects (high-score open risks)
+  let projectAlerts = 0;
+  if (myProjectIds.length > 0) {
+    const highRisks = await db.select({ id: spmoRisksTable.id }).from(spmoRisksTable).where(and(inArray(spmoRisksTable.projectId, myProjectIds), eq(spmoRisksTable.status, "open"), gte(spmoRisksTable.riskScore, 9)));
+    projectAlerts = highRisks.length;
+  }
+
   const [cfg] = await db.select({ weeklyResetDay: spmoProgrammeConfigTable.weeklyResetDay }).from(spmoProgrammeConfigTable).limit(1);
   const resetDay = cfg?.weeklyResetDay ?? 3;
   const weekStart = getCurrentWeekStart(resetDay);
@@ -3532,10 +3544,10 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
     weeklyDue = myProjectIds.length - existing.length;
   }
 
-  const total = pendingApprovals + overdueCount + dueSoonCount + weeklyDue;
-  const critical = overdueCount;
-  const high = pendingApprovals;
-  res.json({ total, critical, high, medium: dueSoonCount + weeklyDue, low: 0 });
+  const total = pendingApprovals + overdueCount + dueSoonCount + weeklyDue + overdueActions + pendingActions + projectAlerts;
+  const critical = overdueCount + overdueActions;
+  const high = pendingApprovals + projectAlerts;
+  res.json({ total, critical, high, medium: dueSoonCount + weeklyDue + pendingActions, low: 0 });
 });
 
 router.get("/spmo/my-tasks", async (req, res) => {
@@ -3604,6 +3616,54 @@ router.get("/spmo/my-tasks", async (req, res) => {
   }
   for (const m of blocked) {
     tasks.push({ id: `blocked-${m.id}`, type: "blocked", priority: "info", title: `Blocked: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Waiting on dependency`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft: null, action: "No action needed — blocked by upstream dependency", link: `/projects/${m.projectId}?tab=milestones` });
+  }
+
+  // ── Action items assigned to this user ──
+  const myActions = await db.select().from(spmoActionsTable).where(and(eq(spmoActionsTable.assigneeId, userId), inArray(spmoActionsTable.status, ["open", "in_progress"])));
+  // Build project name map for action projects
+  const actionProjectIds = [...new Set(myActions.map((a) => a.projectId))];
+  if (actionProjectIds.length > 0) {
+    const actionProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(inArray(spmoProjectsTable.id, actionProjectIds));
+    for (const p of actionProjects) if (!projectNameMap.has(p.id)) projectNameMap.set(p.id, p.name);
+  }
+  for (const a of myActions) {
+    const isOverdueAction = a.dueDate && a.dueDate < today;
+    const daysLeft = a.dueDate ? Math.ceil((new Date(a.dueDate).getTime() - now.getTime()) / 86400000) : null;
+    tasks.push({
+      id: `action-${a.id}`,
+      type: isOverdueAction ? "overdue" : "action_assigned",
+      priority: isOverdueAction ? "critical" : (a.priority === "urgent" || a.priority === "high" ? "medium" : "low"),
+      title: `${isOverdueAction ? "OVERDUE: " : ""}${a.title}`,
+      subtitle: `${projectNameMap.get(a.projectId) ?? "—"} · ${a.priority} · ${a.status.replace("_", " ")}${a.dueDate ? ` · Due ${new Date(a.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}`,
+      entityType: "action",
+      entityId: a.id,
+      projectId: a.projectId,
+      dueDate: a.dueDate,
+      daysLeft,
+      action: isOverdueAction ? "Complete overdue action item immediately" : "Complete assigned action item",
+      link: `/projects/${a.projectId}?tab=actions`,
+    });
+  }
+
+  // ── Project owner alerts: high-score risks on owned projects ──
+  if (myProjectIds.length > 0) {
+    const highRisks = await db.select().from(spmoRisksTable).where(and(inArray(spmoRisksTable.projectId, myProjectIds), eq(spmoRisksTable.status, "open"), gte(spmoRisksTable.riskScore, 9)));
+    for (const r of highRisks) {
+      tasks.push({
+        id: `risk-alert-${r.id}`,
+        type: "risk_alert",
+        priority: r.riskScore >= 16 ? "critical" : "high",
+        title: `Risk Alert: ${r.title}`,
+        subtitle: `${projectNameMap.get(r.projectId!) ?? "—"} · Score ${r.riskScore} · ${r.probability}/${r.impact}`,
+        entityType: "risk",
+        entityId: r.id,
+        projectId: r.projectId!,
+        dueDate: null,
+        daysLeft: null,
+        action: "Review and add mitigation actions",
+        link: `/projects/${r.projectId}?tab=risks`,
+      });
+    }
   }
 
   const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
