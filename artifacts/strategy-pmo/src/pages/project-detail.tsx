@@ -446,18 +446,12 @@ function MilestoneRow({
   const deleteMilestone = useDeleteSpmoMilestone();
   const { toast } = useToast();
 
-  const [progressEditing, setProgressEditing] = useState(false);
-  const [progress, setProgress] = useState(milestone.progress ?? 0);
-
-  useEffect(() => {
-    if (!progressEditing) setProgress(milestone.progress ?? 0);
-  }, [milestone.progress, progressEditing]);
-
   const [detailEditing, setDetailEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [draft, setDraft] = useState({
     name: milestone.name,
     weight: milestone.weight ?? 0,
+    progress: milestone.progress ?? 0,
     description: milestone.description ?? "",
     startDate: milestone.startDate ? milestone.startDate.toString().slice(0, 10) : "",
     dueDate: milestone.dueDate ? milestone.dueDate.toString().slice(0, 10) : "",
@@ -469,17 +463,11 @@ function MilestoneRow({
   const isSubmitted = milestone.status === "submitted";
   const isPhaseGate = !!(milestone as { phaseGate?: string | null }).phaseGate;
 
-  const saveProgress = async () => {
-    await updateMilestone.mutateAsync({ id: milestone.id, data: { progress } });
-    toast({ title: "Progress updated" });
-    onInvalidate();
-    setProgressEditing(false);
-  };
-
   const openDetailEdit = () => {
     setDraft({
       name: milestone.name,
       weight: milestone.weight ?? 0,
+      progress: milestone.progress ?? 0,
       description: milestone.description ?? "",
       startDate: milestone.startDate ? milestone.startDate.toString().slice(0, 10) : "",
       dueDate: milestone.dueDate ? milestone.dueDate.toString().slice(0, 10) : "",
@@ -499,6 +487,7 @@ function MilestoneRow({
         data: {
           name: draft.name.trim(),
           weight: Number(draft.weight) || 0,
+          progress: Math.min(100, Math.max(0, Number(draft.progress) || 0)),
           description: draft.description || undefined,
           startDate: draft.startDate || undefined,
           dueDate: draft.dueDate || undefined,
@@ -554,9 +543,22 @@ function MilestoneRow({
                 type="number"
                 min={0}
                 max={100}
-                className={inputCls}
+                className={`${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                 value={draft.weight}
                 onChange={(e) => setDraft((d) => ({ ...d, weight: +e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] text-muted-foreground mb-0.5">Progress (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                disabled={!canEditProgress}
+                title={!canEditProgress ? "You don't have permission to update progress" : undefined}
+                className={`${inputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${!canEditProgress ? "opacity-40 cursor-not-allowed" : ""}`}
+                value={draft.progress}
+                onChange={(e) => setDraft((d) => ({ ...d, progress: Math.min(100, Math.max(0, +e.target.value)) }))}
               />
             </div>
             <div>
@@ -652,31 +654,9 @@ function MilestoneRow({
                   <ProgressBar progress={milestone.progress ?? 0} showLabel={false} />
                 </div>
                 {!isApproved && (
-                  progressEditing && canEditProgress ? (
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={progress}
-                        onChange={(e) => setProgress(Math.min(100, Math.max(0, +e.target.value)))}
-                        className="w-16 text-xs border border-border rounded-lg px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
-                      <button onClick={saveProgress} disabled={updateMilestone.isPending} className="text-[10px] font-semibold text-success hover:underline">
-                        {updateMilestone.isPending ? "…" : "Save"}
-                      </button>
-                      <button onClick={() => setProgressEditing(false)} className="text-[10px] text-muted-foreground hover:text-foreground">Cancel</button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={canEditProgress ? () => setProgressEditing(true) : undefined}
-                      disabled={!canEditProgress}
-                      title={!canEditProgress ? "You don't have permission to update progress" : undefined}
-                      className={`text-[10px] font-semibold text-primary hover:underline ${!canEditProgress ? "opacity-40 cursor-not-allowed" : ""}`}
-                    >
-                      Update %
-                    </button>
-                  )
+                  <span className="text-[10px] text-muted-foreground">
+                    Use <span className="font-semibold">Edit</span> to update progress
+                  </span>
                 )}
               </div>
 
