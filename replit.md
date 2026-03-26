@@ -15,6 +15,10 @@ Full-stack pnpm monorepo hosting two production-grade government applications:
 - **Documents** — document library per project with category, tags, versioning; global `/documents` page with search/filter and export
 - **Export** — XLSX export buttons on Projects, KPIs, Op KPIs, Budget, Risks, and Documents pages
 - **Project Detail Tabs** — 8 tabs: Overview, Milestones, Weekly Report, Risks, Change Control, RACI, Actions, Documents
+- **Excel Bulk Import** — structured `.xlsx` template with 13 entity sheets (Pillars, Departments, Initiatives, Projects, Milestones, KPIs, KPI Measurements, Risks, Mitigations, Budget, Procurement, Actions); download via "Import Strategy" sidebar → "Download Template" button; upload returns row counts per table + skipped-row detail; supports new/merge/replace modes (replace = admin only)
+- **AI-Powered Document Import** — upload any PDF/Excel/document; Claude AI analyses and extracts structured data into a review form before saving; accessible via same "Import Strategy" page
+- **Security Hardening** — helmet, CORS whitelist, rate limiting, auth on all routes, RBAC on writes, file-type validation, sanitised AI inputs
+- **Demo Seed (NSA)** — 100 projects across 9 pillars, 26 initiatives, 900 milestones, 42 KPIs, 10 departments; realistic 2026 portfolio mix (60 active, 15 completed, 15 at-risk, 10 on-hold)
 
 ## Stack
 
@@ -114,6 +118,10 @@ artifacts-monorepo/
 | GET | /activity-log | Full audit trail |
 | POST | /ai/assessment | AI programme health assessment (Claude, 5min cache) |
 | POST | /ai/validate-evidence | AI evidence quality validation |
+| GET | /import/template | Download pre-formatted `.xlsx` bulk import template (13 sheets) |
+| POST | /import/bulk | Upload filled template → insert/merge/replace; returns `{ imported, skipped }` |
+| POST | /import/analyse | AI-powered document analysis (PDF/Excel → structured data) |
+| POST | /import/save | Persist AI-extracted data after user review |
 
 ## Initiative Tracker API Routes (all under `/api`)
 

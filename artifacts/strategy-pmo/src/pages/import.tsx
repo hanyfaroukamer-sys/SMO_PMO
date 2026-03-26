@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { Upload, FileText, X, CheckCircle2, AlertTriangle, Loader2, ChevronDown, ChevronUp, Plus, Trash2, ShieldCheck } from "lucide-react";
+import { Upload, FileText, X, CheckCircle2, AlertTriangle, Loader2, ChevronDown, ChevronUp, Plus, Trash2, ShieldCheck, Download, Table2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -498,6 +498,198 @@ function ReviewStep({
   );
 }
 
+// ─── EXCEL BULK IMPORT ────────────────────────────────────────────────────────
+
+type BulkMode = "new" | "merge" | "replace";
+interface BulkResult { imported: Record<string, number>; skipped: Array<{ sheet: string; row: number; reason: string }> }
+
+const ENTITY_LABELS: Record<string, string> = {
+  programme_config: "Programme Config", departments: "Departments", pillars: "Pillars",
+  initiatives: "Initiatives", projects: "Projects", milestones: "Milestones",
+  kpis: "KPIs", kpi_measurements: "KPI Measurements", risks: "Risks",
+  mitigations: "Mitigations", budget_entries: "Budget Entries",
+  procurement: "Procurement", actions: "Actions",
+};
+
+function ExcelBulkImport() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const isAdmin = useIsAdmin();
+  const [mode, setMode] = useState<BulkMode>("new");
+  const [file, setFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [result, setResult] = useState<BulkResult | null>(null);
+  const [showSkipped, setShowSkipped] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const totalImported = result ? Object.values(result.imported).reduce((s, n) => s + n, 0) : 0;
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const res = await fetch("/api/spmo/import/template", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to download template");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "strategypmo-template.xlsx"; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Download failed", description: "Could not download the template.", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault(); setDragging(false);
+    const f = Array.from(e.dataTransfer.files).find(f => f.name.endsWith(".xlsx"));
+    if (f) setFile(f);
+  }
+
+  async function handleUpload() {
+    if (!file) return;
+    setUploading(true); setResult(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("mode", mode);
+      const res = await fetch("/api/spmo/import/bulk", { method: "POST", body: form, credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || data.error || "Import failed");
+      setResult(data);
+      await qc.invalidateQueries();
+      toast({ title: "Import complete", description: `${Object.values(data.imported).reduce((s: number, n) => s + (n as number), 0)} rows imported successfully.` });
+    } catch (e: any) {
+      toast({ title: "Import failed", description: e.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  if (!isAdmin) return null;
+
+  return (
+    <div className="rounded-xl border bg-card shadow-sm mb-8">
+      <div className="flex items-center justify-between px-6 py-4 border-b">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center">
+            <Table2 className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-sm">Excel Bulk Import</h2>
+            <p className="text-xs text-muted-foreground">Upload a pre-filled template to load data across all 13 entity types at once</p>
+          </div>
+        </div>
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-60"
+        >
+          {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          Download Template
+        </button>
+      </div>
+
+      <div className="p-6 space-y-5">
+        {/* Mode selector */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Import Mode</p>
+          <div className="flex gap-2">
+            {(["new", "merge", "replace"] as BulkMode[]).map(m => (
+              <button key={m} onClick={() => setMode(m)}
+                className={cn("px-3 py-1.5 rounded-md text-sm font-medium border transition-colors capitalize", mode === m ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted")}>
+                {m}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1.5">
+            {mode === "new" && "Insert only — skips rows whose name already exists."}
+            {mode === "merge" && "Update existing records by name, insert new ones."}
+            {mode === "replace" && "Truncates all tables before import. Admin only."}
+          </p>
+        </div>
+
+        {/* Drop zone */}
+        <div
+          onDragOver={e => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          onClick={() => inputRef.current?.click()}
+          className={cn("border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors text-center", dragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/40")}
+        >
+          <input ref={inputRef} type="file" accept=".xlsx" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) setFile(f); }} />
+          {file ? (
+            <div className="flex items-center justify-center gap-3">
+              <FileText className="w-5 h-5 text-emerald-500 shrink-0" />
+              <span className="text-sm font-medium">{file.name}</span>
+              <button onClick={e => { e.stopPropagation(); setFile(null); setResult(null); }} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <Upload className="w-8 h-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Drop your <span className="font-medium">.xlsx</span> template here or click to browse</p>
+            </div>
+          )}
+        </div>
+
+        {/* Upload button */}
+        <button
+          onClick={handleUpload}
+          disabled={!file || uploading}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {uploading ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing…</> : <><Upload className="w-4 h-4" /> Upload & Import</>}
+        </button>
+
+        {/* Results */}
+        {result && (
+          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              <span className="text-sm font-semibold">{totalImported} rows imported</span>
+              <button onClick={() => { setFile(null); setResult(null); }} className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <RefreshCw className="w-3 h-3" /> Reset
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {Object.entries(result.imported).map(([key, count]) => (
+                <div key={key} className="flex justify-between px-3 py-1.5 rounded bg-background border text-xs">
+                  <span className="text-muted-foreground">{ENTITY_LABELS[key] ?? key}</span>
+                  <span className="font-semibold tabular-nums">{count}</span>
+                </div>
+              ))}
+            </div>
+            {result.skipped.length > 0 && (
+              <div>
+                <button onClick={() => setShowSkipped(s => !s)} className="flex items-center gap-1.5 text-xs text-amber-600 font-medium">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {result.skipped.length} row{result.skipped.length > 1 ? "s" : ""} skipped
+                  {showSkipped ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+                {showSkipped && (
+                  <div className="mt-2 rounded border overflow-hidden text-xs">
+                    <table className="w-full">
+                      <thead className="bg-muted"><tr><th className="text-left px-3 py-1.5 font-medium">Sheet</th><th className="text-left px-3 py-1.5 font-medium">Row</th><th className="text-left px-3 py-1.5 font-medium">Reason</th></tr></thead>
+                      <tbody>{result.skipped.map((s, i) => (
+                        <tr key={i} className="border-t"><td className="px-3 py-1.5">{s.sheet}</td><td className="px-3 py-1.5">{s.row}</td><td className="px-3 py-1.5 text-muted-foreground">{s.reason}</td></tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
 export default function ImportPage() {
@@ -580,6 +772,15 @@ export default function ImportPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      {/* Excel Bulk Import */}
+      <ExcelBulkImport />
+
+      {/* Divider */}
+      <div className="relative mb-8">
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
+        <div className="relative flex justify-center"><span className="bg-background px-3 text-xs text-muted-foreground">or use AI-powered document analysis</span></div>
+      </div>
+
       {/* Progress stepper */}
       <div className="flex items-center gap-2 mb-8">
         {[{ label: "Upload Documents", active: step === "upload", done: step === "review" }, { label: "Review & Edit", active: step === "review", done: false }].map((s, i) => (
