@@ -889,13 +889,22 @@ router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
   }
 
   const stats = await projectProgress(project.id);
-  const milestones = await db
+  const milestonesRaw = await db
     .select()
     .from(spmoMilestonesTable)
-    .where(eq(spmoMilestonesTable.projectId, project.id));
+    .where(eq(spmoMilestonesTable.projectId, project.id))
+    .orderBy(asc(spmoMilestonesTable.createdAt));
+
+  const PHASE_ORDER: Record<string, number> = { planning: 0, tendering: 1, closure: 3 };
+  const milestonesSorted = [...milestonesRaw].sort((a, b) => {
+    const aOrder = a.phaseGate ? PHASE_ORDER[a.phaseGate] : 2;
+    const bOrder = b.phaseGate ? PHASE_ORDER[b.phaseGate] : 2;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
 
   const milestonesWithEvidence = await Promise.all(
-    milestones.map(async (m) => {
+    milestonesSorted.map(async (m) => {
       const evidence = await db.select().from(spmoEvidenceTable).where(eq(spmoEvidenceTable.milestoneId, m.id));
       return { ...m, evidence };
     })
