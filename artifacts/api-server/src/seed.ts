@@ -47,15 +47,19 @@ export async function seedIfEmpty(): Promise<void> {
   `);
   console.log("[seed] All SPMO tables truncated.");
 
+  const demoMode = process.env.DEMO_MODE === "1" || process.env.DEMO_MODE === "true";
+  const seedFile = demoMode ? "seed-demo.sql" : "seed-full.sql";
+  console.log(`[seed] Loading ${demoMode ? "DEMO (NSA)" : "full (KFCA)"} dataset from ${seedFile}…`);
+
   let seedPath: string;
   if (typeof __dirname !== "undefined") {
-    seedPath = resolve(__dirname, "seed-full.sql");
+    seedPath = resolve(__dirname, seedFile);
   } else {
     const { fileURLToPath } = await import("url");
-    seedPath = resolve(dirname(fileURLToPath(import.meta.url)), "seed-full.sql");
+    seedPath = resolve(dirname(fileURLToPath(import.meta.url)), seedFile);
   }
   if (!existsSync(seedPath)) {
-    console.log(`[seed] seed-full.sql not found at ${seedPath} — skipping.`);
+    console.log(`[seed] ${seedFile} not found at ${seedPath} — skipping.`);
     return;
   }
   const seedSql = readFileSync(seedPath, "utf-8");
@@ -72,25 +76,33 @@ export async function seedIfEmpty(): Promise<void> {
     loaded++;
   }
 
-  // Reset all sequences to avoid PK collisions on future inserts
-  await db.execute(sql`
-    SELECT setval('spmo_pillars_id_seq',             COALESCE((SELECT MAX(id) FROM spmo_pillars), 1));
-    SELECT setval('spmo_departments_id_seq',          COALESCE((SELECT MAX(id) FROM spmo_departments), 1));
-    SELECT setval('spmo_programme_config_id_seq',     COALESCE((SELECT MAX(id) FROM spmo_programme_config), 1));
-    SELECT setval('spmo_initiatives_id_seq',          COALESCE((SELECT MAX(id) FROM spmo_initiatives), 1));
-    SELECT setval('spmo_projects_id_seq',             COALESCE((SELECT MAX(id) FROM spmo_projects), 1));
-    SELECT setval('spmo_milestones_id_seq',           COALESCE((SELECT MAX(id) FROM spmo_milestones), 1));
-    SELECT setval('spmo_kpis_id_seq',                 COALESCE((SELECT MAX(id) FROM spmo_kpis), 1));
-    SELECT setval('spmo_risks_id_seq',                COALESCE((SELECT MAX(id) FROM spmo_risks), 1));
-    SELECT setval('spmo_budget_entries_id_seq',       COALESCE((SELECT MAX(id) FROM spmo_budget_entries), 1));
-    SELECT setval('spmo_procurement_id_seq',          COALESCE((SELECT MAX(id) FROM spmo_procurement), 1));
-    SELECT setval('spmo_kpi_measurements_id_seq',     COALESCE((SELECT MAX(id) FROM spmo_kpi_measurements), 1));
-    SELECT setval('spmo_evidence_id_seq',             COALESCE((SELECT MAX(id) FROM spmo_evidence), 1));
-    SELECT setval('spmo_actions_id_seq',              COALESCE((SELECT MAX(id) FROM spmo_actions), 1));
-    SELECT setval('spmo_change_requests_id_seq',      COALESCE((SELECT MAX(id) FROM spmo_change_requests), 1));
-    SELECT setval('spmo_raci_id_seq',                 COALESCE((SELECT MAX(id) FROM spmo_raci), 1));
-    SELECT setval('spmo_mitigations_id_seq',          COALESCE((SELECT MAX(id) FROM spmo_mitigations), 1));
-  `);
+  // Reset each sequence individually — spmo_programme_config uses a plain default (no sequence)
+  const seqTables: [string, string][] = [
+    ['spmo_pillars_id_seq',           'spmo_pillars'],
+    ['spmo_departments_id_seq',       'spmo_departments'],
+    ['spmo_initiatives_id_seq',       'spmo_initiatives'],
+    ['spmo_projects_id_seq',          'spmo_projects'],
+    ['spmo_milestones_id_seq',        'spmo_milestones'],
+    ['spmo_kpis_id_seq',              'spmo_kpis'],
+    ['spmo_risks_id_seq',             'spmo_risks'],
+    ['spmo_budget_entries_id_seq',    'spmo_budget_entries'],
+    ['spmo_procurement_id_seq',       'spmo_procurement'],
+    ['spmo_kpi_measurements_id_seq',  'spmo_kpi_measurements'],
+    ['spmo_evidence_id_seq',          'spmo_evidence'],
+    ['spmo_actions_id_seq',           'spmo_actions'],
+    ['spmo_change_requests_id_seq',   'spmo_change_requests'],
+    ['spmo_raci_id_seq',              'spmo_raci'],
+    ['spmo_mitigations_id_seq',       'spmo_mitigations'],
+  ];
+  for (const [seq, tbl] of seqTables) {
+    try {
+      await db.execute(sql.raw(
+        `SELECT setval('${seq}', COALESCE((SELECT MAX(id) FROM ${tbl}), 1))`
+      ));
+    } catch (e: any) {
+      console.warn(`[seed] Could not reset sequence ${seq}: ${e.message}`);
+    }
+  }
 
   console.log(`[seed] Loaded ${loaded} rows successfully.`);
 }

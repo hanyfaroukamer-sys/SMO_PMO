@@ -7,6 +7,7 @@ import milestonesRouter from "./milestones";
 import usersRouter from "./users";
 import spmoRouter from "./spmo";
 import importRouter from "./import";
+import bulkImportRouter from "./bulk-import";
 import dependenciesRouter from "./dependencies";
 import reportsRouter from "./reports";
 
@@ -20,6 +21,7 @@ router.use(milestonesRouter);
 router.use(usersRouter);
 router.use(spmoRouter);
 router.use(importRouter);
+router.use(bulkImportRouter);
 router.use(dependenciesRouter);
 router.use("/spmo/reports", reportsRouter);
 

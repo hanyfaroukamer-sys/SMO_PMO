@@ -59,6 +59,12 @@ async function buildAll() {
     path.resolve(distDir, "seed-full.sql"),
   );
   console.log("copied seed-full.sql to dist/");
+
+  await copyFile(
+    path.resolve(__dirname, "src/seed-demo.sql"),
+    path.resolve(distDir, "seed-demo.sql"),
+  );
+  console.log("copied seed-demo.sql to dist/");
 }
 
 buildAll().catch((err) => {
