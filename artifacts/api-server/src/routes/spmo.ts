@@ -216,7 +216,7 @@ const ALL_PERMISSIONS: ProjectPermission[] = [
   "canSubmitChangeRequests",
 ];
 
-/** Returns true if the user has the given permission on this project. Admins always pass. */
+/** Returns true if the user has the given permission on this project. Admins always pass. PMs pass by default (all perms) unless explicitly restricted via a project access row. */
 async function checkProjectPerm(
   userId: string,
   userRole: string | null | undefined,
@@ -240,7 +240,8 @@ async function checkProjectPerm(
     .from(spmoProjectAccessTable)
     .where(and(eq(spmoProjectAccessTable.projectId, projectId), eq(spmoProjectAccessTable.userId, userId)))
     .limit(1);
-  if (!grant) return false;
+  // If no explicit access row exists, PMs have all permissions by default
+  if (!grant) return true;
   return grant[permission] ?? false;
 }
 
@@ -1728,14 +1729,20 @@ router.put("/spmo/risks/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Check per-project permission
+  const [existingRisk] = await db.select().from(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id));
+  if (!existingRisk) { res.status(404).json({ error: "Risk not found" }); return; }
+  const user = getAuthUser(req);
+  if (existingRisk.projectId && !(await checkProjectPerm(userId, user?.role, existingRisk.projectId, "canManageRisks"))) {
+    res.status(403).json({ error: "You do not have permission to manage risks on this project" });
+    return;
+  }
+
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.probability || parsed.data.impact) {
-    const [existing] = await db.select().from(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id));
-    if (existing) {
-      const prob = parsed.data.probability ?? existing.probability;
-      const imp = parsed.data.impact ?? existing.impact;
-      updateData.riskScore = computeRiskScore(prob, imp);
-    }
+    const prob = parsed.data.probability ?? existingRisk.probability;
+    const imp = parsed.data.impact ?? existingRisk.impact;
+    updateData.riskScore = computeRiskScore(prob, imp);
   }
 
   const [risk] = await db
@@ -1744,12 +1751,6 @@ router.put("/spmo/risks/:id", async (req, res): Promise<void> => {
     .where(eq(spmoRisksTable.id, params.data.id))
     .returning();
 
-  if (!risk) {
-    res.status(404).json({ error: "Risk not found" });
-    return;
-  }
-
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "updated", "risk", risk.id, risk.title);
   res.json(risk);
 });
@@ -1764,12 +1765,16 @@ router.delete("/spmo/risks/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [risk] = await db.delete(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id)).returning();
-  if (!risk) {
-    res.status(404).json({ error: "Risk not found" });
+  // Check per-project permission
+  const [existingRisk] = await db.select({ projectId: spmoRisksTable.projectId }).from(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id)).limit(1);
+  if (!existingRisk) { res.status(404).json({ error: "Risk not found" }); return; }
+  const user = getAuthUser(req);
+  if (existingRisk.projectId && !(await checkProjectPerm(userId, user?.role, existingRisk.projectId, "canManageRisks"))) {
+    res.status(403).json({ error: "You do not have permission to manage risks on this project" });
     return;
   }
 
+  await db.delete(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id));
   res.json({ success: true });
 });
 
@@ -1780,6 +1785,15 @@ router.post("/spmo/risks/:id/mitigations", async (req, res): Promise<void> => {
   const params = CreateSpmoMitigationParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  // Check per-project permission via the parent risk
+  const [parentRisk] = await db.select({ projectId: spmoRisksTable.projectId }).from(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id)).limit(1);
+  if (!parentRisk) { res.status(404).json({ error: "Risk not found" }); return; }
+  const user = getAuthUser(req);
+  if (parentRisk.projectId && !(await checkProjectPerm(userId, user?.role, parentRisk.projectId, "canManageRisks"))) {
+    res.status(403).json({ error: "You do not have permission to manage risks on this project" });
     return;
   }
 
@@ -1811,6 +1825,17 @@ router.put("/spmo/mitigations/:id", async (req, res): Promise<void> => {
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
+  }
+
+  // Check per-project permission via mitigation → risk → project
+  const [mitForAccess] = await db.select({ riskId: spmoMitigationsTable.riskId }).from(spmoMitigationsTable).where(eq(spmoMitigationsTable.id, params.data.id)).limit(1);
+  if (mitForAccess) {
+    const [risk] = await db.select({ projectId: spmoRisksTable.projectId }).from(spmoRisksTable).where(eq(spmoRisksTable.id, mitForAccess.riskId)).limit(1);
+    const user = getAuthUser(req);
+    if (risk?.projectId && !(await checkProjectPerm(userId, user?.role, risk.projectId, "canManageRisks"))) {
+      res.status(403).json({ error: "You do not have permission to manage risks on this project" });
+      return;
+    }
   }
 
   const parsed = UpdateSpmoMitigationBody.safeParse(req.body);
@@ -3202,6 +3227,14 @@ router.patch("/spmo/documents/:id", async (req, res) => {
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
+  // Check per-project permission
+  const [doc] = await db.select({ projectId: spmoDocumentsTable.projectId }).from(spmoDocumentsTable).where(eq(spmoDocumentsTable.id, id)).limit(1);
+  if (!doc) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (doc.projectId && !(await checkProjectPerm(userId, user?.role, doc.projectId, "canManageDocuments"))) {
+    res.status(403).json({ error: "You do not have permission to manage documents on this project" });
+    return;
+  }
   const body = z.object({
     title: z.string().optional(),
     description: z.string().optional(),
@@ -3224,8 +3257,15 @@ router.delete("/spmo/documents/:id", async (req, res) => {
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
-  const [row] = await db.delete(spmoDocumentsTable).where(eq(spmoDocumentsTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  // Check per-project permission
+  const [doc] = await db.select({ projectId: spmoDocumentsTable.projectId }).from(spmoDocumentsTable).where(eq(spmoDocumentsTable.id, id)).limit(1);
+  if (!doc) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (doc.projectId && !(await checkProjectPerm(userId, user?.role, doc.projectId, "canManageDocuments"))) {
+    res.status(403).json({ error: "You do not have permission to manage documents on this project" });
+    return;
+  }
+  await db.delete(spmoDocumentsTable).where(eq(spmoDocumentsTable.id, id));
   res.json({ ok: true });
 });
 
@@ -3279,6 +3319,14 @@ router.patch("/spmo/actions/:id", async (req, res) => {
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
+  // Check per-project permission
+  const [action] = await db.select({ projectId: spmoActionsTable.projectId }).from(spmoActionsTable).where(eq(spmoActionsTable.id, id)).limit(1);
+  if (!action) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, action.projectId, "canManageActions"))) {
+    res.status(403).json({ error: "You do not have permission to manage actions on this project" });
+    return;
+  }
   const body = z.object({
     title: z.string().optional(),
     description: z.string().optional(),
@@ -3299,9 +3347,44 @@ router.delete("/spmo/actions/:id", async (req, res) => {
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
-  const [row] = await db.delete(spmoActionsTable).where(eq(spmoActionsTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  // Check per-project permission
+  const [action] = await db.select({ projectId: spmoActionsTable.projectId }).from(spmoActionsTable).where(eq(spmoActionsTable.id, id)).limit(1);
+  if (!action) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, action.projectId, "canManageActions"))) {
+    res.status(403).json({ error: "You do not have permission to manage actions on this project" });
+    return;
+  }
+  await db.delete(spmoActionsTable).where(eq(spmoActionsTable.id, id));
   res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────
+// USER SEARCH (for @ tagging in action items — any authenticated user)
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/users/search", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const q = ((req.query.q as string) || "").trim().toLowerCase();
+  const allUsers = await db.select({
+    id: usersTable.id,
+    email: usersTable.email,
+    firstName: usersTable.firstName,
+    lastName: usersTable.lastName,
+    role: usersTable.role,
+  }).from(usersTable);
+
+  const filtered = q
+    ? allUsers.filter(u => {
+        const name = `${u.firstName ?? ""} ${u.lastName ?? ""}`.toLowerCase();
+        const email = (u.email ?? "").toLowerCase();
+        return name.includes(q) || email.includes(q);
+      })
+    : allUsers;
+
+  res.json({ users: filtered.slice(0, 20) });
 });
 
 // ─────────────────────────────────────────────────────────────
