@@ -3528,11 +3528,34 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
   const overdueActions = myActions.filter((a) => a.dueDate && a.dueDate < today).length;
   const pendingActions = myActions.length - overdueActions;
 
-  // Count project alerts for owned projects (high-score open risks)
+  // Count project-level alerts for owned projects
   let projectAlerts = 0;
+  let ownerOverdueMilestones = 0;
+  let ownerDueSoonMilestones = 0;
+  let delayedProjects = 0;
+  let atRiskProjects = 0;
   if (myProjectIds.length > 0) {
     const highRisks = await db.select({ id: spmoRisksTable.id }).from(spmoRisksTable).where(and(inArray(spmoRisksTable.projectId, myProjectIds), eq(spmoRisksTable.status, "open"), gte(spmoRisksTable.riskScore, 9)));
     projectAlerts = highRisks.length;
+
+    // Milestones in owned projects (overdue/due soon)
+    const assignedMsIds = new Set(myMilestones.map((m) => m.id));
+    const ownedMs = await db.select({ id: spmoMilestonesTable.id, dueDate: spmoMilestonesTable.dueDate, status: spmoMilestonesTable.status, assigneeId: spmoMilestonesTable.assigneeId }).from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), ne(spmoMilestonesTable.status, "approved")));
+    for (const m of ownedMs) {
+      if (assignedMsIds.has(m.id) || !m.dueDate) continue;
+      const dl = Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000);
+      if (m.dueDate < today) ownerOverdueMilestones++;
+      else if (dl <= 7) ownerDueSoonMilestones++;
+    }
+
+    // Project health
+    const myProjsFull = await db.select().from(spmoProjectsTable).where(inArray(spmoProjectsTable.id, myProjectIds));
+    for (const p of myProjsFull) {
+      const ps = await projectProgress(p.id);
+      const h = computeStatus(ps.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, ps.rawProgress);
+      if (h.status === "delayed") delayedProjects++;
+      else if (h.status === "at_risk") atRiskProjects++;
+    }
   }
 
   const [cfg] = await db.select({ weeklyResetDay: spmoProgrammeConfigTable.weeklyResetDay }).from(spmoProgrammeConfigTable).limit(1);
@@ -3544,10 +3567,10 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
     weeklyDue = myProjectIds.length - existing.length;
   }
 
-  const total = pendingApprovals + overdueCount + dueSoonCount + weeklyDue + overdueActions + pendingActions + projectAlerts;
-  const critical = overdueCount + overdueActions;
-  const high = pendingApprovals + projectAlerts;
-  res.json({ total, critical, high, medium: dueSoonCount + weeklyDue + pendingActions, low: 0 });
+  const total = pendingApprovals + overdueCount + dueSoonCount + weeklyDue + overdueActions + pendingActions + projectAlerts + ownerOverdueMilestones + ownerDueSoonMilestones + delayedProjects + atRiskProjects;
+  const critical = overdueCount + overdueActions + delayedProjects;
+  const high = pendingApprovals + projectAlerts + ownerOverdueMilestones + atRiskProjects;
+  res.json({ total, critical, high, medium: dueSoonCount + weeklyDue + pendingActions + ownerDueSoonMilestones, low: 0 });
 });
 
 router.get("/spmo/my-tasks", async (req, res) => {
@@ -3645,8 +3668,9 @@ router.get("/spmo/my-tasks", async (req, res) => {
     });
   }
 
-  // ── Project owner alerts: high-score risks on owned projects ──
+  // ── Project owner notifications for owned projects ──
   if (myProjectIds.length > 0) {
+    // Risk alerts: high-score open risks
     const highRisks = await db.select().from(spmoRisksTable).where(and(inArray(spmoRisksTable.projectId, myProjectIds), eq(spmoRisksTable.status, "open"), gte(spmoRisksTable.riskScore, 9)));
     for (const r of highRisks) {
       tasks.push({
@@ -3663,6 +3687,87 @@ router.get("/spmo/my-tasks", async (req, res) => {
         action: "Review and add mitigation actions",
         link: `/projects/${r.projectId}?tab=risks`,
       });
+    }
+
+    // Milestone due/overdue in owned projects (not already in assignee tasks)
+    const assignedMsIds = new Set(myMilestones.map((m) => m.id));
+    const ownedProjectMilestones = await db.select().from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), ne(spmoMilestonesTable.status, "approved")));
+    for (const m of ownedProjectMilestones) {
+      if (assignedMsIds.has(m.id)) continue; // Already shown as assignee task
+      if (!m.dueDate) continue;
+      const daysLeft = Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000);
+      if (m.dueDate < today) {
+        // Overdue milestone in owned project
+        tasks.push({
+          id: `owner-overdue-${m.id}`,
+          type: "owner_milestone_overdue",
+          priority: "high",
+          title: `Your Project — Overdue: ${m.name}`,
+          subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${Math.abs(daysLeft)}d overdue · ${m.progress}%`,
+          entityType: "milestone",
+          entityId: m.id,
+          projectId: m.projectId,
+          dueDate: m.dueDate,
+          daysLeft,
+          action: "Follow up with assignee on overdue milestone",
+          link: `/projects/${m.projectId}?tab=milestones`,
+        });
+      } else if (daysLeft <= 7) {
+        // Due soon milestone in owned project
+        tasks.push({
+          id: `owner-duesoon-${m.id}`,
+          type: "owner_milestone_due_soon",
+          priority: "medium",
+          title: `Your Project — Due in ${daysLeft}d: ${m.name}`,
+          subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${m.progress}%`,
+          entityType: "milestone",
+          entityId: m.id,
+          projectId: m.projectId,
+          dueDate: m.dueDate,
+          daysLeft,
+          action: "Ensure milestone is on track before deadline",
+          link: `/projects/${m.projectId}?tab=milestones`,
+        });
+      }
+    }
+
+    // Project health alerts: delayed or at_risk status
+    for (const p of myProjects) {
+      const pStats = await projectProgress(p.id);
+      const [projRow] = await db.select({ startDate: spmoProjectsTable.startDate, targetDate: spmoProjectsTable.targetDate, budget: spmoProjectsTable.budget, budgetSpent: spmoProjectsTable.budgetSpent }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, p.id)).limit(1);
+      if (!projRow) continue;
+      const health = computeStatus(pStats.progress, projRow.startDate, projRow.targetDate, projRow.budget, projRow.budgetSpent, pStats.rawProgress);
+      if (health.status === "delayed") {
+        tasks.push({
+          id: `project-delayed-${p.id}`,
+          type: "project_delayed",
+          priority: "critical",
+          title: `PROJECT DELAYED: ${p.name}`,
+          subtitle: `Progress ${pStats.progress}% · ${health.reason}`,
+          entityType: "project",
+          entityId: p.id,
+          projectId: p.id,
+          dueDate: projRow.targetDate,
+          daysLeft: projRow.targetDate ? Math.ceil((new Date(projRow.targetDate).getTime() - now.getTime()) / 86400000) : null,
+          action: "Urgent intervention needed — project is behind schedule",
+          link: `/projects/${p.id}`,
+        });
+      } else if (health.status === "at_risk") {
+        tasks.push({
+          id: `project-atrisk-${p.id}`,
+          type: "project_at_risk",
+          priority: "high",
+          title: `At Risk: ${p.name}`,
+          subtitle: `Progress ${pStats.progress}% · ${health.reason}`,
+          entityType: "project",
+          entityId: p.id,
+          projectId: p.id,
+          dueDate: projRow.targetDate,
+          daysLeft: projRow.targetDate ? Math.ceil((new Date(projRow.targetDate).getTime() - now.getTime()) / 86400000) : null,
+          action: "Review project plan and take corrective action",
+          link: `/projects/${p.id}`,
+        });
+      }
     }
   }
 
