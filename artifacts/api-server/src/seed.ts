@@ -47,15 +47,19 @@ export async function seedIfEmpty(): Promise<void> {
   `);
   console.log("[seed] All SPMO tables truncated.");
 
+  const demoMode = process.env.DEMO_MODE === "1" || process.env.DEMO_MODE === "true";
+  const seedFile = demoMode ? "seed-demo.sql" : "seed-full.sql";
+  console.log(`[seed] Loading ${demoMode ? "DEMO (NSA)" : "full (KFCA)"} dataset from ${seedFile}…`);
+
   let seedPath: string;
   if (typeof __dirname !== "undefined") {
-    seedPath = resolve(__dirname, "seed-full.sql");
+    seedPath = resolve(__dirname, seedFile);
   } else {
     const { fileURLToPath } = await import("url");
-    seedPath = resolve(dirname(fileURLToPath(import.meta.url)), "seed-full.sql");
+    seedPath = resolve(dirname(fileURLToPath(import.meta.url)), seedFile);
   }
   if (!existsSync(seedPath)) {
-    console.log(`[seed] seed-full.sql not found at ${seedPath} — skipping.`);
+    console.log(`[seed] ${seedFile} not found at ${seedPath} — skipping.`);
     return;
   }
   const seedSql = readFileSync(seedPath, "utf-8");
