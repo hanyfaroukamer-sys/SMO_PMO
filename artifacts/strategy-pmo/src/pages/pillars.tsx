@@ -229,7 +229,7 @@ export default function Pillars() {
 
   return (
     <div className="space-y-10 animate-in fade-in">
-      <PageHeader title="Pillars & Enablers" description="Strategic pillars define what KFCA delivers; enablers define how.">
+      <PageHeader title="Pillars & Enablers" description="Strategic pillars define what the organisation delivers; enablers define how.">
         {isAdmin && (
           <button
             onClick={openCreate}

@@ -116,7 +116,7 @@ export default function StrategyMap() {
           {/* Vision & Mission — seamlessly continues from the roof peak */}
           <div className="bg-gradient-to-r from-primary to-violet-700 text-white px-8 py-6 text-center -mt-px border-b-2 border-white/10">
             <div className="max-w-3xl mx-auto">
-              <div className="text-[9px] font-bold uppercase tracking-[0.45em] text-white/40 mb-2">KFCA Strategy House</div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.45em] text-white/40 mb-2">{configData?.programmeName ?? "Strategy House"}</div>
               {configData?.vision ? (
                 <>
                   <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/50 mb-1">Vision</div>
