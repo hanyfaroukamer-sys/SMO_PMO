@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: strategypmo
+      POSTGRES_USER: strategypmo
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme_in_production}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U strategypmo -d strategypmo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgresql://strategypmo:${DB_PASSWORD:-changeme_in_production}@db:5432/strategypmo
+      PORT: "3000"
+      NODE_ENV: production
+      # --- Authentication (configure for your OIDC provider) ---
+      ISSUER_URL: ${ISSUER_URL:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      # --- AI Features (optional) ---
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_INTEGRATIONS_ANTHROPIC_API_KEY: ${AI_INTEGRATIONS_ANTHROPIC_API_KEY:-}
+      AI_INTEGRATIONS_ANTHROPIC_BASE_URL: ${AI_INTEGRATIONS_ANTHROPIC_BASE_URL:-}
+      # --- Security ---
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      APP_URL: ${APP_URL:-}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      # --- Application ---
+      BASE_PATH: ${BASE_PATH:-/strategy-pmo/}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      FORCE_RESEED: ${FORCE_RESEED:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+
+volumes:
+  pgdata:
