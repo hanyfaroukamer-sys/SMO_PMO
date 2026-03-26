@@ -498,7 +498,7 @@ function MilestoneRow({
       onInvalidate();
       setDetailEditing(false);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Failed to save. Check the weight — total cannot exceed 100%.";
+      const msg = (err as { data?: { error?: string } })?.data?.error ?? (err as { message?: string })?.message ?? "Failed to save. Please try again.";
       setSaveError(msg);
     }
   };

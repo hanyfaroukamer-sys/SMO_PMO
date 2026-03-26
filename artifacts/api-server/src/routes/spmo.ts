@@ -1150,19 +1150,22 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Milestone not found" });
       return;
     }
-    const siblings = await db
-      .select()
-      .from(spmoMilestonesTable)
-      .where(
-        and(
-          eq(spmoMilestonesTable.projectId, current.projectId),
-          sql`${spmoMilestonesTable.id} != ${params.data.id}`
-        )
-      );
-    const siblingWeightSum = siblings.reduce((s, m) => s + (m.weight ?? 0), 0);
-    if (siblingWeightSum + parsed.data.weight > 100) {
-      res.status(400).json({ error: `Milestone weights would exceed 100% (siblings use ${Math.round(siblingWeightSum)}%)` });
-      return;
+    // Only validate against siblings when the weight is actually changing
+    if (parsed.data.weight !== current.weight) {
+      const siblings = await db
+        .select()
+        .from(spmoMilestonesTable)
+        .where(
+          and(
+            eq(spmoMilestonesTable.projectId, current.projectId),
+            sql`${spmoMilestonesTable.id} != ${params.data.id}`
+          )
+        );
+      const siblingWeightSum = siblings.reduce((s, m) => s + (m.weight ?? 0), 0);
+      if (siblingWeightSum + parsed.data.weight > 100) {
+        res.status(400).json({ error: `Milestone weights would exceed 100% (siblings use ${Math.round(siblingWeightSum)}%)` });
+        return;
+      }
     }
   }
 
