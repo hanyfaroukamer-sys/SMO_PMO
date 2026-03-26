@@ -5,12 +5,19 @@ import {
   useGetSpmaAdminUsers,
   useUpdateSpmaUserRole,
   type SpmaAdminUser,
+  customFetch,
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
-import { Loader2, ShieldCheck, Settings, Users, RefreshCw, Lock } from "lucide-react";
+import { Loader2, ShieldCheck, Settings, Users, RefreshCw, Lock, KeyRound, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import {
+  useProjectAccessGrants,
+  useGrantProjectAccess,
+  useRevokeProjectAccess,
+  type ProjectAccessGrant,
+} from "@/hooks/use-project-access";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -79,6 +86,202 @@ function UserRoleRow({ user, saving, onRoleChange }: {
     </div>
   );
 }
+
+// ─── Project Access Panel ───────────────────────────────────────────────────
+
+type SimpleProject = { id: number; name: string; projectCode: string | null };
+
+function ProjectAccessPanel({ users }: { users: SpmaAdminUser[] }) {
+  const { toast } = useToast();
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [grantUserId, setGrantUserId] = useState("");
+  const [showProjectList, setShowProjectList] = useState(false);
+  const [projectSearch, setProjectSearch] = useState("");
+
+  const { data: projectsData } = useQuery<{ projects: SimpleProject[] }>({
+    queryKey: ["/api/spmo/projects"],
+    queryFn: () => customFetch("/api/spmo/projects"),
+    staleTime: 60_000,
+  });
+
+  const { data: grantsData, isLoading: grantsLoading } = useProjectAccessGrants(selectedProjectId);
+  const grantMutation = useGrantProjectAccess();
+  const revokeMutation = useRevokeProjectAccess();
+
+  const projects = projectsData?.projects ?? [];
+  const filteredProjects = projectSearch
+    ? projects.filter((p) =>
+        p.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
+        (p.projectCode ?? "").toLowerCase().includes(projectSearch.toLowerCase())
+      )
+    : projects;
+
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+
+  // Only project managers can be granted project-level access (admins always have access)
+  const pmUsers = users.filter((u) => u.role === "project-manager");
+
+  async function handleGrant() {
+    if (!selectedProjectId || !grantUserId) return;
+    const user = users.find((u) => u.id === grantUserId);
+    const userName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || grantUserId;
+    try {
+      await grantMutation.mutateAsync({
+        projectId: selectedProjectId,
+        userId: grantUserId,
+        userName,
+        userEmail: user?.email ?? undefined,
+      });
+      setGrantUserId("");
+      toast({ title: "Access granted", description: `${userName} can now edit this project.` });
+    } catch {
+      toast({ variant: "destructive", title: "Failed", description: "Could not grant access." });
+    }
+  }
+
+  async function handleRevoke(grant: ProjectAccessGrant) {
+    if (!selectedProjectId) return;
+    try {
+      await revokeMutation.mutateAsync({ projectId: selectedProjectId, userId: grant.userId });
+      toast({ title: "Access revoked", description: `${grant.userName ?? grant.userId} no longer has edit access.` });
+    } catch {
+      toast({ variant: "destructive", title: "Failed", description: "Could not revoke access." });
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Grant project managers the ability to edit a specific project. Admins always have full access and do not appear here.
+      </p>
+
+      {/* Project Selector */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Select Project</label>
+        <div className="relative">
+          <button
+            onClick={() => setShowProjectList((s) => !s)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-border bg-background text-sm hover:border-primary/50 transition-colors"
+          >
+            <span className={selectedProject ? "font-medium" : "text-muted-foreground"}>
+              {selectedProject ? `[${selectedProject.projectCode ?? "—"}] ${selectedProject.name}` : "Choose a project…"}
+            </span>
+            {showProjectList ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
+          </button>
+
+          {showProjectList && (
+            <div className="absolute z-20 mt-1 w-full rounded-xl border border-border bg-background shadow-lg overflow-hidden">
+              <div className="p-2 border-b border-border">
+                <input
+                  type="text"
+                  placeholder="Search projects…"
+                  value={projectSearch}
+                  onChange={(e) => setProjectSearch(e.target.value)}
+                  className="w-full text-sm px-3 py-1.5 rounded-lg border border-border bg-secondary/30 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-52 overflow-y-auto divide-y divide-border/40">
+                {filteredProjects.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-3">No projects found</p>
+                ) : (
+                  filteredProjects.slice(0, 50).map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setSelectedProjectId(p.id); setShowProjectList(false); setProjectSearch(""); }}
+                      className="w-full text-left px-3 py-2.5 hover:bg-primary/5 transition-colors text-sm"
+                    >
+                      <span className="font-mono text-xs text-muted-foreground mr-2">{p.projectCode ?? "—"}</span>
+                      {p.name}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {selectedProject && (
+        <>
+          {/* Current Grants */}
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Current Access Grants</div>
+            {grantsLoading ? (
+              <div className="flex justify-center py-3"><Loader2 className="w-4 h-4 animate-spin text-primary" /></div>
+            ) : !grantsData?.grants || grantsData.grants.length === 0 ? (
+              <p className="text-sm text-muted-foreground bg-secondary/30 rounded-lg px-3 py-3">
+                No users have been granted project-level access. Only admins can edit this project.
+              </p>
+            ) : (
+              <div className="border border-border rounded-xl overflow-hidden divide-y divide-border/50">
+                {grantsData.grants.map((grant) => (
+                  <div key={grant.id} className="flex items-center gap-3 px-3 py-2.5 bg-background hover:bg-secondary/20 transition-colors">
+                    <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-xs font-bold text-blue-700 shrink-0">
+                      {(grant.userName ?? grant.userId)[0]?.toUpperCase() ?? "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{grant.userName ?? grant.userId}</div>
+                      {grant.userEmail && <div className="text-xs text-muted-foreground truncate">{grant.userEmail}</div>}
+                    </div>
+                    <div className="text-xs text-muted-foreground hidden sm:block">
+                      by {grant.grantedByName ?? grant.grantedById}
+                    </div>
+                    <button
+                      onClick={() => handleRevoke(grant)}
+                      disabled={revokeMutation.isPending}
+                      className="p-1.5 rounded-lg hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors shrink-0"
+                      title="Revoke access"
+                    >
+                      {revokeMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Grant New Access */}
+          <div className="space-y-2 pt-2 border-t border-border/50">
+            <div className="text-sm font-medium">Grant Edit Access</div>
+            {pmUsers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No project managers have registered. Assign users the Project Manager role first.</p>
+            ) : (
+              <div className="flex gap-2 items-center">
+                <select
+                  value={grantUserId}
+                  onChange={(e) => setGrantUserId(e.target.value)}
+                  className="flex-1 text-sm px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="">Select user…</option>
+                  {pmUsers.map((u) => {
+                    const name = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || u.id;
+                    const alreadyGranted = grantsData?.grants?.some((g) => g.userId === u.id);
+                    return (
+                      <option key={u.id} value={u.id} disabled={alreadyGranted}>
+                        {name}{alreadyGranted ? " (already granted)" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+                <button
+                  onClick={handleGrant}
+                  disabled={!grantUserId || grantMutation.isPending}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 hover:-translate-y-0.5 transition-all shrink-0"
+                >
+                  {grantMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  Grant
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Admin Page ────────────────────────────────────────────────────────
 
 export default function Admin() {
   const isAdmin = useIsAdmin();
@@ -328,6 +531,15 @@ export default function Admin() {
           )}
         </SectionCard>
       </div>
+
+      {/* Project Access Control */}
+      <SectionCard title="Project-Level Access Control" icon={KeyRound}>
+        {usersLoading ? (
+          <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+        ) : (
+          <ProjectAccessPanel users={usersData?.users ?? []} />
+        )}
+      </SectionCard>
     </div>
   );
 }

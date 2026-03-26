@@ -25,6 +25,7 @@ import {
   spmoDocumentsTable,
   spmoActionsTable,
   spmoKpiMeasurementsTable,
+  spmoProjectAccessTable,
   type InsertSpmoInitiative,
   type InsertSpmoProject,
   type InsertSpmoMilestone,
@@ -190,6 +191,18 @@ function requireRole(
     return null;
   }
   return user.id;
+}
+
+/** Returns true if the user can edit the given project (admin always yes; project-manager only if granted). */
+async function canEditProject(userId: string, userRole: string | null | undefined, projectId: number): Promise<boolean> {
+  if (userRole === "admin") return true;
+  if (userRole !== "project-manager") return false;
+  const [grant] = await db
+    .select({ id: spmoProjectAccessTable.id })
+    .from(spmoProjectAccessTable)
+    .where(and(eq(spmoProjectAccessTable.projectId, projectId), eq(spmoProjectAccessTable.userId, userId)))
+    .limit(1);
+  return !!grant;
 }
 
 function parseId(req: { params: Record<string, string> }, res: any, paramName = "id"): number | null {
@@ -850,6 +863,12 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const user = getAuthUser(req);
+  if (!(await canEditProject(userId, user?.role, params.data.id))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
   const parsed = UpdateSpmoProjectBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -895,7 +914,6 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "updated", "project", project.id, project.name);
   res.json(project);
 });
@@ -979,6 +997,12 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
     return;
   }
 
+  const user = getAuthUser(req);
+  if (!(await canEditProject(userId, user?.role, params.data.id))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
   const parsed = CreateSpmoMilestoneBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -1006,7 +1030,6 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
     .values(insertMilestone)
     .returning();
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "milestone", milestone.id, milestone.name);
   res.status(201).json(milestone);
 });
@@ -1043,6 +1066,15 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
   const params = UpdateSpmoMilestoneParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  // Access check — look up the milestone's projectId
+  const [milestoneForAccess] = await db.select({ projectId: spmoMilestonesTable.projectId }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
+  if (!milestoneForAccess) { res.status(404).json({ error: "Milestone not found" }); return; }
+  const user = getAuthUser(req);
+  if (!(await canEditProject(userId, user?.role, milestoneForAccess.projectId))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
     return;
   }
 
@@ -1091,7 +1123,6 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "updated", "milestone", milestone.id, milestone.name, { progress: milestone.progress });
   res.json(milestone);
 });
@@ -1107,7 +1138,15 @@ router.delete("/spmo/milestones/:id", async (req, res): Promise<void> => {
   }
 
   const [existing] = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
-  if (existing?.phaseGate) {
+  if (!existing) { res.status(404).json({ error: "Milestone not found" }); return; }
+
+  const user = getAuthUser(req);
+  if (!(await canEditProject(userId, user?.role, existing.projectId))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
+  if (existing.phaseGate) {
     res.status(403).json({ error: `Cannot delete mandatory phase gate "${existing.name}". Phase gates (Planning, Tendering, Closure) are required for programme reporting.` });
     return;
   }
@@ -1122,7 +1161,6 @@ router.delete("/spmo/milestones/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "deleted", "milestone", milestone.id, milestone.name);
   res.json({ success: true });
 });
@@ -1137,6 +1175,12 @@ router.put("/spmo/projects/:id/milestones/weights", async (req, res): Promise<vo
   const params = GetSpmoProjectParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid project id" }); return; }
   const projectId = params.data.id;
+
+  const user = getAuthUser(req);
+  if (!(await canEditProject(userId, user?.role, projectId))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
 
   const body = z.object({
     weights: z.array(z.object({ id: z.number().int().positive(), weight: z.number().min(0).max(100) })),
@@ -1588,6 +1632,12 @@ router.post("/spmo/risks", async (req, res): Promise<void> => {
     return;
   }
 
+  const user = getAuthUser(req);
+  if (!(await canEditProject(userId, user?.role, parsed.data.projectId))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
   const riskScore = computeRiskScore(parsed.data.probability, parsed.data.impact);
 
   const [risk] = await db
@@ -1595,7 +1645,6 @@ router.post("/spmo/risks", async (req, res): Promise<void> => {
     .values({ ...parsed.data, riskScore })
     .returning();
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "risk", risk.id, risk.title);
   res.status(201).json(risk);
 });
@@ -1796,6 +1845,12 @@ router.post("/spmo/budget", async (req, res): Promise<void> => {
   const parsed = CreateSpmoBudgetEntryBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const user = getAuthUser(req);
+  if (!(await canEditProject(userId, user?.role, parsed.data.projectId))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
     return;
   }
 
@@ -2861,6 +2916,10 @@ router.post("/spmo/change-requests", async (req, res) => {
     timelineImpact: z.number().optional(),
   }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  if (!(await canEditProject(userId, user.role, body.data.projectId))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
   const [row] = await db.insert(spmoChangeRequestsTable).values({
     ...body.data,
     requestedById: user.id,
@@ -2956,6 +3015,10 @@ router.post("/spmo/raci", async (req, res) => {
     role: z.enum(["responsible", "accountable", "consulted", "informed"]),
   }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  if (!(await canEditProject(userId, user.role, body.data.projectId))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
   const existing = body.data.milestoneId
     ? await db.select().from(spmoRaciTable).where(
         and(eq(spmoRaciTable.milestoneId, body.data.milestoneId), eq(spmoRaciTable.userId, body.data.userId))
@@ -3042,6 +3105,10 @@ router.post("/spmo/documents", async (req, res) => {
     tags: z.array(z.string()).optional(),
   }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  if (body.data.projectId && !(await canEditProject(userId, user.role, body.data.projectId))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
   const [row] = await db.insert(spmoDocumentsTable).values({
     ...body.data,
     uploadedById: user.id,
@@ -3125,6 +3192,10 @@ router.post("/spmo/actions", async (req, res) => {
     status: z.enum(["open", "in_progress", "done", "cancelled"]).default("open"),
   }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  if (!(await canEditProject(userId, user.role, body.data.projectId))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
   const [row] = await db.insert(spmoActionsTable).values({
     ...body.data,
     createdById: user.id,
@@ -3417,6 +3488,101 @@ router.get("/spmo/dashboard/department-status", async (req, res) => {
   }));
 
   res.json(result.filter((d) => d.totalProjects > 0));
+});
+
+// ─────────────────────────────────────────────────────────────
+// PROJECT ACCESS GRANTS (admin-managed per-project edit rights)
+// ─────────────────────────────────────────────────────────────
+
+/** GET /spmo/my-project-access — list all projectIds the current user can edit */
+router.get("/spmo/my-project-access", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const user = getAuthUser(req);
+  if (user?.role === "admin") {
+    // Admins can edit everything — return sentinel
+    res.json({ admin: true, projectIds: [] });
+    return;
+  }
+  const grants = await db
+    .select({ projectId: spmoProjectAccessTable.projectId })
+    .from(spmoProjectAccessTable)
+    .where(eq(spmoProjectAccessTable.userId, userId));
+  res.json({ admin: false, projectIds: grants.map((g) => g.projectId) });
+});
+
+/** GET /spmo/projects/:id/access — list users who have edit access to a project (admin only) */
+router.get("/spmo/projects/:id/access", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const projectId = parseId(req, res);
+  if (!projectId) return;
+  const grants = await db
+    .select()
+    .from(spmoProjectAccessTable)
+    .where(eq(spmoProjectAccessTable.projectId, projectId))
+    .orderBy(asc(spmoProjectAccessTable.grantedAt));
+  res.json({ grants });
+});
+
+const GrantAccessBody = z.object({
+  userId: z.string().min(1),
+  userName: z.string().optional(),
+  userEmail: z.string().optional(),
+});
+
+/** POST /spmo/projects/:id/access — grant a user edit rights to a project (admin only) */
+router.post("/spmo/projects/:id/access", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const projectId = parseId(req, res);
+  if (!projectId) return;
+  const parsed = GrantAccessBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const admin = getAuthUser(req);
+  const adminName = getUserDisplayName(admin);
+
+  // Check project exists
+  const [project] = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, projectId)).limit(1);
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  const [grant] = await db
+    .insert(spmoProjectAccessTable)
+    .values({
+      projectId,
+      userId: parsed.data.userId,
+      userName: parsed.data.userName ?? null,
+      userEmail: parsed.data.userEmail ?? null,
+      grantedById: admin!.id,
+      grantedByName: adminName,
+    })
+    .onConflictDoUpdate({
+      target: [spmoProjectAccessTable.projectId, spmoProjectAccessTable.userId],
+      set: {
+        userName: parsed.data.userName ?? null,
+        userEmail: parsed.data.userEmail ?? null,
+        grantedById: admin!.id,
+        grantedByName: adminName,
+        grantedAt: new Date(),
+      },
+    })
+    .returning();
+
+  res.status(201).json(grant);
+});
+
+/** DELETE /spmo/projects/:id/access/:userId — revoke edit rights from a user (admin only) */
+router.delete("/spmo/projects/:id/access/:userId", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const projectId = parseId(req, res);
+  if (!projectId) return;
+  const { userId: targetUserId } = req.params;
+  if (!targetUserId) { res.status(400).json({ error: "Missing userId" }); return; }
+
+  await db
+    .delete(spmoProjectAccessTable)
+    .where(and(eq(spmoProjectAccessTable.projectId, projectId), eq(spmoProjectAccessTable.userId, targetUserId)));
+
+  res.json({ ok: true });
 });
 
 export default router;

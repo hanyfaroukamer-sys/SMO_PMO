@@ -773,3 +773,29 @@ export const insertSpmoDependencySchema = createInsertSchema(spmoDependenciesTab
 });
 export type InsertSpmoDependency = z.infer<typeof insertSpmoDependencySchema>;
 export type SpmoDependency = typeof spmoDependenciesTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// PROJECT ACCESS GRANTS
+// ─────────────────────────────────────────────
+export const spmoProjectAccessTable = pgTable(
+  "spmo_project_access",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => spmoProjectsTable.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    userName: text("user_name"),
+    userEmail: text("user_email"),
+    grantedById: text("granted_by_id").notNull(),
+    grantedByName: text("granted_by_name"),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("uniq_project_access").on(t.projectId, t.userId),
+    index("idx_project_access_project_id").on(t.projectId),
+    index("idx_project_access_user_id").on(t.userId),
+  ],
+);
+
+export type SpmoProjectAccess = typeof spmoProjectAccessTable.$inferSelect;
