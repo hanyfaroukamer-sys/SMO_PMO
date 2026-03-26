@@ -295,6 +295,16 @@ function MilestonesTab({
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: "", weight: "", effortDays: "", startDate: "", dueDate: "", description: "" });
 
+  const PHASE_ORDER: Record<string, number> = { planning: 0, tendering: 1, closure: 3 };
+  const sortedMilestones = [...milestones].sort((a, b) => {
+    const aPhase = (a as SpmoMilestoneWithEvidence & { phaseGate?: string | null }).phaseGate;
+    const bPhase = (b as SpmoMilestoneWithEvidence & { phaseGate?: string | null }).phaseGate;
+    const aOrder = aPhase ? (PHASE_ORDER[aPhase] ?? 2) : 2;
+    const bOrder = bPhase ? (PHASE_ORDER[bPhase] ?? 2) : 2;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
+
   const inputCls = "w-full text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50";
 
   const handleCreate = async () => {
@@ -410,7 +420,7 @@ function MilestonesTab({
       )}
 
       {/* List */}
-      {milestones.map((m) => (
+      {sortedMilestones.map((m) => (
         <MilestoneRow key={m.id} milestone={m} canApprove={canApprove} canEditDetails={canEditDetails} canEditProgress={canEditProgress} onInvalidate={onInvalidate} />
       ))}
     </div>
@@ -438,6 +448,10 @@ function MilestoneRow({
 
   const [progressEditing, setProgressEditing] = useState(false);
   const [progress, setProgress] = useState(milestone.progress ?? 0);
+
+  useEffect(() => {
+    if (!progressEditing) setProgress(milestone.progress ?? 0);
+  }, [milestone.progress, progressEditing]);
 
   const [detailEditing, setDetailEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -646,7 +660,7 @@ function MilestoneRow({
                         max={100}
                         value={progress}
                         onChange={(e) => setProgress(Math.min(100, Math.max(0, +e.target.value)))}
-                        className="w-16 text-xs border border-border rounded-lg px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        className="w-16 text-xs border border-border rounded-lg px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <button onClick={saveProgress} disabled={updateMilestone.isPending} className="text-[10px] font-semibold text-success hover:underline">
                         {updateMilestone.isPending ? "…" : "Save"}
