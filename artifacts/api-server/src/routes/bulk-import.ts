@@ -75,7 +75,7 @@ const SHEETS = [
   {
     name: "Programme Config",
     headers: ["programme_name", "vision", "mission", "reporting_currency"],
-    example: ["KFCA Corporate Strategy 2025-2030", "World-class transnational authority", "Drive transformation across pillars and enablers", "SAR"],
+    example: ["National Strategy Programme 2025-2030", "World-class government authority", "Drive transformation across pillars and enablers", "SAR"],
     notes: "Single row. Defines the programme-level settings.",
   },
   {

@@ -1,5 +1,5 @@
 # StrategyPMO — Full-Stack Engineer Guide
-## KFCA Programme Management Dashboard
+## Programme Management Dashboard
 
 **Version:** 1.0 | **Date:** March 2026 | **Audience:** Full-Stack Engineers, QA Testers, DevOps
 
@@ -7,7 +7,7 @@
 
 ## 1. Product Overview
 
-StrategyPMO is a **government-grade programme management dashboard** built for the King Fahad Causeway Authority (KFCA). It gives the PMO office real-time visibility across 9 strategic pillars, 26 initiatives, 100+ projects and 900+ milestones.
+StrategyPMO is a **government-grade programme management dashboard**. It gives the PMO office real-time visibility across 9 strategic pillars, 26 initiatives, 100+ projects and 900+ milestones.
 
 ### Core Capabilities
 
@@ -88,7 +88,7 @@ workspace/
 | Build tool | Vite 7 | HMR, TypeScript |
 | Routing | TanStack Router | File-based, type-safe |
 | Data fetching | TanStack Query + Orval | Auto-generated hooks from OpenAPI |
-| UI components | shadcn/ui + Radix UI | Custom KFCA theme |
+| UI components | shadcn/ui + Radix UI | Custom PMO theme |
 | Styling | Tailwind CSS 4 | |
 | Charts | Recharts | Budget, KPI, progress charts |
 | API framework | Express 5 | Node.js 20+ |
@@ -163,7 +163,7 @@ spmo_pillars (9)
 | `spmo_change_requests` | Formal change control | `project_id`, `change_type`, `budget_impact`, `timeline_impact`, `status` |
 | `spmo_raci` | Responsibility matrix | `project_id`, `milestone_id`, `user_id`, `role` ('responsible'/'accountable'/'consulted'/'informed') |
 | `spmo_documents` | Document registry | `project_id`, `milestone_id`, `object_path`, `category`, `version` |
-| `spmo_departments` | 10 KFCA departments | `name`, `color`, `sort_order` |
+| `spmo_departments` | 10 departments | `name`, `color`, `sort_order` |
 | `spmo_activity_log` | Audit trail | `actor_id`, `action`, `entity_type`, `entity_id`, `metadata` |
 | `spmo_programme_config` | Single config row | `programme_name`, `target_year`, `default_phase_gate_weights` |
 

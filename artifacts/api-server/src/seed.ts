@@ -49,7 +49,7 @@ export async function seedIfEmpty(): Promise<void> {
 
   const demoMode = process.env.DEMO_MODE === "1" || process.env.DEMO_MODE === "true";
   const seedFile = demoMode ? "seed-demo.sql" : "seed-full.sql";
-  console.log(`[seed] Loading ${demoMode ? "DEMO (NSA)" : "full (KFCA)"} dataset from ${seedFile}…`);
+  console.log(`[seed] Loading ${demoMode ? "demo" : "full"} dataset from ${seedFile}…`);
 
   // In CJS builds (production), __dirname is always available
   const seedPath = resolve(__dirname, seedFile);
