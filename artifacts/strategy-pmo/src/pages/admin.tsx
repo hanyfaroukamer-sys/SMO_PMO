@@ -241,11 +241,10 @@ function ProjectAccessPanel({ users }: { users: SpmaAdminUser[] }) {
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [grantUserId, setGrantUserId] = useState("");
   const [newPerms, setNewPerms] = useState<ProjectPermissions>({ ...DEFAULT_PERMISSIONS });
-  const [showProjectList, setShowProjectList] = useState(false);
   const [showPermConfig, setShowPermConfig] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
 
-  const { data: projectsData } = useQuery<{ projects: SimpleProject[] }>({
+  const { data: projectsData, isLoading: projectsLoading } = useQuery<{ projects: SimpleProject[] }>({
     queryKey: ["/api/spmo/projects"],
     queryFn: () => customFetch("/api/spmo/projects"),
     staleTime: 60_000,
@@ -287,180 +286,198 @@ function ProjectAccessPanel({ users }: { users: SpmaAdminUser[] }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
         Grant project managers access to specific projects and control exactly what they can do. Admins always have full access.
       </p>
 
-      {/* Project Selector */}
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium">Select Project</label>
-        <div className="relative">
-          <button
-            onClick={() => setShowProjectList((s) => !s)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-border bg-background text-sm hover:border-primary/50 transition-colors"
-          >
-            <span className={selectedProject ? "font-medium" : "text-muted-foreground"}>
-              {selectedProject ? `[${selectedProject.projectCode ?? "—"}] ${selectedProject.name}` : "Choose a project…"}
-            </span>
-            {showProjectList ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
-          </button>
+      {/* Two-column layout: project picker on left, details on right */}
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
 
-          {showProjectList && (
-            <div className="absolute z-20 mt-1 w-full rounded-xl border border-border bg-background shadow-lg overflow-hidden">
-              <div className="p-2 border-b border-border">
-                <input
-                  type="text"
-                  placeholder="Search projects…"
-                  value={projectSearch}
-                  onChange={(e) => setProjectSearch(e.target.value)}
-                  className="w-full text-sm px-3 py-1.5 rounded-lg border border-border bg-secondary/30 focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  autoFocus
-                />
-              </div>
-              <div className="max-h-52 overflow-y-auto divide-y divide-border/40">
-                {filteredProjects.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-3">No projects found</p>
-                ) : (
-                  filteredProjects.slice(0, 50).map((p) => (
+        {/* ── Left: inline project search + list ── */}
+        <div className="flex flex-col gap-2">
+          <div className="text-sm font-medium">Select Project</div>
+          <input
+            type="text"
+            placeholder="Search by name or code…"
+            value={projectSearch}
+            onChange={(e) => setProjectSearch(e.target.value)}
+            className="w-full text-sm px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-colors"
+          />
+          <div className="border border-border rounded-xl overflow-hidden">
+            {projectsLoading ? (
+              <div className="flex justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-primary" /></div>
+            ) : filteredProjects.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">No projects match your search.</p>
+            ) : (
+              <div className="divide-y divide-border/40 overflow-y-auto" style={{ maxHeight: "340px" }}>
+                {filteredProjects.map((p) => {
+                  const isSelected = p.id === selectedProjectId;
+                  return (
                     <button
                       key={p.id}
-                      onClick={() => { setSelectedProjectId(p.id); setShowProjectList(false); setProjectSearch(""); }}
-                      className="w-full text-left px-3 py-2.5 hover:bg-primary/5 transition-colors text-sm"
+                      onClick={() => setSelectedProjectId(p.id)}
+                      className={[
+                        "w-full text-left px-3 py-2.5 transition-colors flex items-center gap-2",
+                        isSelected
+                          ? "bg-primary/10 border-l-2 border-primary"
+                          : "hover:bg-secondary/40 border-l-2 border-transparent",
+                      ].join(" ")}
                     >
-                      <span className="font-mono text-xs text-muted-foreground mr-2">{p.projectCode ?? "—"}</span>
-                      {p.name}
+                      <span className="font-mono text-[10px] text-muted-foreground shrink-0 w-14 truncate">
+                        {p.projectCode ?? "—"}
+                      </span>
+                      <span className={["text-sm truncate", isSelected ? "font-semibold text-primary" : ""].join(" ")}>
+                        {p.name}
+                      </span>
                     </button>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {selectedProject && (
-        <>
-          {/* Current Grants */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold">Current Access Grants</div>
-              {grantsData?.grants && grantsData.grants.length > 0 && (
-                <div className="text-xs text-muted-foreground">{grantsData.grants.length} user{grantsData.grants.length !== 1 ? "s" : ""}</div>
-              )}
-            </div>
-            {grantsLoading ? (
-              <div className="flex justify-center py-3"><Loader2 className="w-4 h-4 animate-spin text-primary" /></div>
-            ) : !grantsData?.grants || grantsData.grants.length === 0 ? (
-              <p className="text-sm text-muted-foreground bg-secondary/30 rounded-lg px-3 py-3">
-                No users have been granted access. Only admins can edit this project.
-              </p>
-            ) : (
-              <div>
-                {grantsData.grants.map((grant) => (
-                  <GrantRow key={grant.id} grant={grant} projectId={selectedProject.id} />
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
+          <p className="text-xs text-muted-foreground">{filteredProjects.length} of {projects.length} projects</p>
+        </div>
 
-          {/* Grant New Access */}
-          <div className="space-y-3 pt-3 border-t border-border/50">
-            <div className="text-sm font-semibold">Grant Access to a User</div>
-            {pmUsers.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No project managers have registered. Assign the Project Manager role to users first.</p>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex gap-2 items-center">
-                  <select
-                    value={grantUserId}
-                    onChange={(e) => setGrantUserId(e.target.value)}
-                    className="flex-1 text-sm px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  >
-                    <option value="">Select user…</option>
-                    {pmUsers.map((u) => {
-                      const name = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || u.id;
-                      const alreadyGranted = grantsData?.grants?.some((g) => g.userId === u.id);
-                      return (
-                        <option key={u.id} value={u.id} disabled={alreadyGranted}>
-                          {name}{alreadyGranted ? " (already granted)" : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <button
-                    onClick={() => setShowPermConfig((s) => !s)}
-                    disabled={!grantUserId}
-                    className="flex items-center gap-1 px-3 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:border-primary/50 hover:text-foreground disabled:opacity-40 transition-colors shrink-0"
-                    title="Configure permissions"
-                  >
-                    {showPermConfig ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                    Permissions
-                  </button>
+        {/* ── Right: grants + grant form ── */}
+        <div className="space-y-4">
+          {!selectedProject ? (
+            <div className="flex flex-col items-center justify-center h-full min-h-[200px] rounded-xl border border-dashed border-border text-center px-6 py-10 text-muted-foreground">
+              <KeyRound className="w-8 h-8 mb-3 opacity-30" />
+              <p className="text-sm font-medium">Select a project on the left</p>
+              <p className="text-xs mt-1 opacity-70">You can then view and manage who has access to it.</p>
+            </div>
+          ) : (
+            <>
+              {/* Header */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold truncate">{selectedProject.name}</div>
+                  <div className="text-xs text-muted-foreground">{selectedProject.projectCode ?? "No code"}</div>
                 </div>
+              </div>
 
-                {/* Permission defaults for new grant */}
-                {showPermConfig && grantUserId && (
-                  <div className="rounded-xl border border-border overflow-hidden">
-                    <div className="px-3 py-2 bg-secondary/30 border-b border-border flex items-center justify-between">
-                      <span className="text-xs font-semibold">Configure permissions for new grant</span>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setNewPerms(Object.fromEntries(PERM_KEYS.map((k) => [k, true])) as ProjectPermissions)}
-                          className="text-xs text-primary hover:underline flex items-center gap-1"
-                        >
-                          <Check className="w-3 h-3" />All
-                        </button>
-                        <button
-                          onClick={() => setNewPerms(Object.fromEntries(PERM_KEYS.map((k) => [k, false])) as ProjectPermissions)}
-                          className="text-xs text-muted-foreground hover:underline flex items-center gap-1"
-                        >
-                          <X className="w-3 h-3" />None
-                        </button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-border">
-                      {PERM_KEYS.map((key) => {
-                        const { label, description } = PERMISSION_LABELS[key];
-                        const enabled = newPerms[key];
-                        return (
-                          <label
-                            key={key}
-                            className={[
-                              "flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors",
-                              enabled ? "bg-primary/5" : "bg-background",
-                            ].join(" ")}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={enabled}
-                              onChange={(e) => setNewPerms({ ...newPerms, [key]: e.target.checked })}
-                              className="w-3.5 h-3.5 rounded border-border accent-primary shrink-0"
-                            />
-                            <div className="min-w-0">
-                              <div className="text-xs font-semibold truncate">{label}</div>
-                              <div className="text-[10px] text-muted-foreground leading-tight">{description}</div>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
+              {/* Current Grants */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">Access Grants</div>
+                  {grantsData?.grants && grantsData.grants.length > 0 && (
+                    <div className="text-xs text-muted-foreground">{grantsData.grants.length} user{grantsData.grants.length !== 1 ? "s" : ""}</div>
+                  )}
+                </div>
+                {grantsLoading ? (
+                  <div className="flex justify-center py-3"><Loader2 className="w-4 h-4 animate-spin text-primary" /></div>
+                ) : !grantsData?.grants || grantsData.grants.length === 0 ? (
+                  <p className="text-sm text-muted-foreground bg-secondary/30 rounded-lg px-3 py-3">
+                    No users have been granted access. Only admins can edit this project.
+                  </p>
+                ) : (
+                  <div>
+                    {grantsData.grants.map((grant) => (
+                      <GrantRow key={grant.id} grant={grant} projectId={selectedProject.id} />
+                    ))}
                   </div>
                 )}
-
-                <button
-                  onClick={handleGrant}
-                  disabled={!grantUserId || grantMutation.isPending}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 hover:-translate-y-0.5 transition-all"
-                >
-                  {grantMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  Grant Access
-                </button>
               </div>
-            )}
-          </div>
-        </>
-      )}
+
+              {/* Grant New Access */}
+              <div className="space-y-3 pt-3 border-t border-border/50">
+                <div className="text-sm font-semibold">Grant Access to a User</div>
+                {pmUsers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No project managers have registered. Assign the Project Manager role first.</p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex gap-2 items-center">
+                      <select
+                        value={grantUserId}
+                        onChange={(e) => setGrantUserId(e.target.value)}
+                        className="flex-1 text-sm px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      >
+                        <option value="">Select user…</option>
+                        {pmUsers.map((u) => {
+                          const name = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || u.id;
+                          const alreadyGranted = grantsData?.grants?.some((g) => g.userId === u.id);
+                          return (
+                            <option key={u.id} value={u.id} disabled={alreadyGranted}>
+                              {name}{alreadyGranted ? " (already granted)" : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <button
+                        onClick={() => setShowPermConfig((s) => !s)}
+                        disabled={!grantUserId}
+                        className="flex items-center gap-1 px-3 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:border-primary/50 hover:text-foreground disabled:opacity-40 transition-colors shrink-0"
+                      >
+                        {showPermConfig ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        Permissions
+                      </button>
+                    </div>
+
+                    {showPermConfig && grantUserId && (
+                      <div className="rounded-xl border border-border overflow-hidden">
+                        <div className="px-3 py-2 bg-secondary/30 border-b border-border flex items-center justify-between">
+                          <span className="text-xs font-semibold">Permissions for new grant</span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setNewPerms(Object.fromEntries(PERM_KEYS.map((k) => [k, true])) as ProjectPermissions)}
+                              className="text-xs text-primary hover:underline flex items-center gap-1"
+                            >
+                              <Check className="w-3 h-3" />All
+                            </button>
+                            <button
+                              onClick={() => setNewPerms(Object.fromEntries(PERM_KEYS.map((k) => [k, false])) as ProjectPermissions)}
+                              className="text-xs text-muted-foreground hover:underline flex items-center gap-1"
+                            >
+                              <X className="w-3 h-3" />None
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-border">
+                          {PERM_KEYS.map((key) => {
+                            const { label, description } = PERMISSION_LABELS[key];
+                            const enabled = newPerms[key];
+                            return (
+                              <label
+                                key={key}
+                                className={[
+                                  "flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors",
+                                  enabled ? "bg-primary/5" : "bg-background",
+                                ].join(" ")}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={enabled}
+                                  onChange={(e) => setNewPerms({ ...newPerms, [key]: e.target.checked })}
+                                  className="w-3.5 h-3.5 rounded border-border accent-primary shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <div className="text-xs font-semibold truncate">{label}</div>
+                                  <div className="text-[10px] text-muted-foreground leading-tight">{description}</div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={handleGrant}
+                      disabled={!grantUserId || grantMutation.isPending}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 hover:-translate-y-0.5 transition-all"
+                    >
+                      {grantMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                      Grant Access
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+      </div>
     </div>
   );
 }
