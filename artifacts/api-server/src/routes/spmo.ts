@@ -3506,12 +3506,10 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
   const myProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.ownerId, userId));
   const myProjectIds = myProjects.map((p) => p.id);
 
+  // Only admin and approver roles see pending approvals
   let pendingApprovals = 0;
   if (isApprover) {
     const rows = await db.select({ id: spmoMilestonesTable.id }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.status, "submitted"));
-    pendingApprovals = rows.length;
-  } else if (myProjectIds.length > 0) {
-    const rows = await db.select({ id: spmoMilestonesTable.id }).from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), eq(spmoMilestonesTable.status, "submitted")));
     pendingApprovals = rows.length;
   }
 
@@ -3586,6 +3584,7 @@ router.get("/spmo/my-tasks", async (req, res) => {
   const myProjectIds = myProjects.map((p) => p.id);
   const projectNameMap = new Map(myProjects.map((p) => [p.id, p.name]));
 
+  // Only admin and approver roles see pending approvals — PMs submit evidence, not approve
   let pendingApprovals: typeof spmoMilestonesTable.$inferSelect[] = [];
   if (isApprover) {
     pendingApprovals = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.status, "submitted"));
@@ -3595,8 +3594,6 @@ router.get("/spmo/my-tasks", async (req, res) => {
       const extraProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(inArray(spmoProjectsTable.id, submittedProjectIds));
       for (const p of extraProjects) if (!projectNameMap.has(p.id)) projectNameMap.set(p.id, p.name);
     }
-  } else if (myProjectIds.length > 0) {
-    pendingApprovals = await db.select().from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), eq(spmoMilestonesTable.status, "submitted")));
   }
 
   const myMilestones = await db.select().from(spmoMilestonesTable).where(and(eq(spmoMilestonesTable.assigneeId, userId), ne(spmoMilestonesTable.status, "approved")));
