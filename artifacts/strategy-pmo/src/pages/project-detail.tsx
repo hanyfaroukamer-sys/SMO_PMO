@@ -330,10 +330,12 @@ function MilestonesTab({
               <span className="flex items-center gap-1 text-warning font-semibold"><AlertCircle className="w-3.5 h-3.5" /> {pendingApprovals} pending</span>
             )}
           </div>
-          {canEditDetails && !showAdd && (
+          {!showAdd && (
             <button
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              onClick={canEditDetails ? () => setShowAdd(true) : undefined}
+              disabled={!canEditDetails}
+              title={!canEditDetails ? "Admin access required to add milestones" : undefined}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground transition-colors ${canEditDetails ? "hover:bg-primary/90" : "opacity-40 cursor-not-allowed"}`}
             >
               <Plus className="w-3.5 h-3.5" /> Add Milestone
             </button>
@@ -395,13 +397,15 @@ function MilestonesTab({
         <Card className="text-center py-16">
           <ClipboardList className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
           <h3 className="font-bold">No milestones yet</h3>
-          {canEditDetails ? (
-            <button onClick={() => setShowAdd(true)} className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors mx-auto">
-              <Plus className="w-4 h-4" /> Add First Milestone
-            </button>
-          ) : (
-            <p className="text-sm text-muted-foreground mt-1">No milestones have been added yet.</p>
-          )}
+          <p className="text-sm text-muted-foreground mt-1">No milestones have been added yet.</p>
+          <button
+            onClick={canEditDetails ? () => setShowAdd(true) : undefined}
+            disabled={!canEditDetails}
+            title={!canEditDetails ? "Admin access required to add milestones" : undefined}
+            className={`mt-3 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground transition-colors mx-auto ${canEditDetails ? "hover:bg-primary/90" : "opacity-40 cursor-not-allowed"}`}
+          >
+            <Plus className="w-4 h-4" /> Add First Milestone
+          </button>
         </Card>
       )}
 
@@ -633,8 +637,8 @@ function MilestoneRow({
                   </div>
                   <ProgressBar progress={milestone.progress ?? 0} showLabel={false} />
                 </div>
-                {!isApproved && canEditProgress && (
-                  progressEditing ? (
+                {!isApproved && (
+                  progressEditing && canEditProgress ? (
                     <div className="flex items-center gap-1.5">
                       <input
                         type="number"
@@ -650,7 +654,12 @@ function MilestoneRow({
                       <button onClick={() => setProgressEditing(false)} className="text-[10px] text-muted-foreground hover:text-foreground">Cancel</button>
                     </div>
                   ) : (
-                    <button onClick={() => setProgressEditing(true)} className="text-[10px] font-semibold text-primary hover:underline">
+                    <button
+                      onClick={canEditProgress ? () => setProgressEditing(true) : undefined}
+                      disabled={!canEditProgress}
+                      title={!canEditProgress ? "You don't have permission to update progress" : undefined}
+                      className={`text-[10px] font-semibold text-primary hover:underline ${!canEditProgress ? "opacity-40 cursor-not-allowed" : ""}`}
+                    >
                       Update %
                     </button>
                   )
@@ -690,43 +699,45 @@ function MilestoneRow({
               <EvidenceSection milestone={milestone} canApprove={canApprove} onInvalidate={onInvalidate} />
             </div>
 
-            {/* Action buttons — admin-only full edit/delete */}
-            {canEditDetails && (
-              <div className="flex flex-col items-end gap-1 shrink-0">
-                <button
-                  onClick={openDetailEdit}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-primary/30 text-primary bg-primary/5 hover:bg-primary/15 transition-colors"
-                >
-                  <Pencil className="w-3 h-3" /> Edit
-                </button>
-                {!isPhaseGate && (
-                  confirmDelete ? (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={handleDelete}
-                        disabled={deleteMilestone.isPending}
-                        className="px-2 py-1 rounded text-[10px] font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
-                      >
-                        {deleteMilestone.isPending ? "…" : "Confirm delete"}
-                      </button>
-                      <button
-                        onClick={() => setConfirmDelete(false)}
-                        className="px-2 py-1 rounded text-[10px] border border-border hover:bg-secondary transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
+            {/* Action buttons — always visible, greyed out when no permission */}
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <button
+                onClick={canEditDetails ? openDetailEdit : undefined}
+                disabled={!canEditDetails}
+                title={!canEditDetails ? "Admin access required to edit milestone details" : undefined}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-primary/30 text-primary bg-primary/5 transition-colors ${canEditDetails ? "hover:bg-primary/15" : "opacity-40 cursor-not-allowed"}`}
+              >
+                <Pencil className="w-3 h-3" /> Edit
+              </button>
+              {!isPhaseGate && (
+                canEditDetails && confirmDelete ? (
+                  <div className="flex items-center gap-1">
                     <button
-                      onClick={() => setConfirmDelete(true)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-destructive/30 text-destructive bg-destructive/5 hover:bg-destructive/15 transition-colors"
+                      onClick={handleDelete}
+                      disabled={deleteMilestone.isPending}
+                      className="px-2 py-1 rounded text-[10px] font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
                     >
-                      <Trash2 className="w-3 h-3" /> Delete
+                      {deleteMilestone.isPending ? "…" : "Confirm delete"}
                     </button>
-                  )
-                )}
-              </div>
-            )}
+                    <button
+                      onClick={() => setConfirmDelete(false)}
+                      className="px-2 py-1 rounded text-[10px] border border-border hover:bg-secondary transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={canEditDetails ? () => setConfirmDelete(true) : undefined}
+                    disabled={!canEditDetails}
+                    title={!canEditDetails ? "Admin access required to delete milestones" : undefined}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-destructive/30 text-destructive bg-destructive/5 transition-colors ${canEditDetails ? "hover:bg-destructive/15" : "opacity-40 cursor-not-allowed"}`}
+                  >
+                    <Trash2 className="w-3 h-3" /> Delete
+                  </button>
+                )
+              )}
+            </div>
           </div>
         </>
       )}
@@ -1152,10 +1163,12 @@ export default function ProjectDetail({ params }: Props) {
                 <span className="text-xs text-muted-foreground">Week of {fmt(weeklyReport.weekStart)}</span>
               )}
               <div className="ml-auto flex items-center gap-2">
-                {canEditReport && !editingReport && (
+                {!editingReport && (
                   <button
-                    onClick={startEditing}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border hover:bg-secondary/80 transition-colors text-muted-foreground hover:text-foreground"
+                    onClick={canEditReport ? startEditing : undefined}
+                    disabled={!canEditReport}
+                    title={!canEditReport ? "You don't have permission to edit this report" : undefined}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border transition-colors text-muted-foreground ${canEditReport ? "hover:bg-secondary/80 hover:text-foreground" : "opacity-40 cursor-not-allowed"}`}
                   >
                     <Pencil className="w-3.5 h-3.5" />
                     {weeklyReport?.keyAchievements || weeklyReport?.nextSteps ? "Edit Report" : "Add Report"}
@@ -1568,10 +1581,12 @@ function ChangeControlTab({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{changeRequests.length} change request{changeRequests.length !== 1 ? "s" : ""}</p>
-        {canEdit && editingId !== "new" && (
+        {editingId !== "new" && (
           <button
-            onClick={() => setEditingId("new")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            onClick={canEdit ? () => setEditingId("new") : undefined}
+            disabled={!canEdit}
+            title={!canEdit ? "You don't have permission to add change requests" : undefined}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground transition-colors ${canEdit ? "hover:bg-primary/90" : "opacity-40 cursor-not-allowed"}`}
           >
             <Plus className="w-3.5 h-3.5" /> New Request
           </button>
@@ -1583,11 +1598,14 @@ function ChangeControlTab({
           <GitPullRequest className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
           <h3 className="font-bold">No change requests</h3>
           <p className="text-sm text-muted-foreground mt-1">Log change requests to track scope, budget, and timeline changes.</p>
-          {canEdit && (
-            <button onClick={() => setEditingId("new")} className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors mx-auto">
-              <Plus className="w-4 h-4" /> Add First Request
-            </button>
-          )}
+          <button
+            onClick={canEdit ? () => setEditingId("new") : undefined}
+            disabled={!canEdit}
+            title={!canEdit ? "You don't have permission to add change requests" : undefined}
+            className={`mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground transition-colors mx-auto ${canEdit ? "hover:bg-primary/90" : "opacity-40 cursor-not-allowed"}`}
+          >
+            <Plus className="w-4 h-4" /> Add First Request
+          </button>
         </Card>
       )}
 
@@ -1623,12 +1641,20 @@ function ChangeControlTab({
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                {canEdit && (
-                  <button onClick={() => setEditingId(cr.id)} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-colors" title="Edit">
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                )}
-                <button onClick={() => onDelete(cr.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors" title="Delete">
+                <button
+                  onClick={canEdit ? () => setEditingId(cr.id) : undefined}
+                  disabled={!canEdit}
+                  title={canEdit ? "Edit" : "You don't have permission to edit change requests"}
+                  className={`p-1.5 rounded transition-colors ${canEdit ? "text-muted-foreground hover:text-primary hover:bg-primary/10" : "text-muted-foreground/40 cursor-not-allowed"}`}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={canEdit ? () => onDelete(cr.id) : undefined}
+                  disabled={!canEdit}
+                  title={canEdit ? "Delete" : "You don't have permission to delete change requests"}
+                  className={`p-1.5 rounded transition-colors ${canEdit ? "text-muted-foreground hover:text-destructive hover:bg-destructive/10" : "text-muted-foreground/30 cursor-not-allowed"}`}
+                >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -1783,24 +1809,25 @@ function RaciTab({
             </span>
           ))}
         </div>
-        {canEdit && (
-          <div className="flex items-center gap-2">
-            <input
-              value={newPersonName}
-              onChange={(e) => setNewPersonName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAddPerson()}
-              placeholder="Add team member…"
-              className="text-sm border border-border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-44"
-            />
-            <button
-              onClick={handleAddPerson}
-              disabled={!newPersonName.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add
-            </button>
-          </div>
-        )}
+        <div className={`flex items-center gap-2 ${!canEdit ? "opacity-40" : ""}`}>
+          <input
+            value={newPersonName}
+            onChange={(e) => canEdit && setNewPersonName(e.target.value)}
+            onKeyDown={(e) => canEdit && e.key === "Enter" && handleAddPerson()}
+            disabled={!canEdit}
+            placeholder={canEdit ? "Add team member…" : "You don't have permission to add members"}
+            title={!canEdit ? "You don't have permission to manage RACI" : undefined}
+            className={`text-sm border border-border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-44 ${!canEdit ? "cursor-not-allowed" : ""}`}
+          />
+          <button
+            onClick={canEdit ? handleAddPerson : undefined}
+            disabled={!canEdit || !newPersonName.trim()}
+            title={!canEdit ? "You don't have permission to manage RACI" : undefined}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground transition-colors ${canEdit && newPersonName.trim() ? "hover:bg-primary/90" : "opacity-40 cursor-not-allowed"}`}
+          >
+            <Plus className="w-3.5 h-3.5" /> Add
+          </button>
+        </div>
       </div>
 
       {people.length === 0 ? (
@@ -1987,26 +2014,35 @@ function ActionRow({
           )}
         </div>
       </div>
-      {canEdit && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <button onClick={() => setEditing(true)} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-colors" title="Edit">
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => onDelete(action.id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors" title="Delete">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <button
+          onClick={canEdit ? () => setEditing(true) : undefined}
+          disabled={!canEdit}
+          title={canEdit ? "Edit" : "You don't have permission to edit actions"}
+          className={`p-1.5 rounded transition-colors ${canEdit ? "text-muted-foreground hover:text-primary hover:bg-primary/10" : "text-muted-foreground/30 cursor-not-allowed"}`}
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={canEdit ? () => onDelete(action.id) : undefined}
+          disabled={!canEdit}
+          title={canEdit ? "Delete" : "You don't have permission to delete actions"}
+          className={`p-1.5 rounded transition-colors ${canEdit ? "text-muted-foreground hover:text-destructive hover:bg-destructive/10" : "text-muted-foreground/30 cursor-not-allowed"}`}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </Card>
   );
 }
 
 function QuickAddAction({
-  projectId, milestones, onCreate,
+  projectId, milestones, onCreate, canEdit,
 }: {
   projectId: number;
   milestones: SpmoMilestoneWithEvidence[];
   onCreate: (data: Partial<SpmoAction>) => Promise<unknown>;
+  canEdit: boolean;
 }) {
   const [title, setTitle] = useState("");
   const [assigneeName, setAssigneeName] = useState("");
@@ -2034,16 +2070,18 @@ function QuickAddAction({
   };
 
   return (
-    <div className="border border-dashed border-border rounded-xl p-3 bg-muted/20 hover:bg-muted/30 transition-colors">
+    <div className={`border border-dashed rounded-xl p-3 transition-colors ${canEdit ? "border-border bg-muted/20 hover:bg-muted/30" : "border-border/40 bg-muted/10 opacity-50"}`}>
       <div className="flex items-center gap-2">
         <Plus className="w-4 h-4 text-muted-foreground shrink-0" />
         <input
           value={title}
-          onChange={(e) => { setTitle(e.target.value); if (e.target.value) setExpanded(true); }}
-          onFocus={() => setExpanded(true)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) handleSubmit(); if (e.key === "Escape") { setExpanded(false); setTitle(""); } }}
-          placeholder="Add an action item… (press Enter to save)"
-          className="flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground/60"
+          onChange={(e) => { if (!canEdit) return; setTitle(e.target.value); if (e.target.value) setExpanded(true); }}
+          onFocus={() => { if (canEdit) setExpanded(true); }}
+          onKeyDown={(e) => { if (!canEdit) return; if (e.key === "Enter" && !e.shiftKey) handleSubmit(); if (e.key === "Escape") { setExpanded(false); setTitle(""); } }}
+          disabled={!canEdit}
+          placeholder={canEdit ? "Add an action item… (press Enter to save)" : "You don't have permission to add actions"}
+          title={!canEdit ? "You don't have permission to add actions" : undefined}
+          className={`flex-1 text-sm bg-transparent border-none outline-none placeholder:text-muted-foreground/60 ${!canEdit ? "cursor-not-allowed" : ""}`}
         />
         {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />}
       </div>
@@ -2116,9 +2154,7 @@ function ActionsTab({
         />
       ))}
 
-      {canEdit && (
-        <QuickAddAction projectId={projectId} milestones={milestones} onCreate={onCreate} />
-      )}
+      <QuickAddAction projectId={projectId} milestones={milestones} onCreate={onCreate} canEdit={canEdit} />
     </div>
   );
 }
@@ -2178,11 +2214,14 @@ function DocumentsTab({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{documents.length} document{documents.length !== 1 ? "s" : ""}</p>
-        {canEdit && (
-          <button onClick={() => setShowForm((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-            <Plus className="w-3.5 h-3.5" /> Add Document
-          </button>
-        )}
+        <button
+          onClick={canEdit ? () => setShowForm((v) => !v) : undefined}
+          disabled={!canEdit}
+          title={!canEdit ? "You don't have permission to add documents" : undefined}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground transition-colors ${canEdit ? "hover:bg-primary/90" : "opacity-40 cursor-not-allowed"}`}
+        >
+          <Plus className="w-3.5 h-3.5" /> Add Document
+        </button>
       </div>
 
       {showForm && (
@@ -2251,9 +2290,14 @@ function DocumentsTab({
                   </div>
                 )}
               </div>
-              {canEdit && (
-                <button onClick={async () => { await deleteDoc.mutateAsync(doc.id); onInvalidate(); }} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors shrink-0"><Trash2 className="w-3.5 h-3.5" /></button>
-              )}
+              <button
+                onClick={canEdit ? async () => { await deleteDoc.mutateAsync(doc.id); onInvalidate(); } : undefined}
+                disabled={!canEdit}
+                title={canEdit ? "Delete document" : "You don't have permission to delete documents"}
+                className={`p-1.5 rounded transition-colors shrink-0 ${canEdit ? "text-muted-foreground hover:text-destructive hover:bg-destructive/10" : "text-muted-foreground/30 cursor-not-allowed"}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </Card>
           ))}
         </div>
