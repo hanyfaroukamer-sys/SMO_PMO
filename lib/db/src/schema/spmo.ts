@@ -790,6 +790,16 @@ export const spmoProjectAccessTable = pgTable(
     grantedById: text("granted_by_id").notNull(),
     grantedByName: text("granted_by_name"),
     grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+    // ── Fine-grained permission flags ──────────────────────────────────
+    canEditDetails:          boolean("can_edit_details").notNull().default(true),
+    canManageMilestones:     boolean("can_manage_milestones").notNull().default(true),
+    canSubmitReports:        boolean("can_submit_reports").notNull().default(true),
+    canManageRisks:          boolean("can_manage_risks").notNull().default(true),
+    canManageBudget:         boolean("can_manage_budget").notNull().default(false),
+    canManageDocuments:      boolean("can_manage_documents").notNull().default(true),
+    canManageActions:        boolean("can_manage_actions").notNull().default(true),
+    canManageRaci:           boolean("can_manage_raci").notNull().default(false),
+    canSubmitChangeRequests: boolean("can_submit_change_requests").notNull().default(true),
   },
   (t) => [
     unique("uniq_project_access").on(t.projectId, t.userId),

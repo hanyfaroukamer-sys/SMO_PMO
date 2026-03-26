@@ -8,15 +8,22 @@ import {
   customFetch,
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
-import { Loader2, ShieldCheck, Settings, Users, RefreshCw, Lock, KeyRound, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Loader2, ShieldCheck, Settings, Users, RefreshCw, Lock,
+  KeyRound, Plus, Trash2, ChevronDown, ChevronUp, Check, X,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
   useProjectAccessGrants,
   useGrantProjectAccess,
+  useUpdateProjectPermissions,
   useRevokeProjectAccess,
+  PERMISSION_LABELS,
+  DEFAULT_PERMISSIONS,
   type ProjectAccessGrant,
+  type ProjectPermissions,
 } from "@/hooks/use-project-access";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -28,6 +35,8 @@ const ROLES: { value: UserRole; label: string; description: string; color: strin
   { value: "project-manager", label: "Project Manager", description: "Update progress & reports", color: "bg-blue-500 text-white border-blue-500" },
   { value: "approver", label: "Approver", description: "Approve milestones", color: "bg-amber-500 text-white border-amber-500" },
 ];
+
+const PERM_KEYS = Object.keys(PERMISSION_LABELS) as (keyof ProjectPermissions)[];
 
 function SectionCard({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
   return (
@@ -87,6 +96,142 @@ function UserRoleRow({ user, saving, onRoleChange }: {
   );
 }
 
+// ─── Permission Toggle ──────────────────────────────────────────────────────
+
+function PermToggle({
+  enabled, onChange, saving,
+}: { enabled: boolean; onChange: (v: boolean) => void; saving?: boolean }) {
+  return (
+    <button
+      onClick={() => onChange(!enabled)}
+      disabled={saving}
+      className={[
+        "w-8 h-5 rounded-full transition-all relative shrink-0",
+        enabled ? "bg-primary" : "bg-muted-foreground/30",
+        saving ? "opacity-50" : "",
+      ].join(" ")}
+      aria-pressed={enabled}
+    >
+      <span
+        className={[
+          "absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all",
+          enabled ? "left-3.5" : "left-0.5",
+        ].join(" ")}
+      />
+    </button>
+  );
+}
+
+// ─── Grant Row with expandable permission grid ─────────────────────────────
+
+function GrantRow({
+  grant, projectId,
+}: { grant: ProjectAccessGrant; projectId: number }) {
+  const { toast } = useToast();
+  const [expanded, setExpanded] = useState(false);
+  const [localPerms, setLocalPerms] = useState<ProjectPermissions>({
+    canEditDetails:          grant.canEditDetails,
+    canManageMilestones:     grant.canManageMilestones,
+    canSubmitReports:        grant.canSubmitReports,
+    canManageRisks:          grant.canManageRisks,
+    canManageBudget:         grant.canManageBudget,
+    canManageDocuments:      grant.canManageDocuments,
+    canManageActions:        grant.canManageActions,
+    canManageRaci:           grant.canManageRaci,
+    canSubmitChangeRequests: grant.canSubmitChangeRequests,
+  });
+  const [savingPerm, setSavingPerm] = useState<string | null>(null);
+
+  const updatePerms = useUpdateProjectPermissions();
+  const revoke = useRevokeProjectAccess();
+
+  const activeCount = Object.values(localPerms).filter(Boolean).length;
+
+  async function handleToggle(key: keyof ProjectPermissions) {
+    const newVal = !localPerms[key];
+    const next = { ...localPerms, [key]: newVal };
+    setLocalPerms(next);
+    setSavingPerm(key);
+    try {
+      await updatePerms.mutateAsync({ projectId, userId: grant.userId, permissions: { [key]: newVal } });
+    } catch {
+      setLocalPerms(localPerms); // revert
+      toast({ variant: "destructive", title: "Failed", description: "Could not update permission." });
+    } finally {
+      setSavingPerm(null);
+    }
+  }
+
+  async function handleRevoke() {
+    try {
+      await revoke.mutateAsync({ projectId, userId: grant.userId });
+      toast({ title: "Access revoked", description: `${grant.userName ?? grant.userId} has been removed.` });
+    } catch {
+      toast({ variant: "destructive", title: "Failed", description: "Could not revoke access." });
+    }
+  }
+
+  return (
+    <div className="border border-border rounded-xl overflow-hidden mb-2 last:mb-0">
+      {/* Header row */}
+      <div className="flex items-center gap-3 px-3 py-2.5 bg-background hover:bg-secondary/10 transition-colors">
+        <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-xs font-bold text-blue-700 shrink-0">
+          {(grant.userName ?? grant.userId)[0]?.toUpperCase() ?? "?"}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold truncate">{grant.userName ?? grant.userId}</div>
+          <div className="text-xs text-muted-foreground">
+            {activeCount === PERM_KEYS.length ? "All permissions" : `${activeCount} of ${PERM_KEYS.length} permissions`}
+          </div>
+        </div>
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-secondary text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {expanded ? <><ChevronUp className="w-3.5 h-3.5" />Hide</> : <><ChevronDown className="w-3.5 h-3.5" />Permissions</>}
+        </button>
+        <button
+          onClick={handleRevoke}
+          disabled={revoke.isPending}
+          className="p-1.5 rounded-lg hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors shrink-0"
+          title="Revoke all access"
+        >
+          {revoke.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+
+      {/* Permission grid */}
+      {expanded && (
+        <div className="border-t border-border bg-secondary/10 px-3 py-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {PERM_KEYS.map((key) => {
+            const { label, description } = PERMISSION_LABELS[key];
+            const enabled = localPerms[key];
+            return (
+              <div
+                key={key}
+                className={[
+                  "flex items-center gap-3 px-3 py-2 rounded-lg border transition-colors",
+                  enabled ? "bg-background border-primary/20" : "bg-muted/30 border-border/50",
+                ].join(" ")}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className={["text-xs font-semibold", enabled ? "" : "text-muted-foreground"].join(" ")}>{label}</div>
+                  <div className="text-[10px] text-muted-foreground/80 leading-tight">{description}</div>
+                </div>
+                <PermToggle
+                  enabled={enabled}
+                  onChange={() => handleToggle(key)}
+                  saving={savingPerm === key}
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Project Access Panel ───────────────────────────────────────────────────
 
 type SimpleProject = { id: number; name: string; projectCode: string | null };
@@ -95,7 +240,9 @@ function ProjectAccessPanel({ users }: { users: SpmaAdminUser[] }) {
   const { toast } = useToast();
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [grantUserId, setGrantUserId] = useState("");
+  const [newPerms, setNewPerms] = useState<ProjectPermissions>({ ...DEFAULT_PERMISSIONS });
   const [showProjectList, setShowProjectList] = useState(false);
+  const [showPermConfig, setShowPermConfig] = useState(false);
   const [projectSearch, setProjectSearch] = useState("");
 
   const { data: projectsData } = useQuery<{ projects: SimpleProject[] }>({
@@ -106,7 +253,6 @@ function ProjectAccessPanel({ users }: { users: SpmaAdminUser[] }) {
 
   const { data: grantsData, isLoading: grantsLoading } = useProjectAccessGrants(selectedProjectId);
   const grantMutation = useGrantProjectAccess();
-  const revokeMutation = useRevokeProjectAccess();
 
   const projects = projectsData?.projects ?? [];
   const filteredProjects = projectSearch
@@ -117,8 +263,6 @@ function ProjectAccessPanel({ users }: { users: SpmaAdminUser[] }) {
     : projects;
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
-
-  // Only project managers can be granted project-level access (admins always have access)
   const pmUsers = users.filter((u) => u.role === "project-manager");
 
   async function handleGrant() {
@@ -131,28 +275,21 @@ function ProjectAccessPanel({ users }: { users: SpmaAdminUser[] }) {
         userId: grantUserId,
         userName,
         userEmail: user?.email ?? undefined,
+        permissions: newPerms,
       });
       setGrantUserId("");
-      toast({ title: "Access granted", description: `${userName} can now edit this project.` });
+      setNewPerms({ ...DEFAULT_PERMISSIONS });
+      setShowPermConfig(false);
+      toast({ title: "Access granted", description: `${userName} can now access this project.` });
     } catch {
       toast({ variant: "destructive", title: "Failed", description: "Could not grant access." });
-    }
-  }
-
-  async function handleRevoke(grant: ProjectAccessGrant) {
-    if (!selectedProjectId) return;
-    try {
-      await revokeMutation.mutateAsync({ projectId: selectedProjectId, userId: grant.userId });
-      toast({ title: "Access revoked", description: `${grant.userName ?? grant.userId} no longer has edit access.` });
-    } catch {
-      toast({ variant: "destructive", title: "Failed", description: "Could not revoke access." });
     }
   }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Grant project managers the ability to edit a specific project. Admins always have full access and do not appear here.
+        Grant project managers access to specific projects and control exactly what they can do. Admins always have full access.
       </p>
 
       {/* Project Selector */}
@@ -206,71 +343,118 @@ function ProjectAccessPanel({ users }: { users: SpmaAdminUser[] }) {
         <>
           {/* Current Grants */}
           <div className="space-y-2">
-            <div className="text-sm font-medium">Current Access Grants</div>
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold">Current Access Grants</div>
+              {grantsData?.grants && grantsData.grants.length > 0 && (
+                <div className="text-xs text-muted-foreground">{grantsData.grants.length} user{grantsData.grants.length !== 1 ? "s" : ""}</div>
+              )}
+            </div>
             {grantsLoading ? (
               <div className="flex justify-center py-3"><Loader2 className="w-4 h-4 animate-spin text-primary" /></div>
             ) : !grantsData?.grants || grantsData.grants.length === 0 ? (
               <p className="text-sm text-muted-foreground bg-secondary/30 rounded-lg px-3 py-3">
-                No users have been granted project-level access. Only admins can edit this project.
+                No users have been granted access. Only admins can edit this project.
               </p>
             ) : (
-              <div className="border border-border rounded-xl overflow-hidden divide-y divide-border/50">
+              <div>
                 {grantsData.grants.map((grant) => (
-                  <div key={grant.id} className="flex items-center gap-3 px-3 py-2.5 bg-background hover:bg-secondary/20 transition-colors">
-                    <div className="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-xs font-bold text-blue-700 shrink-0">
-                      {(grant.userName ?? grant.userId)[0]?.toUpperCase() ?? "?"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{grant.userName ?? grant.userId}</div>
-                      {grant.userEmail && <div className="text-xs text-muted-foreground truncate">{grant.userEmail}</div>}
-                    </div>
-                    <div className="text-xs text-muted-foreground hidden sm:block">
-                      by {grant.grantedByName ?? grant.grantedById}
-                    </div>
-                    <button
-                      onClick={() => handleRevoke(grant)}
-                      disabled={revokeMutation.isPending}
-                      className="p-1.5 rounded-lg hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-colors shrink-0"
-                      title="Revoke access"
-                    >
-                      {revokeMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
+                  <GrantRow key={grant.id} grant={grant} projectId={selectedProject.id} />
                 ))}
               </div>
             )}
           </div>
 
           {/* Grant New Access */}
-          <div className="space-y-2 pt-2 border-t border-border/50">
-            <div className="text-sm font-medium">Grant Edit Access</div>
+          <div className="space-y-3 pt-3 border-t border-border/50">
+            <div className="text-sm font-semibold">Grant Access to a User</div>
             {pmUsers.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No project managers have registered. Assign users the Project Manager role first.</p>
+              <p className="text-xs text-muted-foreground">No project managers have registered. Assign the Project Manager role to users first.</p>
             ) : (
-              <div className="flex gap-2 items-center">
-                <select
-                  value={grantUserId}
-                  onChange={(e) => setGrantUserId(e.target.value)}
-                  className="flex-1 text-sm px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                >
-                  <option value="">Select user…</option>
-                  {pmUsers.map((u) => {
-                    const name = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || u.id;
-                    const alreadyGranted = grantsData?.grants?.some((g) => g.userId === u.id);
-                    return (
-                      <option key={u.id} value={u.id} disabled={alreadyGranted}>
-                        {name}{alreadyGranted ? " (already granted)" : ""}
-                      </option>
-                    );
-                  })}
-                </select>
+              <div className="space-y-3">
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={grantUserId}
+                    onChange={(e) => setGrantUserId(e.target.value)}
+                    className="flex-1 text-sm px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    <option value="">Select user…</option>
+                    {pmUsers.map((u) => {
+                      const name = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || u.id;
+                      const alreadyGranted = grantsData?.grants?.some((g) => g.userId === u.id);
+                      return (
+                        <option key={u.id} value={u.id} disabled={alreadyGranted}>
+                          {name}{alreadyGranted ? " (already granted)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <button
+                    onClick={() => setShowPermConfig((s) => !s)}
+                    disabled={!grantUserId}
+                    className="flex items-center gap-1 px-3 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:border-primary/50 hover:text-foreground disabled:opacity-40 transition-colors shrink-0"
+                    title="Configure permissions"
+                  >
+                    {showPermConfig ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    Permissions
+                  </button>
+                </div>
+
+                {/* Permission defaults for new grant */}
+                {showPermConfig && grantUserId && (
+                  <div className="rounded-xl border border-border overflow-hidden">
+                    <div className="px-3 py-2 bg-secondary/30 border-b border-border flex items-center justify-between">
+                      <span className="text-xs font-semibold">Configure permissions for new grant</span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setNewPerms(Object.fromEntries(PERM_KEYS.map((k) => [k, true])) as ProjectPermissions)}
+                          className="text-xs text-primary hover:underline flex items-center gap-1"
+                        >
+                          <Check className="w-3 h-3" />All
+                        </button>
+                        <button
+                          onClick={() => setNewPerms(Object.fromEntries(PERM_KEYS.map((k) => [k, false])) as ProjectPermissions)}
+                          className="text-xs text-muted-foreground hover:underline flex items-center gap-1"
+                        >
+                          <X className="w-3 h-3" />None
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-border">
+                      {PERM_KEYS.map((key) => {
+                        const { label, description } = PERMISSION_LABELS[key];
+                        const enabled = newPerms[key];
+                        return (
+                          <label
+                            key={key}
+                            className={[
+                              "flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors",
+                              enabled ? "bg-primary/5" : "bg-background",
+                            ].join(" ")}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={enabled}
+                              onChange={(e) => setNewPerms({ ...newPerms, [key]: e.target.checked })}
+                              className="w-3.5 h-3.5 rounded border-border accent-primary shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold truncate">{label}</div>
+                              <div className="text-[10px] text-muted-foreground leading-tight">{description}</div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <button
                   onClick={handleGrant}
                   disabled={!grantUserId || grantMutation.isPending}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 hover:-translate-y-0.5 transition-all shrink-0"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 hover:-translate-y-0.5 transition-all"
                 >
                   {grantMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  Grant
+                  Grant Access
                 </button>
               </div>
             )}
@@ -379,7 +563,7 @@ export default function Admin() {
         ) : (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              These weights are applied to the 4 mandatory phase gates when a new project is created. Changes affect new projects only — existing projects are not retroactively updated.
+              These weights are applied to the 4 mandatory phase gates when a new project is created. Changes affect new projects only.
             </p>
             <div className="border border-border rounded-xl overflow-hidden">
               <table className="w-full text-sm">
@@ -523,7 +707,7 @@ export default function Admin() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   <span className="font-semibold text-foreground">Admin</span> — full access.{" "}
-                  <span className="font-semibold text-foreground">Project Manager</span> — progress, evidence & reports.{" "}
+                  <span className="font-semibold text-foreground">Project Manager</span> — configurable per-project.{" "}
                   <span className="font-semibold text-foreground">Approver</span> — approve milestones.
                 </p>
               </div>
