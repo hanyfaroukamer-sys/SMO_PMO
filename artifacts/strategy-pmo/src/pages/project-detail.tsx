@@ -279,6 +279,7 @@ function MilestonesTab({
   pendingApprovals,
   canApprove,
   canEditDetails,
+  canDelete,
   canEditProgress,
   onInvalidate,
 }: {
@@ -288,6 +289,7 @@ function MilestonesTab({
   pendingApprovals: number;
   canApprove: boolean;
   canEditDetails: boolean;
+  canDelete: boolean;
   canEditProgress: boolean;
   onInvalidate: () => void;
 }) {
@@ -422,7 +424,7 @@ function MilestonesTab({
 
       {/* List */}
       {sortedMilestones.map((m) => (
-        <MilestoneRow key={m.id} milestone={m} canApprove={canApprove} canEditDetails={canEditDetails} canDelete={canDeleteMilestone} canEditProgress={canEditProgress} onInvalidate={onInvalidate} />
+        <MilestoneRow key={m.id} milestone={m} canApprove={canApprove} canEditDetails={canEditDetails} canDelete={canDelete} canEditProgress={canEditProgress} onInvalidate={onInvalidate} />
       ))}
     </div>
   );
@@ -1147,6 +1149,7 @@ export default function ProjectDetail({ params }: Props) {
             pendingApprovals={project.pendingApprovals}
             canApprove={canApprove}
             canEditDetails={canEditMilestoneDetails}
+            canDelete={canDeleteMilestone}
             canEditProgress={canEditMilestoneProgress}
             onInvalidate={invalidate}
           />
