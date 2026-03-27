@@ -1,5 +1,4 @@
 import { useState, lazy, Suspense } from "react";
-import { PageHeader } from "@/components/ui-elements";
 import { BellRing, ScrollText, Loader2 } from "lucide-react";
 
 const Alerts = lazy(() => import("@/pages/alerts"));
@@ -11,12 +10,7 @@ export default function Monitoring() {
   const [tab, setTab] = useState<Tab>("alerts");
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <PageHeader
-        title="Monitoring"
-        description={tab === "alerts" ? "Smart alerts requiring attention" : "Full audit trail of all programme actions"}
-      />
-
+    <div className="space-y-4 animate-in fade-in duration-500">
       <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
         <button
           onClick={() => setTab("alerts")}

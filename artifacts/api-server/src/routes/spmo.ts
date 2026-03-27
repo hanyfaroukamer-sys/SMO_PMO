@@ -1313,6 +1313,14 @@ router.post("/spmo/milestones/:id/submit", async (req, res): Promise<void> => {
     return;
   }
 
+  // Status guard: only pending, in_progress, or rejected milestones can be submitted
+  const [existing] = await db.select({ status: spmoMilestonesTable.status }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
+  if (!existing) { res.status(404).json({ error: "Milestone not found" }); return; }
+  if (!["pending", "in_progress", "rejected"].includes(existing.status)) {
+    res.status(400).json({ error: `Cannot submit a milestone with status "${existing.status}". Only pending, in-progress, or rejected milestones can be submitted.` });
+    return;
+  }
+
   const evidence = await db
     .select()
     .from(spmoEvidenceTable)
@@ -1393,6 +1401,14 @@ router.post("/spmo/milestones/:id/reject", async (req, res): Promise<void> => {
   const parsed = RejectSpmoMilestoneBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  // Status guard: only submitted milestones can be rejected
+  const [existingForReject] = await db.select({ status: spmoMilestonesTable.status }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
+  if (!existingForReject) { res.status(404).json({ error: "Milestone not found" }); return; }
+  if (existingForReject.status !== "submitted") {
+    res.status(400).json({ error: `Cannot reject a milestone with status "${existingForReject.status}". Only submitted milestones can be rejected.` });
     return;
   }
 
@@ -3585,7 +3601,7 @@ router.get("/spmo/kpis/:id/measurements", async (req, res) => {
 });
 
 router.post("/spmo/kpis/:id/measurements", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const kpiId = parseId(req, res);
   if (!kpiId) return;
@@ -3615,7 +3631,7 @@ router.post("/spmo/kpis/:id/measurements", async (req, res) => {
 });
 
 router.delete("/spmo/kpis/:kpiId/measurements/:id", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
@@ -3637,7 +3653,8 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
   const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   const isApprover = userRow?.role === "admin" || userRow?.role === "approver";
 
-  const myProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.ownerId, userId));
+  // Only include active projects — completed/on_hold/cancelled projects should not generate tasks
+  const myProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(and(eq(spmoProjectsTable.ownerId, userId), eq(spmoProjectsTable.status, "active")));
   const myProjectIds = myProjects.map((p) => p.id);
 
   // Only admin and approver roles see pending approvals
@@ -3647,7 +3664,11 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
     pendingApprovals = rows.length;
   }
 
-  const myMilestones = await db.select().from(spmoMilestonesTable).where(and(eq(spmoMilestonesTable.assigneeId, userId), ne(spmoMilestonesTable.status, "approved")));
+  // Exclude milestones from completed/cancelled/on_hold projects
+  const activeProjectIds = (await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.status, "active"))).map((p) => p.id);
+  const myMilestones = activeProjectIds.length > 0
+    ? await db.select().from(spmoMilestonesTable).where(and(eq(spmoMilestonesTable.assigneeId, userId), ne(spmoMilestonesTable.status, "approved"), inArray(spmoMilestonesTable.projectId, activeProjectIds)))
+    : [];
   const overdueCount = myMilestones.filter((m) => m.dueDate && m.dueDate < today).length;
   const dueSoonCount = myMilestones.filter((m) => {
     if (!m.dueDate || m.dueDate < today) return false;
@@ -3714,7 +3735,8 @@ router.get("/spmo/my-tasks", async (req, res) => {
   const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   const isApprover = userRow?.role === "admin" || userRow?.role === "approver";
 
-  const myProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(eq(spmoProjectsTable.ownerId, userId));
+  // Only include active projects — completed/on_hold/cancelled should not generate tasks
+  const myProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(and(eq(spmoProjectsTable.ownerId, userId), eq(spmoProjectsTable.status, "active")));
   const myProjectIds = myProjects.map((p) => p.id);
   const projectNameMap = new Map(myProjects.map((p) => [p.id, p.name]));
 
@@ -3730,7 +3752,11 @@ router.get("/spmo/my-tasks", async (req, res) => {
     }
   }
 
-  const myMilestones = await db.select().from(spmoMilestonesTable).where(and(eq(spmoMilestonesTable.assigneeId, userId), ne(spmoMilestonesTable.status, "approved")));
+  // Exclude milestones from completed/cancelled/on_hold projects
+  const activeProjectIds = (await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.status, "active"))).map((p) => p.id);
+  const myMilestones = activeProjectIds.length > 0
+    ? await db.select().from(spmoMilestonesTable).where(and(eq(spmoMilestonesTable.assigneeId, userId), ne(spmoMilestonesTable.status, "approved"), inArray(spmoMilestonesTable.projectId, activeProjectIds)))
+    : [];
   const overdue = myMilestones.filter((m) => m.dueDate && m.dueDate < today && m.status !== "approved");
   const dueSoon = myMilestones.filter((m) => {
     if (!m.dueDate || m.status === "approved" || overdue.some((o) => o.id === m.id)) return false;

@@ -1,5 +1,4 @@
 import { useState, lazy, Suspense } from "react";
-import { PageHeader } from "@/components/ui-elements";
 import { Wallet, ShoppingCart, Loader2 } from "lucide-react";
 
 const Budget = lazy(() => import("@/pages/budget"));
@@ -11,12 +10,7 @@ export default function Financials() {
   const [tab, setTab] = useState<Tab>("budget");
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <PageHeader
-        title="Financials"
-        description={tab === "budget" ? "Budget allocation, spend tracking, and CAPEX/OPEX analysis" : "Procurement pipeline and contract management"}
-      />
-
+    <div className="space-y-4 animate-in fade-in duration-500">
       <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
         <button
           onClick={() => setTab("budget")}

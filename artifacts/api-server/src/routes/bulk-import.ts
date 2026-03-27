@@ -304,7 +304,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       if (deptSheet) {
         let count = 0;
         deptSheet.eachRow((row, rowNum) => {
-          if (rowNum <= 1) return;
+          if (rowNum <= 2) return; // Skip header (1) and example row (2)
           const name = cellStr(row, 1);
           if (!name) return;
           // Queue for insert — will be processed below
@@ -331,7 +331,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       const pillarSheet = getSheet(wb, "Pillars");
       if (pillarSheet) {
         let count = 0;
-        for (let rowNum = 2; rowNum <= pillarSheet.rowCount; rowNum++) {
+        for (let rowNum = 3; rowNum <= pillarSheet.rowCount; rowNum++) {
           const row = pillarSheet.getRow(rowNum);
           const name = cellStr(row, 1);
           if (!name) continue;
@@ -353,7 +353,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       const initSheet = getSheet(wb, "Initiatives");
       if (initSheet) {
         let count = 0;
-        for (let rowNum = 2; rowNum <= initSheet.rowCount; rowNum++) {
+        for (let rowNum = 3; rowNum <= initSheet.rowCount; rowNum++) {
           const row = initSheet.getRow(rowNum);
           const pillarName = cellStr(row, 1);
           const name = cellStr(row, 3);
@@ -386,7 +386,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       const projSheet = getSheet(wb, "Projects");
       if (projSheet) {
         let count = 0;
-        for (let rowNum = 2; rowNum <= projSheet.rowCount; rowNum++) {
+        for (let rowNum = 3; rowNum <= projSheet.rowCount; rowNum++) {
           const row = projSheet.getRow(rowNum);
           const initName = cellStr(row, 1);
           const name = cellStr(row, 4);
@@ -428,7 +428,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       const msSheet = getSheet(wb, "Milestones");
       if (msSheet) {
         let count = 0;
-        for (let rowNum = 2; rowNum <= msSheet.rowCount; rowNum++) {
+        for (let rowNum = 3; rowNum <= msSheet.rowCount; rowNum++) {
           const row = msSheet.getRow(rowNum);
           const projName = cellStr(row, 1);
           const name = cellStr(row, 2);
@@ -462,7 +462,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       const kpiSheet = getSheet(wb, "KPIs");
       if (kpiSheet) {
         let count = 0;
-        for (let rowNum = 2; rowNum <= kpiSheet.rowCount; rowNum++) {
+        for (let rowNum = 3; rowNum <= kpiSheet.rowCount; rowNum++) {
           const row = kpiSheet.getRow(rowNum);
           const name = cellStr(row, 2);
           if (!name) continue;
@@ -499,7 +499,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       const kpiMeasSheet = getSheet(wb, "KPI Measurements");
       if (kpiMeasSheet) {
         let count = 0;
-        for (let rowNum = 2; rowNum <= kpiMeasSheet.rowCount; rowNum++) {
+        for (let rowNum = 3; rowNum <= kpiMeasSheet.rowCount; rowNum++) {
           const row = kpiMeasSheet.getRow(rowNum);
           const kpiName = cellStr(row, 1);
           const measuredAt = cellDate(row, 2);
@@ -527,7 +527,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       const riskSheet = getSheet(wb, "Risks");
       if (riskSheet) {
         let count = 0;
-        for (let rowNum = 2; rowNum <= riskSheet.rowCount; rowNum++) {
+        for (let rowNum = 3; rowNum <= riskSheet.rowCount; rowNum++) {
           const row = riskSheet.getRow(rowNum);
           const title = cellStr(row, 3);
           if (!title) continue;
@@ -555,7 +555,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       const mitSheet = getSheet(wb, "Mitigations");
       if (mitSheet) {
         let count = 0;
-        for (let rowNum = 2; rowNum <= mitSheet.rowCount; rowNum++) {
+        for (let rowNum = 3; rowNum <= mitSheet.rowCount; rowNum++) {
           const row = mitSheet.getRow(rowNum);
           const riskTitle = cellStr(row, 1);
           const desc = cellStr(row, 2);
@@ -580,7 +580,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       const budgetSheet = getSheet(wb, "Budget Entries");
       if (budgetSheet) {
         let count = 0;
-        for (let rowNum = 2; rowNum <= budgetSheet.rowCount; rowNum++) {
+        for (let rowNum = 3; rowNum <= budgetSheet.rowCount; rowNum++) {
           const row = budgetSheet.getRow(rowNum);
           const category = cellStr(row, 3);
           if (!category) continue;
@@ -607,7 +607,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       const procSheet = getSheet(wb, "Procurement");
       if (procSheet) {
         let count = 0;
-        for (let rowNum = 2; rowNum <= procSheet.rowCount; rowNum++) {
+        for (let rowNum = 3; rowNum <= procSheet.rowCount; rowNum++) {
           const row = procSheet.getRow(rowNum);
           const projName = cellStr(row, 1);
           const title = cellStr(row, 2);
@@ -637,7 +637,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
       const actSheet = getSheet(wb, "Actions");
       if (actSheet) {
         let count = 0;
-        for (let rowNum = 2; rowNum <= actSheet.rowCount; rowNum++) {
+        for (let rowNum = 3; rowNum <= actSheet.rowCount; rowNum++) {
           const row = actSheet.getRow(rowNum);
           const projName = cellStr(row, 1);
           const title = cellStr(row, 3);

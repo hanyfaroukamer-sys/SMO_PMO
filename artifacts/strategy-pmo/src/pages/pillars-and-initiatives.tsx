@@ -1,5 +1,4 @@
 import { useState, lazy, Suspense } from "react";
-import { PageHeader } from "@/components/ui-elements";
 import { Layers, Flag, Loader2 } from "lucide-react";
 
 const Pillars = lazy(() => import("@/pages/pillars"));
@@ -11,12 +10,7 @@ export default function PillarsAndInitiatives() {
   const [tab, setTab] = useState<Tab>("pillars");
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <PageHeader
-        title="Pillars & Initiatives"
-        description={tab === "pillars" ? "Strategic pillars and cross-cutting enablers" : "Initiatives grouped by pillar"}
-      />
-
+    <div className="space-y-4 animate-in fade-in duration-500">
       {/* Tab toggle */}
       <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
         <button
