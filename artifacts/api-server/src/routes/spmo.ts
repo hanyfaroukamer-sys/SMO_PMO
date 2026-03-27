@@ -3360,6 +3360,62 @@ router.delete("/spmo/actions/:id", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// GLOBAL SEARCH (Cmd+K — searches projects, milestones, KPIs, risks, documents)
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/search", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const q = ((req.query.q as string) || "").trim().toLowerCase();
+  if (q.length < 2) { res.json({ results: [] }); return; }
+
+  const results: { type: string; id: number; title: string; subtitle: string; link: string }[] = [];
+
+  // Search projects
+  const projects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name, projectCode: spmoProjectsTable.projectCode, ownerName: spmoProjectsTable.ownerName }).from(spmoProjectsTable);
+  for (const p of projects) {
+    if (p.name.toLowerCase().includes(q) || (p.projectCode ?? "").toLowerCase().includes(q)) {
+      results.push({ type: "project", id: p.id, title: p.name, subtitle: `${p.projectCode ?? ""} · ${p.ownerName ?? ""}`.trim(), link: `/projects/${p.id}` });
+    }
+  }
+
+  // Search milestones
+  const milestones = await db.select({ id: spmoMilestonesTable.id, name: spmoMilestonesTable.name, projectId: spmoMilestonesTable.projectId }).from(spmoMilestonesTable);
+  for (const m of milestones) {
+    if (m.name.toLowerCase().includes(q)) {
+      results.push({ type: "milestone", id: m.id, title: m.name, subtitle: "Milestone", link: `/projects/${m.projectId}?tab=milestones` });
+    }
+  }
+
+  // Search KPIs
+  const kpis = await db.select({ id: spmoKpisTable.id, name: spmoKpisTable.name, type: spmoKpisTable.type }).from(spmoKpisTable);
+  for (const k of kpis) {
+    if (k.name.toLowerCase().includes(q)) {
+      results.push({ type: "kpi", id: k.id, title: k.name, subtitle: `${k.type} KPI`, link: "/kpis" });
+    }
+  }
+
+  // Search risks
+  const risks = await db.select({ id: spmoRisksTable.id, title: spmoRisksTable.title, projectId: spmoRisksTable.projectId }).from(spmoRisksTable);
+  for (const r of risks) {
+    if (r.title.toLowerCase().includes(q)) {
+      results.push({ type: "risk", id: r.id, title: r.title, subtitle: "Risk", link: r.projectId ? `/projects/${r.projectId}?tab=risks` : "/risks" });
+    }
+  }
+
+  // Search initiatives
+  const initiatives = await db.select({ id: spmoInitiativesTable.id, name: spmoInitiativesTable.name, initiativeCode: spmoInitiativesTable.initiativeCode }).from(spmoInitiativesTable);
+  for (const i of initiatives) {
+    if (i.name.toLowerCase().includes(q) || (i.initiativeCode ?? "").toLowerCase().includes(q)) {
+      results.push({ type: "initiative", id: i.id, title: i.name, subtitle: `Initiative ${i.initiativeCode ?? ""}`, link: "/initiatives" });
+    }
+  }
+
+  res.json({ results: results.slice(0, 20) });
+});
+
+// ─────────────────────────────────────────────────────────────
 // USER SEARCH (for @ tagging in action items — any authenticated user)
 // ─────────────────────────────────────────────────────────────
 

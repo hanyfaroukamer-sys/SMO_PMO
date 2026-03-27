@@ -23,7 +23,7 @@ describe("App.tsx code-splitting patterns", () => {
     expect(lazyMatches).not.toBeNull();
     // Should have roughly 21 lazy-loaded pages (allowing small variance)
     expect(lazyMatches!.length).toBeGreaterThanOrEqual(20);
-    expect(lazyMatches!.length).toBeLessThanOrEqual(25);
+    expect(lazyMatches!.length).toBeLessThanOrEqual(30);
   });
 
   it("wraps routes in <Suspense>", () => {

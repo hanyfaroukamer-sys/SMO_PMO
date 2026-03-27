@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useLocation } from "wouter";
 import {
   useListSpmoPillars,
   useListSpmoInitiatives,
@@ -22,6 +23,7 @@ function PillarIcon({ name, className, color }: { name: string; className?: stri
 }
 
 export default function StrategyMap() {
+  const [, navigate] = useLocation();
   const { data: pillarsData, isLoading: pillarsLoading } = useListSpmoPillars();
   const { data: initiativesData, isLoading: initLoading } = useListSpmoInitiatives();
   const { data: projectsData, isLoading: projLoading } = useListSpmoProjects();
@@ -169,7 +171,7 @@ export default function StrategyMap() {
                       >
                         <PillarIcon name={pillar.iconName ?? ""} className="w-4 h-4" color={pillar.color} />
                       </div>
-                      <h4 className="text-xs font-bold leading-tight" style={{ color: pillar.color }}>{pillar.name}</h4>
+                      <h4 className="text-xs font-bold leading-tight cursor-pointer hover:underline" style={{ color: pillar.color }} onClick={() => navigate(`/pillars/${pillar.id}/portfolio`)}>{pillar.name}</h4>
                       <div className="text-2xl font-bold mt-1.5" style={{ color: pillar.color }}>{pct}%</div>
                       <div className="h-1.5 bg-secondary rounded-full overflow-hidden mt-2 mx-1">
                         <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: pillar.color }} />
@@ -195,7 +197,7 @@ export default function StrategyMap() {
                                   {code}
                                 </span>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-semibold leading-tight line-clamp-2 text-foreground">{initiative.name}</p>
+                                  <p className="text-[11px] font-semibold leading-tight line-clamp-2 text-foreground cursor-pointer hover:text-primary hover:underline" onClick={() => navigate(`/projects?initiative=${initiative.id}`)}>{initiative.name}</p>
                                   <div className="flex items-center gap-1.5 mt-1">
                                     <div className="h-1 flex-1 bg-secondary rounded-full overflow-hidden">
                                       <div className="h-full rounded-full" style={{ width: `${Math.min(100, ipct)}%`, backgroundColor: pillar.color }} />

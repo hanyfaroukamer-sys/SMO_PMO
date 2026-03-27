@@ -1,5 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { CommandPalette, SearchTrigger } from "@/components/command-palette";
 import {
   LayoutDashboard,
   Network,
@@ -96,8 +97,13 @@ export function Layout({ children }: { children: ReactNode }) {
         <Logo collapsed={collapsed && !isMobile} />
       </div>
 
+      {/* Search trigger */}
+      <div className="px-1.5 pt-3 pb-1">
+        <SearchTrigger collapsed={collapsed && !isMobile} />
+      </div>
+
       {/* Nav items */}
-      <nav role="navigation" aria-label="Main navigation" className="flex-1 overflow-y-auto py-3 px-1.5 space-y-0.5 scrollbar-hide">
+      <nav role="navigation" aria-label="Main navigation" className="flex-1 overflow-y-auto py-1 px-1.5 space-y-0.5 scrollbar-hide">
         {navItems.filter((item) => !item.hidden && (!item.adminOnly || user?.role === "admin")).map((item, idx, arr) => {
           const showDivider = idx > 0 && item.adminOnly && !arr[idx - 1].adminOnly;
           const isActive =
@@ -294,6 +300,9 @@ export function Layout({ children }: { children: ReactNode }) {
           {children}
         </div>
       </main>
+
+      {/* Global search palette */}
+      <CommandPalette />
     </div>
   );
 }
