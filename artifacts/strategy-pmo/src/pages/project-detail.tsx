@@ -778,8 +778,9 @@ export default function ProjectDetail({ params }: Props) {
   const perms = useProjectPermissions(projectId, projectOwnerId);
   // PMs who own the project get full edit rights (details + progress + delete)
   const isOwner = userRole === "project-manager" && projectOwnerId === authData?.user?.id;
-  const canEditMilestoneDetails = isAdmin || (isOwner && (perms?.canManageMilestones ?? false));
-  const canDeleteMilestone = isAdmin; // Only admins can delete milestones
+  // PMs can only edit progress %. Weight, dates, name etc. require admin (PM must raise change request).
+  const canEditMilestoneDetails = isAdmin;
+  const canDeleteMilestone = isAdmin;
   const canEditMilestoneProgress = isAdmin || (userRole === "project-manager" && (perms?.canManageMilestones ?? false));
   const { data: pillarsData } = useListSpmoPillars();
   const { data: initiativesData } = useListSpmoInitiatives();

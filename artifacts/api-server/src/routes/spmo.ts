@@ -1211,6 +1211,16 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // PMs can only update progress — weight, dates, name, description etc. require admin
+  if (user?.role !== "admin") {
+    const restrictedFields = ["weight", "name", "description", "dueDate", "startDate", "effortDays", "phaseGate", "assigneeName", "assigneeId", "status"] as const;
+    const attempted = restrictedFields.filter((f) => (parsed.data as Record<string, unknown>)[f] !== undefined);
+    if (attempted.length > 0) {
+      res.status(403).json({ error: `Only admins can modify ${attempted.join(", ")}. Project managers can only update progress. Please raise a change request for other modifications.` });
+      return;
+    }
+  }
+
   if (parsed.data.weight !== undefined) {
     // Only validate against siblings when the weight is actually changing
     if (parsed.data.weight !== oldMilestone.weight) {
