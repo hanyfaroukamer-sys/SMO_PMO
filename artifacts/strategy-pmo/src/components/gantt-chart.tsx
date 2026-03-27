@@ -6,8 +6,10 @@ import {
   useListSpmoPillars,
   useListSpmoInitiatives,
   useListSpmoAllMilestones,
+  customFetch,
   type SpmoProjectWithProgress,
 } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { useListDependencies, type DepEnrichedRow } from "@/hooks/use-dependencies";
 import {
   Loader2, ChevronDown, ChevronRight,
@@ -21,7 +23,7 @@ const HEADER_H = 58;  // quarter row + month row
 const QUARTER_H = 22;
 const MONTH_H = 36;
 const LABEL_W = 264;
-const DIAMOND = 12;
+const DIAMOND = 14;
 const MS_ROW_H = 36; // milestone sub-row height
 
 // Zoom levels: px per day (from widest to narrowest)
@@ -114,7 +116,12 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
   const { data: projectsData, isLoading: projLoading } = useListSpmoProjects();
   const { data: pillarsData } = useListSpmoPillars();
   const { data: initiativesData } = useListSpmoInitiatives();
-  const { data: milestonesData } = useListSpmoAllMilestones();
+  // Use lightweight endpoint (single query) instead of heavy milestones/all (N+1)
+  const { data: milestonesData } = useQuery<{ milestones: { id: number; projectId: number; name: string; startDate: string | null; dueDate: string | null; status: string; progress: number }[] }>({
+    queryKey: ["/api/spmo/milestones/list"],
+    queryFn: () => customFetch("/api/spmo/milestones/list"),
+    staleTime: 30_000,
+  });
   const { data: depsData } = useListDependencies();
 
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
@@ -139,28 +146,21 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
 
   const milestonesByProject = useMemo(() => {
     const map = new Map<number, GanttMilestone[]>();
-    // Try enriched items first (milestones/all endpoint)
-    for (const item of milestonesData?.items ?? []) {
-      const ms = item?.milestone;
-      const proj = item?.project;
-      if (!ms || !proj) continue;
-      const dd = toDate(ms.dueDate as string | null | undefined);
+    const allMs = milestonesData?.milestones ?? (milestonesData as unknown as { items?: { milestone: Record<string, unknown>; project: { id: number } }[] })?.items?.map((item) => ({
+      id: item.milestone.id as number,
+      projectId: item.project.id,
+      name: item.milestone.name as string,
+      startDate: item.milestone.startDate as string | null,
+      dueDate: item.milestone.dueDate as string | null,
+      status: item.milestone.status as string,
+      progress: (item.milestone.progress as number) ?? 0,
+    })) ?? [];
+    for (const ms of allMs) {
+      const dd = toDate(ms.dueDate);
       if (!dd) continue;
-      const projId = proj.id ?? ms.projectId;
-      if (!projId) continue;
-      const list = map.get(projId) ?? [];
-      list.push({ id: ms.id, name: ms.name, startDate: toDate(ms.startDate as string | null | undefined), dueDate: dd, status: ms.status, progress: ms.progress ?? 0 });
-      map.set(projId, list);
-    }
-    // Fallback: if milestones data is flat array
-    if (map.size === 0 && Array.isArray(milestonesData?.milestones)) {
-      for (const ms of milestonesData.milestones as { id: number; projectId: number; name: string; startDate?: string | null; dueDate: string | null; status: string; progress?: number }[]) {
-        const dd = toDate(ms.dueDate);
-        if (!dd) continue;
-        const list = map.get(ms.projectId) ?? [];
-        list.push({ id: ms.id, name: ms.name, startDate: toDate(ms.startDate), dueDate: dd, status: ms.status, progress: ms.progress ?? 0 });
-        map.set(ms.projectId, list);
-      }
+      const list = map.get(ms.projectId) ?? [];
+      list.push({ id: ms.id, name: ms.name, startDate: toDate(ms.startDate), dueDate: dd, status: ms.status, progress: ms.progress ?? 0 });
+      map.set(ms.projectId, list);
     }
     return map;
   }, [milestonesData]);
@@ -702,14 +702,13 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
                         animate={{ opacity: 1, height: expandedHeight }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="border-b border-border/20"
+                        className="border-b border-border/20 overflow-hidden"
                         style={{
                           background: isHovered
                             ? hex2rgba(pillarColor, 0.06)
                             : isDepRelated && hoveredDepId !== null
                               ? "rgba(99,102,241,0.04)"
                               : undefined,
-                          overflow: "hidden",
                         }}
                         onMouseLeave={() => { setHoveredProjectId(null); setHoverCard(null); }}
                       >

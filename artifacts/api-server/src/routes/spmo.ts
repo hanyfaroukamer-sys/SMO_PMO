@@ -1145,6 +1145,22 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
   res.status(201).json(milestone);
 });
 
+// Lightweight milestone list for Gantt chart (single query, no N+1)
+router.get("/spmo/milestones/list", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const milestones = await db.select({
+    id: spmoMilestonesTable.id,
+    projectId: spmoMilestonesTable.projectId,
+    name: spmoMilestonesTable.name,
+    startDate: spmoMilestonesTable.startDate,
+    dueDate: spmoMilestonesTable.dueDate,
+    status: spmoMilestonesTable.status,
+    progress: spmoMilestonesTable.progress,
+  }).from(spmoMilestonesTable);
+  res.json({ milestones });
+});
+
 router.get("/spmo/milestones/all", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;
