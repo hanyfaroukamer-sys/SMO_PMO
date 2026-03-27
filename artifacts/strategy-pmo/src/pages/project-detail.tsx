@@ -85,7 +85,7 @@ function HealthBadge({ status }: { status: SpmoHealthStatus | null | undefined }
   );
 }
 
-type TabKey = "overview" | "milestones" | "weekly-report" | "risks" | "changes" | "raci" | "actions" | "documents";
+type TabKey = "overview" | "milestones" | "weekly-report" | "risks" | "changes" | "raci" | "actions" | "documents" | "reports" | "team";
 
 // ─── Evidence inline panel ─────────────────────────────────────────────────────
 
@@ -870,14 +870,11 @@ export default function ProjectDetail({ params }: Props) {
   const openActions = actionItems.filter((a) => a.status === "open" || a.status === "in_progress").length;
 
   const TABS: { key: TabKey; label: string; icon: React.ElementType; count?: number }[] = [
-    { key: "overview",      label: "Overview",       icon: Target },
-    { key: "milestones",    label: "Milestones",     icon: ClipboardList, count: milestoneTotal },
-    { key: "weekly-report", label: "Weekly Report",  icon: Activity },
-    { key: "risks",         label: "Risks",          icon: ShieldAlert,   count: projectRisks.length },
-    { key: "changes",       label: "Change Control", icon: GitPullRequest, count: changeRequests.length },
-    { key: "raci",          label: "RACI",           icon: Grid3X3 },
-    { key: "actions",       label: "Actions",        icon: ListTodo,      count: openActions || undefined },
-    { key: "documents",     label: "Documents",      icon: FolderOpen,    count: documents.length || undefined },
+    { key: "overview",      label: "Overview",        icon: Target },
+    { key: "milestones",    label: "Milestones",      icon: ClipboardList, count: milestoneTotal },
+    { key: "risks",         label: "Risks & Actions", icon: ShieldAlert,   count: (projectRisks.length + openActions) || undefined },
+    { key: "reports",       label: "Reports",         icon: Activity,      count: changeRequests.length || undefined },
+    { key: "team",          label: "Team & Docs",     icon: Grid3X3,       count: documents.length || undefined },
   ];
 
   return (
@@ -1147,7 +1144,7 @@ export default function ProjectDetail({ params }: Props) {
       )}
 
       {/* ── WEEKLY REPORT ── */}
-      {activeTab === "weekly-report" && (
+      {(activeTab === "weekly-report" || activeTab === "reports") && (
         <div className="space-y-4">
           {/* Current week */}
           <Card className="p-5">
@@ -1384,7 +1381,7 @@ export default function ProjectDetail({ params }: Props) {
       )}
 
       {/* ── CHANGE CONTROL ── */}
-      {activeTab === "changes" && (
+      {(activeTab === "changes" || activeTab === "reports") && (
         <ChangeControlTab
           projectId={projectId}
           changeRequests={changeRequests}
@@ -1404,7 +1401,7 @@ export default function ProjectDetail({ params }: Props) {
       )}
 
       {/* ── RACI ── */}
-      {activeTab === "raci" && (
+      {(activeTab === "raci" || activeTab === "team") && (
         <RaciTab
           projectId={projectId}
           milestones={milestones}
@@ -1420,7 +1417,7 @@ export default function ProjectDetail({ params }: Props) {
       )}
 
       {/* ── ACTION ITEMS ── */}
-      {activeTab === "actions" && (
+      {(activeTab === "actions" || activeTab === "risks") && (
         <ActionsTab
           projectId={projectId}
           milestones={milestones}
@@ -1440,7 +1437,7 @@ export default function ProjectDetail({ params }: Props) {
       )}
 
       {/* ── DOCUMENTS ── */}
-      {activeTab === "documents" && (
+      {(activeTab === "documents" || activeTab === "team") && (
         <DocumentsTab
           projectId={projectId}
           documents={documents}
