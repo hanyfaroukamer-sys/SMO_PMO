@@ -162,6 +162,11 @@ export function UserMentionInput({ value, onChange, placeholder = "Type @ to sea
           Searching…
         </div>
       )}
+      {showDropdown && !loading && results.length === 0 && query.length >= 1 && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg px-3 py-2 text-sm text-muted-foreground">
+          No users found
+        </div>
+      )}
     </div>
   );
 }

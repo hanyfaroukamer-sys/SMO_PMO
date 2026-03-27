@@ -37,6 +37,7 @@ export default function StrategyMap() {
   const [atRiskThreshold, setAtRiskThreshold] = useState(5);
   const [delayedThreshold, setDelayedThreshold] = useState(10);
   const [msAtRiskThreshold, setMsAtRiskThreshold] = useState(5);
+  const [riskAlertThreshold, setRiskAlertThreshold] = useState(9);
 
   const updateConfig = useUpdateSpmoConfig();
   const isLoading = pillarsLoading || initLoading || projLoading;
@@ -47,13 +48,14 @@ export default function StrategyMap() {
     setAtRiskThreshold(configData?.projectAtRiskThreshold ?? 5);
     setDelayedThreshold(configData?.projectDelayedThreshold ?? 10);
     setMsAtRiskThreshold(configData?.milestoneAtRiskThreshold ?? 5);
+    setRiskAlertThreshold((configData as Record<string, unknown>)?.riskAlertThreshold as number ?? 9);
     setEditModalOpen(true);
   }
 
   function handleSaveVision(e: React.FormEvent) {
     e.preventDefault();
     updateConfig.mutate(
-      { data: { vision: visionText, mission: missionText, projectAtRiskThreshold: atRiskThreshold, projectDelayedThreshold: delayedThreshold, milestoneAtRiskThreshold: msAtRiskThreshold } },
+      { data: { vision: visionText, mission: missionText, projectAtRiskThreshold: atRiskThreshold, projectDelayedThreshold: delayedThreshold, milestoneAtRiskThreshold: msAtRiskThreshold, riskAlertThreshold } },
       {
         onSuccess: () => { toast({ title: "Vision & Mission updated" }); setEditModalOpen(false); },
         onError: () => toast({ variant: "destructive", title: "Failed to save" }),
@@ -335,19 +337,22 @@ export default function StrategyMap() {
           </FormField>
           <div className="border-t border-border pt-4">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Health Status Thresholds (%)</p>
-            <div className="grid grid-cols-3 gap-3">
-              <FormField label="Project At Risk">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <FormField label="Project At Risk %">
                 <input type="number" min={1} max={50} className={inputClass} value={atRiskThreshold} onChange={(e) => setAtRiskThreshold(Number(e.target.value))} />
               </FormField>
-              <FormField label="Project Delayed">
+              <FormField label="Project Delayed %">
                 <input type="number" min={1} max={50} className={inputClass} value={delayedThreshold} onChange={(e) => setDelayedThreshold(Number(e.target.value))} />
               </FormField>
-              <FormField label="Milestone At Risk">
+              <FormField label="Milestone At Risk %">
                 <input type="number" min={1} max={50} className={inputClass} value={msAtRiskThreshold} onChange={(e) => setMsAtRiskThreshold(Number(e.target.value))} />
+              </FormField>
+              <FormField label="Risk Alert Score">
+                <input type="number" min={1} max={20} className={inputClass} value={riskAlertThreshold} onChange={(e) => setRiskAlertThreshold(Number(e.target.value))} />
               </FormField>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              A project/milestone is <span className="text-warning font-semibold">At Risk</span> when actual progress lags planned by more than the At Risk % threshold.
+              Projects/milestones are <span className="text-warning font-semibold">At Risk</span> when progress lags planned by the threshold %. Risks with score ≥ the alert threshold appear in owner task notifications.
             </p>
           </div>
           <FormActions loading={updateConfig.isPending} label="Save Changes" onCancel={() => setEditModalOpen(false)} />

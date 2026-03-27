@@ -749,9 +749,15 @@ type Props = {
 export default function ProjectDetail({ params }: Props) {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
-    const param = new URLSearchParams(window.location.search).get("tab") as TabKey | null;
-    const valid: TabKey[] = ["overview", "milestones", "weekly-report", "risks", "changes", "raci", "actions", "documents"];
-    return param && valid.includes(param) ? param : "overview";
+    const param = new URLSearchParams(window.location.search).get("tab") as string | null;
+    // Map old tab keys to new merged tabs
+    const tabMap: Record<string, TabKey> = {
+      "overview": "overview", "milestones": "milestones",
+      "risks": "risks", "actions": "risks", // actions merged into risks tab
+      "weekly-report": "reports", "reports": "reports", "changes": "reports", // merged into reports
+      "raci": "team", "team": "team", "documents": "team", // merged into team
+    };
+    return (param && tabMap[param]) ? tabMap[param] : "overview";
   });
   const [editingReport, setEditingReport] = useState(false);
   const [reportDraft, setReportDraft] = useState({ keyAchievements: "", nextSteps: "" });

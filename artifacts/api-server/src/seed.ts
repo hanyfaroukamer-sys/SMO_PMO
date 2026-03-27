@@ -14,12 +14,12 @@ export async function seedIfEmpty(): Promise<void> {
     `);
     const { pillars, projects } = res.rows[0] as { pillars: number; projects: number };
 
-    if (pillars >= 9 && projects >= 50) {
-      console.log(`[seed] Data already present (${pillars} pillars, ${projects} projects) — skipping full seed.`);
+    if (pillars > 0 || projects > 0) {
+      console.log(`[seed] Data already present (${pillars} pillars, ${projects} projects) — skipping seed.`);
       return;
     }
 
-    console.log(`[seed] Incomplete data detected (${pillars} pillars, ${projects} projects) — reloading full dataset...`);
+    console.log(`[seed] Empty database detected — loading seed dataset...`);
   } else {
     console.log("[seed] FORCE_RESEED=1 — forcing full dataset reload...");
   }

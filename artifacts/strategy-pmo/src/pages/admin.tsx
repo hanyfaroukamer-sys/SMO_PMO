@@ -3,6 +3,7 @@ import {
   useGetSpmoConfig,
   useUpdateSpmoConfig,
   useGetSpmaAdminUsers,
+  useGetCurrentAuthUser,
   useUpdateSpmaUserRole,
   type SpmaAdminUser,
   customFetch,
@@ -50,11 +51,13 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
   );
 }
 
-function UserRoleRow({ user, saving, onRoleChange }: {
+function UserRoleRow({ user, saving, onRoleChange, currentUserId }: {
   user: SpmaAdminUser;
   saving: boolean;
   onRoleChange: (userId: string, role: UserRole) => void;
+  currentUserId?: string;
 }) {
+  const isSelf = user.id === currentUserId;
   const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || user.id;
   const initials = ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() || "?";
   const currentRole = (user.role ?? "project-manager") as UserRole;
@@ -77,8 +80,9 @@ function UserRoleRow({ user, saving, onRoleChange }: {
           return (
             <button
               key={role.value}
-              onClick={() => !isActive && onRoleChange(user.id, role.value)}
-              disabled={saving}
+              onClick={() => !isActive && !isSelf && onRoleChange(user.id, role.value)}
+              disabled={saving || (isSelf && role.value !== currentRole)}
+              title={isSelf && role.value !== currentRole ? "You cannot change your own role" : undefined}
               className={[
                 "flex flex-col items-start px-3 py-2 rounded-lg border text-left transition-all min-w-[100px]",
                 isActive
@@ -665,6 +669,7 @@ function UserAccessOverview() {
 
 export default function Admin() {
   const isAdmin = useIsAdmin();
+  const { data: authData } = useGetCurrentAuthUser();
   const { data: configData, isLoading: configLoading } = useGetSpmoConfig();
   const { data: usersData, isLoading: usersLoading } = useGetSpmaAdminUsers();
   const updateConfig = useUpdateSpmoConfig();
@@ -893,6 +898,7 @@ export default function Admin() {
                     user={user}
                     saving={savingUsers.has(user.id)}
                     onRoleChange={handleRoleChange}
+                    currentUserId={authData?.user?.id}
                   />
                 ))
               )}

@@ -279,7 +279,7 @@ export default function KPIs() {
       {kpis.length === 0 ? (
         <Card className="text-center py-16 text-muted-foreground">
           <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-20" />
-          <p className="text-lg font-medium">No strategic KPIs defined yet.</p>
+          <p className="text-lg font-medium">No {kpiTypeTab} KPIs defined yet.</p>
           {isAdmin && <button onClick={() => openCreate()} className="mt-4 text-primary hover:underline text-sm font-medium">Add the first one</button>}
         </Card>
       ) : (
@@ -422,7 +422,7 @@ export default function KPIs() {
         );
       })()}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? "Edit Strategic KPI" : "New Strategic KPI"}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? `Edit ${kpiTypeTab === "operational" ? "Operational" : "Strategic"} KPI` : `New ${kpiTypeTab === "operational" ? "Operational" : "Strategic"} KPI`}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField label="KPI Name" required>
             <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Digital Services Adoption Rate" required />

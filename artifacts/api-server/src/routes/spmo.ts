@@ -348,7 +348,7 @@ router.get("/spmo/programme", async (req, res): Promise<void> => {
 
   const alertCount = await computeAlertCount();
 
-  const [config] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const [config] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   const programmeName = config?.programmeName ?? "National Transformation Programme";
   const vision = config?.vision ?? null;
   const mission = config?.mission ?? null;
@@ -2609,7 +2609,7 @@ router.get("/spmo/programme-config", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;
 
-  const [config] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const [config] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   if (!config) {
     res.json({
       id: 1,
@@ -2643,7 +2643,7 @@ router.put("/spmo/programme-config", async (req, res): Promise<void> => {
     return;
   }
 
-  const existing = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const existing = await db.select().from(spmoProgrammeConfigTable).limit(1);
   let row;
   if (existing.length === 0) {
     [row] = await db.insert(spmoProgrammeConfigTable).values({ id: 1, ...parsed.data }).returning();
@@ -2913,7 +2913,7 @@ router.get("/spmo/projects/:id/weekly-report", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: "Invalid project id" }); return; }
   const { id: projectId } = parsed.data;
 
-  const [cfg] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   const resetDay = cfg?.weeklyResetDay ?? 3;
   const weekStart = getCurrentWeekStart(resetDay);
 
@@ -2950,7 +2950,7 @@ router.put("/spmo/projects/:id/weekly-report", async (req, res) => {
     return;
   }
 
-  const [cfg] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   const resetDay = cfg?.weeklyResetDay ?? 3;
   const weekStart = getCurrentWeekStart(resetDay);
   const updatedByName = getUserDisplayName(user) ?? user?.email ?? null;
@@ -3681,6 +3681,10 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
   const overdueActions = myActions.filter((a) => a.dueDate && a.dueDate < today).length;
   const pendingActions = myActions.length - overdueActions;
 
+  // Load risk alert threshold from config
+  const [riskCfg] = await db.select({ riskAlertThreshold: spmoProgrammeConfigTable.riskAlertThreshold }).from(spmoProgrammeConfigTable).limit(1);
+  const riskThreshold = riskCfg?.riskAlertThreshold ?? 9;
+
   // Count project-level alerts for owned projects
   let projectAlerts = 0;
   let ownerOverdueMilestones = 0;
@@ -3688,7 +3692,7 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
   let delayedProjects = 0;
   let atRiskProjects = 0;
   if (myProjectIds.length > 0) {
-    const highRisks = await db.select({ id: spmoRisksTable.id }).from(spmoRisksTable).where(and(inArray(spmoRisksTable.projectId, myProjectIds), eq(spmoRisksTable.status, "open"), gte(spmoRisksTable.riskScore, 9)));
+    const highRisks = await db.select({ id: spmoRisksTable.id }).from(spmoRisksTable).where(and(inArray(spmoRisksTable.projectId, myProjectIds), eq(spmoRisksTable.status, "open"), gte(spmoRisksTable.riskScore, riskThreshold)));
     projectAlerts = highRisks.length;
 
     // Milestones in owned projects (overdue/due soon)
@@ -3825,10 +3829,14 @@ router.get("/spmo/my-tasks", async (req, res) => {
     });
   }
 
+  // Load risk alert threshold from config
+  const [riskCfg2] = await db.select({ riskAlertThreshold: spmoProgrammeConfigTable.riskAlertThreshold }).from(spmoProgrammeConfigTable).limit(1);
+  const riskThreshold = riskCfg2?.riskAlertThreshold ?? 9;
+
   // ── Project owner notifications for owned projects ──
   if (myProjectIds.length > 0) {
     // Risk alerts: high-score open risks
-    const highRisks = await db.select().from(spmoRisksTable).where(and(inArray(spmoRisksTable.projectId, myProjectIds), eq(spmoRisksTable.status, "open"), gte(spmoRisksTable.riskScore, 9)));
+    const highRisks = await db.select().from(spmoRisksTable).where(and(inArray(spmoRisksTable.projectId, myProjectIds), eq(spmoRisksTable.status, "open"), gte(spmoRisksTable.riskScore, riskThreshold)));
     for (const r of highRisks) {
       tasks.push({
         id: `risk-alert-${r.id}`,

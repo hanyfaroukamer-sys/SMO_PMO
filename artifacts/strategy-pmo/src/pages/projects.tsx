@@ -453,6 +453,7 @@ export default function Projects() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (projectWeightError) return; // Block submit when weights exceed 100%
     const commonFields = {
       name: form.name,
       projectCode: form.projectCode || null,

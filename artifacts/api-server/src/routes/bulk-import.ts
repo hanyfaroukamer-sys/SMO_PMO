@@ -335,6 +335,10 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
           const row = pillarSheet.getRow(rowNum);
           const name = cellStr(row, 1);
           if (!name) continue;
+          if (pillarMap.has(name)) {
+            skipped.push({ sheet: "Pillars", row: rowNum, reason: `Duplicate pillar name '${name}'` });
+            continue;
+          }
           const [created] = await tx.insert(spmoPillarsTable).values({
             name,
             description: cellStr(row, 2),
@@ -358,13 +362,17 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
           const pillarName = cellStr(row, 1);
           const name = cellStr(row, 3);
           if (!name) continue;
-          const pillarId = pillarName ? pillarMap.get(pillarName) : undefined;
-          if (pillarName && !pillarId) {
+          if (!pillarName) {
+            skipped.push({ sheet: "Initiatives", row: rowNum, reason: "Pillar name is required" });
+            continue;
+          }
+          const pillarId = pillarMap.get(pillarName);
+          if (!pillarId) {
             skipped.push({ sheet: "Initiatives", row: rowNum, reason: `Pillar '${pillarName}' not found` });
             continue;
           }
           const [created] = await tx.insert(spmoInitiativesTable).values({
-            pillarId: pillarId!,
+            pillarId,
             initiativeCode: cellStr(row, 2),
             name,
             description: cellStr(row, 4),
@@ -391,8 +399,12 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
           const initName = cellStr(row, 1);
           const name = cellStr(row, 4);
           if (!name) continue;
-          const initiativeId = initName ? initMap.get(initName) : undefined;
-          if (initName && !initiativeId) {
+          if (!initName) {
+            skipped.push({ sheet: "Projects", row: rowNum, reason: "Initiative name is required" });
+            continue;
+          }
+          const initiativeId = initMap.get(initName);
+          if (!initiativeId) {
             skipped.push({ sheet: "Projects", row: rowNum, reason: `Initiative '${initName}' not found` });
             continue;
           }
@@ -403,7 +415,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
             continue;
           }
           const [created] = await tx.insert(spmoProjectsTable).values({
-            initiativeId: initiativeId!,
+            initiativeId,
             projectCode: cellStr(row, 2),
             departmentId: departmentId ?? null,
             name,
@@ -433,13 +445,17 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
           const projName = cellStr(row, 1);
           const name = cellStr(row, 2);
           if (!name) continue;
-          const projectId = projName ? projMap.get(projName) : undefined;
-          if (projName && !projectId) {
+          if (!projName) {
+            skipped.push({ sheet: "Milestones", row: rowNum, reason: "Project name is required" });
+            continue;
+          }
+          const projectId = projMap.get(projName);
+          if (!projectId) {
             skipped.push({ sheet: "Milestones", row: rowNum, reason: `Project '${projName}' not found` });
             continue;
           }
           const [created] = await tx.insert(spmoMilestonesTable).values({
-            projectId: projectId!,
+            projectId,
             name,
             description: cellStr(row, 3),
             weight: cellNum(row, 4) ?? 0,
