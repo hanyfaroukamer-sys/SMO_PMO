@@ -1332,7 +1332,7 @@ export const updateSpmoMilestoneBodyProgressMax = 100;
 export const UpdateSpmoMilestoneBody = zod.object({
   name: zod.string().optional(),
   description: zod.string().optional(),
-  weight: zod.number().optional(),
+  weight: zod.number().min(0).max(100).optional(),
   effortDays: zod.number().optional(),
   progress: zod
     .number()

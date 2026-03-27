@@ -253,17 +253,7 @@ async function checkProjectPerm(
   return grant[permission] ?? false;
 }
 
-/** Backwards-compat alias — returns true if user has ANY edit access to this project */
-async function canEditProject(userId: string, userRole: string | null | undefined, projectId: number): Promise<boolean> {
-  if (userRole === "admin") return true;
-  if (userRole !== "project-manager") return false;
-  const [grant] = await db
-    .select({ id: spmoProjectAccessTable.id })
-    .from(spmoProjectAccessTable)
-    .where(and(eq(spmoProjectAccessTable.projectId, projectId), eq(spmoProjectAccessTable.userId, userId)))
-    .limit(1);
-  return !!grant;
-}
+// canEditProject removed — use checkProjectPerm instead
 
 function parseId(req: { params: Record<string, string> }, res: any, paramName = "id"): number | null {
   const id = Number(req.params[paramName]);
@@ -1372,11 +1362,13 @@ router.put("/spmo/projects/:id/milestones/weights", async (req, res): Promise<vo
     return;
   }
 
-  for (const { id, weight } of weights) {
-    await db.update(spmoMilestonesTable)
-      .set({ weight, updatedAt: new Date() })
-      .where(and(eq(spmoMilestonesTable.id, id), eq(spmoMilestonesTable.projectId, projectId)));
-  }
+  await db.transaction(async (tx: typeof db) => {
+    for (const { id, weight } of weights) {
+      await tx.update(spmoMilestonesTable)
+        .set({ weight, updatedAt: new Date() })
+        .where(and(eq(spmoMilestonesTable.id, id), eq(spmoMilestonesTable.projectId, projectId)));
+    }
+  });
 
   res.json({ success: true });
 });
@@ -2126,16 +2118,18 @@ router.put("/spmo/budget/:id", async (req, res): Promise<void> => {
   if (!userId) return;
 
   const params = UpdateSpmoBudgetEntryParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  // Project-level permission check
+  const [budgetCheck] = await db.select({ projectId: spmoBudgetTable.projectId }).from(spmoBudgetTable).where(eq(spmoBudgetTable.id, params.data.id)).limit(1);
+  if (!budgetCheck) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (budgetCheck.projectId && !(await checkProjectPerm(userId, user?.role, budgetCheck.projectId, "canManageBudget"))) {
+    res.status(403).json({ error: "You do not have permission to manage budget on this project" }); return;
   }
 
   const parsed = UpdateSpmoBudgetEntryBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const [entry] = await db
     .update(spmoBudgetTable)
@@ -2161,12 +2155,15 @@ router.delete("/spmo/budget/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [entry] = await db.delete(spmoBudgetTable).where(eq(spmoBudgetTable.id, params.data.id)).returning();
-  if (!entry) {
-    res.status(404).json({ error: "Budget entry not found" });
-    return;
+  // Project-level permission check
+  const [budgetDel] = await db.select({ projectId: spmoBudgetTable.projectId }).from(spmoBudgetTable).where(eq(spmoBudgetTable.id, params.data.id)).limit(1);
+  if (!budgetDel) { res.status(404).json({ error: "Budget entry not found" }); return; }
+  const user = getAuthUser(req);
+  if (budgetDel.projectId && !(await checkProjectPerm(userId, user?.role, budgetDel.projectId, "canManageBudget"))) {
+    res.status(403).json({ error: "You do not have permission" }); return;
   }
 
+  await db.delete(spmoBudgetTable).where(eq(spmoBudgetTable.id, params.data.id));
   res.json({ success: true });
 });
 
@@ -2678,9 +2675,13 @@ router.put("/spmo/procurement/:id", async (req, res): Promise<void> => {
   if (!userId) return;
 
   const params = UpdateSpmoProcurementParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [procCheck] = await db.select({ projectId: spmoProcurementTable.projectId }).from(spmoProcurementTable).where(eq(spmoProcurementTable.id, params.data.id)).limit(1);
+  if (!procCheck) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, procCheck.projectId, "canManageBudget"))) {
+    res.status(403).json({ error: "You do not have permission to manage procurement on this project" }); return;
   }
 
   const parsed = UpdateSpmoProcurementBody.safeParse(req.body);
@@ -2700,7 +2701,6 @@ router.put("/spmo/procurement/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "updated", "procurement", row.id, row.title ?? "Procurement record");
   res.json(row);
 });
@@ -2710,9 +2710,13 @@ router.delete("/spmo/procurement/:id", async (req, res): Promise<void> => {
   if (!userId) return;
 
   const params = DeleteSpmoProcurementParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [procDel] = await db.select({ projectId: spmoProcurementTable.projectId }).from(spmoProcurementTable).where(eq(spmoProcurementTable.id, params.data.id)).limit(1);
+  if (!procDel) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, procDel.projectId, "canManageBudget"))) {
+    res.status(403).json({ error: "You do not have permission" }); return;
   }
 
   const [row] = await db
@@ -3214,6 +3218,12 @@ router.patch("/spmo/change-requests/:id", async (req, res) => {
   const user = getAuthUser(req)!;
   const id = parseId(req, res);
   if (!id) return;
+  // Project-level permission check
+  const [cr] = await db.select({ projectId: spmoChangeRequestsTable.projectId }).from(spmoChangeRequestsTable).where(eq(spmoChangeRequestsTable.id, id)).limit(1);
+  if (!cr) { res.status(404).json({ error: "Not found" }); return; }
+  if (!(await checkProjectPerm(userId, user.role, cr.projectId, "canSubmitChangeRequests"))) {
+    res.status(403).json({ error: "You do not have permission to manage change requests on this project" }); return;
+  }
   const body = z.object({
     title: z.string().optional(),
     description: z.string().optional(),
@@ -3248,10 +3258,15 @@ router.patch("/spmo/change-requests/:id", async (req, res) => {
 router.delete("/spmo/change-requests/:id", async (req, res) => {
   const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
+  const user = getAuthUser(req);
   const id = parseId(req, res);
   if (!id) return;
+  const [crDel] = await db.select({ projectId: spmoChangeRequestsTable.projectId }).from(spmoChangeRequestsTable).where(eq(spmoChangeRequestsTable.id, id)).limit(1);
+  if (!crDel) { res.status(404).json({ error: "Not found" }); return; }
+  if (!(await checkProjectPerm(userId, user?.role, crDel.projectId, "canSubmitChangeRequests"))) {
+    res.status(403).json({ error: "You do not have permission" }); return;
+  }
   const [row] = await db.delete(spmoChangeRequestsTable).where(eq(spmoChangeRequestsTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ ok: true });
 });
 
@@ -3312,8 +3327,14 @@ router.post("/spmo/raci", async (req, res) => {
 router.patch("/spmo/raci/:id", async (req, res) => {
   const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
+  const user = getAuthUser(req);
   const id = parseId(req, res);
   if (!id) return;
+  const [raciRow] = await db.select({ projectId: spmoRaciTable.projectId }).from(spmoRaciTable).where(eq(spmoRaciTable.id, id)).limit(1);
+  if (!raciRow) { res.status(404).json({ error: "Not found" }); return; }
+  if (!(await checkProjectPerm(userId, user?.role, raciRow.projectId, "canManageRaci"))) {
+    res.status(403).json({ error: "You do not have permission to manage RACI on this project" }); return;
+  }
   const body = z.object({ role: z.enum(["responsible", "accountable", "consulted", "informed"]) }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error }); return; }
   const [row] = await db.update(spmoRaciTable).set(body.data).where(eq(spmoRaciTable.id, id)).returning();
@@ -3324,8 +3345,14 @@ router.patch("/spmo/raci/:id", async (req, res) => {
 router.delete("/spmo/raci/:id", async (req, res) => {
   const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
+  const user = getAuthUser(req);
   const id = parseId(req, res);
   if (!id) return;
+  const [raciDel] = await db.select({ projectId: spmoRaciTable.projectId }).from(spmoRaciTable).where(eq(spmoRaciTable.id, id)).limit(1);
+  if (!raciDel) { res.status(404).json({ error: "Not found" }); return; }
+  if (!(await checkProjectPerm(userId, user?.role, raciDel.projectId, "canManageRaci"))) {
+    res.status(403).json({ error: "You do not have permission" }); return;
+  }
   const [row] = await db.delete(spmoRaciTable).where(eq(spmoRaciTable.id, id)).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ ok: true });
@@ -3559,26 +3586,48 @@ router.post("/spmo/comments", async (req, res) => {
     body: z.string().min(1),
   }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error }); return; }
+
+  // Verify entity exists
+  const entityTable = { project: spmoProjectsTable, milestone: spmoMilestonesTable, risk: spmoRisksTable, kpi: spmoKpisTable, initiative: spmoInitiativesTable }[body.data.entityType];
+  if (entityTable) {
+    const [exists] = await db.select({ id: (entityTable as { id: typeof spmoProjectsTable.id }).id }).from(entityTable).where(eq((entityTable as { id: typeof spmoProjectsTable.id }).id, body.data.entityId)).limit(1);
+    if (!exists) { res.status(404).json({ error: `${body.data.entityType} with id ${body.data.entityId} not found` }); return; }
+  }
+
   const [row] = await db.insert(spmoCommentsTable).values({
     ...body.data,
     authorId: userId,
     authorName: getUserDisplayName(user),
   }).returning();
 
-  // Create notification for project owner if commenting on their project
+  // Create notification for relevant owner
+  let notifyUserId: string | null = null;
+  let entityName = "";
+  let entityLink = "";
   if (body.data.entityType === "project") {
     const [proj] = await db.select({ ownerId: spmoProjectsTable.ownerId, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, body.data.entityId)).limit(1);
-    if (proj?.ownerId && proj.ownerId !== userId) {
-      await db.insert(spmoNotificationsTable).values({
-        userId: proj.ownerId,
-        type: "comment",
-        title: `New comment on ${proj.name}`,
-        body: body.data.body.slice(0, 200),
-        link: `/projects/${body.data.entityId}`,
-        entityType: body.data.entityType,
-        entityId: body.data.entityId,
-      });
+    if (proj) { notifyUserId = proj.ownerId; entityName = proj.name; entityLink = `/projects/${body.data.entityId}`; }
+  } else if (body.data.entityType === "milestone") {
+    const [ms] = await db.select({ projectId: spmoMilestonesTable.projectId, name: spmoMilestonesTable.name }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, body.data.entityId)).limit(1);
+    if (ms) {
+      const [proj] = await db.select({ ownerId: spmoProjectsTable.ownerId }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, ms.projectId)).limit(1);
+      notifyUserId = proj?.ownerId ?? null; entityName = ms.name; entityLink = `/projects/${ms.projectId}?tab=milestones`;
     }
+  } else if (body.data.entityType === "risk") {
+    const [risk] = await db.select({ projectId: spmoRisksTable.projectId, title: spmoRisksTable.title }).from(spmoRisksTable).where(eq(spmoRisksTable.id, body.data.entityId)).limit(1);
+    if (risk?.projectId) {
+      const [proj] = await db.select({ ownerId: spmoProjectsTable.ownerId }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, risk.projectId)).limit(1);
+      notifyUserId = proj?.ownerId ?? null; entityName = risk.title; entityLink = `/projects/${risk.projectId}?tab=risks`;
+    }
+  }
+  if (notifyUserId && notifyUserId !== userId) {
+    await db.insert(spmoNotificationsTable).values({
+      userId: notifyUserId, type: "comment",
+      title: `New comment on ${entityName}`,
+      body: body.data.body.slice(0, 200),
+      link: entityLink,
+      entityType: body.data.entityType, entityId: body.data.entityId,
+    });
   }
 
   res.status(201).json(row);
