@@ -13,7 +13,7 @@ import {
   type CreateSpmoMitigationRequest,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LabelList } from "recharts";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import { Loader2, ShieldAlert, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck, Building2, FolderOpen, Download } from "lucide-react";
 import { exportToXlsx } from "@/lib/export";
@@ -404,10 +404,18 @@ export default function Risks() {
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="critical" stackId="a" fill="#ef4444" name="Critical (≥12)" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="high" stackId="a" fill="#f59e0b" name="High (6-11)" />
-                <Bar dataKey="medium" stackId="a" fill="#3b82f6" name="Medium (3-5)" />
-                <Bar dataKey="low" stackId="a" fill="#94a3b8" name="Low (<3)" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="critical" stackId="a" fill="#ef4444" name="Critical (≥12)">
+                  <LabelList dataKey="critical" position="center" style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} formatter={(v: number) => v > 0 ? v : ""} />
+                </Bar>
+                <Bar dataKey="high" stackId="a" fill="#f59e0b" name="High (6-11)">
+                  <LabelList dataKey="high" position="center" style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} formatter={(v: number) => v > 0 ? v : ""} />
+                </Bar>
+                <Bar dataKey="medium" stackId="a" fill="#3b82f6" name="Medium (3-5)">
+                  <LabelList dataKey="medium" position="center" style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} formatter={(v: number) => v > 0 ? v : ""} />
+                </Bar>
+                <Bar dataKey="low" stackId="a" fill="#94a3b8" name="Low (<3)" radius={[0, 4, 4, 0]}>
+                  <LabelList dataKey="low" position="center" style={{ fill: "#fff", fontSize: 10, fontWeight: 700 }} formatter={(v: number) => v > 0 ? v : ""} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </Card>
