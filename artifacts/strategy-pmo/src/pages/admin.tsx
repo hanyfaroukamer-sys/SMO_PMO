@@ -12,7 +12,9 @@ import { PageHeader, Card } from "@/components/ui-elements";
 import {
   Loader2, ShieldCheck, Settings, Users, RefreshCw, Lock,
   KeyRound, Plus, Trash2, ChevronDown, ChevronUp, Check, X, Search, Eye,
+  Bell, Send, Mail,
 } from "lucide-react";
+import { inputClass } from "@/components/modal";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -665,6 +667,175 @@ function UserAccessOverview() {
   );
 }
 
+// ─── Email & Notifications Panel ─────────────────────────────────────────────
+
+function EmailNotificationsPanel({ config }: { config: Record<string, unknown> | undefined }) {
+  const { toast } = useToast();
+  const updateConfig = useUpdateSpmoConfig();
+  const qc = useQueryClient();
+
+  const [riskAlertThreshold, setRiskAlertThreshold] = useState(config?.riskAlertThreshold as number ?? 9);
+  const [reminderDaysAhead, setReminderDaysAhead] = useState(config?.reminderDaysAhead as number ?? 3);
+  const [weeklyDeadlineHour, setWeeklyDeadlineHour] = useState(config?.weeklyReportDeadlineHour as number ?? 15);
+  const [weeklyReportCc, setWeeklyReportCc] = useState(config?.weeklyReportCcEmails as string ?? "");
+  const [taskReminderCc, setTaskReminderCc] = useState("");
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [sendingTask, setSendingTask] = useState(false);
+  const [sendingWeekly, setSendingWeekly] = useState(false);
+  const [lastTaskResult, setLastTaskResult] = useState<{ sent: number } | null>(null);
+  const [lastWeeklyResult, setLastWeeklyResult] = useState<{ sent: number } | null>(null);
+
+  async function saveNotificationConfig() {
+    setSavingConfig(true);
+    try {
+      await updateConfig.mutateAsync({
+        data: {
+          riskAlertThreshold,
+          reminderDaysAhead,
+          weeklyReportDeadlineHour: weeklyDeadlineHour,
+          weeklyReportCcEmails: weeklyReportCc || null,
+        },
+      });
+      qc.invalidateQueries({ queryKey: ["/api/spmo/config"] });
+      toast({ title: "Notification settings saved" });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to save settings" });
+    } finally {
+      setSavingConfig(false);
+    }
+  }
+
+  async function sendTaskReminders() {
+    setSendingTask(true);
+    setLastTaskResult(null);
+    try {
+      const res = await fetch("/api/spmo/admin/send-reminders", { method: "POST", credentials: "include" });
+      const data = await res.json();
+      setLastTaskResult({ sent: data.sent ?? 0 });
+      toast({ title: `Task reminders generated`, description: `${data.sent} email${data.sent !== 1 ? "s" : ""} ready to send` });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to generate reminders" });
+    } finally {
+      setSendingTask(false);
+    }
+  }
+
+  async function sendWeeklyReminders() {
+    setSendingWeekly(true);
+    setLastWeeklyResult(null);
+    try {
+      const res = await fetch("/api/spmo/admin/send-weekly-report-reminders", { method: "POST", credentials: "include" });
+      const data = await res.json();
+      setLastWeeklyResult({ sent: data.sent ?? 0 });
+      toast({ title: `Weekly report reminders generated`, description: `${data.sent} email${data.sent !== 1 ? "s" : ""} ready to send` });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to generate reminders" });
+    } finally {
+      setSendingWeekly(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        Configure email reminders for project managers. Set thresholds for when notifications trigger and who gets copied.
+      </p>
+
+      {/* Threshold Configuration */}
+      <div>
+        <div className="text-sm font-semibold mb-3">Alert Thresholds</div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Risk Alert Score</label>
+            <input type="number" min={1} max={20} className={inputClass} value={riskAlertThreshold} onChange={(e) => setRiskAlertThreshold(Number(e.target.value))} />
+            <p className="text-[10px] text-muted-foreground mt-0.5">Risks with score ≥ this appear in owner tasks</p>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Task Reminder Days</label>
+            <input type="number" min={1} max={14} className={inputClass} value={reminderDaysAhead} onChange={(e) => setReminderDaysAhead(Number(e.target.value))} />
+            <p className="text-[10px] text-muted-foreground mt-0.5">Days before deadline to send task reminders</p>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Weekly Report Deadline</label>
+            <select className={inputClass} value={weeklyDeadlineHour} onChange={(e) => setWeeklyDeadlineHour(Number(e.target.value))}>
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{String(i).padStart(2, "0")}:00{i === 15 ? " (default)" : ""}</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Hour by which weekly report must be submitted</p>
+          </div>
+        </div>
+      </div>
+
+      {/* CC Configuration */}
+      <div>
+        <div className="text-sm font-semibold mb-3">CC Recipients</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Weekly Report Deadline CC</label>
+            <input className={inputClass} value={weeklyReportCc} onChange={(e) => setWeeklyReportCc(e.target.value)} placeholder="director@example.gov, pmo@example.gov" />
+            <p className="text-[10px] text-muted-foreground mt-0.5">CC'd on overdue weekly report reminders</p>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Task Reminder CC</label>
+            <input className={inputClass} value={taskReminderCc} onChange={(e) => setTaskReminderCc(e.target.value)} placeholder="pmo@example.gov" />
+            <p className="text-[10px] text-muted-foreground mt-0.5">CC'd on milestone/risk task reminders</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Save button */}
+      <button
+        onClick={saveNotificationConfig}
+        disabled={savingConfig}
+        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:bg-primary/90 disabled:opacity-50 transition-all"
+      >
+        {savingConfig ? <Loader2 className="w-4 h-4 animate-spin" /> : <Settings className="w-4 h-4" />}
+        Save Notification Settings
+      </button>
+
+      {/* Send Buttons */}
+      <div className="pt-4 border-t border-border">
+        <div className="text-sm font-semibold mb-3">Send Reminders Now</div>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={sendTaskReminders}
+            disabled={sendingTask}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-semibold hover:bg-muted/50 disabled:opacity-50 transition-colors"
+          >
+            {sendingTask ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-primary" />}
+            Send Task Reminders
+            <span className="text-[10px] text-muted-foreground">({reminderDaysAhead}d ahead)</span>
+          </button>
+          <button
+            onClick={sendWeeklyReminders}
+            disabled={sendingWeekly}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm font-semibold hover:bg-amber-100 disabled:opacity-50 transition-colors"
+          >
+            {sendingWeekly ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+            Send Weekly Report Overdue
+            <span className="text-[10px] text-amber-600">(deadline {String(weeklyDeadlineHour).padStart(2, "0")}:00)</span>
+          </button>
+        </div>
+
+        {/* Results */}
+        {lastTaskResult !== null && (
+          <div className="mt-3 text-sm text-muted-foreground">
+            Task reminders: <span className="font-semibold text-foreground">{lastTaskResult.sent}</span> email{lastTaskResult.sent !== 1 ? "s" : ""} generated
+            {lastTaskResult.sent === 0 && " — all PMs are up to date"}
+          </div>
+        )}
+        {lastWeeklyResult !== null && (
+          <div className="mt-2 text-sm text-muted-foreground">
+            Weekly report reminders: <span className="font-semibold text-foreground">{lastWeeklyResult.sent}</span> email{lastWeeklyResult.sent !== 1 ? "s" : ""} generated
+            {lastWeeklyResult.sent === 0 && " — all reports submitted on time"}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Admin Page ────────────────────────────────────────────────────────
 
 export default function Admin() {
@@ -917,6 +1088,11 @@ export default function Admin() {
           )}
         </SectionCard>
       </div>
+
+      {/* Email & Notifications */}
+      <SectionCard title="Email & Notifications" icon={Bell}>
+        <EmailNotificationsPanel config={configData} />
+      </SectionCard>
 
       {/* User Access Overview */}
       <SectionCard title="User Access Overview" icon={Eye}>
