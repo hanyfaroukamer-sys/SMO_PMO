@@ -12,7 +12,10 @@ import {
   spmoInitiativesTable,
   spmoPillarsTable,
   spmoMilestonesTable,
+  spmoDepartmentsTable,
+  spmoProjectWeeklyReportsTable,
 } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
 import { calcProgrammeProgress, computeStatus } from "../lib/spmo-calc";
 import { getCachedAssessment } from "../lib/assessment-cache";
 
@@ -112,7 +115,7 @@ function sevPtxColor(s: string | null): string {
 
 // ─── Gather all report data ────────────────────────────────────────────────────
 async function gatherReportData() {
-  const [programmeResult, configs, allProjects, allInitiatives, allKpis, allRisks, allPillars, allMilestones] =
+  const [programmeResult, configs, allProjects, allInitiatives, allKpis, allRisks, allPillars, allMilestones, allDepartments, allWeeklyReports] =
     await Promise.all([
       calcProgrammeProgress(),
       db.select().from(spmoProgrammeConfigTable).limit(1),
@@ -122,6 +125,8 @@ async function gatherReportData() {
       db.select().from(spmoRisksTable),
       db.select().from(spmoPillarsTable),
       db.select().from(spmoMilestonesTable),
+      db.select().from(spmoDepartmentsTable),
+      db.select().from(spmoProjectWeeklyReportsTable).orderBy(desc(spmoProjectWeeklyReportsTable.createdAt)),
     ]);
 
   const { programmeProgress, pillarSummaries } = programmeResult;
@@ -172,6 +177,28 @@ async function gatherReportData() {
     };
   });
 
+  // Department-level stats
+  const departmentStats = allDepartments.map((dept) => {
+    const deptProjects = allProjects.filter((p) => p.departmentId === dept.id);
+    const deptOnTrack = deptProjects.filter((p) => {
+      const ms = allMilestones.filter((m) => m.projectId === p.id);
+      const prog = ms.length === 0 ? 0 : ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length;
+      const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
+      return s.status === "on_track" || s.status === "completed";
+    }).length;
+    const avgProg = deptProjects.length === 0 ? 0 : Math.round(deptProjects.reduce((s, p) => {
+      const ms = allMilestones.filter((m) => m.projectId === p.id);
+      return s + (ms.length === 0 ? 0 : ms.reduce((a, m) => a + (m.progress ?? 0), 0) / ms.length);
+    }, 0) / deptProjects.length);
+    return { ...dept, projectCount: deptProjects.length, onTrack: deptOnTrack, avgProgress: avgProg, projects: deptProjects };
+  }).filter((d) => d.projectCount > 0);
+
+  // Latest weekly report per project
+  const latestReports = new Map<number, typeof allWeeklyReports[0]>();
+  for (const r of allWeeklyReports) {
+    if (!latestReports.has(r.projectId)) latestReports.set(r.projectId, r);
+  }
+
   return {
     programme: { programmeProgress, pillarSummaries },
     config,
@@ -181,6 +208,9 @@ async function gatherReportData() {
     risks: allRisks,
     topRisks,
     pillars: allPillars,
+    departments: departmentStats,
+    weeklyReports: latestReports,
+    milestones: allMilestones,
     budget: { totalAllocated, totalSpent },
     statusCounts,
     aiAssessment: aiAssessment?.result ?? null,
@@ -593,6 +623,82 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         );
     }
 
+    // ── PAGE: Department Overview ──
+    if (data.departments.length > 0) {
+      doc.addPage();
+      pdfAccentBar(doc);
+      doc.font("Helvetica-Bold").fontSize(18).fillColor(C.dark).text("Department Progress Overview", 40, 50);
+      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text("Programme delivery by department", 40, 72);
+
+      let deptY = 95;
+      for (const dept of data.departments.slice(0, 12)) {
+        const deptStatus = dept.onTrack === dept.projectCount ? "on_track" : dept.onTrack >= dept.projectCount * 0.7 ? "at_risk" : "delayed";
+        doc.rect(40, deptY, 5, 18).fill(statusColor(deptStatus));
+        doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(dept.name, 52, deptY + 3, { width: 180 });
+        doc.font("Helvetica").fontSize(8).fillColor(C.secondary)
+          .text(`${dept.projectCount} projects · Avg ${dept.avgProgress}% · ${dept.onTrack}/${dept.projectCount} on track`, 240, deptY + 4, { width: 280 });
+        pdfHorizBar(doc, 530, deptY + 6, dept.avgProgress, 8);
+        deptY += 24;
+        if (deptY > 730) break;
+      }
+    }
+
+    // ── PAGE: Support Required ──
+    doc.addPage();
+    pdfAccentBar(doc);
+    doc.font("Helvetica-Bold").fontSize(18).fillColor(C.dark).text("Support Required & Escalations", 40, 50);
+
+    const critRisks = data.risks.filter((r) => r.status === "open" && r.riskScore >= 12);
+    if (critRisks.length > 0) {
+      let supY = 85;
+      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text("Items requiring executive decision or intervention:", 40, supY);
+      supY += 20;
+      critRisks.slice(0, 8).forEach((r, i) => {
+        doc.rect(40, supY, 530, 35).fill(i % 2 === 0 ? "#FFFFFF" : C.bg);
+        doc.font("Helvetica-Bold").fontSize(9).fillColor(C.red).text(`${i + 1}.`, 45, supY + 4, { width: 20 });
+        doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(r.title, 62, supY + 4, { width: 300 });
+        doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(`Score: ${r.riskScore} · ${r.probability}/${r.impact} · Owner: ${r.owner ?? "—"}`, 62, supY + 18, { width: 500 });
+        supY += 38;
+      });
+    } else {
+      doc.font("Helvetica").fontSize(11).fillColor(C.green).text("No critical escalations this week.", 40, 100);
+    }
+
+    // ── APPENDIX: Per-department project details ──
+    for (const dept of data.departments) {
+      doc.addPage();
+      pdfAccentBar(doc);
+      doc.font("Helvetica-Bold").fontSize(16).fillColor(C.dark).text(`${dept.name} — Project Details`, 40, 50);
+      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text(`${dept.projectCount} projects · Average progress ${dept.avgProgress}%`, 40, 70);
+
+      let projY = 95;
+      for (const p of dept.projects.slice(0, 12)) {
+        const ms = data.milestones.filter((m) => m.projectId === p.id);
+        const prog = ms.length === 0 ? 0 : Math.round(ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length);
+        const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
+        const report = data.weeklyReports.get(p.id);
+        const topRisk = data.risks.filter((r) => r.projectId === p.id && r.status === "open").sort((a, b) => b.riskScore - a.riskScore)[0];
+
+        doc.rect(40, projY, 530, 55).fill(projY % 2 === 0 ? "#FFFFFF" : C.bg).stroke(C.border);
+        doc.rect(40, projY, 4, 55).fill(statusColor(s.status));
+
+        doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(`${p.projectCode ?? ""} ${p.name}`.trim(), 50, projY + 4, { width: 280 });
+        doc.font("Helvetica-Bold").fontSize(8).fillColor(statusColor(s.status)).text(statusLabel(s.status), 340, projY + 4, { width: 60 });
+        doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(`${prog}%`, 410, projY + 3, { width: 40, align: "right" });
+        pdfHorizBar(doc, 460, projY + 6, prog, 6);
+
+        doc.font("Helvetica").fontSize(7).fillColor(C.secondary);
+        doc.text(`Achievement: ${report?.keyAchievements?.slice(0, 100) ?? "—"}`, 50, projY + 18, { width: 500 });
+        doc.text(`Next steps: ${report?.nextSteps?.slice(0, 100) ?? "—"}`, 50, projY + 30, { width: 500 });
+        if (topRisk) {
+          doc.font("Helvetica").fontSize(7).fillColor(C.red).text(`Risk: ${topRisk.title} (score ${topRisk.riskScore})`, 50, projY + 42, { width: 500 });
+        }
+
+        projY += 60;
+        if (projY > 700) { doc.addPage(); pdfAccentBar(doc); projY = 50; }
+      }
+    }
+
     // Add footers to all pages
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
@@ -910,6 +1016,120 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     }
 
     addFooter(s5, 5, totalSlides);
+
+    // ── SLIDE 6: Department Overview ──────────────────────────────────────────
+    if (data.departments.length > 0) {
+      const sDept = pptx.addSlide();
+      addSlideBar(sDept);
+      sDept.addText("Department Progress Overview", { x: 0.5, y: 0.15, w: 12, h: 0.6, fontSize: 22, bold: true, color: PC.dark });
+      sDept.addText("Programme delivery by department — project count, average progress, and status", {
+        x: 0.5, y: 0.6, w: 12, h: 0.3, fontSize: 10, color: PC.grey,
+      });
+
+      const deptTableRows: PptxGenJS.TableRow[] = [
+        [
+          { text: "Department", options: { bold: true, fontSize: 9, fill: { color: PC.primary }, color: PC.white } },
+          { text: "Projects", options: { bold: true, fontSize: 9, fill: { color: PC.primary }, color: PC.white, align: "center" } },
+          { text: "Avg Progress", options: { bold: true, fontSize: 9, fill: { color: PC.primary }, color: PC.white, align: "center" } },
+          { text: "On Track", options: { bold: true, fontSize: 9, fill: { color: PC.primary }, color: PC.white, align: "center" } },
+          { text: "Status", options: { bold: true, fontSize: 9, fill: { color: PC.primary }, color: PC.white, align: "center" } },
+        ],
+      ];
+      for (const dept of data.departments.slice(0, 12)) {
+        const deptStatus = dept.onTrack === dept.projectCount ? "on_track" : dept.onTrack >= dept.projectCount * 0.7 ? "at_risk" : "delayed";
+        deptTableRows.push([
+          { text: dept.name, options: { fontSize: 9 } },
+          { text: String(dept.projectCount), options: { fontSize: 9, align: "center" } },
+          { text: `${dept.avgProgress}%`, options: { fontSize: 9, align: "center", bold: true } },
+          { text: `${dept.onTrack} / ${dept.projectCount}`, options: { fontSize: 9, align: "center" } },
+          { text: statusLabel(deptStatus), options: { fontSize: 9, align: "center", color: statusPtxColor(deptStatus), bold: true } },
+        ]);
+      }
+      sDept.addTable(deptTableRows, { x: 0.4, y: 1.1, w: 12.4, colW: [3.5, 1.5, 2, 2, 3.4], border: { color: PC.border, pt: 0.5 } });
+    }
+
+    // ── SLIDE 7: Support Required / Escalations ──────────────────────────────
+    const sSupport = pptx.addSlide();
+    addSlideBar(sSupport);
+    sSupport.addText("Support Required & Escalations", { x: 0.5, y: 0.15, w: 12, h: 0.6, fontSize: 22, bold: true, color: PC.dark });
+    sSupport.addText("Items requiring executive decision or intervention", {
+      x: 0.5, y: 0.6, w: 12, h: 0.3, fontSize: 10, color: PC.grey,
+    });
+
+    const criticalRisks = data.risks.filter((r) => r.status === "open" && r.riskScore >= 12);
+    if (criticalRisks.length > 0) {
+      const supportRows: PptxGenJS.TableRow[] = [
+        [
+          { text: "#", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white, align: "center" } },
+          { text: "Issue / Risk", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
+          { text: "Impact", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
+          { text: "Support Needed", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
+          { text: "Owner", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
+        ],
+      ];
+      criticalRisks.slice(0, 6).forEach((r, i) => {
+        supportRows.push([
+          { text: String(i + 1), options: { fontSize: 9, align: "center" } },
+          { text: r.title, options: { fontSize: 8 } },
+          { text: `${r.probability}/${r.impact} (Score: ${r.riskScore})`, options: { fontSize: 8 } },
+          { text: "Decision required — see mitigation plan", options: { fontSize: 8, italic: true } },
+          { text: r.owner ?? "—", options: { fontSize: 8 } },
+        ]);
+      });
+      sSupport.addTable(supportRows, { x: 0.4, y: 1.1, w: 12.4, colW: [0.5, 4, 2.5, 3, 2.4], border: { color: PC.border, pt: 0.5 } });
+    } else {
+      sSupport.addText("No critical escalations this week. All risks within acceptable thresholds.", {
+        x: 0.4, y: 2.0, w: 12, h: 1, fontSize: 14, color: PC.green, align: "center",
+      });
+    }
+
+    // ── SLIDE 8: Appendix Divider ────────────────────────────────────────────
+    const sAppDiv = pptx.addSlide();
+    addSlideBar(sAppDiv);
+    sAppDiv.addText("APPENDIX", { x: 0, y: 2.5, w: 13.3, h: 1.2, fontSize: 36, bold: true, color: PC.dark, align: "center" });
+    sAppDiv.addText("Detailed project status, weekly achievements, and risk register", {
+      x: 0, y: 3.7, w: 13.3, h: 0.5, fontSize: 14, color: PC.grey, align: "center",
+    });
+
+    // ── APPENDIX SLIDES: Per-department project details ──────────────────────
+    for (const dept of data.departments) {
+      const sD = pptx.addSlide();
+      addSlideBar(sD);
+      sD.addText(`${dept.name} — Project Status`, { x: 0.5, y: 0.15, w: 12, h: 0.5, fontSize: 18, bold: true, color: PC.dark });
+      sD.addText(`${dept.projectCount} projects · Avg progress ${dept.avgProgress}%`, {
+        x: 0.5, y: 0.5, w: 12, h: 0.3, fontSize: 10, color: PC.grey,
+      });
+
+      const projRows: PptxGenJS.TableRow[] = [
+        [
+          { text: "Project", options: { bold: true, fontSize: 8, fill: { color: PC.primary }, color: PC.white } },
+          { text: "Status", options: { bold: true, fontSize: 8, fill: { color: PC.primary }, color: PC.white, align: "center" } },
+          { text: "Progress", options: { bold: true, fontSize: 8, fill: { color: PC.primary }, color: PC.white, align: "center" } },
+          { text: "Key Achievement", options: { bold: true, fontSize: 8, fill: { color: PC.primary }, color: PC.white } },
+          { text: "Next Steps", options: { bold: true, fontSize: 8, fill: { color: PC.primary }, color: PC.white } },
+          { text: "Key Risk", options: { bold: true, fontSize: 8, fill: { color: PC.primary }, color: PC.white } },
+        ],
+      ];
+
+      for (const p of dept.projects.slice(0, 15)) {
+        const ms = data.milestones.filter((m) => m.projectId === p.id);
+        const prog = ms.length === 0 ? 0 : Math.round(ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length);
+        const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
+        const report = data.weeklyReports.get(p.id);
+        const topRisk = data.risks.filter((r) => r.projectId === p.id && r.status === "open").sort((a, b) => b.riskScore - a.riskScore)[0];
+
+        projRows.push([
+          { text: `${p.projectCode ?? ""} ${p.name}`.trim(), options: { fontSize: 7.5 } },
+          { text: statusLabel(s.status), options: { fontSize: 7.5, align: "center", color: statusPtxColor(s.status), bold: true } },
+          { text: `${prog}%`, options: { fontSize: 8, align: "center", bold: true } },
+          { text: report?.keyAchievements?.slice(0, 120) ?? "—", options: { fontSize: 7 } },
+          { text: report?.nextSteps?.slice(0, 120) ?? "—", options: { fontSize: 7 } },
+          { text: topRisk ? `${topRisk.title} (${topRisk.riskScore})` : "—", options: { fontSize: 7, color: topRisk && topRisk.riskScore >= 9 ? PC.red : PC.grey } },
+        ]);
+      }
+
+      sD.addTable(projRows, { x: 0.3, y: 0.9, w: 12.7, colW: [2.2, 1, 0.8, 3.2, 3, 2.5], border: { color: PC.border, pt: 0.5 }, rowH: 0.4 });
+    }
 
     // ── Generate and send ─────────────────────────────────────────────────────
     const pptxBuffer = await pptx.write({ outputType: "nodebuffer" }) as Buffer;
