@@ -13,6 +13,7 @@ import {
   type CreateSpmoMitigationRequest,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import { Loader2, ShieldAlert, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck, Building2, FolderOpen, Download } from "lucide-react";
 import { exportToXlsx } from "@/lib/export";
@@ -367,6 +368,51 @@ export default function Risks() {
           </div>
         </Card>
       )}
+
+      {/* Department Risk Criticality Breakdown */}
+      {risks.length > 0 && departments.length > 0 && (() => {
+        const deptRiskData = departments.map((dept) => {
+          const deptProjectIds = new Set(projects.filter((p) => (p as { departmentId?: number }).departmentId === dept.id).map((p) => p.id));
+          const deptRisks = risks.filter((r) => r.projectId && deptProjectIds.has(r.projectId));
+          return {
+            name: dept.name.length > 20 ? dept.name.slice(0, 18) + "…" : dept.name,
+            fullName: dept.name,
+            critical: deptRisks.filter((r) => r.riskScore >= 12).length,
+            high: deptRisks.filter((r) => r.riskScore >= 6 && r.riskScore < 12).length,
+            medium: deptRisks.filter((r) => r.riskScore >= 3 && r.riskScore < 6).length,
+            low: deptRisks.filter((r) => r.riskScore < 3).length,
+            total: deptRisks.length,
+          };
+        }).filter((d) => d.total > 0).sort((a, b) => b.total - a.total);
+
+        if (deptRiskData.length === 0) return null;
+
+        return (
+          <Card>
+            <h3 className="font-bold text-base mb-1">Department Risk Criticality</h3>
+            <p className="text-xs text-muted-foreground mb-4">Open risks by department, grouped by severity score</p>
+            <ResponsiveContainer width="100%" height={Math.max(200, deptRiskData.length * 40 + 60)}>
+              <BarChart data={deptRiskData} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 10 }} />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }}
+                  formatter={(value: number, name: string) => [value, name.charAt(0).toUpperCase() + name.slice(1)]}
+                  labelFormatter={(label, payload) => {
+                    const item = payload?.[0]?.payload;
+                    return item?.fullName ?? label;
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="critical" stackId="a" fill="#ef4444" name="Critical (≥12)" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="high" stackId="a" fill="#f59e0b" name="High (6-11)" />
+                <Bar dataKey="medium" stackId="a" fill="#3b82f6" name="Medium (3-5)" />
+                <Bar dataKey="low" stackId="a" fill="#94a3b8" name="Low (<3)" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        );
+      })()}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
