@@ -501,6 +501,8 @@ router.put("/spmo/pillars/:id", async (req, res): Promise<void> => {
     }
   }
 
+  const [oldPillar] = await db.select().from(spmoPillarsTable).where(eq(spmoPillarsTable.id, params.data.id)).limit(1);
+
   const [pillar] = await db
     .update(spmoPillarsTable)
     .set(parsed.data)
@@ -512,7 +514,17 @@ router.put("/spmo/pillars/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "pillar", pillar.id, pillar.name);
+  const pillarChanges: Record<string, { from: unknown; to: unknown }> = {};
+  if (oldPillar) {
+    for (const f of ["name", "description", "pillarType", "weight", "color"] as const) {
+      const ov = (oldPillar as Record<string, unknown>)[f];
+      const nv = (pillar as Record<string, unknown>)[f];
+      if (ov !== nv && nv !== undefined) pillarChanges[f] = { from: ov, to: nv };
+    }
+  }
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "pillar", pillar.id, pillar.name, {
+    link: `/pillars/${pillar.id}/portfolio`, changes: pillarChanges,
+  });
   res.json(pillar);
 });
 
@@ -708,6 +720,8 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     ...(td !== undefined && { targetDate: dateToStr(td) as string }),
   };
 
+  const [oldInit] = await db.select().from(spmoInitiativesTable).where(eq(spmoInitiativesTable.id, params.data.id)).limit(1);
+
   if (parsed.data.initiativeCode) {
     const [codeConflict] = await db.select({ id: spmoInitiativesTable.id }).from(spmoInitiativesTable).where(and(eq(spmoInitiativesTable.initiativeCode, parsed.data.initiativeCode), ne(spmoInitiativesTable.id, params.data.id))).limit(1);
     if (codeConflict) {
@@ -717,7 +731,7 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
   }
 
   if (parsed.data.weight !== undefined) {
-    const [existingInit] = await db.select({ pillarId: spmoInitiativesTable.pillarId }).from(spmoInitiativesTable).where(eq(spmoInitiativesTable.id, params.data.id));
+    const existingInit = oldInit;
     if (existingInit) {
       const pillarId = parsed.data.pillarId ?? existingInit.pillarId;
       const siblings = await db.select({ id: spmoInitiativesTable.id, weight: spmoInitiativesTable.weight }).from(spmoInitiativesTable).where(eq(spmoInitiativesTable.pillarId, pillarId));
@@ -740,7 +754,17 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "initiative", initiative.id, initiative.name);
+  const initChanges: Record<string, { from: unknown; to: unknown }> = {};
+  if (oldInit) {
+    for (const f of ["name", "description", "status", "weight", "budget", "ownerName", "startDate", "targetDate", "initiativeCode"] as const) {
+      const ov = (oldInit as Record<string, unknown>)[f];
+      const nv = (initiative as Record<string, unknown>)[f];
+      if (ov !== nv && nv !== undefined) initChanges[f] = { from: ov, to: nv };
+    }
+  }
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "initiative", initiative.id, initiative.name, {
+    link: `/initiatives`, changes: initChanges,
+  });
   res.json(initiative);
 });
 
@@ -1663,6 +1687,8 @@ router.put("/spmo/kpis/:id", async (req, res): Promise<void> => {
     }
   }
 
+  const [oldKpi] = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.id, params.data.id)).limit(1);
+
   // Auto-track velocity: when actual changes, snapshot old actual → prevActual
   if (updateValues.actual !== undefined) {
     const [existing] = await db
@@ -1687,7 +1713,17 @@ router.put("/spmo/kpis/:id", async (req, res): Promise<void> => {
   }
 
   const user = getAuthUser(req);
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "kpi", kpi.id, kpi.name, { actual: kpi.actual });
+  const kpiChanges: Record<string, { from: unknown; to: unknown }> = {};
+  if (oldKpi) {
+    for (const f of ["name", "target", "actual", "baseline", "status", "unit", "description"] as const) {
+      const ov = (oldKpi as Record<string, unknown>)[f];
+      const nv = (kpi as Record<string, unknown>)[f];
+      if (ov !== nv && nv !== undefined) kpiChanges[f] = { from: ov, to: nv };
+    }
+  }
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "kpi", kpi.id, kpi.name, {
+    link: "/kpis", changes: kpiChanges,
+  });
   res.json(kpi);
 });
 

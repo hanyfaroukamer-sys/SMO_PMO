@@ -194,12 +194,12 @@ function renderDetails(
         </>
       )}
 
-      {/* Legacy flat items (old format, backward compat) */}
+      {/* Legacy flat items (old log entries without before/after) */}
       {!hasChanges && hasLegacy && (
         <>
           {action === "updated" && (
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-              Fields changed in {sectionLabel}
+              Updated values in {sectionLabel} <span className="normal-case font-normal">(logged before audit tracking — previous values not available)</span>
             </div>
           )}
           <div className="flex flex-wrap gap-2">
