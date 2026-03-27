@@ -3,6 +3,7 @@ import type React from "react";
 import {
   useListSpmoKpis,
   useListSpmoPillars,
+  useListSpmoInitiatives,
   useCreateSpmoKpi,
   useUpdateSpmoKpi,
   useDeleteSpmoKpi,
@@ -10,7 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, Plus, Pencil, Trash2, Download, BarChart2, TrendingUp } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Download, BarChart2, TrendingUp, Activity } from "lucide-react";
 import { exportToXlsx } from "@/lib/export";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -89,8 +90,10 @@ function MiniBar({ actual, target }: { actual: number; target: number }) {
 
 export default function KPIs() {
   const isAdmin = useIsAdmin();
-  const { data, isLoading } = useListSpmoKpis({ type: "strategic" });
+  const [kpiTypeTab, setKpiTypeTab] = useState<"strategic" | "operational">("strategic");
+  const { data, isLoading } = useListSpmoKpis({ type: kpiTypeTab });
   const { data: pillarsData } = useListSpmoPillars();
+  const { data: initiativesData } = useListSpmoInitiatives();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<KpiForm>(emptyForm());
@@ -201,7 +204,7 @@ export default function KPIs() {
     } else {
       const createPayload: CreateSpmoKpiRequest = {
         ...shared,
-        type: "strategic",
+        type: kpiTypeTab,
         pillarId: form.pillarId ? parseInt(form.pillarId) : undefined,
       };
       createMutation.mutate({ data: createPayload }, {
@@ -233,7 +236,7 @@ export default function KPIs() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <PageHeader title="Strategic KPIs" description="Grouped by pillar — baseline, targets, actuals and 2030 outlook.">
+      <PageHeader title="KPIs" description={kpiTypeTab === "strategic" ? "Grouped by pillar — baseline, targets, actuals and 2030 outlook." : "Operational KPIs linked to initiatives and projects."}>
         <div className="flex items-center gap-2">
           <button
             onClick={() => exportToXlsx(kpis.map((k) => ({
@@ -244,7 +247,7 @@ export default function KPIs() {
               Actual: k.actual,
               "2030 Target": k.target2030,
               Status: (k as { status?: string }).status ?? "",
-            })), "strategic-kpis-export")}
+            })), `${kpiTypeTab}-kpis-export`)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
           >
             <Download className="w-3.5 h-3.5" /> Export
@@ -256,6 +259,22 @@ export default function KPIs() {
           )}
         </div>
       </PageHeader>
+
+      {/* Type toggle */}
+      <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
+        <button
+          onClick={() => setKpiTypeTab("strategic")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-semibold transition-all ${kpiTypeTab === "strategic" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <TrendingUp className="w-4 h-4" /> Strategic
+        </button>
+        <button
+          onClick={() => setKpiTypeTab("operational")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-semibold transition-all ${kpiTypeTab === "operational" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <Activity className="w-4 h-4" /> Operational
+        </button>
+      </div>
 
       {kpis.length === 0 ? (
         <Card className="text-center py-16 text-muted-foreground">

@@ -67,7 +67,7 @@ function Router() {
               <Route path="/projects/:id" component={ProjectDetail} />
               <Route path="/progress" component={ProgressProof} />
               <Route path="/kpis" component={KPIs} />
-              <Route path="/op-kpis" component={OpKPIs} />
+              <Route path="/op-kpis">{() => { window.location.replace("/strategy-pmo/kpis"); return null; }}</Route>
               <Route path="/budget">{() => <AdminGuard><Budget /></AdminGuard>}</Route>
               <Route path="/procurement">{() => <AdminGuard><Procurement /></AdminGuard>}</Route>
               <Route path="/departments" component={Departments} />
