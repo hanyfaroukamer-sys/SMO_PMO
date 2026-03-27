@@ -23,9 +23,10 @@ const MONTH_H = 36;
 const LABEL_W = 264;
 const DIAMOND = 12;
 
-// Zoom levels: px per day
-const ZOOM_PX_PER_DAY = [2.8, 4.5, 8, 14];
-const ZOOM_LABELS = ["Quarter", "Month", "Biweek", "Week"];
+// Zoom levels: px per day (from widest to narrowest)
+const ZOOM_PX_PER_DAY = [0.8, 1.5, 2.8, 4.5, 8, 14];
+const ZOOM_LABELS = ["Annual", "Half-Year", "Quarter", "Month", "Biweek", "Week"];
+const DEFAULT_ZOOM = 2; // "Quarter" — shows ~1 year on a typical screen
 
 // ─── Helpers ──────────────────────────────────────────────────────
 function toDate(s: string | null | undefined | Date): Date | null {
@@ -116,7 +117,7 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
   const { data: depsData } = useListDependencies();
 
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
-  const [zoomIdx, setZoomIdx] = useState(1);
+  const [zoomIdx, setZoomIdx] = useState(DEFAULT_ZOOM);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [hoverCard, setHoverCard] = useState<HoverCard | null>(null);
@@ -175,8 +176,9 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
         chartEnd: new Date(ut.getFullYear(), ut.getMonth() + 1, 28),
       };
     }
-    let minT = new Date(TODAY.getFullYear(), TODAY.getMonth() - 2, 1).getTime();
-    let maxT = new Date(TODAY.getFullYear() + 1, TODAY.getMonth() + 3, 1).getTime();
+    // Default: 3 months before today to 12 months after today, expanded by project dates
+    let minT = new Date(TODAY.getFullYear(), TODAY.getMonth() - 3, 1).getTime();
+    let maxT = new Date(TODAY.getFullYear(), TODAY.getMonth() + 13, 1).getTime();
     for (const g of groups) {
       for (const row of g.rows) {
         const sd = toDate(row.project.startDate);
@@ -208,6 +210,23 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
   }, [chartStart, pxPerDay]);
 
   const todayX = xPx(TODAY);
+
+  // Auto-scroll to today's date on mount
+  const didScroll = useRef(false);
+  const scrollToToday = useCallback(() => {
+    if (!scrollRef.current || didScroll.current) return;
+    // Scroll so today appears ~20% from left edge
+    const scrollTarget = Math.max(0, todayX - scrollRef.current.clientWidth * 0.2);
+    scrollRef.current.scrollLeft = scrollTarget;
+    didScroll.current = true;
+  }, [todayX]);
+
+  // Reset scroll flag when zoom changes so it re-centers on today
+  const prevZoom = useRef(zoomIdx);
+  if (prevZoom.current !== zoomIdx) {
+    didScroll.current = false;
+    prevZoom.current = zoomIdx;
+  }
 
   // ── Quarter + Month headers ──
   const { quarters, months } = useMemo(() => {
@@ -480,7 +499,7 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
       </AnimatePresence>
 
       {/* ── Scrollable chart ── */}
-      <div ref={scrollRef} className="overflow-auto">
+      <div ref={(el) => { (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el; if (el) setTimeout(scrollToToday, 50); }} className="overflow-auto">
         <div style={{ minWidth: LABEL_W + timelineWidth, position: "relative" }}>
           {/* === HEADER (sticky) === */}
           <div className="sticky top-0 z-30" style={{ height: HEADER_H }}>
@@ -517,9 +536,11 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
                       className={`absolute flex items-center justify-center border-r border-border/30 ${m.alt ? "bg-secondary/20" : ""}`}
                       style={{ left: m.left, width: m.width, top: 0, height: MONTH_H }}
                     >
-                      <span className="text-[10px] font-semibold text-muted-foreground whitespace-nowrap">
-                        {m.label}
-                      </span>
+                      {m.width >= 20 && (
+                        <span className="text-[10px] font-semibold text-muted-foreground whitespace-nowrap">
+                          {m.width < 40 ? m.label.charAt(0) : m.label}
+                        </span>
+                      )}
                     </div>
                   ))}
                   {/* Today on header */}
