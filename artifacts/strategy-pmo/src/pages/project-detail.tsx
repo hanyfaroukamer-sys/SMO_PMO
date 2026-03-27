@@ -422,7 +422,7 @@ function MilestonesTab({
 
       {/* List */}
       {sortedMilestones.map((m) => (
-        <MilestoneRow key={m.id} milestone={m} canApprove={canApprove} canEditDetails={canEditDetails} canEditProgress={canEditProgress} onInvalidate={onInvalidate} />
+        <MilestoneRow key={m.id} milestone={m} canApprove={canApprove} canEditDetails={canEditDetails} canDelete={canDeleteMilestone} canEditProgress={canEditProgress} onInvalidate={onInvalidate} />
       ))}
     </div>
   );
@@ -434,12 +434,14 @@ function MilestoneRow({
   milestone,
   canApprove,
   canEditDetails,
+  canDelete,
   canEditProgress,
   onInvalidate,
 }: {
   milestone: SpmoMilestoneWithEvidence;
   canApprove: boolean;
   canEditDetails: boolean;
+  canDelete: boolean;
   canEditProgress: boolean;
   onInvalidate: () => void;
 }) {
@@ -723,10 +725,10 @@ function MilestoneRow({
                   </div>
                 ) : (
                   <button
-                    onClick={canEditDetails ? () => setConfirmDelete(true) : undefined}
-                    disabled={!canEditDetails}
-                    title={!canEditDetails ? "Admin access required to delete milestones" : undefined}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-destructive/30 text-destructive bg-destructive/5 transition-colors ${canEditDetails ? "hover:bg-destructive/15" : "opacity-40 cursor-not-allowed"}`}
+                    onClick={canDelete ? () => setConfirmDelete(true) : undefined}
+                    disabled={!canDelete}
+                    title={!canDelete ? "Only admins can delete milestones" : undefined}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-destructive/30 text-destructive bg-destructive/5 transition-colors ${canDelete ? "hover:bg-destructive/15" : "opacity-40 cursor-not-allowed"}`}
                   >
                     <Trash2 className="w-3 h-3" /> Delete
                   </button>
@@ -775,6 +777,7 @@ export default function ProjectDetail({ params }: Props) {
   // PMs who own the project get full edit rights (details + progress + delete)
   const isOwner = userRole === "project-manager" && projectOwnerId === authData?.user?.id;
   const canEditMilestoneDetails = isAdmin || (isOwner && (perms?.canManageMilestones ?? false));
+  const canDeleteMilestone = isAdmin; // Only admins can delete milestones
   const canEditMilestoneProgress = isAdmin || (userRole === "project-manager" && (perms?.canManageMilestones ?? false));
   const { data: pillarsData } = useListSpmoPillars();
   const { data: initiativesData } = useListSpmoInitiatives();

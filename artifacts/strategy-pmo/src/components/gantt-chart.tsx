@@ -22,6 +22,7 @@ const QUARTER_H = 22;
 const MONTH_H = 36;
 const LABEL_W = 264;
 const DIAMOND = 12;
+const MS_ROW_H = 36; // milestone sub-row height
 
 // Zoom levels: px per day (from widest to narrowest)
 const ZOOM_PX_PER_DAY = [0.8, 1.5, 2.8, 4.5, 8, 14];
@@ -85,7 +86,7 @@ function hex2rgba(hex: string, a = 1) {
 
 // ─── Types ────────────────────────────────────────────────────────
 type GanttPillar = { id: number; name: string; color: string };
-type GanttMilestone = { id: number; name: string; dueDate: Date; status: string };
+type GanttMilestone = { id: number; name: string; startDate: Date | null; dueDate: Date; status: string; progress: number };
 type GanttRow = { project: SpmoProjectWithProgress; pillar: GanttPillar | undefined; milestones: GanttMilestone[] };
 type PillarGroup = { pillar: GanttPillar | undefined; pillarId: number; rows: GanttRow[] };
 
@@ -117,6 +118,7 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
   const { data: depsData } = useListDependencies();
 
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
   const [zoomIdx, setZoomIdx] = useState(DEFAULT_ZOOM);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -147,16 +149,16 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
       const projId = proj.id ?? ms.projectId;
       if (!projId) continue;
       const list = map.get(projId) ?? [];
-      list.push({ id: ms.id, name: ms.name, dueDate: dd, status: ms.status });
+      list.push({ id: ms.id, name: ms.name, startDate: toDate(ms.startDate as string | null | undefined), dueDate: dd, status: ms.status, progress: ms.progress ?? 0 });
       map.set(projId, list);
     }
-    // Fallback: if milestones data is flat array (Replit may have changed format)
+    // Fallback: if milestones data is flat array
     if (map.size === 0 && Array.isArray(milestonesData?.milestones)) {
-      for (const ms of milestonesData.milestones as { id: number; projectId: number; name: string; dueDate: string | null; status: string }[]) {
+      for (const ms of milestonesData.milestones as { id: number; projectId: number; name: string; startDate?: string | null; dueDate: string | null; status: string; progress?: number }[]) {
         const dd = toDate(ms.dueDate);
         if (!dd) continue;
         const list = map.get(ms.projectId) ?? [];
-        list.push({ id: ms.id, name: ms.name, dueDate: dd, status: ms.status });
+        list.push({ id: ms.id, name: ms.name, startDate: toDate(ms.startDate), dueDate: dd, status: ms.status, progress: ms.progress ?? 0 });
         map.set(ms.projectId, list);
       }
     }
@@ -689,31 +691,45 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
                       d => d.dep.sourceId === row.project.id || d.dep.targetId === row.project.id
                     );
 
+                    const isProjectExpanded = expandedProjects.has(row.project.id);
+                    const toggleProjectExpand = () => setExpandedProjects(prev => { const s = new Set(prev); s.has(row.project.id) ? s.delete(row.project.id) : s.add(row.project.id); return s; });
+                    const expandedHeight = ROW_H + (isProjectExpanded ? row.milestones.length * MS_ROW_H : 0);
+
                     return (
                       <motion.div
                         key={row.project.id}
                         initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: ROW_H }}
+                        animate={{ opacity: 1, height: expandedHeight }}
                         exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.16 }}
-                        className="flex border-b border-border/20 overflow-hidden"
+                        transition={{ duration: 0.2 }}
+                        className="border-b border-border/20"
                         style={{
                           background: isHovered
                             ? hex2rgba(pillarColor, 0.06)
                             : isDepRelated && hoveredDepId !== null
                               ? "rgba(99,102,241,0.04)"
                               : undefined,
+                          overflow: "hidden",
                         }}
                         onMouseLeave={() => { setHoveredProjectId(null); setHoverCard(null); }}
                       >
+                        {/* Project row */}
+                        <div className="flex" style={{ height: ROW_H }}>
                         {/* Label */}
                         <div
-                          className="shrink-0 border-r border-border/40 flex items-center px-3 gap-2 cursor-pointer group"
+                          className="shrink-0 border-r border-border/40 flex items-center px-2 gap-1.5 group"
                           style={{ width: LABEL_W, height: ROW_H }}
-                          onClick={() => handleProjectClick(row.project)}
                           onMouseEnter={() => setHoveredProjectId(row.project.id)}
                         >
-                          <div className="w-1 h-7 rounded-full shrink-0 opacity-70" style={{ background: pillarColor }} />
+                          {/* Expand/collapse arrow */}
+                          {row.milestones.length > 0 ? (
+                            <button onClick={toggleProjectExpand} className="shrink-0 p-0.5 rounded hover:bg-secondary/60 transition-colors" title={isProjectExpanded ? "Collapse milestones" : "Expand milestones"}>
+                              <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-150 ${isProjectExpanded ? "rotate-90" : ""}`} />
+                            </button>
+                          ) : (
+                            <div className="w-4.5 shrink-0" />
+                          )}
+                          <div className="w-1 h-7 rounded-full shrink-0 opacity-70 cursor-pointer" style={{ background: pillarColor }} onClick={() => handleProjectClick(row.project)} />
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-semibold truncate leading-tight group-hover:text-primary transition-colors">
                               {row.project.name}
@@ -837,6 +853,59 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
                             );
                           })}
                         </div>
+                        </div>{/* end project row flex */}
+
+                        {/* Milestone sub-rows (when expanded) */}
+                        {isProjectExpanded && row.milestones.map(ms => {
+                          const msStart = ms.startDate ?? ms.dueDate;
+                          const msBarL = xPx(msStart);
+                          const msBarW = Math.max(6, xPx(ms.dueDate) - msBarL);
+                          const mc = milestoneColors(ms.status);
+                          return (
+                            <div key={ms.id} className="flex" style={{ height: MS_ROW_H }}>
+                              {/* Milestone label */}
+                              <div className="shrink-0 border-r border-border/40 flex items-center pl-10 pr-3 gap-2" style={{ width: LABEL_W, height: MS_ROW_H }}>
+                                <div className="w-2 h-2 rounded-sm shrink-0" style={{ background: mc.stroke }} />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-[10px] font-medium text-foreground/70 truncate">{ms.name}</div>
+                                  <div className="text-[9px] text-muted-foreground">
+                                    {ms.startDate ? fmtShort(ms.startDate) : "—"} → {fmtShort(ms.dueDate)}
+                                  </div>
+                                </div>
+                                <span className="text-[9px] font-bold text-muted-foreground shrink-0">{Math.round(ms.progress)}%</span>
+                              </div>
+                              {/* Milestone timeline bar */}
+                              <div className="relative flex items-center" style={{ width: timelineWidth, flexShrink: 0, height: MS_ROW_H }}>
+                                {ms.startDate && msBarW > 0 && (
+                                  <div
+                                    className="absolute rounded-full"
+                                    style={{
+                                      left: msBarL,
+                                      width: msBarW,
+                                      height: 10,
+                                      top: "50%",
+                                      marginTop: -5,
+                                      background: hex2rgba(mc.stroke, 0.15),
+                                      border: `1px solid ${mc.stroke}`,
+                                    }}
+                                  >
+                                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, ms.progress)}%`, background: hex2rgba(mc.stroke, 0.5) }} />
+                                  </div>
+                                )}
+                                {/* Due date diamond */}
+                                <div
+                                  className="absolute z-30"
+                                  style={{ left: xPx(ms.dueDate) - DIAMOND / 2, top: "50%", marginTop: -DIAMOND / 2 }}
+                                >
+                                  <svg width={DIAMOND} height={DIAMOND} viewBox={`0 0 ${DIAMOND} ${DIAMOND}`}>
+                                    <rect x={DIAMOND / 2} y={0} width={DIAMOND / 2 * 1.414} height={DIAMOND / 2 * 1.414} rx={1.2}
+                                      transform={`rotate(45,${DIAMOND / 2},${DIAMOND / 2})`} fill={mc.fill} stroke={mc.stroke} strokeWidth={1.5} />
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </motion.div>
                     );
                   })}
