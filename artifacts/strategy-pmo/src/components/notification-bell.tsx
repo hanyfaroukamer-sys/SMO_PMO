@@ -28,7 +28,9 @@ export function NotificationBell() {
         setNotifications(data.notifications ?? []);
         setUnreadCount(data.unreadCount ?? 0);
       }
-    } catch { /* ignore */ }
+    } catch {
+      console.warn("[notifications] Failed to fetch");
+    }
   };
 
   // Poll every 30s
@@ -48,8 +50,10 @@ export function NotificationBell() {
   }, [open]);
 
   const markAllRead = async () => {
-    await fetch("/api/spmo/notifications/read-all", { method: "POST", credentials: "include" });
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await fetch("/api/spmo/notifications/read-all", { method: "POST", credentials: "include" });
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch { /* silently fail — will sync on next poll */ }
     setUnreadCount(0);
   };
 

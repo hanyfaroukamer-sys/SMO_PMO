@@ -802,6 +802,9 @@ function EmailNotificationsPanel({ config, users }: { config: Record<string, unk
         </p>
         <input className={inputClass} value={weeklyReportCc} onChange={(e) => setWeeklyReportCc(e.target.value)}
           placeholder="director@example.gov, pmo-lead@example.gov" />
+        {weeklyReportCc && weeklyReportCc.split(",").some((e) => e.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())) && (
+          <p className="text-[10px] text-destructive mt-0.5">One or more email addresses appear invalid</p>
+        )}
         <p className="text-[10px] text-muted-foreground mt-1">
           These recipients will be CC'd on all overdue weekly report emails. Each PM only receives reminders for their specific missing reports.
         </p>
