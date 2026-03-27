@@ -45,17 +45,14 @@ const pmNavItems = [
 
 // ── PMO Administration items (admin only) ──
 const adminNavItems = [
-  { title: "Strategy Map",     href: "/strategy-map", icon: Network,         badge: false },
-  { title: "Pillars & Enablers", href: "/pillars",    icon: Layers,          badge: false },
-  { title: "Initiatives",      href: "/initiatives",  icon: Flag,            badge: false },
-  { title: "Budget",           href: "/budget",       icon: Wallet,          badge: false },
-  { title: "Procurement",      href: "/procurement",  icon: ShoppingCart,    badge: false },
-  { title: "Departments",      href: "/departments",  icon: Building2,       badge: false },
-  { title: "Dependencies",     href: "/dependencies", icon: GitMerge,        badge: false },
-  { title: "Progress Proof",   href: "/progress",     icon: CheckSquare,     badge: false },
-  { title: "Alerts",           href: "/alerts",       icon: BellRing,        badge: false },
-  { title: "Activity Log",     href: "/activity",     icon: ScrollText,      badge: false },
-  { title: "Import Data",      href: "/import",       icon: Upload,          badge: false },
+  { title: "Strategy Map",        href: "/strategy-map", icon: Network,      badge: false },
+  { title: "Pillars & Initiatives", href: "/pillars",    icon: Layers,       badge: false },
+  { title: "Financials",          href: "/budget",       icon: Wallet,       badge: false },
+  { title: "Departments",         href: "/departments",  icon: Building2,    badge: false },
+  { title: "Dependencies",        href: "/dependencies", icon: GitMerge,     badge: false },
+  { title: "Progress Proof",      href: "/progress",     icon: CheckSquare,  badge: false },
+  { title: "Monitoring",          href: "/alerts",       icon: BellRing,     badge: false },
+  { title: "Import Data",         href: "/import",       icon: Upload,       badge: false },
 ];
 
 // Legacy compat — build flat list for rendering logic
