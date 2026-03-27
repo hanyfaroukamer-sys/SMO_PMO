@@ -350,3 +350,56 @@ Beautiful "Strategy House" visualization but **static** — no drill-down, no cl
 **StrategyPMO's unique strengths:** AI-powered analysis, strategy house visualization, 99% gate approval rule, risk heatmap, structured Excel import. These are differentiators to protect.
 
 **Critical gaps vs competitors:** Global search, keyboard shortcuts, email notifications, comments/threads, bulk actions.
+
+---
+
+## APPENDIX D: INDUSTRY BENCHMARK DEEP DIVE
+
+### What Top Tools Do That We Don't (Priority Order)
+
+| Gap | Who Has It | Impact | Effort |
+|-----|-----------|--------|--------|
+| **Portfolio-level timeline/roadmap** | All 6 tools | High — execs need multi-project timeline | Medium |
+| **Trend/historical charts** (S-curves, burn rate over time) | All 6 tools | High — only showing current state, no trajectory | Medium |
+| **Resource capacity views** | Monday, Smartsheet, Planview | Medium — not critical for PMO v1 | High |
+| **Configurable dashboard widgets** | Smartsheet, Monday.com | Medium — fixed layout limits personalization | High |
+| **Benefits realization tracking** | Planview, ServiceNow, UK Gov requirement | High for government clients | Medium |
+| **EVM metrics** (SPI, CPI, Earned Value) | Planview, Clarity, ServiceNow | Medium — advanced but expected in enterprise | Low (data exists) |
+| **Scenario planning / what-if** | Planview, Clarity, ServiceNow | Low for v1 — enterprise feature | High |
+| **Demand intake pipeline** | Planview, ServiceNow | Low for v1 — enterprise feature | High |
+
+### Navigation Patterns From Leaders
+
+| Tool | Nav Style | Items | Grouping |
+|------|-----------|-------|----------|
+| Monday.com | Left sidebar | 5-7 | Workspace > Boards |
+| Smartsheet | Left panel | 4-6 | Workspaces > Sheets |
+| Planview | Top domain nav | 4 domains | Strategy / Demand / Planning / Delivery |
+| ServiceNow | App navigator | Grouped | Configurable favorites |
+| **StrategyPMO** | Left sidebar | **19** | **None (flat list)** |
+
+**Industry consensus: 5-7 top-level items, grouped by domain, with drill-down.**
+
+### Dashboard KPI Consensus (What to Show at a Glance)
+
+Every top tool's portfolio dashboard shows these 8-12 metrics:
+1. Total active projects (with status breakdown)
+2. Portfolio health (% on track vs at risk vs delayed)
+3. Budget allocated vs spent (with burn rate)
+4. Milestone completion rate
+5. Top risks (score >= threshold)
+6. Upcoming deadlines (next 7-14 days)
+7. Resource utilization (if tracked)
+8. Strategic alignment score (projects mapped to objectives)
+
+**StrategyPMO shows 6 of 8 — missing trend data and resource utilization.**
+
+### Government PMO Specific Requirements (UK/GCC)
+
+From UK Government Project Delivery Framework and GCC best practices:
+- **BRAG status** (Blue = Completed, Red/Amber/Green = health) — our RAG is close, could add Blue
+- **Benefits realization register** — track expected vs actual benefits per project
+- **Audit trail on all status changes** — we have this (activity log)
+- **Multi-funding-stream reporting** — partial (CAPEX/OPEX split exists)
+- **Ministerial reporting format** — export to PPTX/PDF (we have this)
+- **Cross-departmental portfolio views** — we have department portfolio
