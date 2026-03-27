@@ -85,8 +85,14 @@ function Logo({ collapsed }: { collapsed: boolean }) {
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { data: authData } = useGetCurrentAuthUser();
-  const { data: taskCount } = useGetSpmoMyTaskCount();
-  const [collapsed, setCollapsed] = useState(false);
+  const { data: taskCount } = useGetSpmoMyTaskCount({ refetchInterval: 30_000 });
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem("sidebar-collapsed") === "true"; } catch { return false; }
+  });
+  const toggleCollapsed = (v: boolean) => {
+    setCollapsed(v);
+    try { localStorage.setItem("sidebar-collapsed", String(v)); } catch { /* ignore */ }
+  };
   const [mobileOpen, setMobileOpen] = useState(false);
   const isMobile = useIsMobile();
   const user = authData?.user;
@@ -219,7 +225,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className={cn("flex gap-1", !isMobile && collapsed ? "flex-col" : "items-center")}>
           {!isMobile && (
             <button
-              onClick={() => setCollapsed(!collapsed)}
+              onClick={() => toggleCollapsed(!collapsed)}
               className="p-2 rounded-lg hover:bg-white/10 text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors"
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
