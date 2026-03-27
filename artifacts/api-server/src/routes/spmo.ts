@@ -913,6 +913,7 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
   ]);
 
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "project", project.id, project.name);
+  invalidateOverviewCache();
   res.status(201).json(project);
 });
 
@@ -1048,15 +1049,9 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/spmo/projects/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
-  if (!userId) return;
-
-  const user = getAuthUser(req);
-  const role = user?.role;
-  if (role !== "admin" && role !== "project-manager") {
-    res.status(403).json({ error: "Admin or project-manager role required" });
-    return;
-  }
+  // Only admins can delete projects (destructive — cascades milestones, evidence, risks etc.)
+  if (!requireAdmin(req, res)) return;
+  const userId = getAuthUser(req)?.id ?? "";
 
   const params = DeleteSpmoProjectParams.safeParse(req.params);
   if (!params.success) {
@@ -1075,6 +1070,7 @@ router.delete("/spmo/projects/:id", async (req, res): Promise<void> => {
   }
 
   await logSpmoActivity(userId, getUserDisplayName(user), "deleted", "project", project.id, project.name);
+  invalidateOverviewCache();
   res.json({ success: true });
 });
 
@@ -1398,12 +1394,20 @@ router.post("/spmo/milestones/:id/submit", async (req, res): Promise<void> => {
     return;
   }
 
-  // Fetch milestone for validation
+  // Fetch milestone for validation + permission check
   const [existing] = await db.select({
     status: spmoMilestonesTable.status,
     progress: spmoMilestonesTable.progress,
+    projectId: spmoMilestonesTable.projectId,
   }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
   if (!existing) { res.status(404).json({ error: "Milestone not found" }); return; }
+
+  // Permission check
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, existing.projectId, "canManageMilestones"))) {
+    res.status(403).json({ error: "You do not have permission to submit milestones on this project" });
+    return;
+  }
 
   // Status guard: only pending, in_progress, or rejected milestones can be submitted
   if (!["pending", "in_progress", "rejected"].includes(existing.status)) {
@@ -1439,8 +1443,8 @@ router.post("/spmo/milestones/:id/submit", async (req, res): Promise<void> => {
     return;
   }
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "submitted", "milestone", milestone.id, milestone.name);
+  invalidateOverviewCache();
   res.json(milestone);
 });
 
@@ -1478,6 +1482,7 @@ router.post("/spmo/milestones/:id/approve", async (req, res): Promise<void> => {
 
   const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "approved", "milestone", milestone.id, milestone.name);
+  invalidateOverviewCache();
 
   // Recalculate dep_status on all downstream dependencies
   await recalculateDownstreamStatuses(milestone.id);
@@ -1527,6 +1532,7 @@ router.post("/spmo/milestones/:id/reject", async (req, res): Promise<void> => {
 
   const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "rejected", "milestone", milestone.id, milestone.name, { reason: parsed.data.reason });
+  invalidateOverviewCache();
   res.json(milestone);
 });
 
@@ -1572,6 +1578,13 @@ router.post("/spmo/milestones/:id/evidence", async (req, res): Promise<void> => 
   const params = AddSpmoEvidenceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  // Permission check — verify user can manage milestones on this project
+  const [msForPerm] = await db.select({ projectId: spmoMilestonesTable.projectId }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
+  if (msForPerm && !(await checkProjectPerm(userId, user?.role, msForPerm.projectId, "canManageMilestones"))) {
+    res.status(403).json({ error: "You do not have permission to upload evidence on this project" });
     return;
   }
 
@@ -1622,15 +1635,19 @@ router.delete("/spmo/evidence/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Check ownership — only uploader or admin can delete
+  const [evCheck] = await db.select({ uploadedById: spmoEvidenceTable.uploadedById }).from(spmoEvidenceTable).where(eq(spmoEvidenceTable.id, params.data.id)).limit(1);
+  if (!evCheck) { res.status(404).json({ error: "Evidence not found" }); return; }
+  const user = getAuthUser(req);
+  if (evCheck.uploadedById !== userId && user?.role !== "admin") {
+    res.status(403).json({ error: "You can only delete evidence you uploaded" });
+    return;
+  }
+
   const [evidence] = await db
     .delete(spmoEvidenceTable)
     .where(eq(spmoEvidenceTable.id, params.data.id))
     .returning();
-
-  if (!evidence) {
-    res.status(404).json({ error: "Evidence not found" });
-    return;
-  }
 
   res.json({ success: true });
 });
