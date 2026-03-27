@@ -334,11 +334,20 @@ async function runPhaseGateMigration(): Promise<void> {
 runPhaseGateMigration();
 
 // ─────────────────────────────────────────────────────────────
-// Programme Overview
+// Programme Overview (cached 60 seconds)
 // ─────────────────────────────────────────────────────────────
+let _overviewCache: { data: unknown; ts: number } | null = null;
+const OVERVIEW_CACHE_TTL = 60_000; // 60 seconds
+
 router.get("/spmo/programme", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;
+
+  // Return cached overview if fresh (avoids heavy calcProgrammeProgress on every dashboard load)
+  if (_overviewCache && Date.now() - _overviewCache.ts < OVERVIEW_CACHE_TTL) {
+    res.json(_overviewCache.data);
+    return;
+  }
 
   const { programmeProgress, pillarSummaries } = await calcProgrammeProgress();
 
@@ -359,7 +368,7 @@ router.get("/spmo/programme", async (req, res): Promise<void> => {
   const vision = config?.vision ?? null;
   const mission = config?.mission ?? null;
 
-  res.json({
+  const responseData = {
     programmeName,
     vision,
     mission,
@@ -384,8 +393,14 @@ router.get("/spmo/programme", async (req, res): Promise<void> => {
     pendingApprovals,
     activeRisks: activeRisks[0]?.count ?? 0,
     alertCount,
-  });
+  };
+
+  _overviewCache = { data: responseData, ts: Date.now() };
+  res.json(responseData);
 });
+
+// Invalidate overview cache on any write operation
+function invalidateOverviewCache() { _overviewCache = null; }
 
 // ─────────────────────────────────────────────────────────────
 // Pillars
@@ -1166,23 +1181,34 @@ router.get("/spmo/milestones/all", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;
 
-  const allMilestones = await db
-    .select()
-    .from(spmoMilestonesTable)
-    .orderBy(desc(spmoMilestonesTable.updatedAt));
+  // Batch load all data in 4 parallel queries (was: 4 queries PER milestone)
+  const [allMilestones, allEvidence, allProjects, allInitiatives, allPillarsRaw] = await Promise.all([
+    db.select().from(spmoMilestonesTable).orderBy(desc(spmoMilestonesTable.updatedAt)),
+    db.select().from(spmoEvidenceTable),
+    db.select().from(spmoProjectsTable),
+    db.select().from(spmoInitiativesTable),
+    db.select().from(spmoPillarsTable),
+  ]);
 
-  const items = await Promise.all(
-    allMilestones.map(async (m) => {
-      const evidence = await db.select().from(spmoEvidenceTable).where(eq(spmoEvidenceTable.milestoneId, m.id));
-      const [project] = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.id, m.projectId));
-      if (!project) return null;
-      const [initiative] = await db.select().from(spmoInitiativesTable).where(eq(spmoInitiativesTable.id, project.initiativeId));
-      if (!initiative) return null;
-      const [pillar] = await db.select().from(spmoPillarsTable).where(eq(spmoPillarsTable.id, initiative.pillarId));
-      if (!pillar) return null;
-      return { milestone: { ...m, evidence }, project, initiative, pillar };
-    })
-  );
+  const evidenceByMilestone = new Map<number, typeof allEvidence>();
+  for (const e of allEvidence) {
+    const list = evidenceByMilestone.get(e.milestoneId) ?? [];
+    list.push(e);
+    evidenceByMilestone.set(e.milestoneId, list);
+  }
+  const projectMap = new Map(allProjects.map((p) => [p.id, p]));
+  const initiativeMap = new Map(allInitiatives.map((i) => [i.id, i]));
+  const pillarMap = new Map(allPillarsRaw.map((p) => [p.id, p]));
+
+  const items = allMilestones.map((m) => {
+    const project = projectMap.get(m.projectId);
+    if (!project) return null;
+    const initiative = initiativeMap.get(project.initiativeId);
+    if (!initiative) return null;
+    const pillar = pillarMap.get(initiative.pillarId);
+    if (!pillar) return null;
+    return { milestone: { ...m, evidence: evidenceByMilestone.get(m.id) ?? [] }, project, initiative, pillar };
+  });
 
   res.json({ items: items.filter(Boolean) });
 });
@@ -3529,52 +3555,25 @@ router.get("/spmo/search", async (req, res) => {
   const userId = requireAuth(req, res);
   if (!userId) return;
 
-  const q = ((req.query.q as string) || "").trim().toLowerCase();
+  const q = ((req.query.q as string) || "").trim();
   if (q.length < 2) { res.json({ results: [] }); return; }
 
-  const results: { type: string; id: number; title: string; subtitle: string; link: string }[] = [];
+  // Single SQL query using UNION ALL with ILIKE (was: 5 full table scans + JS filtering)
+  const pattern = `%${q}%`;
+  const searchResults = await db.execute(sql`
+    (SELECT 'project' as type, id, name as title, COALESCE(project_code || ' · ' || COALESCE(owner_name, ''), '') as subtitle, '/projects/' || id as link FROM spmo_projects WHERE name ILIKE ${pattern} OR project_code ILIKE ${pattern} LIMIT 5)
+    UNION ALL
+    (SELECT 'milestone', id, name, 'Milestone', '/projects/' || project_id || '?tab=milestones' FROM spmo_milestones WHERE name ILIKE ${pattern} LIMIT 5)
+    UNION ALL
+    (SELECT 'kpi', id, name, type || ' KPI', '/kpis' FROM spmo_kpis WHERE name ILIKE ${pattern} LIMIT 5)
+    UNION ALL
+    (SELECT 'risk', id, title, 'Risk', CASE WHEN project_id IS NOT NULL THEN '/projects/' || project_id || '?tab=risks' ELSE '/risks' END FROM spmo_risks WHERE title ILIKE ${pattern} LIMIT 5)
+    UNION ALL
+    (SELECT 'initiative', id, name, 'Initiative ' || COALESCE(initiative_code, ''), '/initiatives' FROM spmo_initiatives WHERE name ILIKE ${pattern} OR initiative_code ILIKE ${pattern} LIMIT 5)
+  `);
 
-  // Search projects
-  const projects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name, projectCode: spmoProjectsTable.projectCode, ownerName: spmoProjectsTable.ownerName }).from(spmoProjectsTable);
-  for (const p of projects) {
-    if (p.name.toLowerCase().includes(q) || (p.projectCode ?? "").toLowerCase().includes(q)) {
-      results.push({ type: "project", id: p.id, title: p.name, subtitle: `${p.projectCode ?? ""} · ${p.ownerName ?? ""}`.trim(), link: `/projects/${p.id}` });
-    }
-  }
-
-  // Search milestones
-  const milestones = await db.select({ id: spmoMilestonesTable.id, name: spmoMilestonesTable.name, projectId: spmoMilestonesTable.projectId }).from(spmoMilestonesTable);
-  for (const m of milestones) {
-    if (m.name.toLowerCase().includes(q)) {
-      results.push({ type: "milestone", id: m.id, title: m.name, subtitle: "Milestone", link: `/projects/${m.projectId}?tab=milestones` });
-    }
-  }
-
-  // Search KPIs
-  const kpis = await db.select({ id: spmoKpisTable.id, name: spmoKpisTable.name, type: spmoKpisTable.type }).from(spmoKpisTable);
-  for (const k of kpis) {
-    if (k.name.toLowerCase().includes(q)) {
-      results.push({ type: "kpi", id: k.id, title: k.name, subtitle: `${k.type} KPI`, link: "/kpis" });
-    }
-  }
-
-  // Search risks
-  const risks = await db.select({ id: spmoRisksTable.id, title: spmoRisksTable.title, projectId: spmoRisksTable.projectId }).from(spmoRisksTable);
-  for (const r of risks) {
-    if (r.title.toLowerCase().includes(q)) {
-      results.push({ type: "risk", id: r.id, title: r.title, subtitle: "Risk", link: r.projectId ? `/projects/${r.projectId}?tab=risks` : "/risks" });
-    }
-  }
-
-  // Search initiatives
-  const initiatives = await db.select({ id: spmoInitiativesTable.id, name: spmoInitiativesTable.name, initiativeCode: spmoInitiativesTable.initiativeCode }).from(spmoInitiativesTable);
-  for (const i of initiatives) {
-    if (i.name.toLowerCase().includes(q) || (i.initiativeCode ?? "").toLowerCase().includes(q)) {
-      results.push({ type: "initiative", id: i.id, title: i.name, subtitle: `Initiative ${i.initiativeCode ?? ""}`, link: "/initiatives" });
-    }
-  }
-
-  res.json({ results: results.slice(0, 20) });
+  const results = (searchResults.rows as { type: string; id: number; title: string; subtitle: string; link: string }[]).slice(0, 20);
+  res.json({ results });
 });
 
 // ─────────────────────────────────────────────────────────────
