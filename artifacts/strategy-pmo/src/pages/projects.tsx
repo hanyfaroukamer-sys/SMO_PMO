@@ -571,7 +571,7 @@ export default function Projects() {
                   "Milestone Name": item.milestone.name,
                   "Project": item.project.name,
                   "Initiative": item.initiative.name,
-                  "Pillar": item.pillar.name,
+                  "Pillar/Enabler": item.pillar.name,
                   "Progress": Math.round(item.milestone.progress) + "%",
                   "Status": item.milestone.status,
                   "Due Date": item.milestone.dueDate ?? "",
@@ -606,13 +606,13 @@ export default function Projects() {
       {/* Filter bar — shown in both list and Gantt views */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pillar</label>
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pillar / Enabler</label>
           <select
             className={`${selectClass} py-1.5 text-xs w-44`}
             value={pillarFilter === "all" ? "all" : String(pillarFilter)}
             onChange={(e) => setPillarFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
           >
-            <option value="all">All Pillars</option>
+            <option value="all">All Pillars & Enablers</option>
             {(pillars as Array<{id: number; name: string}>).map((p) => (
               <option key={p.id} value={String(p.id)}>{p.name}</option>
             ))}
@@ -661,7 +661,7 @@ export default function Projects() {
         <GanttChart pillarFilter={pillarFilter} departmentFilter={departmentFilter} />
       )}
 
-      {/* List view — Pillar → Initiative → Project hierarchy */}
+      {/* List view — Pillar/Enabler → Initiative → Project hierarchy */}
       {viewMode === "list" && <div className="space-y-5">
         {pillars
           .filter((pillar) => pillarFilter === "all" || pillar.id === pillarFilter)
@@ -691,7 +691,7 @@ export default function Projects() {
                   style={{ borderLeft: `4px solid ${pillarColor}` }}
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: pillarColor }}>Pillar</div>
+                    <div className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: pillarColor }}>{(pillar as { pillarType?: string }).pillarType === "enabler" ? "Enabler" : "Pillar"}</div>
                     <h3 className="font-bold text-lg">{pillar.name}</h3>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
