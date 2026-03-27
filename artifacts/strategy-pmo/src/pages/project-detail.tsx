@@ -772,8 +772,9 @@ export default function ProjectDetail({ params }: Props) {
   const { data: project, isLoading } = useGetSpmoProject(projectId);
   const projectOwnerId = (project as Record<string, unknown> | undefined)?.ownerId as string | undefined;
   const perms = useProjectPermissions(projectId, projectOwnerId);
-  // Admins have full milestone control; PMs who own the project can edit progress
-  const canEditMilestoneDetails = isAdmin;
+  // PMs who own the project get full edit rights (details + progress + delete)
+  const isOwner = userRole === "project-manager" && projectOwnerId === authData?.user?.id;
+  const canEditMilestoneDetails = isAdmin || (isOwner && (perms?.canManageMilestones ?? false));
   const canEditMilestoneProgress = isAdmin || (userRole === "project-manager" && (perms?.canManageMilestones ?? false));
   const { data: pillarsData } = useListSpmoPillars();
   const { data: initiativesData } = useListSpmoInitiatives();
