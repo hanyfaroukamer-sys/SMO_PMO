@@ -24,6 +24,7 @@ import {
   Flag,
   FolderOpen,
   ClipboardList,
+  FolderKanban,
   Menu,
   X,
 } from "lucide-react";
@@ -34,6 +35,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 const navItems = [
   { title: "Dashboard",        href: "/",             icon: LayoutDashboard, adminOnly: false, hidden: false },
   { title: "My Tasks",         href: "/my-tasks",     icon: ClipboardList,    adminOnly: false, hidden: false, badge: true },
+  { title: "My Projects",      href: "/my-projects",  icon: FolderKanban,     adminOnly: false, hidden: false },
   { title: "Strategy Map",     href: "/strategy-map", icon: Network,          adminOnly: false, hidden: false },
   { title: "Pillars & Enablers", href: "/pillars",    icon: Layers,           adminOnly: true,  hidden: false },
   { title: "Initiatives",      href: "/initiatives",  icon: Flag,             adminOnly: true,  hidden: false },
