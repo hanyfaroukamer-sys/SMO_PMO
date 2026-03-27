@@ -101,8 +101,12 @@ async function upsertUser(claims: Record<string, unknown>) {
       .where(eq(usersTable.role, "admin"))
       .limit(1);
     if (admins.length === 0) {
+      // First user ever to log in becomes admin automatically
+      // If INITIAL_ADMIN_EMAIL is set, only that email gets promoted
+      // If not set, the very first login gets admin
       const adminEmail = process.env.INITIAL_ADMIN_EMAIL;
-      if (!adminEmail || (userData.email && userData.email === adminEmail)) {
+      const shouldPromote = !adminEmail || (userData.email && userData.email.toLowerCase() === adminEmail.toLowerCase());
+      if (shouldPromote) {
         const [promoted] = await db
           .update(usersTable)
           .set({ role: "admin" })
