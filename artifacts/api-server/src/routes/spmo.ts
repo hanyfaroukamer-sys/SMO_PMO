@@ -936,6 +936,9 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Fetch old record for audit diff
+  const [oldProject] = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.id, params.data.id)).limit(1);
+
   const { startDate: psd, targetDate: ptd, ...restProjectUpdate } = parsed.data;
   const updateProject = {
     ...restProjectUpdate,
@@ -975,7 +978,24 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "project", project.id, project.name);
+  // Build audit details with before/after for changed fields
+  const projectChanges: Record<string, { from: unknown; to: unknown }> = {};
+  if (oldProject) {
+    const trackFields = ["name", "status", "budget", "budgetCapex", "budgetOpex", "budgetSpent", "startDate", "targetDate", "ownerName", "projectCode", "weight", "departmentId"] as const;
+    for (const f of trackFields) {
+      const oldVal = (oldProject as Record<string, unknown>)[f];
+      const newVal = (project as Record<string, unknown>)[f];
+      if (oldVal !== newVal && newVal !== undefined) {
+        projectChanges[f] = { from: oldVal, to: newVal };
+      }
+    }
+  }
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "project", project.id, project.name, {
+    projectId: project.id,
+    projectCode: project.projectCode,
+    link: `/projects/${project.id}`,
+    changes: projectChanges,
+  });
   res.json(project);
 });
 
@@ -1130,11 +1150,11 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  // Access check — look up the milestone's projectId
-  const [milestoneForAccess] = await db.select({ projectId: spmoMilestonesTable.projectId }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
-  if (!milestoneForAccess) { res.status(404).json({ error: "Milestone not found" }); return; }
+  // Access check + fetch old record for audit diff
+  const [oldMilestone] = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
+  if (!oldMilestone) { res.status(404).json({ error: "Milestone not found" }); return; }
   const user = getAuthUser(req);
-  if (!(await checkProjectPerm(userId, user?.role, milestoneForAccess.projectId, "canManageMilestones"))) {
+  if (!(await checkProjectPerm(userId, user?.role, oldMilestone.projectId, "canManageMilestones"))) {
     res.status(403).json({ error: "You do not have edit access to this project" });
     return;
   }
@@ -1146,19 +1166,14 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
   }
 
   if (parsed.data.weight !== undefined) {
-    const [current] = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id));
-    if (!current) {
-      res.status(404).json({ error: "Milestone not found" });
-      return;
-    }
     // Only validate against siblings when the weight is actually changing
-    if (parsed.data.weight !== current.weight) {
+    if (parsed.data.weight !== oldMilestone.weight) {
       const siblings = await db
         .select()
         .from(spmoMilestonesTable)
         .where(
           and(
-            eq(spmoMilestonesTable.projectId, current.projectId),
+            eq(spmoMilestonesTable.projectId, oldMilestone.projectId),
             sql`${spmoMilestonesTable.id} != ${params.data.id}`
           )
         );
@@ -1187,7 +1202,25 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "milestone", milestone.id, milestone.name, { progress: milestone.progress });
+  // Build audit diff for milestone
+  const msChanges: Record<string, { from: unknown; to: unknown }> = {};
+  const msTrackFields = ["name", "progress", "status", "weight", "effortDays", "startDate", "dueDate", "assigneeName", "phaseGate", "description"] as const;
+  for (const f of msTrackFields) {
+    const oldVal = (oldMilestone as Record<string, unknown>)[f];
+    const newVal = (milestone as Record<string, unknown>)[f];
+    if (oldVal !== newVal && newVal !== undefined) {
+      msChanges[f] = { from: oldVal, to: newVal };
+    }
+  }
+  // Fetch project name for context
+  const [msProject] = await db.select({ name: spmoProjectsTable.name, projectCode: spmoProjectsTable.projectCode }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, milestone.projectId)).limit(1);
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "milestone", milestone.id, milestone.name, {
+    projectId: milestone.projectId,
+    projectName: msProject?.name,
+    projectCode: msProject?.projectCode,
+    link: `/projects/${milestone.projectId}?tab=milestones`,
+    changes: msChanges,
+  });
   res.json(milestone);
 });
 
