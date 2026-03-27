@@ -137,12 +137,28 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
 
   const milestonesByProject = useMemo(() => {
     const map = new Map<number, GanttMilestone[]>();
+    // Try enriched items first (milestones/all endpoint)
     for (const item of milestonesData?.items ?? []) {
-      const dd = toDate(item.milestone.dueDate as string | null | undefined);
+      const ms = item?.milestone;
+      const proj = item?.project;
+      if (!ms || !proj) continue;
+      const dd = toDate(ms.dueDate as string | null | undefined);
       if (!dd) continue;
-      const list = map.get(item.project.id) ?? [];
-      list.push({ id: item.milestone.id, name: item.milestone.name, dueDate: dd, status: item.milestone.status });
-      map.set(item.project.id, list);
+      const projId = proj.id ?? ms.projectId;
+      if (!projId) continue;
+      const list = map.get(projId) ?? [];
+      list.push({ id: ms.id, name: ms.name, dueDate: dd, status: ms.status });
+      map.set(projId, list);
+    }
+    // Fallback: if milestones data is flat array (Replit may have changed format)
+    if (map.size === 0 && Array.isArray(milestonesData?.milestones)) {
+      for (const ms of milestonesData.milestones as { id: number; projectId: number; name: string; dueDate: string | null; status: string }[]) {
+        const dd = toDate(ms.dueDate);
+        if (!dd) continue;
+        const list = map.get(ms.projectId) ?? [];
+        list.push({ id: ms.id, name: ms.name, dueDate: dd, status: ms.status });
+        map.set(ms.projectId, list);
+      }
     }
     return map;
   }, [milestonesData]);
