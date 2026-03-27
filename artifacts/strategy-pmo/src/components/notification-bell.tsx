@@ -18,7 +18,7 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [, navigate] = useLocation();
-  const panelRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null); // kept for potential future use
 
   const fetchNotifications = async () => {
     try {
@@ -87,44 +87,46 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-popover border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <span className="text-sm font-bold">Notifications</span>
-            <div className="flex items-center gap-2">
-              {unreadCount > 0 && (
-                <button onClick={markAllRead} className="text-[10px] text-primary hover:underline flex items-center gap-1">
-                  <Check className="w-3 h-3" /> Mark all read
+        <div className="fixed inset-0 z-[100]" onClick={() => setOpen(false)}>
+          <div
+            className="absolute top-14 right-4 w-80 sm:w-96 bg-popover border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <span className="text-sm font-bold">Notifications</span>
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 && (
+                  <button onClick={markAllRead} className="text-[10px] text-primary hover:underline flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Mark all read
+                  </button>
+                )}
+                <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-4 h-4" />
                 </button>
-              )}
-              <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          <div className="max-h-80 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                No notifications yet
               </div>
-            ) : (
-              notifications.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => handleClick(n)}
-                  className={`w-full text-left px-4 py-3 flex items-start gap-3 border-b border-border/40 last:border-0 transition-colors ${n.read ? "opacity-60" : "bg-primary/5 hover:bg-primary/10"}`}
-                >
-                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.read ? "bg-muted-foreground/30" : typeColors[n.type] ?? "bg-primary"}`} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold text-foreground">{n.title}</div>
-                    {n.body && <div className="text-[11px] text-muted-foreground truncate mt-0.5">{n.body}</div>}
-                    <div className="text-[10px] text-muted-foreground/60 mt-1">
-                      {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">No notifications yet</div>
+              ) : (
+                notifications.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleClick(n)}
+                    className={`w-full text-left px-4 py-3 flex items-start gap-3 border-b border-border/40 last:border-0 transition-colors ${n.read ? "opacity-60" : "bg-primary/5 hover:bg-primary/10"}`}
+                  >
+                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.read ? "bg-muted-foreground/30" : typeColors[n.type] ?? "bg-primary"}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-semibold text-foreground">{n.title}</div>
+                      {n.body && <div className="text-[11px] text-muted-foreground truncate mt-0.5">{n.body}</div>}
+                      <div className="text-[10px] text-muted-foreground/60 mt-1">
+                        {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))
-            )}
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
