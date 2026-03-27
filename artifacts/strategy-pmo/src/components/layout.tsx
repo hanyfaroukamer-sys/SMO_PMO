@@ -26,6 +26,7 @@ import {
   FolderOpen,
   ClipboardList,
   FolderKanban,
+  Stethoscope,
   Menu,
   X,
 } from "lucide-react";
@@ -54,6 +55,7 @@ const adminNavItems = [
   { title: "Progress Proof",      href: "/progress",     icon: CheckSquare,  badge: false },
   { title: "Monitoring",          href: "/alerts",       icon: BellRing,     badge: false },
   { title: "Import Data",         href: "/import",       icon: Upload,       badge: false },
+  { title: "Diagnostics",         href: "/admin/diagnostics", icon: Stethoscope, badge: false },
 ];
 
 // Legacy compat — build flat list for rendering logic

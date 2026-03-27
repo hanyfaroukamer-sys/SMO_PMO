@@ -36,6 +36,7 @@ const ProjectDetail = lazy(() => import("@/pages/project-detail"));
 const Documents = lazy(() => import("@/pages/documents"));
 const MyTasks = lazy(() => import("@/pages/my-tasks"));
 const MyProjects = lazy(() => import("@/pages/my-projects"));
+const Diagnostics = lazy(() => import("@/pages/diagnostics"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const queryClient = new QueryClient({
@@ -87,6 +88,7 @@ function Router() {
               <Route path="/my-tasks" component={MyTasks} />
               <Route path="/my-projects" component={MyProjects} />
               <Route path="/admin">{() => <AdminGuard><Admin /></AdminGuard>}</Route>
+              <Route path="/admin/diagnostics">{() => <AdminGuard><Diagnostics /></AdminGuard>}</Route>
               <Route component={NotFound} />
             </Switch>
           </Suspense>

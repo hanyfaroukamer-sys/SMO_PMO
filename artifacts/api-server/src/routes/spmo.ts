@@ -3537,6 +3537,89 @@ router.get("/spmo/users/search", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// ADMIN: DIAGNOSTICS
+// ─────────────────────────────────────────────────────────────
+
+const SERVER_START_TIME = Date.now();
+
+router.get("/spmo/admin/diagnostics", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    // DB connectivity
+    let dbStatus = "healthy";
+    let dbLatencyMs = 0;
+    try {
+      const t0 = Date.now();
+      await db.execute(sql`SELECT 1`);
+      dbLatencyMs = Date.now() - t0;
+    } catch {
+      dbStatus = "unreachable";
+    }
+
+    // Table row counts
+    const counts = await db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM spmo_pillars) AS pillars,
+        (SELECT count(*)::int FROM spmo_initiatives) AS initiatives,
+        (SELECT count(*)::int FROM spmo_projects) AS projects,
+        (SELECT count(*)::int FROM spmo_milestones) AS milestones,
+        (SELECT count(*)::int FROM spmo_kpis) AS kpis,
+        (SELECT count(*)::int FROM spmo_risks) AS risks,
+        (SELECT count(*)::int FROM spmo_budget_entries) AS budget_entries,
+        (SELECT count(*)::int FROM spmo_activity_log) AS activity_log,
+        (SELECT count(*)::int FROM users) AS users
+    `);
+    const tableCounts = counts.rows[0] as Record<string, number>;
+
+    // Programme config
+    const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
+    const lastAiAssessmentAt = cfg?.lastAiAssessmentAt ?? null;
+
+    // Memory usage
+    const mem = process.memoryUsage();
+
+    // Uptime
+    const uptimeMs = Date.now() - SERVER_START_TIME;
+    const uptimeDays = Math.floor(uptimeMs / 86_400_000);
+    const uptimeHours = Math.floor((uptimeMs % 86_400_000) / 3_600_000);
+    const uptimeMins = Math.floor((uptimeMs % 3_600_000) / 60_000);
+
+    res.json({
+      appVersion: "1.1.0",
+      nodeVersion: process.version,
+      environment: process.env.NODE_ENV ?? "development",
+      database: {
+        status: dbStatus,
+        latencyMs: dbLatencyMs,
+      },
+      tableCounts,
+      config: {
+        programmeName: cfg?.programmeName ?? null,
+        weeklyResetDay: cfg?.weeklyResetDay ?? null,
+        riskAlertThreshold: cfg?.riskAlertThreshold ?? null,
+        reminderDaysAhead: cfg?.reminderDaysAhead ?? null,
+        lastAiAssessmentAt,
+      },
+      memory: {
+        rss: `${Math.round(mem.rss / 1_048_576)}MB`,
+        heapUsed: `${Math.round(mem.heapUsed / 1_048_576)}MB`,
+        heapTotal: `${Math.round(mem.heapTotal / 1_048_576)}MB`,
+        external: `${Math.round(mem.external / 1_048_576)}MB`,
+      },
+      uptime: {
+        formatted: `${uptimeDays}d ${uptimeHours}h ${uptimeMins}m`,
+        ms: uptimeMs,
+      },
+      serverTime: new Date().toISOString(),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Diagnostics failed");
+    res.status(500).json({ error: "Diagnostics check failed" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
 // ADMIN: USER MANAGEMENT
 // ─────────────────────────────────────────────────────────────
 
