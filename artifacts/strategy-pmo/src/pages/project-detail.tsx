@@ -305,7 +305,8 @@ function MilestonesTab({
     const aOrder = aPhase ? (PHASE_ORDER[aPhase] ?? 2) : 2;
     const bOrder = bPhase ? (PHASE_ORDER[bPhase] ?? 2) : 2;
     if (aOrder !== bOrder) return aOrder - bOrder;
-    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    // Stable sort: use ID as final tiebreaker (never changes)
+    return a.id - b.id;
   });
 
   const inputCls = "w-full text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50";

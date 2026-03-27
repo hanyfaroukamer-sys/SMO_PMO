@@ -931,7 +931,8 @@ router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
     const aOrder = a.phaseGate ? PHASE_ORDER[a.phaseGate] : 2;
     const bOrder = b.phaseGate ? PHASE_ORDER[b.phaseGate] : 2;
     if (aOrder !== bOrder) return aOrder - bOrder;
-    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    // Stable sort: use ID as final tiebreaker (never changes on update)
+    return a.id - b.id;
   });
 
   const milestonesWithEvidence = await Promise.all(
