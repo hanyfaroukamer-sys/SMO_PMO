@@ -1398,21 +1398,33 @@ router.post("/spmo/milestones/:id/submit", async (req, res): Promise<void> => {
     return;
   }
 
-  // Status guard: only pending, in_progress, or rejected milestones can be submitted
-  const [existing] = await db.select({ status: spmoMilestonesTable.status }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
+  // Fetch milestone for validation
+  const [existing] = await db.select({
+    status: spmoMilestonesTable.status,
+    progress: spmoMilestonesTable.progress,
+  }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
   if (!existing) { res.status(404).json({ error: "Milestone not found" }); return; }
+
+  // Status guard: only pending, in_progress, or rejected milestones can be submitted
   if (!["pending", "in_progress", "rejected"].includes(existing.status)) {
     res.status(400).json({ error: `Cannot submit a milestone with status "${existing.status}". Only pending, in-progress, or rejected milestones can be submitted.` });
     return;
   }
 
+  // Progress guard: milestone must be at 100% to submit for approval
+  if ((existing.progress ?? 0) < 100) {
+    res.status(400).json({ error: `Milestone progress must be 100% before submitting for approval. Current progress: ${existing.progress ?? 0}%` });
+    return;
+  }
+
+  // Evidence guard: at least one evidence file required
   const evidence = await db
     .select()
     .from(spmoEvidenceTable)
     .where(eq(spmoEvidenceTable.milestoneId, params.data.id));
 
   if (evidence.length === 0) {
-    res.status(400).json({ error: "At least one evidence file must be attached before submitting" });
+    res.status(400).json({ error: "At least one evidence file must be attached before submitting for approval" });
     return;
   }
 

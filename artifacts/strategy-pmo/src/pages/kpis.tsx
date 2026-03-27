@@ -263,13 +263,13 @@ export default function KPIs() {
       {/* Type toggle */}
       <div className="flex items-center gap-1 p-1 bg-muted rounded-lg w-fit">
         <button
-          onClick={() => setKpiTypeTab("strategic")}
+          onClick={() => { setKpiTypeTab("strategic"); setModalOpen(false); setEditId(null); }}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-semibold transition-all ${kpiTypeTab === "strategic" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
         >
           <TrendingUp className="w-4 h-4" /> Strategic
         </button>
         <button
-          onClick={() => setKpiTypeTab("operational")}
+          onClick={() => { setKpiTypeTab("operational"); setModalOpen(false); setEditId(null); }}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-semibold transition-all ${kpiTypeTab === "operational" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
         >
           <Activity className="w-4 h-4" /> Operational
@@ -495,7 +495,7 @@ export default function KPIs() {
                   <input type="number" className={inputClass} value={form.baseline} onChange={(e) => setForm({ ...form, baseline: e.target.value })} placeholder="0" step="any" />
                 </FormField>
                 <FormField label={`${thisYear} Target`} required>
-                  <input type="number" className={inputClass} value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} placeholder="100" step="any" required />
+                  <input type="number" min={0} className={inputClass} value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })} placeholder="100" step="any" required />
                 </FormField>
               </div>
               <div className="grid grid-cols-2 gap-3">

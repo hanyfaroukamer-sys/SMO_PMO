@@ -291,6 +291,22 @@ router.post("/milestones/:id/submit", async (req, res) => {
     return;
   }
 
+  // Guard: milestone must be at 100% progress before submitting
+  if ((milestone.progress ?? 0) < 100) {
+    res.status(400).json({ error: "Milestone progress must be 100% before submitting for approval" });
+    return;
+  }
+
+  // Guard: at least one evidence file must be attached
+  const evidenceCount = await db
+    .select()
+    .from(fileAttachmentsTable)
+    .where(eq(fileAttachmentsTable.milestoneId, id));
+  if (evidenceCount.length === 0) {
+    res.status(400).json({ error: "At least one evidence file must be uploaded before submitting for approval" });
+    return;
+  }
+
   try {
     const [updated] = await db
       .update(milestonesTable)

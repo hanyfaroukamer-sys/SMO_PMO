@@ -31,6 +31,7 @@ import {
   useListSpmoDocuments,
   useCreateSpmoDocument,
   useDeleteSpmoDocument,
+  useSubmitSpmoMilestone,
   type SpmoMilestoneWithEvidence,
   type SpmoEvidence,
   type SpmoHealthStatus,
@@ -106,11 +107,13 @@ function EvidenceSection({
   const aiMutation = useRunSpmoAiValidateEvidence();
   const approveMutation = useApproveSpmoMilestone();
   const rejectMutation = useRejectSpmoMilestone();
+  const submitMutation = useSubmitSpmoMilestone();
   const addEvidence = useAddSpmoEvidence();
 
   const evidenceList = (milestone.evidence ?? []) as SpmoEvidence[];
   const isSubmitted = milestone.status === "submitted";
   const isApproved = milestone.status === "approved";
+  const canSubmitForApproval = !isApproved && !isSubmitted && (milestone.progress ?? 0) >= 100 && evidenceList.length > 0;
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -230,6 +233,21 @@ function EvidenceSection({
               <XCircle className="w-3.5 h-3.5" /> Reject
             </button>
           </>
+        )}
+
+        {canSubmitForApproval && (
+          <button
+            onClick={async () => {
+              await submitMutation.mutateAsync({ id: milestone.id });
+              toast({ title: "Submitted for approval" });
+              onInvalidate();
+            }}
+            disabled={submitMutation.isPending}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {submitMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Target className="w-3.5 h-3.5" />}
+            Submit for Approval
+          </button>
         )}
 
         {isApproved && (
@@ -818,7 +836,7 @@ export default function ProjectDetail({ params }: Props) {
   const { data: authData } = useGetCurrentAuthUser();
   const userRole = authData?.user?.role;
   const canApprove = userRole === "admin" || userRole === "approver";
-  const canEditReport = userRole === "admin" || userRole === "project-manager";
+  const canEditReportRole = userRole === "admin" || userRole === "project-manager";
   const isAdmin = userRole === "admin";
 
   const { data: project, isLoading } = useGetSpmoProject(projectId);
@@ -910,6 +928,9 @@ export default function ProjectDetail({ params }: Props) {
       </div>
     );
   }
+
+  const isProjectClosed = project.status === "completed" || project.status === "cancelled";
+  const canEditReport = canEditReportRole && !isProjectClosed;
 
   const pillars = pillarsData?.pillars ?? [];
   const initiatives = initiativesData?.initiatives ?? [];

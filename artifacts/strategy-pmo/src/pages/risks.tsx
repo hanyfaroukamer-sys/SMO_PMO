@@ -480,7 +480,7 @@ export default function Risks() {
                                       </div>
 
                                       <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                                        <button onClick={() => openEdit(risk)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
+                                        <button onClick={() => { if (risk.status === "closed" && !confirm("This risk is closed. Are you sure you want to edit it?")) return; openEdit(risk); }} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                                           <Pencil className="w-4 h-4" />
                                         </button>
                                         {isAdmin && (
@@ -496,7 +496,7 @@ export default function Risks() {
                                       </div>
                                     </div>
 
-                                    {expandedRisk === risk.id && <MitigationSection riskId={risk.id} mitigations={risk.mitigations ?? []} />}
+                                    {expandedRisk === risk.id && <MitigationSection riskId={risk.id} mitigations={risk.mitigations ?? []} riskStatus={risk.status} />}
                                   </div>
                                 );
                               })}
@@ -564,7 +564,7 @@ export default function Risks() {
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                            <button onClick={() => openEdit(risk)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
+                            <button onClick={() => { if (risk.status === "closed" && !confirm("This risk is closed. Are you sure you want to edit it?")) return; openEdit(risk); }} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                               <Pencil className="w-4 h-4" />
                             </button>
                             {isAdmin && (
@@ -580,7 +580,7 @@ export default function Risks() {
                           </div>
                         </div>
 
-                        {expandedRisk === risk.id && <MitigationSection riskId={risk.id} mitigations={risk.mitigations ?? []} />}
+                        {expandedRisk === risk.id && <MitigationSection riskId={risk.id} mitigations={risk.mitigations ?? []} riskStatus={risk.status} />}
                       </div>
                     );
                   })}
@@ -661,9 +661,11 @@ type Mitigation = { id: number; description: string; status: string; dueDate?: s
 function MitigationSection({
   riskId,
   mitigations,
+  riskStatus,
 }: {
   riskId: number;
   mitigations: Mitigation[];
+  riskStatus?: string;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -726,9 +728,11 @@ function MitigationSection({
         <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           <ShieldCheck className="w-4 h-4" /> Mitigations ({mitigations.length})
         </h4>
-        <button onClick={openCreate} className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
-          <Plus className="w-3.5 h-3.5" /> Add Mitigation
-        </button>
+        {riskStatus !== "closed" && (
+          <button onClick={openCreate} className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
+            <Plus className="w-3.5 h-3.5" /> Add Mitigation
+          </button>
+        )}
       </div>
 
       <div className="divide-y divide-border/50 px-5">

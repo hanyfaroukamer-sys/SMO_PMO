@@ -276,6 +276,7 @@ export default function ActivityLog() {
   const total = data?.total ?? 0;
 
   const hasActiveFilters = !!(dateFrom || dateTo || filterEntityType || filterAction);
+  const dateRangeInvalid = !!(dateFrom && dateTo && dateFrom > dateTo);
 
   function clearFilters() {
     setDateFrom("");
@@ -382,6 +383,12 @@ export default function ActivityLog() {
                 ))}
               </select>
             </div>
+            {dateRangeInvalid && (
+              <div className="flex items-center gap-1.5 text-xs text-destructive font-semibold">
+                <X className="w-3.5 h-3.5" />
+                "From" date must be before "To" date
+              </div>
+            )}
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
