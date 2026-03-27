@@ -264,7 +264,7 @@ export default function StrategyMap() {
 
                       {/* Name + progress */}
                       <div className="w-48 shrink-0">
-                        <div className="text-xs font-bold leading-tight" style={{ color: enabler.color }}>{enabler.name}</div>
+                        <div className="text-xs font-bold leading-tight cursor-pointer hover:underline" style={{ color: enabler.color }} onClick={() => navigate(`/pillars/${enabler.id}/portfolio`)}>{enabler.name}</div>
                         <div className="flex items-center gap-1.5 mt-1">
                           <div className="h-1.5 flex-1 bg-secondary rounded-full overflow-hidden">
                             <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, epct)}%`, backgroundColor: enabler.color }} />
@@ -285,7 +285,8 @@ export default function StrategyMap() {
                             return (
                               <div
                                 key={initiative.id}
-                                className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg border border-border bg-secondary/50 text-foreground/80"
+                                className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg border border-border bg-secondary/50 text-foreground/80 cursor-pointer hover:bg-secondary hover:border-primary/30 transition-colors"
+                                onClick={() => navigate(`/projects?initiative=${initiative.id}`)}
                               >
                                 {code && (
                                   <span className="font-bold text-[9px] px-1 py-0.5 rounded text-white leading-none" style={{ backgroundColor: enabler.color }}>{code}</span>
