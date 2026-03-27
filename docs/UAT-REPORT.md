@@ -9,14 +9,14 @@
 
 ## Executive Summary
 
-**Total issues found: 41+ backend + frontend findings**
+**Total issues found: 59 (41 backend + 18 frontend)**
 
-| Severity | Backend | Frontend | Total |
-|----------|---------|----------|-------|
-| CRITICAL | 2 | TBD | 2+ |
-| HIGH | 10 | TBD | 10+ |
-| MEDIUM | 10 | TBD | 10+ |
-| LOW | 9 | TBD | 9+ |
+| Severity | Backend | Frontend | Total | Fixed |
+|----------|---------|----------|-------|-------|
+| CRITICAL | 2 | 1 | **3** | 0 |
+| HIGH | 10 | 3 | **13** | **7** |
+| MEDIUM | 10 | 6 | **16** | 0 |
+| LOW | 9 | 7 | **16** | 0 |
 
 **Top 3 issues requiring immediate fix:**
 1. **Completed projects still generate weekly report reminders and "delayed" alerts** (the bug you found)
@@ -149,32 +149,73 @@
 
 ---
 
-## PART 2: FRONTEND BUGS
+## PART 2: FRONTEND BUGS (18 issues found)
 
-*(Frontend audit results pending — will be merged when complete)*
+### CRITICAL (1)
 
-### Preliminary findings from code review:
+#### FE-AD1: Admin can demote themselves — permanent lockout
+- **File:** `admin.tsx:53-96`
+- **Impact:** If the only admin changes their own role to "project-manager", no one can access admin panel
+- **Reproduction:** As sole admin → click "Project Manager" on own account → locked out permanently
+- **Fix:** Check `user.id === currentUserId` and prevent self-role-change, or require a second admin
 
-#### FE-01: Merged page wrappers cause double PageHeaders
+### HIGH (3)
+
+#### FE-PD1: Old tab URL params show no active tab highlight (FIXED partially)
+- **File:** `project-detail.tsx:752-754`
+- **Impact:** `?tab=actions` works functionally but tab bar shows no selection. Same for `?tab=changes`, `?tab=raci`, `?tab=documents`, `?tab=weekly-report`
+- **Fix:** Map old tab keys to new merged keys in URL param parser
+
+#### FE-PR2: Project weight > 100% not blocked on form submit
+- **File:** `projects.tsx:504-507`
+- **Impact:** Warning shown but submit is NOT disabled — weights can exceed 100%
+- **Fix:** Disable submit button when `projectWeightError` is true
+
+#### FE-01: Double PageHeaders in merged pages (FIXED in this commit)
 - **Files:** `pillars-and-initiatives.tsx`, `financials.tsx`, `monitoring.tsx`
-- **Impact:** Wrapper renders its own PageHeader, then the child page (pillars.tsx, budget.tsx, etc.) renders ANOTHER PageHeader → user sees two titles
-- **Severity:** HIGH
-- **Fix:** Remove PageHeader from child pages when rendered inside wrapper, OR remove PageHeader from wrappers
+- **Impact:** Was showing two page titles; fixed by removing PageHeader from wrappers
 
-#### FE-02: Tab URL params for old tabs don't map to new merged tabs
-- **File:** `project-detail.tsx`
-- **Impact:** `?tab=weekly-report` works, but `?tab=actions` now shows under "risks" tab — confusing if bookmarked
-- **Fix:** Map old tab keys to new ones in the URL param parser
+### MEDIUM (6)
 
-#### FE-03: Command palette results don't highlight matching text
-- **File:** `command-palette.tsx`
-- **Impact:** User types "trust" but results show plain "Trusted Traveler Program" without highlighting the match
-- **Severity:** LOW — cosmetic
+#### FE-D1: Export PDF/PPTX uses raw alert() for errors
+- **File:** `dashboard.tsx:604,621`
+- **Impact:** Browser native alert instead of styled toast; no loading state on export buttons
+- **Fix:** Use toast notification + disable button during export
 
-#### FE-04: Strategy Map click handlers lack visual feedback
-- **File:** `strategy-map.tsx`
-- **Impact:** Pillar/initiative names are clickable but only show cursor:pointer on hover — no tooltip saying "Click to view portfolio"
-- **Severity:** LOW — discoverable but not obvious
+#### FE-PD5: Completed projects still allow weekly report submission
+- **File:** `project-detail.tsx:1147+`
+- **Impact:** No disabled state or warning on completed project's Reports tab
+- **Fix:** Show "Project is complete — weekly reports no longer needed" banner
+
+#### FE-PD6: RACI allows duplicate user+role assignments
+- **File:** `project-detail.tsx` (RACI section)
+- **Impact:** Same user can be assigned "Responsible" twice with no client-side warning
+- **Fix:** Check for existing assignment before upsert
+
+#### FE-K2: KPI empty state text hardcoded to "strategic"
+- **File:** `kpis.tsx:282`
+- **Impact:** On Operational tab with 0 KPIs, message says "No strategic KPIs"
+- **Fix:** Use `kpiTypeTab` in empty state message
+
+#### FE-K5: KPI modal title always says "Strategic KPI"
+- **File:** `kpis.tsx:425`
+- **Impact:** Creating operational KPI shows "New Strategic KPI" as modal title
+- **Fix:** Use `kpiTypeTab` in modal title
+
+#### FE-UM1: User mention dropdown has no "no results" message
+- **File:** `user-mention-input.tsx`
+- **Impact:** Typing `@xyz` with no match → dropdown flashes "Searching..." then disappears silently
+- **Fix:** Add "No users found" message when results empty and not loading
+
+### LOW (7)
+
+- FE-D2: KPI cards show "0%" when no data exists (cosmetic)
+- FE-P1: Projects with budget=0 show "Spent: SAR 0 (0%)" (misleading)
+- FE-T2: My Tasks empty state has no navigation links (dead end)
+- FE-PR3: Project delete uses browser confirm() instead of styled modal
+- FE-CP4: Search trigger synthetic KeyboardEvent may fail in some browsers
+- FE-SM3: Long pillar names overflow in narrow strategy map columns
+- FE-A3: Activity log date filter allows "from" after "to" with no warning
 
 ---
 
