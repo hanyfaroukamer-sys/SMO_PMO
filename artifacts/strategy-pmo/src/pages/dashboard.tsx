@@ -729,6 +729,41 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {/* Attention Required — clickable action items */}
+        {(() => {
+          const delayedProjects = projects.filter((p) => {
+            if (p.status === "completed" || p.status === "on_hold") return false;
+            const cs = p.computedStatus as SpmoStatusResult | undefined;
+            return cs?.status === "delayed";
+          });
+          const atRiskProjects = projects.filter((p) => {
+            if (p.status === "completed" || p.status === "on_hold") return false;
+            const cs = p.computedStatus as SpmoStatusResult | undefined;
+            return cs?.status === "at_risk";
+          });
+          const pendingApprovals = data.approvedMilestones < data.totalMilestones ? projectsNeedAttention : 0;
+          const items = [
+            delayedProjects.length > 0 && { label: `${delayedProjects.length} delayed project${delayedProjects.length > 1 ? "s" : ""}`, icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10", border: "border-destructive/20", href: "/projects" },
+            atRiskProjects.length > 0 && { label: `${atRiskProjects.length} project${atRiskProjects.length > 1 ? "s" : ""} at risk`, icon: ShieldAlert, color: "text-warning", bg: "bg-warning/10", border: "border-warning/20", href: "/projects" },
+            pendingApprovals > 0 && { label: `${pendingApprovals} milestone${pendingApprovals > 1 ? "s" : ""} pending approval`, icon: Target, color: "text-primary", bg: "bg-primary/10", border: "border-primary/20", href: "/my-tasks" },
+            criticalAlerts.length > 0 && { label: `${criticalAlerts.length} critical alert${criticalAlerts.length > 1 ? "s" : ""}`, icon: AlertCircle, color: "text-destructive", bg: "bg-destructive/10", border: "border-destructive/20", href: "/alerts" },
+          ].filter(Boolean) as { label: string; icon: React.ElementType; color: string; bg: string; border: string; href: string }[];
+          if (items.length === 0) return null;
+          return (
+            <div className="flex flex-wrap gap-2">
+              <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground mr-1">
+                <Zap className="w-3.5 h-3.5" /> Attention Required
+              </span>
+              {items.map((item) => (
+                <Link key={item.label} href={item.href}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all hover:shadow-sm hover:-translate-y-0.5 cursor-pointer ${item.color} ${item.bg} ${item.border}`}>
+                  <item.icon className="w-3.5 h-3.5" /> {item.label} <ChevronRight className="w-3 h-3" />
+                </Link>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* Tab bar */}
         <div className="flex items-center gap-1 border-b border-border">
           {TABS.filter(t => !t.adminOnly || isAdmin).map((tab) => {
