@@ -463,6 +463,21 @@ function MilestoneRow({
     effortDays: milestone.effortDays ?? "",
   });
 
+  const [inlineProgress, setInlineProgress] = useState<number | null>(null);
+  const [savingProgress, setSavingProgress] = useState(false);
+
+  const saveInlineProgress = async (val: number) => {
+    setSavingProgress(true);
+    try {
+      await updateMilestone.mutateAsync({ id: milestone.id, data: { progress: Math.min(100, Math.max(0, val)) } });
+      toast({ title: `Progress updated to ${val}%` });
+      onInvalidate();
+      setInlineProgress(null);
+    } catch (err: unknown) {
+      toast({ variant: "destructive", title: "Failed", description: (err as { data?: { error?: string } })?.data?.error ?? "Update failed" });
+    } finally { setSavingProgress(false); }
+  };
+
   const isApproved = milestone.status === "approved";
   const isRejected = milestone.status === "rejected";
   const isSubmitted = milestone.status === "submitted";
@@ -649,7 +664,7 @@ function MilestoneRow({
                 <p className="text-xs text-muted-foreground mb-2 leading-relaxed">{milestone.description}</p>
               )}
 
-              {/* Progress */}
+              {/* Progress — inline editable for PMs */}
               <div className="flex items-center gap-3 mb-2">
                 <div className="flex-1 max-w-[200px]">
                   <div className="flex justify-between text-[10px] text-muted-foreground mb-0.5">
@@ -658,10 +673,42 @@ function MilestoneRow({
                   </div>
                   <ProgressBar progress={milestone.progress ?? 0} showLabel={false} />
                 </div>
-                {!isApproved && (
-                  <span className="text-[10px] text-muted-foreground">
-                    Use <span className="font-semibold">Edit</span> to update progress
-                  </span>
+                {!isApproved && canEditProgress && inlineProgress === null && (
+                  <button
+                    onClick={() => setInlineProgress(milestone.progress ?? 0)}
+                    className="flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"
+                  >
+                    <Pencil className="w-2.5 h-2.5" /> Update %
+                  </button>
+                )}
+                {inlineProgress !== null && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={inlineProgress}
+                      onChange={(e) => setInlineProgress(Math.min(100, Math.max(0, +e.target.value)))}
+                      className="w-16 text-sm text-center border border-primary/40 rounded-lg px-2 py-1 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === "Enter") saveInlineProgress(inlineProgress); if (e.key === "Escape") setInlineProgress(null); }}
+                    />
+                    <span className="text-[10px] text-muted-foreground">%</span>
+                    <button
+                      onClick={() => saveInlineProgress(inlineProgress)}
+                      disabled={savingProgress}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {savingProgress ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Save className="w-2.5 h-2.5" />}
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setInlineProgress(null)}
+                      className="text-[10px] text-muted-foreground hover:text-foreground"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 )}
               </div>
 
