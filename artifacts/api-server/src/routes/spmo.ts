@@ -3465,6 +3465,51 @@ router.get("/spmo/admin/users", async (req, res) => {
   res.json({ users });
 });
 
+// GET /spmo/admin/users-access — All users with their project access grants
+router.get("/spmo/admin/users-access", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const users = await db.select({
+    id: usersTable.id,
+    email: usersTable.email,
+    firstName: usersTable.firstName,
+    lastName: usersTable.lastName,
+    role: usersTable.role,
+  }).from(usersTable).orderBy(asc(usersTable.createdAt));
+
+  const grants = await db.select().from(spmoProjectAccessTable);
+  const projects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name, projectCode: spmoProjectsTable.projectCode, ownerId: spmoProjectsTable.ownerId }).from(spmoProjectsTable);
+  const projectMap = new Map(projects.map((p) => [p.id, p]));
+
+  const result = users.map((u) => {
+    const userGrants = grants.filter((g) => g.userId === u.id);
+    const ownedProjects = projects.filter((p) => p.ownerId === u.id);
+    return {
+      ...u,
+      ownedProjects: ownedProjects.map((p) => ({ id: p.id, name: p.name, projectCode: p.projectCode })),
+      accessGrants: userGrants.map((g) => {
+        const proj = projectMap.get(g.projectId);
+        return {
+          projectId: g.projectId,
+          projectName: proj?.name ?? "Unknown",
+          projectCode: proj?.projectCode ?? null,
+          canEditDetails: g.canEditDetails,
+          canManageMilestones: g.canManageMilestones,
+          canSubmitReports: g.canSubmitReports,
+          canManageRisks: g.canManageRisks,
+          canManageBudget: g.canManageBudget,
+          canManageDocuments: g.canManageDocuments,
+          canManageActions: g.canManageActions,
+          canManageRaci: g.canManageRaci,
+          canSubmitChangeRequests: g.canSubmitChangeRequests,
+        };
+      }),
+    };
+  });
+
+  res.json({ users: result });
+});
+
 router.put("/spmo/admin/users/:userId/role", async (req, res) => {
   if (!requireAdmin(req, res)) return;
 

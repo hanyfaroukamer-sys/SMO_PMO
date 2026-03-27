@@ -10,7 +10,7 @@ import {
 import { PageHeader, Card } from "@/components/ui-elements";
 import {
   Loader2, ShieldCheck, Settings, Users, RefreshCw, Lock,
-  KeyRound, Plus, Trash2, ChevronDown, ChevronUp, Check, X,
+  KeyRound, Plus, Trash2, ChevronDown, ChevronUp, Check, X, Search, Eye,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -482,6 +482,185 @@ function ProjectAccessPanel({ users }: { users: SpmaAdminUser[] }) {
   );
 }
 
+// ─── User Access Overview ────────────────────────────────────────────────────
+
+interface UserAccessData {
+  id: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  role: string | null;
+  ownedProjects: { id: number; name: string; projectCode: string | null }[];
+  accessGrants: {
+    projectId: number; projectName: string; projectCode: string | null;
+    canEditDetails: boolean; canManageMilestones: boolean; canSubmitReports: boolean;
+    canManageRisks: boolean; canManageBudget: boolean; canManageDocuments: boolean;
+    canManageActions: boolean; canManageRaci: boolean; canSubmitChangeRequests: boolean;
+  }[];
+}
+
+const PERM_SHORT_LABELS: Record<string, string> = {
+  canEditDetails: "Edit",
+  canManageMilestones: "Milestones",
+  canSubmitReports: "Reports",
+  canManageRisks: "Risks",
+  canManageBudget: "Budget",
+  canManageDocuments: "Documents",
+  canManageActions: "Actions",
+  canManageRaci: "RACI",
+  canSubmitChangeRequests: "Changes",
+};
+
+function UserAccessOverview() {
+  const [search, setSearch] = useState("");
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery<{ users: UserAccessData[] }>({
+    queryKey: ["/api/spmo/admin/users-access"],
+    queryFn: () => customFetch("/api/spmo/admin/users-access"),
+    staleTime: 30_000,
+  });
+
+  const users = data?.users ?? [];
+  const filtered = search
+    ? users.filter((u) => {
+        const name = `${u.firstName ?? ""} ${u.lastName ?? ""}`.toLowerCase();
+        return name.includes(search.toLowerCase()) || (u.email ?? "").toLowerCase().includes(search.toLowerCase());
+      })
+    : users;
+
+  const roleBadge = (role: string | null) => {
+    const r = role ?? "project-manager";
+    const cls = r === "admin" ? "bg-primary/10 text-primary border-primary/30"
+      : r === "approver" ? "bg-violet-50 text-violet-700 border-violet-200"
+      : "bg-amber-50 text-amber-700 border-amber-200";
+    return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${cls}`}>{r.replace("-", " ")}</span>;
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        View all registered users, their roles, owned projects, and per-project permissions at a glance.
+      </p>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search users by name or email…"
+          className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-6">No users found.</p>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((user) => {
+            const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || user.id;
+            const initials = ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() || "?";
+            const isExpanded = expandedUser === user.id;
+            const totalProjects = user.ownedProjects.length + user.accessGrants.length;
+            const isAdmin = user.role === "admin";
+
+            return (
+              <div key={user.id} className="border border-border rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setExpandedUser(isExpanded ? null : user.id)}
+                  className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                    {initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold truncate">{displayName}</span>
+                      {roleBadge(user.role)}
+                    </div>
+                    {user.email && <div className="text-[11px] text-muted-foreground truncate">{user.email}</div>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-muted-foreground">
+                      {isAdmin ? "Full access" : totalProjects > 0 ? `${totalProjects} project${totalProjects > 1 ? "s" : ""}` : "No projects"}
+                    </span>
+                    {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-1 border-t border-border/50 bg-muted/10 space-y-3 animate-in slide-in-from-top-1 duration-150">
+                    {isAdmin ? (
+                      <p className="text-xs text-muted-foreground italic">Admins have full access to all projects and features.</p>
+                    ) : (
+                      <>
+                        {/* Owned projects */}
+                        {user.ownedProjects.length > 0 && (
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Owner of ({user.ownedProjects.length})</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {user.ownedProjects.map((p) => (
+                                <span key={p.id} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20 font-medium">
+                                  {p.projectCode && <span className="font-mono text-[10px] opacity-70">{p.projectCode}</span>}
+                                  {p.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Access grants with permissions */}
+                        {user.accessGrants.length > 0 ? (
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Explicit access grants ({user.accessGrants.length})</div>
+                            <div className="space-y-2">
+                              {user.accessGrants.map((g) => {
+                                const activePerms = Object.entries(PERM_SHORT_LABELS).filter(([key]) => (g as Record<string, boolean>)[key]);
+                                const deniedPerms = Object.entries(PERM_SHORT_LABELS).filter(([key]) => !(g as Record<string, boolean>)[key]);
+                                return (
+                                  <div key={g.projectId} className="rounded-lg border border-border bg-background p-2.5">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      <span className="font-mono text-[10px] text-muted-foreground">{g.projectCode ?? "—"}</span>
+                                      <span className="text-xs font-semibold">{g.projectName}</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {activePerms.map(([, label]) => (
+                                        <span key={label} className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200 font-medium flex items-center gap-0.5">
+                                          <Check className="w-2.5 h-2.5" /> {label}
+                                        </span>
+                                      ))}
+                                      {deniedPerms.map(([, label]) => (
+                                        <span key={label} className="text-[10px] px-1.5 py-0.5 rounded bg-red-50 text-red-500 border border-red-200 font-medium flex items-center gap-0.5 opacity-60">
+                                          <X className="w-2.5 h-2.5" /> {label}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : user.ownedProjects.length === 0 ? (
+                          <p className="text-xs text-muted-foreground italic">
+                            No explicit access grants. As a {user.role ?? "project-manager"}, this user has default access to all projects unless restricted.
+                          </p>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Admin Page ────────────────────────────────────────────────────────
 
 export default function Admin() {
@@ -732,6 +911,11 @@ export default function Admin() {
           )}
         </SectionCard>
       </div>
+
+      {/* User Access Overview */}
+      <SectionCard title="User Access Overview" icon={Eye}>
+        <UserAccessOverview />
+      </SectionCard>
 
       {/* Project Access Control */}
       <SectionCard title="Project-Level Access Control" icon={KeyRound}>
