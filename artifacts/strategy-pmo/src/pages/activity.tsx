@@ -260,6 +260,8 @@ export default function ActivityLog() {
   const [filterAction, setFilterAction] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
+  const dateRangeError = dateFrom && dateTo && dateFrom > dateTo;
+
   const params = {
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
@@ -399,6 +401,9 @@ export default function ActivityLog() {
               </button>
             )}
           </div>
+          {dateRangeError && (
+            <p className="text-xs text-destructive mt-2">⚠ "From" date is after "To" date — no results will match.</p>
+          )}
         </Card>
       )}
 

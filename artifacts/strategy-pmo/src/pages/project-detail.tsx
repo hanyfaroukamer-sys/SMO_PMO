@@ -1229,6 +1229,13 @@ export default function ProjectDetail({ params }: Props) {
       {/* ── WEEKLY REPORT ── */}
       {(activeTab === "weekly-report" || activeTab === "reports") && (
         <div className="space-y-4">
+          {/* Completed project banner */}
+          {(project.status === "completed" || project.status === "cancelled") && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted border border-border text-sm text-muted-foreground">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              This project is {project.status} — weekly reports are no longer expected.
+            </div>
+          )}
           {/* Current week */}
           <Card className="p-5">
             <div className="flex items-center gap-2 mb-4">
