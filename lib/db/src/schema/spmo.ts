@@ -517,6 +517,8 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   milestoneAtRiskThreshold: integer("milestone_at_risk_threshold").notNull().default(5),
   riskAlertThreshold: integer("risk_alert_threshold").notNull().default(9),
   reminderDaysAhead: integer("reminder_days_ahead").notNull().default(3),
+  weeklyReportDeadlineHour: integer("weekly_report_deadline_hour").notNull().default(15),
+  weeklyReportCcEmails: text("weekly_report_cc_emails"),
   weeklyResetDay: integer("weekly_reset_day").notNull().default(3),
   lastAiAssessment: jsonb("last_ai_assessment"),
   lastAiAssessmentAt: timestamp("last_ai_assessment_at", { withTimezone: true }),

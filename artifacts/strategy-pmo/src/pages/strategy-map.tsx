@@ -39,6 +39,8 @@ export default function StrategyMap() {
   const [msAtRiskThreshold, setMsAtRiskThreshold] = useState(5);
   const [riskAlertThreshold, setRiskAlertThreshold] = useState(9);
   const [reminderDaysAhead, setReminderDaysAhead] = useState(3);
+  const [weeklyDeadlineHour, setWeeklyDeadlineHour] = useState(15);
+  const [weeklyReportCc, setWeeklyReportCc] = useState("");
 
   const updateConfig = useUpdateSpmoConfig();
   const isLoading = pillarsLoading || initLoading || projLoading;
@@ -51,13 +53,15 @@ export default function StrategyMap() {
     setMsAtRiskThreshold(configData?.milestoneAtRiskThreshold ?? 5);
     setRiskAlertThreshold((configData as Record<string, unknown>)?.riskAlertThreshold as number ?? 9);
     setReminderDaysAhead((configData as Record<string, unknown>)?.reminderDaysAhead as number ?? 3);
+    setWeeklyDeadlineHour((configData as Record<string, unknown>)?.weeklyReportDeadlineHour as number ?? 15);
+    setWeeklyReportCc((configData as Record<string, unknown>)?.weeklyReportCcEmails as string ?? "");
     setEditModalOpen(true);
   }
 
   function handleSaveVision(e: React.FormEvent) {
     e.preventDefault();
     updateConfig.mutate(
-      { data: { vision: visionText, mission: missionText, projectAtRiskThreshold: atRiskThreshold, projectDelayedThreshold: delayedThreshold, milestoneAtRiskThreshold: msAtRiskThreshold, riskAlertThreshold, reminderDaysAhead } },
+      { data: { vision: visionText, mission: missionText, projectAtRiskThreshold: atRiskThreshold, projectDelayedThreshold: delayedThreshold, milestoneAtRiskThreshold: msAtRiskThreshold, riskAlertThreshold, reminderDaysAhead, weeklyReportDeadlineHour: weeklyDeadlineHour, weeklyReportCcEmails: weeklyReportCc || null } },
       {
         onSuccess: () => { toast({ title: "Vision & Mission updated" }); setEditModalOpen(false); },
         onError: () => toast({ variant: "destructive", title: "Failed to save" }),
@@ -357,8 +361,28 @@ export default function StrategyMap() {
               </FormField>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Projects/milestones are <span className="text-warning font-semibold">At Risk</span> when progress lags planned by the threshold %. Risks with score ≥ alert threshold appear in owner notifications. Email reminders sent X days before deadlines.
+              Projects/milestones are <span className="text-warning font-semibold">At Risk</span> when progress lags by the threshold %. Risks ≥ alert score appear in notifications. Reminders sent X days before deadlines.
             </p>
+
+            {/* Weekly Report Deadline Settings */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="text-sm font-semibold mb-2">Weekly Report Deadline</div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Deadline Hour (24h)">
+                  <select className={inputClass} value={weeklyDeadlineHour} onChange={(e) => setWeeklyDeadlineHour(Number(e.target.value))}>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{String(i).padStart(2, "0")}:00{i === 15 ? " (default)" : ""}</option>
+                    ))}
+                  </select>
+                </FormField>
+                <FormField label="CC Emails (comma-separated)">
+                  <input className={inputClass} value={weeklyReportCc} onChange={(e) => setWeeklyReportCc(e.target.value)} placeholder="director@example.gov, pmo@example.gov" />
+                </FormField>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                If a PM hasn't submitted their weekly report by the deadline hour, a reminder email is sent to them (and CC'd to the addresses above).
+              </p>
+            </div>
           </div>
           <FormActions loading={updateConfig.isPending} label="Save Changes" onCancel={() => setEditModalOpen(false)} />
         </form>

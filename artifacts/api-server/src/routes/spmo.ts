@@ -3412,29 +3412,42 @@ router.delete("/spmo/actions/:id", async (req, res) => {
 // EMAIL REMINDERS
 // ─────────────────────────────────────────────────────────────
 
+// Send task reminders (milestones, actions, risks)
 router.post("/spmo/admin/send-reminders", async (req, res) => {
   if (!requireAdmin(req, res)) return;
-
   try {
-    const { generateReminders, formatReminderHtml, formatReminderText } = await import("../lib/email-reminders");
+    const { generateTaskReminders, formatReminderHtml, formatReminderText } = await import("../lib/email-reminders");
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}/strategy-pmo`;
-    const reminders = await generateReminders(baseUrl);
-
-    // For now, return the generated reminders as preview (actual sending requires SMTP config)
-    // When EMAIL_HOST is configured, this will send via nodemailer/sendgrid
+    const reminders = await generateTaskReminders(baseUrl);
     const preview = reminders.map((r) => ({
-      to: r.to,
-      toName: r.toName,
-      subject: r.subject,
-      sectionCount: r.sections.length,
+      to: r.to, toName: r.toName, cc: r.cc, subject: r.subject,
       totalItems: r.sections.reduce((s, sec) => s + sec.items.length, 0),
       textPreview: formatReminderText(r).slice(0, 500),
       html: formatReminderHtml(r),
     }));
-
-    res.json({ sent: reminders.length, reminders: preview });
+    res.json({ type: "task_reminders", sent: reminders.length, reminders: preview });
   } catch (err) {
-    req.log.error({ err }, "Failed to generate reminders");
+    req.log.error({ err }, "Failed to generate task reminders");
+    res.status(500).json({ error: "Failed to generate reminders" });
+  }
+});
+
+// Send weekly report deadline reminders (overdue reports only)
+router.post("/spmo/admin/send-weekly-report-reminders", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  try {
+    const { generateWeeklyReportReminders, formatReminderHtml, formatReminderText } = await import("../lib/email-reminders");
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}/strategy-pmo`;
+    const reminders = await generateWeeklyReportReminders(baseUrl);
+    const preview = reminders.map((r) => ({
+      to: r.to, toName: r.toName, cc: r.cc, subject: r.subject,
+      totalItems: r.sections.reduce((s, sec) => s + sec.items.length, 0),
+      textPreview: formatReminderText(r).slice(0, 500),
+      html: formatReminderHtml(r),
+    }));
+    res.json({ type: "weekly_report_deadline", sent: reminders.length, reminders: preview });
+  } catch (err) {
+    req.log.error({ err }, "Failed to generate weekly report reminders");
     res.status(500).json({ error: "Failed to generate reminders" });
   }
 });
