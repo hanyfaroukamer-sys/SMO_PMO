@@ -99,6 +99,10 @@ export const spmoDepartmentsTable = pgTable("spmo_departments", {
   color: text("color").notNull().default("#3B82F6"),
   headName: text("head_name"),
   headEmail: text("head_email"),
+  taskReminderCcUserId: text("task_reminder_cc_user_id"),
+  taskReminderCcName: text("task_reminder_cc_name"),
+  weeklyOverdueCcUserId: text("weekly_overdue_cc_user_id"),
+  weeklyOverdueCcName: text("weekly_overdue_cc_name"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

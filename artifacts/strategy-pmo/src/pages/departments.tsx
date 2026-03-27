@@ -5,6 +5,7 @@ import {
   useCreateSpmaDepartment,
   useUpdateSpmaDepartment,
   useDeleteSpmaDepartment,
+  useGetSpmaAdminUsers,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass } from "@/components/modal";
@@ -24,15 +25,24 @@ type DeptForm = {
   color: string;
   headName: string;
   headEmail: string;
+  taskReminderCcUserId: string;
+  taskReminderCcName: string;
+  weeklyOverdueCcUserId: string;
+  weeklyOverdueCcName: string;
   sortOrder: string;
 };
 
 const emptyForm = (): DeptForm => ({
-  name: "", description: "", color: COLORS[0], headName: "", headEmail: "", sortOrder: "0",
+  name: "", description: "", color: COLORS[0], headName: "", headEmail: "",
+  taskReminderCcUserId: "", taskReminderCcName: "",
+  weeklyOverdueCcUserId: "", weeklyOverdueCcName: "",
+  sortOrder: "0",
 });
 
 export default function Departments() {
   const { data, isLoading } = useListSpmoDepartments();
+  const { data: usersData } = useGetSpmaAdminUsers();
+  const allUsers = usersData?.users ?? [];
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<DeptForm>(emptyForm());
@@ -62,6 +72,10 @@ export default function Departments() {
       color: dept.color ?? COLORS[0],
       headName: (dept as Record<string, unknown>).headName as string ?? "",
       headEmail: (dept as Record<string, unknown>).headEmail as string ?? "",
+      taskReminderCcUserId: (dept as Record<string, unknown>).taskReminderCcUserId as string ?? "",
+      taskReminderCcName: (dept as Record<string, unknown>).taskReminderCcName as string ?? "",
+      weeklyOverdueCcUserId: (dept as Record<string, unknown>).weeklyOverdueCcUserId as string ?? "",
+      weeklyOverdueCcName: (dept as Record<string, unknown>).weeklyOverdueCcName as string ?? "",
       sortOrder: String(dept.sortOrder ?? 0),
     });
     setModalOpen(true);
@@ -85,6 +99,10 @@ export default function Departments() {
       color: form.color,
       headName: form.headName || undefined,
       headEmail: form.headEmail || undefined,
+      taskReminderCcUserId: form.taskReminderCcUserId || undefined,
+      taskReminderCcName: form.taskReminderCcName || undefined,
+      weeklyOverdueCcUserId: form.weeklyOverdueCcUserId || undefined,
+      weeklyOverdueCcName: form.weeklyOverdueCcName || undefined,
       sortOrder: parseInt(form.sortOrder) || 0,
     };
 
@@ -162,7 +180,14 @@ export default function Departments() {
                       <p className="text-sm text-slate-500 truncate">{dept.description}</p>
                     )}
                     {(dept as Record<string, unknown>).headName && (
-                      <p className="text-xs text-muted-foreground">Head: {(dept as Record<string, unknown>).headName as string}{(dept as Record<string, unknown>).headEmail ? ` · ${(dept as Record<string, unknown>).headEmail}` : ""}</p>
+                      <p className="text-xs text-muted-foreground">Head: {(dept as Record<string, unknown>).headName as string}</p>
+                    )}
+                    {((dept as Record<string, unknown>).taskReminderCcName || (dept as Record<string, unknown>).weeklyOverdueCcName) && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {(dept as Record<string, unknown>).taskReminderCcName && <span>Task CC: {(dept as Record<string, unknown>).taskReminderCcName as string}</span>}
+                        {(dept as Record<string, unknown>).taskReminderCcName && (dept as Record<string, unknown>).weeklyOverdueCcName && <span> · </span>}
+                        {(dept as Record<string, unknown>).weeklyOverdueCcName && <span>Weekly CC: {(dept as Record<string, unknown>).weeklyOverdueCcName as string}</span>}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -232,11 +257,63 @@ export default function Departments() {
             <FormField label="Department Head Name">
               <input className={inputClass} value={form.headName} onChange={(e) => setForm({ ...form, headName: e.target.value })} placeholder="e.g. Dr. Ahmed Al-Dosari" />
             </FormField>
-            <FormField label="Department Head Email (CC for reminders)">
+            <FormField label="Department Head Email">
               <input type="email" className={inputClass} value={form.headEmail} onChange={(e) => setForm({ ...form, headEmail: e.target.value })} placeholder="ahmed@example.gov" />
             </FormField>
           </div>
-          <p className="text-[10px] text-muted-foreground -mt-2">When a PM misses a weekly report or has overdue milestones, the department head email is automatically CC'd on reminder emails.</p>
+
+          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
+            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email Reminder CC Recipients</div>
+            <p className="text-[10px] text-muted-foreground">Choose who gets CC'd when PMs in this department receive reminder emails.</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <FormField label="CC on Task Reminders (milestones, risks)">
+                <select
+                  className={inputClass}
+                  value={form.taskReminderCcUserId}
+                  onChange={(e) => {
+                    const u = allUsers.find((u) => u.id === e.target.value);
+                    setForm({
+                      ...form,
+                      taskReminderCcUserId: e.target.value,
+                      taskReminderCcName: u ? [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || "" : "",
+                    });
+                  }}
+                >
+                  <option value="">— None —</option>
+                  {allUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {[u.firstName, u.lastName].filter(Boolean).join(" ") || u.email} ({u.role ?? "user"})
+                    </option>
+                  ))}
+                </select>
+                {form.taskReminderCcName && <p className="text-[10px] text-muted-foreground mt-0.5">Selected: {form.taskReminderCcName}</p>}
+              </FormField>
+
+              <FormField label="CC on Weekly Report Overdue">
+                <select
+                  className={inputClass}
+                  value={form.weeklyOverdueCcUserId}
+                  onChange={(e) => {
+                    const u = allUsers.find((u) => u.id === e.target.value);
+                    setForm({
+                      ...form,
+                      weeklyOverdueCcUserId: e.target.value,
+                      weeklyOverdueCcName: u ? [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || "" : "",
+                    });
+                  }}
+                >
+                  <option value="">— None —</option>
+                  {allUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {[u.firstName, u.lastName].filter(Boolean).join(" ") || u.email} ({u.role ?? "user"})
+                    </option>
+                  ))}
+                </select>
+                {form.weeklyOverdueCcName && <p className="text-[10px] text-muted-foreground mt-0.5">Selected: {form.weeklyOverdueCcName}</p>}
+              </FormField>
+            </div>
+          </div>
 
           <FormField label="Colour">
             <div className="flex gap-2 flex-wrap">

@@ -102,15 +102,21 @@ export async function generateWeeklyReportReminders(baseUrl: string): Promise<Re
     const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
     const projectList = projects.map((p) => `${p.projectCode ?? ""} ${p.name}`.trim());
 
-    // Build CC list: global CC + department heads of the missing projects
-    const deptHeadEmails = new Set<string>();
+    // Build CC list: global CC + department-specific weekly overdue CC + department head
+    const ccSet = new Set<string>(globalCc);
     for (const p of projects) {
       if (p.departmentId) {
         const dept = deptMap.get(p.departmentId);
-        if (dept?.headEmail) deptHeadEmails.add(dept.headEmail);
+        if (dept?.headEmail) ccSet.add(dept.headEmail);
+        // Per-department weekly overdue CC person
+        const weeklyUserId = (dept as Record<string, unknown> | undefined)?.weeklyOverdueCcUserId as string | undefined;
+        if (weeklyUserId) {
+          const ccUser = userMap.get(weeklyUserId);
+          if (ccUser?.email) ccSet.add(ccUser.email);
+        }
       }
     }
-    const ccList = [...new Set([...globalCc, ...deptHeadEmails])].filter(Boolean);
+    const ccList = [...ccSet].filter(Boolean);
 
     reminders.push({
       to: user.email,
@@ -243,12 +249,18 @@ export async function generateTaskReminders(baseUrl: string): Promise<ReminderEm
 
     if (sections.length > 0) {
       const totalItems = sections.reduce((s, sec) => s + sec.items.length, 0);
-      // CC department heads for all projects this PM owns
+      // CC department heads + task reminder CC persons for all projects this PM owns
       const pmDeptHeads = new Set<string>();
       for (const p of ownerProjects) {
         if (p.departmentId) {
           const dept = deptMap.get(p.departmentId);
           if (dept?.headEmail) pmDeptHeads.add(dept.headEmail);
+          // Per-department task reminder CC person
+          const taskCcUserId = (dept as Record<string, unknown> | undefined)?.taskReminderCcUserId as string | undefined;
+          if (taskCcUserId) {
+            const ccUser = userMap.get(taskCcUserId);
+            if (ccUser?.email) pmDeptHeads.add(ccUser.email);
+          }
         }
       }
       reminders.push({
