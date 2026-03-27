@@ -784,6 +784,41 @@ export const insertSpmoDependencySchema = createInsertSchema(spmoDependenciesTab
 export type InsertSpmoDependency = z.infer<typeof insertSpmoDependencySchema>;
 export type SpmoDependency = typeof spmoDependenciesTable.$inferSelect;
 
+// ─────────────────────────────────────────────
+// COMMENTS (discussion threads on any entity)
+// ─────────────────────────────────────────────
+export const spmoCommentsTable = pgTable("spmo_comments", {
+  id: serial("id").primaryKey(),
+  entityType: text("entity_type", { enum: ["project", "milestone", "risk", "kpi", "initiative"] }).notNull(),
+  entityId: integer("entity_id").notNull(),
+  parentId: integer("parent_id"),
+  authorId: text("author_id").notNull(),
+  authorName: text("author_name"),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  index("idx_comments_entity").on(t.entityType, t.entityId),
+]);
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS (in-app bell icon)
+// ─────────────────────────────────────────────
+export const spmoNotificationsTable = pgTable("spmo_notifications", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  type: text("type", { enum: ["comment", "approval", "assignment", "mention", "alert"] }).notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  link: text("link"),
+  read: boolean("read").notNull().default(false),
+  entityType: text("entity_type"),
+  entityId: integer("entity_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_notifications_user").on(t.userId),
+]);
+
 
 // ─────────────────────────────────────────────
 // PROJECT ACCESS GRANTS

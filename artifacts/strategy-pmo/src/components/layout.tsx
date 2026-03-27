@@ -1,6 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { CommandPalette, SearchTrigger } from "@/components/command-palette";
+import { NotificationBell } from "@/components/notification-bell";
 import {
   LayoutDashboard,
   Network,
@@ -201,6 +202,10 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* User footer */}
       <div className="border-t border-sidebar-border/40 p-2 space-y-1.5">
+        {/* Notification bell */}
+        <div className={`flex items-center ${!isMobile && collapsed ? "justify-center" : "justify-end px-1"}`}>
+          <NotificationBell />
+        </div>
         {(isMobile || !collapsed) && (
           <div className="flex items-center gap-2 px-1 py-1">
             <div className="w-8 h-8 rounded-full bg-sidebar-accent border border-sidebar-border flex items-center justify-center overflow-hidden shrink-0 ring-1 ring-sidebar-border/60">

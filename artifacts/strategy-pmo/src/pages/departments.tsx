@@ -10,6 +10,7 @@ import {
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass } from "@/components/modal";
 import { Loader2, Pencil, Trash2, Plus, Building2, FolderOpen } from "lucide-react";
+import { UserMentionInput } from "@/components/user-mention-input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -268,49 +269,21 @@ export default function Departments() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <FormField label="CC on Task Reminders (milestones, risks)">
-                <select
+                <UserMentionInput
+                  value={form.taskReminderCcName}
+                  onChange={(name, userId) => setForm({ ...form, taskReminderCcName: name, ...(userId ? { taskReminderCcUserId: userId } : {}) })}
+                  placeholder="Type to search users…"
                   className={inputClass}
-                  value={form.taskReminderCcUserId}
-                  onChange={(e) => {
-                    const u = allUsers.find((u) => u.id === e.target.value);
-                    setForm({
-                      ...form,
-                      taskReminderCcUserId: e.target.value,
-                      taskReminderCcName: u ? [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || "" : "",
-                    });
-                  }}
-                >
-                  <option value="">— None —</option>
-                  {allUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {[u.firstName, u.lastName].filter(Boolean).join(" ") || u.email} ({u.role ?? "user"})
-                    </option>
-                  ))}
-                </select>
-                {form.taskReminderCcName && <p className="text-[10px] text-muted-foreground mt-0.5">Selected: {form.taskReminderCcName}</p>}
+                />
               </FormField>
 
               <FormField label="CC on Weekly Report Overdue">
-                <select
+                <UserMentionInput
+                  value={form.weeklyOverdueCcName}
+                  onChange={(name, userId) => setForm({ ...form, weeklyOverdueCcName: name, ...(userId ? { weeklyOverdueCcUserId: userId } : {}) })}
+                  placeholder="Type to search users…"
                   className={inputClass}
-                  value={form.weeklyOverdueCcUserId}
-                  onChange={(e) => {
-                    const u = allUsers.find((u) => u.id === e.target.value);
-                    setForm({
-                      ...form,
-                      weeklyOverdueCcUserId: e.target.value,
-                      weeklyOverdueCcName: u ? [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || "" : "",
-                    });
-                  }}
-                >
-                  <option value="">— None —</option>
-                  {allUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {[u.firstName, u.lastName].filter(Boolean).join(" ") || u.email} ({u.role ?? "user"})
-                    </option>
-                  ))}
-                </select>
-                {form.weeklyOverdueCcName && <p className="text-[10px] text-muted-foreground mt-0.5">Selected: {form.weeklyOverdueCcName}</p>}
+                />
               </FormField>
             </div>
           </div>

@@ -26,6 +26,8 @@ import {
   spmoActionsTable,
   spmoKpiMeasurementsTable,
   spmoProjectAccessTable,
+  spmoCommentsTable,
+  spmoNotificationsTable,
   type InsertSpmoInitiative,
   type InsertSpmoProject,
   type InsertSpmoMilestone,
@@ -3504,6 +3506,96 @@ router.delete("/spmo/actions/:id", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// COMMENTS & DISCUSSION THREADS
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/comments", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const entityType = req.query.entityType as string;
+  const entityId = req.query.entityId ? Number(req.query.entityId) : null;
+  if (!entityType || !entityId) { res.status(400).json({ error: "entityType and entityId required" }); return; }
+  const rows = await db.select().from(spmoCommentsTable).where(and(eq(spmoCommentsTable.entityType, entityType), eq(spmoCommentsTable.entityId, entityId))).orderBy(asc(spmoCommentsTable.createdAt));
+  res.json({ comments: rows });
+});
+
+router.post("/spmo/comments", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const user = getAuthUser(req);
+  const body = z.object({
+    entityType: z.enum(["project", "milestone", "risk", "kpi", "initiative"]),
+    entityId: z.number(),
+    parentId: z.number().nullable().optional(),
+    body: z.string().min(1),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  const [row] = await db.insert(spmoCommentsTable).values({
+    ...body.data,
+    authorId: userId,
+    authorName: getUserDisplayName(user),
+  }).returning();
+
+  // Create notification for project owner if commenting on their project
+  if (body.data.entityType === "project") {
+    const [proj] = await db.select({ ownerId: spmoProjectsTable.ownerId, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, body.data.entityId)).limit(1);
+    if (proj?.ownerId && proj.ownerId !== userId) {
+      await db.insert(spmoNotificationsTable).values({
+        userId: proj.ownerId,
+        type: "comment",
+        title: `New comment on ${proj.name}`,
+        body: body.data.body.slice(0, 200),
+        link: `/projects/${body.data.entityId}`,
+        entityType: body.data.entityType,
+        entityId: body.data.entityId,
+      });
+    }
+  }
+
+  res.status(201).json(row);
+});
+
+router.delete("/spmo/comments/:id", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const id = parseId(req, res);
+  if (!id) return;
+  const [comment] = await db.select({ authorId: spmoCommentsTable.authorId }).from(spmoCommentsTable).where(eq(spmoCommentsTable.id, id)).limit(1);
+  if (!comment) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (comment.authorId !== userId && user?.role !== "admin") { res.status(403).json({ error: "Can only delete your own comments" }); return; }
+  await db.delete(spmoCommentsTable).where(eq(spmoCommentsTable.id, id));
+  res.json({ ok: true });
+});
+
+// NOTIFICATIONS (in-app bell icon)
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/notifications", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const rows = await db.select().from(spmoNotificationsTable).where(eq(spmoNotificationsTable.userId, userId)).orderBy(desc(spmoNotificationsTable.createdAt)).limit(50);
+  const unread = rows.filter((r) => !r.read).length;
+  res.json({ notifications: rows, unreadCount: unread });
+});
+
+router.post("/spmo/notifications/read-all", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  await db.update(spmoNotificationsTable).set({ read: true }).where(and(eq(spmoNotificationsTable.userId, userId), eq(spmoNotificationsTable.read, false)));
+  res.json({ ok: true });
+});
+
+router.post("/spmo/notifications/:id/read", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const id = parseId(req, res);
+  if (!id) return;
+  await db.update(spmoNotificationsTable).set({ read: true }).where(and(eq(spmoNotificationsTable.id, id), eq(spmoNotificationsTable.userId, userId)));
+  res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────
 // EMAIL REMINDERS
 // ─────────────────────────────────────────────────────────────
 
@@ -3561,15 +3653,15 @@ router.get("/spmo/search", async (req, res) => {
   // Single SQL query using UNION ALL with ILIKE (was: 5 full table scans + JS filtering)
   const pattern = `%${q}%`;
   const searchResults = await db.execute(sql`
-    (SELECT 'project' as type, id, name as title, COALESCE(project_code || ' · ' || COALESCE(owner_name, ''), '') as subtitle, '/projects/' || id as link FROM spmo_projects WHERE name ILIKE ${pattern} OR project_code ILIKE ${pattern} LIMIT 5)
+    (SELECT 'project' as type, id, name as title, COALESCE(project_code || ' · ' || COALESCE(owner_name, ''), '') as subtitle, '/projects/' || id as link FROM spmo_projects WHERE name ILIKE ${pattern} OR project_code ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
     UNION ALL
-    (SELECT 'milestone', id, name, 'Milestone', '/projects/' || project_id || '?tab=milestones' FROM spmo_milestones WHERE name ILIKE ${pattern} LIMIT 5)
+    (SELECT 'milestone', id, name, 'Milestone', '/projects/' || project_id || '?tab=milestones' FROM spmo_milestones WHERE name ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
     UNION ALL
-    (SELECT 'kpi', id, name, type || ' KPI', '/kpis' FROM spmo_kpis WHERE name ILIKE ${pattern} LIMIT 5)
+    (SELECT 'kpi', id, name, type || ' KPI', '/kpis' FROM spmo_kpis WHERE name ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
     UNION ALL
-    (SELECT 'risk', id, title, 'Risk', CASE WHEN project_id IS NOT NULL THEN '/projects/' || project_id || '?tab=risks' ELSE '/risks' END FROM spmo_risks WHERE title ILIKE ${pattern} LIMIT 5)
+    (SELECT 'risk', id, title, 'Risk', CASE WHEN project_id IS NOT NULL THEN '/projects/' || project_id || '?tab=risks' ELSE '/risks' END FROM spmo_risks WHERE title ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
     UNION ALL
-    (SELECT 'initiative', id, name, 'Initiative ' || COALESCE(initiative_code, ''), '/initiatives' FROM spmo_initiatives WHERE name ILIKE ${pattern} OR initiative_code ILIKE ${pattern} LIMIT 5)
+    (SELECT 'initiative', id, name, 'Initiative ' || COALESCE(initiative_code, ''), '/initiatives' FROM spmo_initiatives WHERE name ILIKE ${pattern} OR initiative_code ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
   `);
 
   const results = (searchResults.rows as { type: string; id: number; title: string; subtitle: string; link: string }[]).slice(0, 20);
@@ -3977,7 +4069,9 @@ router.get("/spmo/my-tasks", async (req, res) => {
 
   const tasks: object[] = [];
   for (const m of pendingApprovals) {
-    tasks.push({ id: `approve-${m.id}`, type: "approval", priority: "high", title: `Approve: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Submitted · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: null, daysLeft: null, action: "Review evidence and approve or reject", link: `/projects/${m.projectId}?tab=milestones` });
+    const daysSubmitted = m.submittedAt ? Math.ceil((now.getTime() - new Date(m.submittedAt).getTime()) / 86400000) : 0;
+    const isEscalated = daysSubmitted >= 5;
+    tasks.push({ id: `approve-${m.id}`, type: "approval", priority: isEscalated ? "critical" : "high", title: `${isEscalated ? "⚠ ESCALATED: " : ""}Approve: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Submitted${daysSubmitted > 0 ? ` ${daysSubmitted}d ago` : ""} · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: null, daysLeft: null, action: isEscalated ? "Overdue approval — submitted over 5 days ago" : "Review evidence and approve or reject", link: `/projects/${m.projectId}?tab=milestones` });
   }
   for (const m of overdue) {
     const daysOver = Math.ceil((now.getTime() - new Date(m.dueDate!).getTime()) / 86400000);
