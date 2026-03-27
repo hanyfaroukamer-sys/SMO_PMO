@@ -3409,6 +3409,37 @@ router.delete("/spmo/actions/:id", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// EMAIL REMINDERS
+// ─────────────────────────────────────────────────────────────
+
+router.post("/spmo/admin/send-reminders", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    const { generateReminders, formatReminderHtml, formatReminderText } = await import("../lib/email-reminders");
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}/strategy-pmo`;
+    const reminders = await generateReminders(baseUrl);
+
+    // For now, return the generated reminders as preview (actual sending requires SMTP config)
+    // When EMAIL_HOST is configured, this will send via nodemailer/sendgrid
+    const preview = reminders.map((r) => ({
+      to: r.to,
+      toName: r.toName,
+      subject: r.subject,
+      sectionCount: r.sections.length,
+      totalItems: r.sections.reduce((s, sec) => s + sec.items.length, 0),
+      textPreview: formatReminderText(r).slice(0, 500),
+      html: formatReminderHtml(r),
+    }));
+
+    res.json({ sent: reminders.length, reminders: preview });
+  } catch (err) {
+    req.log.error({ err }, "Failed to generate reminders");
+    res.status(500).json({ error: "Failed to generate reminders" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
 // GLOBAL SEARCH (Cmd+K — searches projects, milestones, KPIs, risks, documents)
 // ─────────────────────────────────────────────────────────────
 
