@@ -216,7 +216,7 @@ const ALL_PERMISSIONS: ProjectPermission[] = [
   "canSubmitChangeRequests",
 ];
 
-/** Returns true if the user has the given permission on this project. Admins always pass. PMs pass by default (all perms) unless explicitly restricted via a project access row. */
+/** Returns true if the user has the given permission on this project. Admins always pass. PMs have full access to projects they own; for other projects they need an explicit grant row. */
 async function checkProjectPerm(
   userId: string,
   userRole: string | null | undefined,
@@ -225,6 +225,12 @@ async function checkProjectPerm(
 ): Promise<boolean> {
   if (userRole === "admin") return true;
   if (userRole !== "project-manager") return false;
+
+  // Check if PM owns this project — owners have all permissions
+  const [project] = await db.select({ ownerId: spmoProjectsTable.ownerId }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, projectId)).limit(1);
+  if (project?.ownerId === userId) return true;
+
+  // Not the owner — check explicit grant
   const [grant] = await db
     .select({
       canEditDetails:          spmoProjectAccessTable.canEditDetails,
@@ -240,8 +246,8 @@ async function checkProjectPerm(
     .from(spmoProjectAccessTable)
     .where(and(eq(spmoProjectAccessTable.projectId, projectId), eq(spmoProjectAccessTable.userId, userId)))
     .limit(1);
-  // If no explicit access row exists, PMs have all permissions by default
-  if (!grant) return true;
+  // Non-owner PM with no explicit grant row — no access
+  if (!grant) return false;
   return grant[permission] ?? false;
 }
 

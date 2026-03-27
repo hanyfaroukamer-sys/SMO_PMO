@@ -19,10 +19,10 @@ export const DEFAULT_PERMISSIONS: ProjectPermissions = {
   canManageMilestones: true,
   canSubmitReports: true,
   canManageRisks: true,
-  canManageBudget: false,
+  canManageBudget: true,
   canManageDocuments: true,
   canManageActions: true,
-  canManageRaci: false,
+  canManageRaci: true,
   canSubmitChangeRequests: true,
 };
 
@@ -61,17 +61,25 @@ export function useMyProjectAccess() {
     staleTime: 60_000,
     enabled: !isAdmin, // admins don't need to fetch
   });
-  if (isAdmin) return { admin: true as const, grants: [] as MyAccessGrant[] };
-  return data ?? { admin: false as const, grants: [] as MyAccessGrant[] };
+  const userId = (data as Record<string, unknown> | undefined)?.userId as string | undefined;
+  if (isAdmin) return { admin: true as const, grants: [] as MyAccessGrant[], currentUserId: undefined as string | undefined };
+  return { ...(data ?? { admin: false as const, grants: [] as MyAccessGrant[] }), currentUserId: userId };
 }
 
 /** Returns the full permissions object for the current user on a specific project */
-export function useProjectPermissions(projectId: number | null | undefined): ProjectPermissions | null {
+export function useProjectPermissions(projectId: number | null | undefined, projectOwnerId?: string | null): ProjectPermissions | null {
   const isAdmin = useIsAdmin();
   const access = useMyProjectAccess();
-  if (isAdmin || access.admin) return { ...DEFAULT_PERMISSIONS, canManageBudget: true, canManageRaci: true };
+  if (isAdmin || access.admin) return { ...DEFAULT_PERMISSIONS };
   if (!projectId) return null;
+
+  // If the current user is the project owner, they have full access
+  if (projectOwnerId && access.currentUserId && projectOwnerId === access.currentUserId) {
+    return { ...DEFAULT_PERMISSIONS };
+  }
+
   const grant = access.grants.find((g) => g.projectId === projectId);
+  // Non-owner PM with no explicit grant — no access
   if (!grant) return null;
   return {
     canEditDetails:          grant.canEditDetails,

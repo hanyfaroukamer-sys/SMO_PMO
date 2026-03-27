@@ -769,12 +769,12 @@ export default function ProjectDetail({ params }: Props) {
   const canEditReport = userRole === "admin" || userRole === "project-manager";
   const isAdmin = userRole === "admin";
 
-  const perms = useProjectPermissions(projectId);
-  // Admins have full milestone control; PMs can only touch progress %
+  const { data: project, isLoading } = useGetSpmoProject(projectId);
+  const projectOwnerId = (project as Record<string, unknown> | undefined)?.ownerId as string | undefined;
+  const perms = useProjectPermissions(projectId, projectOwnerId);
+  // Admins have full milestone control; PMs who own the project can edit progress
   const canEditMilestoneDetails = isAdmin;
   const canEditMilestoneProgress = isAdmin || (userRole === "project-manager" && (perms?.canManageMilestones ?? false));
-
-  const { data: project, isLoading } = useGetSpmoProject(projectId);
   const { data: pillarsData } = useListSpmoPillars();
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: weeklyReport, queryKey: weeklyReportKey } = useGetSpmaProjectWeeklyReport(projectId);
