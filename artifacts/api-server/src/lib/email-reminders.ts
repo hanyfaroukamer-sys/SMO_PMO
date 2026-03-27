@@ -15,6 +15,7 @@ import {
   spmoProjectWeeklyReportsTable,
   spmoActionsTable,
   spmoRisksTable,
+  spmoDepartmentsTable,
 } from "@workspace/db";
 import { eq, and, ne, inArray, gte, lte } from "drizzle-orm";
 import { usersTable } from "@workspace/db";
@@ -50,8 +51,13 @@ export async function generateWeeklyReportReminders(baseUrl: string): Promise<Re
   const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   const weeklyResetDay = cfg?.weeklyResetDay ?? 3;
   const deadlineHour = cfg?.weeklyReportDeadlineHour ?? 15;
+  // Global CC from config
   const ccRaw = cfg?.weeklyReportCcEmails ?? "";
-  const ccEmails = ccRaw.split(",").map((e) => e.trim()).filter(Boolean);
+  const globalCc = ccRaw.split(",").map((e) => e.trim()).filter(Boolean);
+
+  // Department head emails for per-project CC
+  const departments = await db.select().from(spmoDepartmentsTable);
+  const deptMap = new Map(departments.map((d) => [d.id, d]));
 
   const weekStart = getCurrentWeekStart(weeklyResetDay);
   const now = new Date();
@@ -96,10 +102,20 @@ export async function generateWeeklyReportReminders(baseUrl: string): Promise<Re
     const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
     const projectList = projects.map((p) => `${p.projectCode ?? ""} ${p.name}`.trim());
 
+    // Build CC list: global CC + department heads of the missing projects
+    const deptHeadEmails = new Set<string>();
+    for (const p of projects) {
+      if (p.departmentId) {
+        const dept = deptMap.get(p.departmentId);
+        if (dept?.headEmail) deptHeadEmails.add(dept.headEmail);
+      }
+    }
+    const ccList = [...new Set([...globalCc, ...deptHeadEmails])].filter(Boolean);
+
     reminders.push({
       to: user.email,
       toName: displayName,
-      cc: ccEmails.length > 0 ? ccEmails : undefined,
+      cc: ccList.length > 0 ? ccList : undefined,
       subject: `⚠ Weekly Report Overdue — ${projects.length} project${projects.length > 1 ? "s" : ""} missing updates`,
       sections: [
         {
@@ -138,6 +154,8 @@ export async function generateTaskReminders(baseUrl: string): Promise<ReminderEm
   const activeProjects = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.status, "active"));
   const users = await db.select().from(usersTable);
   const userMap = new Map(users.map((u) => [u.id, u]));
+  const departments = await db.select().from(spmoDepartmentsTable);
+  const deptMap = new Map(departments.map((d) => [d.id, d]));
 
   const projectsByOwner = new Map<string, typeof activeProjects>();
   for (const p of activeProjects) {
@@ -225,9 +243,18 @@ export async function generateTaskReminders(baseUrl: string): Promise<ReminderEm
 
     if (sections.length > 0) {
       const totalItems = sections.reduce((s, sec) => s + sec.items.length, 0);
+      // CC department heads for all projects this PM owns
+      const pmDeptHeads = new Set<string>();
+      for (const p of ownerProjects) {
+        if (p.departmentId) {
+          const dept = deptMap.get(p.departmentId);
+          if (dept?.headEmail) pmDeptHeads.add(dept.headEmail);
+        }
+      }
       reminders.push({
         to: user.email,
         toName: displayName,
+        cc: pmDeptHeads.size > 0 ? [...pmDeptHeads] : undefined,
         subject: `StrategyPMO: ${totalItems} item${totalItems > 1 ? "s" : ""} need your attention`,
         sections,
       });

@@ -22,11 +22,13 @@ type DeptForm = {
   name: string;
   description: string;
   color: string;
+  headName: string;
+  headEmail: string;
   sortOrder: string;
 };
 
 const emptyForm = (): DeptForm => ({
-  name: "", description: "", color: COLORS[0], sortOrder: "0",
+  name: "", description: "", color: COLORS[0], headName: "", headEmail: "", sortOrder: "0",
 });
 
 export default function Departments() {
@@ -58,6 +60,8 @@ export default function Departments() {
       name: dept.name,
       description: dept.description ?? "",
       color: dept.color ?? COLORS[0],
+      headName: (dept as Record<string, unknown>).headName as string ?? "",
+      headEmail: (dept as Record<string, unknown>).headEmail as string ?? "",
       sortOrder: String(dept.sortOrder ?? 0),
     });
     setModalOpen(true);
@@ -79,6 +83,8 @@ export default function Departments() {
       name: form.name,
       description: form.description || undefined,
       color: form.color,
+      headName: form.headName || undefined,
+      headEmail: form.headEmail || undefined,
       sortOrder: parseInt(form.sortOrder) || 0,
     };
 
@@ -155,6 +161,9 @@ export default function Departments() {
                     {dept.description && (
                       <p className="text-sm text-slate-500 truncate">{dept.description}</p>
                     )}
+                    {(dept as Record<string, unknown>).headName && (
+                      <p className="text-xs text-muted-foreground">Head: {(dept as Record<string, unknown>).headName as string}{(dept as Record<string, unknown>).headEmail ? ` · ${(dept as Record<string, unknown>).headEmail}` : ""}</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-1 flex-shrink-0 ml-2">
@@ -218,6 +227,16 @@ export default function Departments() {
               placeholder="Optional description..."
             />
           </FormField>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Department Head Name">
+              <input className={inputClass} value={form.headName} onChange={(e) => setForm({ ...form, headName: e.target.value })} placeholder="e.g. Dr. Ahmed Al-Dosari" />
+            </FormField>
+            <FormField label="Department Head Email (CC for reminders)">
+              <input type="email" className={inputClass} value={form.headEmail} onChange={(e) => setForm({ ...form, headEmail: e.target.value })} placeholder="ahmed@example.gov" />
+            </FormField>
+          </div>
+          <p className="text-[10px] text-muted-foreground -mt-2">When a PM misses a weekly report or has overdue milestones, the department head email is automatically CC'd on reminder emails.</p>
 
           <FormField label="Colour">
             <div className="flex gap-2 flex-wrap">

@@ -97,6 +97,8 @@ export const spmoDepartmentsTable = pgTable("spmo_departments", {
   name: text("name").notNull(),
   description: text("description"),
   color: text("color").notNull().default("#3B82F6"),
+  headName: text("head_name"),
+  headEmail: text("head_email"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -777,6 +779,7 @@ export const insertSpmoDependencySchema = createInsertSchema(spmoDependenciesTab
 });
 export type InsertSpmoDependency = z.infer<typeof insertSpmoDependencySchema>;
 export type SpmoDependency = typeof spmoDependenciesTable.$inferSelect;
+
 
 // ─────────────────────────────────────────────
 // PROJECT ACCESS GRANTS
