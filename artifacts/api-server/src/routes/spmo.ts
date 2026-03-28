@@ -596,16 +596,19 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
   const withProgress = await Promise.all(
     rows.map(async (i) => {
       const stats = await initiativeProgress(i.id);
+      // Initiative budget is computed from child projects, not stored
+      const childProjects = await db.select({ budget: spmoProjectsTable.budget }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id));
+      const computedBudget = childProjects.reduce((s, p) => s + (p.budget ?? 0), 0);
       const computedStatus: StatusResult = computeInitiativeStatus(
         stats.progress,
         i.startDate,
         i.targetDate,
-        i.budget,
+        computedBudget,
         stats.budgetSpent,
         stats.rawProgress,
         stats.childProjects,
       );
-      return { ...i, ...stats, computedStatus, healthStatus: computedStatus.status };
+      return { ...i, budget: computedBudget, ...stats, computedStatus, healthStatus: computedStatus.status };
     })
   );
 
@@ -629,8 +632,10 @@ router.post("/spmo/initiatives", async (req, res): Promise<void> => {
     return;
   }
 
+  const { budget: _ignoredBudget, ...initData } = parsed.data;
   const insertInitiative: InsertSpmoInitiative = {
-    ...parsed.data,
+    ...initData,
+    budget: 0, // Budget is computed from child projects, not manually set
     startDate: dateToStr(parsed.data.startDate) as string,
     targetDate: dateToStr(parsed.data.targetDate) as string,
   };
@@ -682,19 +687,21 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
   }
 
   const stats = await initiativeProgress(initiative.id);
-  const computedStatus: StatusResult = computeInitiativeStatus(
-    stats.progress,
-    initiative.startDate,
-    initiative.targetDate,
-    initiative.budget,
-    stats.budgetSpent,
-    stats.rawProgress,
-    stats.childProjects,
-  );
   const projects = await db
     .select()
     .from(spmoProjectsTable)
     .where(eq(spmoProjectsTable.initiativeId, initiative.id));
+  // Initiative budget is computed from child projects
+  const computedBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
+  const computedStatus: StatusResult = computeInitiativeStatus(
+    stats.progress,
+    initiative.startDate,
+    initiative.targetDate,
+    computedBudget,
+    stats.budgetSpent,
+    stats.rawProgress,
+    stats.childProjects,
+  );
 
   const projectsWithProgress = await Promise.all(
     projects.map(async (p) => {
@@ -704,7 +711,7 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     })
   );
 
-  res.json({ ...initiative, ...stats, computedStatus, healthStatus: computedStatus.status, projects: projectsWithProgress });
+  res.json({ ...initiative, budget: computedBudget, ...stats, computedStatus, healthStatus: computedStatus.status, projects: projectsWithProgress });
 });
 
 router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
@@ -730,9 +737,10 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const { startDate: sd, targetDate: td, ...restInitiativeUpdate } = parsed.data;
+  const { startDate: sd, targetDate: td, budget: _ignoredBudget2, ...restInitiativeUpdate } = parsed.data;
   const updateInitiative = {
     ...restInitiativeUpdate,
+    // Budget is computed from child projects — strip any manual budget input
     ...(sd !== undefined && { startDate: dateToStr(sd) as string }),
     ...(td !== undefined && { targetDate: dateToStr(td) as string }),
   };
@@ -1424,6 +1432,87 @@ router.put("/spmo/projects/:id/milestones/weights", async (req, res): Promise<vo
     }
   });
 
+  res.json({ success: true });
+});
+
+// Admin bulk-edit project weights within an initiative (must sum to 100%)
+router.put("/spmo/initiatives/:id/projects/weights", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+
+  const params = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid initiative id" }); return; }
+
+  const body = z.object({
+    weights: z.array(z.object({ id: z.number().int().positive(), weight: z.number().min(0).max(100) })),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: "Invalid weights payload" }); return; }
+
+  const { weights } = body.data;
+  const total = weights.reduce((s, w) => s + w.weight, 0);
+  if (Math.abs(total - 100) > 1) {
+    res.status(400).json({ error: `Weights must sum to 100% (got ${Math.round(total)}%)` });
+    return;
+  }
+
+  await db.transaction(async (tx: typeof db) => {
+    for (const { id, weight } of weights) {
+      await tx.update(spmoProjectsTable)
+        .set({ weight, updatedAt: new Date() })
+        .where(and(eq(spmoProjectsTable.id, id), eq(spmoProjectsTable.initiativeId, params.data.id)));
+    }
+  });
+
+  invalidateOverviewCache();
+  res.json({ success: true });
+});
+
+// Admin bulk-edit initiative weights within a pillar (must sum to 100%)
+router.put("/spmo/pillars/:id/initiatives/weights", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+
+  const params = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid pillar id" }); return; }
+
+  const body = z.object({
+    weights: z.array(z.object({ id: z.number().int().positive(), weight: z.number().min(0).max(100) })),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: "Invalid weights payload" }); return; }
+
+  const { weights } = body.data;
+  const total = weights.reduce((s, w) => s + w.weight, 0);
+  if (Math.abs(total - 100) > 1) {
+    res.status(400).json({ error: `Weights must sum to 100% (got ${Math.round(total)}%)` });
+    return;
+  }
+
+  await db.transaction(async (tx: typeof db) => {
+    for (const { id, weight } of weights) {
+      await tx.update(spmoInitiativesTable)
+        .set({ weight, updatedAt: new Date() })
+        .where(and(eq(spmoInitiativesTable.id, id), eq(spmoInitiativesTable.pillarId, params.data.id)));
+    }
+  });
+
+  invalidateOverviewCache();
+  res.json({ success: true });
+});
+
+// Admin reset weights to auto-calculated (set all weights to 0)
+router.post("/spmo/initiatives/:id/projects/weights/reset", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+  const params = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid initiative id" }); return; }
+  await db.update(spmoProjectsTable).set({ weight: 0, updatedAt: new Date() }).where(eq(spmoProjectsTable.initiativeId, params.data.id));
+  invalidateOverviewCache();
+  res.json({ success: true });
+});
+
+router.post("/spmo/pillars/:id/initiatives/weights/reset", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+  const params = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid pillar id" }); return; }
+  await db.update(spmoInitiativesTable).set({ weight: 0, updatedAt: new Date() }).where(eq(spmoInitiativesTable.pillarId, params.data.id));
+  invalidateOverviewCache();
   res.json({ success: true });
 });
 
@@ -2878,12 +2967,25 @@ router.get("/spmo/departments", async (req, res): Promise<void> => {
         .from(spmoProjectsTable)
         .where(eq(spmoProjectsTable.departmentId, dept.id));
 
-      let totalProgress = 0;
-      for (const p of projects) {
-        const stats = await projectProgress(p.id);
-        totalProgress += stats.progress;
+      const projectStats = await Promise.all(
+        projects.map(async (p) => {
+          const stats = await projectProgress(p.id);
+          return { progress: stats.progress, budget: p.budget ?? 0 };
+        }),
+      );
+
+      // Budget-weighted average — but only if ALL projects have budgets.
+      // If any project has no budget, fall back to equal weight to avoid ignoring them.
+      const allHaveBudget = projects.length > 0 && projectStats.every((p) => p.budget > 0);
+      let progress: number;
+      if (projects.length === 0) {
+        progress = 0;
+      } else if (allHaveBudget) {
+        const totalBudget = projectStats.reduce((s, p) => s + p.budget, 0);
+        progress = projectStats.reduce((s, p) => s + p.progress * p.budget, 0) / totalBudget;
+      } else {
+        progress = projectStats.reduce((s, p) => s + p.progress, 0) / projects.length;
       }
-      const progress = projects.length > 0 ? totalProgress / projects.length : 0;
 
       return {
         ...dept,
