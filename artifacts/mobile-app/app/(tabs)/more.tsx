@@ -6,8 +6,9 @@ const SECTIONS = [
   {
     title: "Views",
     items: [
-      { icon: "⚠️", label: "Risks", desc: "Risk register & mitigations", route: null },
-      { icon: "📄", label: "Documents", desc: "Project files & evidence", route: null },
+      { icon: "📊", label: "KPIs", desc: "Strategic & operational indicators", route: "/kpis" },
+      { icon: "⚠️", label: "Risks", desc: "Risk register & mitigations", route: "/risks" },
+      { icon: "📄", label: "Documents", desc: "Project files & evidence", route: "/documents" },
       { icon: "🔔", label: "Notifications", desc: "In-app alerts & updates", route: "/notifications" },
     ],
   },
@@ -24,7 +25,6 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: "#F8FAFC" }} contentContainerStyle={{ paddingBottom: 32 }}>
-      {/* Profile header */}
       <View style={{ backgroundColor: "#0F172A", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, alignItems: "center" }}>
         <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "#334155" }}>
           <Text style={{ fontSize: 24, fontWeight: "900", color: "#E2E8F0" }}>{initials}</Text>
@@ -44,7 +44,7 @@ export default function ProfileScreen() {
               {section.items.map((item, i) => (
                 <Pressable
                   key={item.label}
-                  onPress={() => item.route && router.push(item.route as never)}
+                  onPress={() => router.push(item.route as never)}
                   style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderBottomWidth: i < section.items.length - 1 ? 1 : 0, borderBottomColor: "#F1F5F9" }}
                 >
                   <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" }}>
@@ -66,10 +66,7 @@ export default function ProfileScreen() {
           <Text style={{ fontSize: 12, color: "#64748B" }}>StrategyPMO Mobile v1.0.0</Text>
         </View>
 
-        <Pressable
-          onPress={signOut}
-          style={{ backgroundColor: "#FFFFFF", borderRadius: 16, paddingVertical: 16, alignItems: "center", borderWidth: 1, borderColor: "#FECACA", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}
-        >
+        <Pressable onPress={signOut} style={{ backgroundColor: "#FFFFFF", borderRadius: 16, paddingVertical: 16, alignItems: "center", borderWidth: 1, borderColor: "#FECACA", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
           <Text style={{ fontSize: 14, fontWeight: "700", color: "#DC2626" }}>Sign Out</Text>
         </Pressable>
       </View>

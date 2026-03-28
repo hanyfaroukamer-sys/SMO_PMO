@@ -45,6 +45,9 @@ function RootLayoutNav() {
       <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="notifications" options={{ title: "Notifications", headerBackTitle: "Back" }} />
+      <Stack.Screen name="kpis" options={{ title: "KPIs", headerBackTitle: "Back" }} />
+      <Stack.Screen name="risks" options={{ title: "Risk Register", headerBackTitle: "Back" }} />
+      <Stack.Screen name="documents" options={{ title: "Documents", headerBackTitle: "Back" }} />
       <Stack.Screen name="projects/[id]" options={{ title: "Project", headerBackTitle: "Back" }} />
     </Stack>
   );
