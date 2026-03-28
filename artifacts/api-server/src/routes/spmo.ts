@@ -2878,12 +2878,24 @@ router.get("/spmo/departments", async (req, res): Promise<void> => {
         .from(spmoProjectsTable)
         .where(eq(spmoProjectsTable.departmentId, dept.id));
 
-      let totalProgress = 0;
-      for (const p of projects) {
-        const stats = await projectProgress(p.id);
-        totalProgress += stats.progress;
+      const projectStats = await Promise.all(
+        projects.map(async (p) => {
+          const stats = await projectProgress(p.id);
+          return { progress: stats.progress, budget: p.budget ?? 0 };
+        }),
+      );
+
+      // Budget-weighted average — larger projects have proportionally more impact
+      const totalBudget = projectStats.reduce((s, p) => s + p.budget, 0);
+      let progress: number;
+      if (projects.length === 0) {
+        progress = 0;
+      } else if (totalBudget > 0) {
+        progress = projectStats.reduce((s, p) => s + p.progress * p.budget, 0) / totalBudget;
+      } else {
+        // Fallback to simple average if no budgets set
+        progress = projectStats.reduce((s, p) => s + p.progress, 0) / projects.length;
       }
-      const progress = projects.length > 0 ? totalProgress / projects.length : 0;
 
       return {
         ...dept,
