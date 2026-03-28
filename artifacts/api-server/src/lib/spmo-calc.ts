@@ -112,7 +112,9 @@ async function initiativeProgress(initiativeId: number): Promise<{
   // 2. All projects have budget → budget-weighted
   // 3. effortDays across milestones
   // 4. Equal weight (weightedAvg handles all-zero)
-  const adminWeightsSet = projects.some((p) => (p.weight ?? 0) > 0);
+  // Admin weights only count if they sum close to 100% (stale/default values like 1 don't count)
+  const adminWeightSum = projects.reduce((s, p) => s + (p.weight ?? 0), 0);
+  const adminWeightsSet = projects.some((p) => (p.weight ?? 0) > 0) && Math.abs(adminWeightSum - 100) <= 5;
   const totalBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
   const allHaveBudget = !adminWeightsSet && projects.every((p) => (p.budget ?? 0) > 0);
 
@@ -220,7 +222,8 @@ async function pillarProgress(pillarId: number): Promise<{
   // 2. All initiatives have computed budget (sum of child projects) → budget-weighted
   // 3. effortDays across all child milestones
   // 4. Equal weight
-  const adminInitWeightsSet = initiatives.some((i) => (i.weight ?? 0) > 0);
+  const adminInitWeightSum = initiatives.reduce((s, i) => s + (i.weight ?? 0), 0);
+  const adminInitWeightsSet = initiatives.some((i) => (i.weight ?? 0) > 0) && Math.abs(adminInitWeightSum - 100) <= 5;
 
   const initBudgets = await Promise.all(
     initiatives.map(async (i) => {
@@ -348,9 +351,11 @@ export async function computeProjectWeights(initiativeId: number): Promise<{ pro
   if (projects.length === 0) return [];
 
   const adminSet = projects.some((p) => (p.weight ?? 0) > 0);
-  if (adminSet) {
-    const total = projects.reduce((s, p) => s + (p.weight ?? 0), 0) || projects.length;
-    return projects.map((p) => ({ projectId: p.id, effectiveWeight: Math.round(((p.weight ?? 0) / total) * 1000) / 10, weightSource: "admin" as const }));
+  // Admin weights are only truly "set" if they sum close to 100% — otherwise they're stale/default values
+  const adminWeightSum = projects.reduce((s, p) => s + (p.weight ?? 0), 0);
+  const adminWeightsValid = adminSet && Math.abs(adminWeightSum - 100) <= 5;
+  if (adminWeightsValid) {
+    return projects.map((p) => ({ projectId: p.id, effectiveWeight: Math.round(((p.weight ?? 0) / adminWeightSum) * 1000) / 10, weightSource: "admin" as const }));
   }
 
   const allHaveBudget = projects.every((p) => (p.budget ?? 0) > 0);
@@ -382,9 +387,10 @@ export async function computeInitiativeWeights(pillarId: number): Promise<{ init
   if (initiatives.length === 0) return [];
 
   const adminSet = initiatives.some((i) => (i.weight ?? 0) > 0);
-  if (adminSet) {
-    const total = initiatives.reduce((s, i) => s + (i.weight ?? 0), 0) || initiatives.length;
-    return initiatives.map((i) => ({ initiativeId: i.id, effectiveWeight: Math.round(((i.weight ?? 0) / total) * 1000) / 10, weightSource: "admin" as const }));
+  const adminWeightSum = initiatives.reduce((s, i) => s + (i.weight ?? 0), 0);
+  const adminWeightsValid = adminSet && Math.abs(adminWeightSum - 100) <= 5;
+  if (adminWeightsValid) {
+    return initiatives.map((i) => ({ initiativeId: i.id, effectiveWeight: Math.round(((i.weight ?? 0) / adminWeightSum) * 1000) / 10, weightSource: "admin" as const }));
   }
 
   // Compute budget per initiative (sum of child project budgets)
