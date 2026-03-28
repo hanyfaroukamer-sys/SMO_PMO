@@ -827,9 +827,25 @@ export default function ProjectDetail({ params }: Props) {
       "risks": "risks", "actions": "risks", // actions merged into risks tab
       "weekly-report": "reports", "reports": "reports", "changes": "reports", // merged into reports
       "raci": "team", "team": "team", "documents": "team", // merged into team
+      "discussion": "discussion",
     };
     return (param && tabMap[param]) ? tabMap[param] : "overview";
   });
+
+  // React to URL changes (e.g. notification bell navigating with ?tab=discussion)
+  const [location] = useLocation();
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get("tab") as string | null;
+    const tabMap: Record<string, TabKey> = {
+      "overview": "overview", "milestones": "milestones",
+      "risks": "risks", "actions": "risks",
+      "weekly-report": "reports", "reports": "reports", "changes": "reports",
+      "raci": "team", "team": "team", "documents": "team",
+      "discussion": "discussion",
+    };
+    if (param && tabMap[param]) setActiveTab(tabMap[param]);
+  }, [location]);
+
   const [editingReport, setEditingReport] = useState(false);
   const [reportDraft, setReportDraft] = useState({ keyAchievements: "", nextSteps: "" });
   const projectId = parseInt(params?.id ?? "0");
