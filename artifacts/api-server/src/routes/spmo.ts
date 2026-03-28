@@ -3919,9 +3919,11 @@ router.post("/spmo/comments", async (req, res) => {
       if (mentionedUser?.email) {
         const authorName = getUserDisplayName(user) ?? "A team member";
         const entityLabel = entityName || body.data.entityType;
-        const baseUrl = process.env.APP_URL || "";
+        const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
         const fullLink = entityLink ? `${baseUrl}/strategy-pmo${entityLink}` : baseUrl;
         const subject = `${authorName} mentioned you in ${entityLabel}`;
+        // Render @[Name](id) as just "Name" in the email body
+        const cleanBody = body.data.body.replace(/@\[([^\]]+)\]\([^)]+\)/g, "@$1");
         const htmlBody = `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto;">
             <div style="background: #0F172A; color: #F8FAFC; padding: 20px 24px; border-radius: 12px 12px 0 0;">
@@ -3930,7 +3932,7 @@ router.post("/spmo/comments", async (req, res) => {
             <div style="border: 1px solid #E2E8F0; border-top: none; padding: 24px; border-radius: 0 0 12px 12px;">
               <p style="margin: 0 0 12px;"><strong>${authorName}</strong> mentioned you in <strong>${entityLabel}</strong>:</p>
               <blockquote style="margin: 12px 0; padding: 12px 16px; background: #F8FAFC; border-left: 3px solid #2563EB; border-radius: 4px; color: #334155; font-size: 14px;">
-                ${body.data.body.slice(0, 300).replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+                ${cleanBody.slice(0, 300).replace(/</g, "&lt;").replace(/>/g, "&gt;")}
               </blockquote>
               <a href="${fullLink}" style="display: inline-block; margin-top: 16px; padding: 10px 24px; background: #2563EB; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
                 View Discussion →
@@ -3940,7 +3942,7 @@ router.post("/spmo/comments", async (req, res) => {
               </p>
             </div>
           </div>`;
-        const textBody = `${authorName} mentioned you in ${entityLabel}:\n\n"${body.data.body.slice(0, 300)}"\n\nView: ${fullLink}`;
+        const textBody = `${authorName} mentioned you in ${entityLabel}:\n\n"${cleanBody.slice(0, 300)}"\n\nView: ${fullLink}`;
 
         // Send email — transport auto-detected (Resend > SendGrid > SMTP > console log)
         const { sendMentionEmail } = await import("../lib/mention-email.js");
