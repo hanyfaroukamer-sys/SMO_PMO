@@ -113,8 +113,16 @@ async function initiativeProgress(initiativeId: number): Promise<{
     projects.map(async (p) => {
       const s = await projectProgress(p.id);
       const projStatus = computeStatus(s.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, s.rawProgress);
+
+      // Weight cascade: budget → sum of milestone effortDays → equal weight
+      let projectWeight = p.budget ?? 0;
+      if (projectWeight === 0) {
+        const milestones = await db.select({ effortDays: spmoMilestonesTable.effortDays }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
+        projectWeight = milestones.reduce((sum, m) => sum + (m.effortDays ?? 0), 0);
+      }
+
       const budgetWeight = totalBudget > 0 ? ((p.budget ?? 0) / totalBudget) * 100 : (100 / projects.length);
-      return { value: s.progress, rawValue: s.rawProgress, weight: p.budget ?? 0, ...s, budgetSpent: p.budgetSpent ?? 0, projStatus, name: p.name, projectCode: p.projectCode ?? null, budgetWeight };
+      return { value: s.progress, rawValue: s.rawProgress, weight: projectWeight, ...s, budgetSpent: p.budgetSpent ?? 0, projStatus, name: p.name, projectCode: p.projectCode ?? null, budgetWeight };
     })
   );
 
@@ -173,7 +181,20 @@ async function pillarProgress(pillarId: number): Promise<{
   const initiativeStats = await Promise.all(
     initiatives.map(async (i) => {
       const s = await initiativeProgress(i.id);
-      return { value: s.progress, weight: i.budget ?? 0, ...s };
+      // Weight cascade: initiative budget → sum of child project budgets → sum of milestone effortDays → equal
+      let initWeight = i.budget ?? 0;
+      if (initWeight === 0) {
+        const childProjects = await db.select({ budget: spmoProjectsTable.budget }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id));
+        initWeight = childProjects.reduce((sum, p) => sum + (p.budget ?? 0), 0);
+      }
+      if (initWeight === 0) {
+        const childProjectIds = (await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id))).map((p) => p.id);
+        if (childProjectIds.length > 0) {
+          const milestones = await db.select({ effortDays: spmoMilestonesTable.effortDays }).from(spmoMilestonesTable).where(inArray(spmoMilestonesTable.projectId, childProjectIds));
+          initWeight = milestones.reduce((sum, m) => sum + (m.effortDays ?? 0), 0);
+        }
+      }
+      return { value: s.progress, weight: initWeight, ...s };
     })
   );
 
