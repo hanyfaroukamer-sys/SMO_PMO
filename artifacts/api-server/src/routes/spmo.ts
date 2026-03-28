@@ -3674,13 +3674,14 @@ router.post("/spmo/comments", async (req, res) => {
     authorName: getUserDisplayName(user),
   }).returning();
 
-  // Create notification for relevant owner
+  // Create notification for relevant owner + resolve entity context
   let notifyUserId: string | null = null;
   let entityName = "";
   let entityLink = "";
+  let projectIdForLink: number | null = null;
   if (body.data.entityType === "project") {
     const [proj] = await db.select({ ownerId: spmoProjectsTable.ownerId, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, body.data.entityId)).limit(1);
-    if (proj) { notifyUserId = proj.ownerId; entityName = proj.name; entityLink = `/projects/${body.data.entityId}`; }
+    if (proj) { notifyUserId = proj.ownerId; entityName = proj.name; entityLink = `/projects/${body.data.entityId}?tab=discussion`; }
   } else if (body.data.entityType === "milestone") {
     const [ms] = await db.select({ projectId: spmoMilestonesTable.projectId, name: spmoMilestonesTable.name }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, body.data.entityId)).limit(1);
     if (ms) {
@@ -3702,6 +3703,27 @@ router.post("/spmo/comments", async (req, res) => {
       link: entityLink,
       entityType: body.data.entityType, entityId: body.data.entityId,
     });
+  }
+
+  // Parse @mentions in comment body and create "mention" notifications
+  // Matches patterns like @[User Name](userId) or @UserName
+  const mentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+  let mentionMatch;
+  const mentionedUserIds = new Set<string>();
+  while ((mentionMatch = mentionRegex.exec(body.data.body)) !== null) {
+    const mentionedUserId = mentionMatch[2];
+    if (mentionedUserId && mentionedUserId !== userId && !mentionedUserIds.has(mentionedUserId)) {
+      mentionedUserIds.add(mentionedUserId);
+      await db.insert(spmoNotificationsTable).values({
+        userId: mentionedUserId,
+        type: "mention",
+        title: `${getUserDisplayName(user) ?? "Someone"} mentioned you`,
+        body: body.data.body.slice(0, 200),
+        link: entityLink || null,
+        entityType: body.data.entityType,
+        entityId: body.data.entityId,
+      });
+    }
   }
 
   res.status(201).json(row);
