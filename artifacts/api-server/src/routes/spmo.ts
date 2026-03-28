@@ -3942,18 +3942,16 @@ router.post("/spmo/comments", async (req, res) => {
           </div>`;
         const textBody = `${authorName} mentioned you in ${entityLabel}:\n\n"${body.data.body.slice(0, 300)}"\n\nView: ${fullLink}`;
 
-        // Use the platform's email transport if available
-        if (process.env.SMTP_HOST || process.env.SENDGRID_API_KEY || process.env.REPLIT_DEPLOY_URL) {
-          const { sendMentionEmail } = await import("../lib/mention-email.js");
-          await sendMentionEmail({
-            to: mentionedUser.email,
-            subject,
-            html: htmlBody,
-            text: textBody,
-          }).catch((err: unknown) => {
-            req.log.warn({ err, to: mentionedUser.email }, "Failed to send mention email (non-fatal)");
-          });
-        }
+        // Send email — transport auto-detected (Resend > SendGrid > SMTP > console log)
+        const { sendMentionEmail } = await import("../lib/mention-email.js");
+        await sendMentionEmail({
+          to: mentionedUser.email,
+          subject,
+          html: htmlBody,
+          text: textBody,
+        }).catch((err: unknown) => {
+          req.log.warn({ err, to: mentionedUser.email }, "Failed to send mention email (non-fatal)");
+        });
       }
     } catch (emailErr) {
       req.log.warn({ err: emailErr, mentionedUserId }, "Failed to send mention email (non-fatal)");
