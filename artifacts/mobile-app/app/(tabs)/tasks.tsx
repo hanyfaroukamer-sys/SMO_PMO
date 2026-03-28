@@ -37,7 +37,7 @@ export default function TasksScreen() {
 
   const { data, isLoading, refetch } = useQuery<{
     taskCount: number; criticalCount: number; highCount: number;
-    tasks: { id: string; type: string; priority: string; title: string; subtitle: string; action: string; link: string }[];
+    tasks: { id: string; type: string; priority: string; title: string; subtitle: string; action: string; link: string; entityType?: string; entityId?: number; projectId?: number }[];
   }>({
     queryKey: ["/spmo/my-tasks"],
     queryFn: async () => {
@@ -113,8 +113,13 @@ export default function TasksScreen() {
               {g.tasks.map((task) => (
                 <TaskItem key={task.id} task={task} onPress={() => {
                   if (task.link.startsWith("/projects/")) {
-                    const id = task.link.split("/")[2]?.split("?")[0];
-                    if (id) router.push(`/projects/${id}` as never);
+                    const parts = task.link.split("?");
+                    const id = parts[0].split("/")[2];
+                    const tab = new URLSearchParams(parts[1] ?? "").get("tab");
+                    if (id) router.push({ pathname: `/projects/${id}` as never, params: { ...(tab ? { tab } : {}), ...(task.entityType === "milestone" && task.entityId ? { milestoneId: String(task.entityId) } : {}) } });
+                  } else if (task.type === "approval") {
+                    // Navigate to Approvals tab
+                    router.push("/(tabs)/approvals" as never);
                   }
                 }} />
               ))}
