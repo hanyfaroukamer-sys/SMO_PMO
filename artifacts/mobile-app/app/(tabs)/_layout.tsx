@@ -2,25 +2,22 @@ import { Tabs } from "expo-router";
 import { View, Text } from "react-native";
 import { useAuth } from "@/providers/AuthProvider";
 import { useQuery } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
 
 const API = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
   : "http://localhost:3000";
 
-function TabIcon({ name, focused, badge }: { name: string; focused: boolean; badge?: number }) {
-  const icons: Record<string, string> = { home: "🏠", approvals: "✅", inbox: "📥", projects: "📊", profile: "👤" };
+function TabBadge({ count, focused }: { count: number; focused: boolean }) {
+  if (count <= 0) return null;
   return (
-    <View style={{ alignItems: "center", position: "relative" }}>
-      <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.45 }}>{icons[name] ?? "●"}</Text>
-      {(badge ?? 0) > 0 && (
-        <View style={{
-          position: "absolute", top: -4, right: -10,
-          backgroundColor: "#EF4444", borderRadius: 10, minWidth: 18, height: 18,
-          alignItems: "center", justifyContent: "center", paddingHorizontal: 4,
-        }}>
-          <Text style={{ color: "#FFF", fontSize: 10, fontWeight: "800" }}>{badge! > 99 ? "99+" : badge}</Text>
-        </View>
-      )}
+    <View style={{
+      position: "absolute", top: -6, right: -12,
+      backgroundColor: "#EF4444", borderRadius: 10, minWidth: 18, height: 18,
+      alignItems: "center", justifyContent: "center", paddingHorizontal: 4,
+      borderWidth: 2, borderColor: "#FFF",
+    }}>
+      <Text style={{ color: "#FFF", fontSize: 9, fontWeight: "800" }}>{count > 99 ? "99+" : count}</Text>
     </View>
   );
 }
@@ -34,6 +31,7 @@ export default function TabsLayout() {
       const res = await fetch(`${API}/api/spmo/my-tasks/count`, {
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
       });
+      if (!res.ok) throw new Error(`API ${res.status}`);
       return res.json();
     },
     enabled: !!accessToken,
@@ -46,6 +44,7 @@ export default function TabsLayout() {
       const res = await fetch(`${API}/api/spmo/pending-approvals`, {
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
       });
+      if (!res.ok) throw new Error(`API ${res.status}`);
       return res.json();
     },
     enabled: !!accessToken,
@@ -67,11 +66,11 @@ export default function TabsLayout() {
           shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.08,
           shadowRadius: 12,
-          height: 64,
-          paddingBottom: 8,
-          paddingTop: 8,
+          height: 60,
+          paddingBottom: 6,
+          paddingTop: 6,
         },
-        tabBarLabelStyle: { fontSize: 9, fontWeight: "700", letterSpacing: 0.2 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
         headerStyle: { backgroundColor: "#0F172A", elevation: 0, shadowOpacity: 0 },
         headerTitleStyle: { color: "#FFFFFF", fontWeight: "bold", fontSize: 17 },
         headerTintColor: "#FFFFFF",
@@ -82,7 +81,11 @@ export default function TabsLayout() {
         options={{
           title: "Home",
           headerTitle: "StrategyPMO",
-          tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <View style={{ alignItems: "center", position: "relative" }}>
+              <Ionicons name={focused ? "home" : "home-outline"} size={22} color={focused ? "#2563EB" : "#94A3B8"} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
@@ -90,29 +93,45 @@ export default function TabsLayout() {
         options={{
           title: "Approvals",
           headerTitle: "Pending Approvals",
-          tabBarIcon: ({ focused }) => <TabIcon name="approvals" focused={focused} badge={pendingApprovals} />,
+          tabBarIcon: ({ focused }) => (
+            <View style={{ alignItems: "center", position: "relative" }}>
+              <Ionicons name={focused ? "checkmark-circle" : "checkmark-circle-outline"} size={22} color={focused ? "#2563EB" : "#94A3B8"} />
+              <TabBadge count={pendingApprovals} focused={focused} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="tasks"
         options={{
-          title: "Inbox",
+          title: "Tasks",
           headerTitle: "My Tasks",
-          tabBarIcon: ({ focused }) => <TabIcon name="inbox" focused={focused} badge={taskCount?.total} />,
+          tabBarIcon: ({ focused }) => (
+            <View style={{ alignItems: "center", position: "relative" }}>
+              <Ionicons name={focused ? "checkbox" : "checkbox-outline"} size={22} color={focused ? "#2563EB" : "#94A3B8"} />
+              <TabBadge count={taskCount?.total ?? 0} focused={focused} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="projects"
         options={{
           title: "Projects",
-          tabBarIcon: ({ focused }) => <TabIcon name="projects" focused={focused} />,
+          headerTitle: "My Projects",
+          tabBarIcon: ({ focused }) => (
+            <Ionicons name={focused ? "folder" : "folder-outline"} size={22} color={focused ? "#2563EB" : "#94A3B8"} />
+          ),
         }}
       />
       <Tabs.Screen
         name="more"
         options={{
-          title: "Profile",
-          tabBarIcon: ({ focused }) => <TabIcon name="profile" focused={focused} />,
+          title: "More",
+          headerTitle: "More",
+          tabBarIcon: ({ focused }) => (
+            <Ionicons name={focused ? "grid" : "grid-outline"} size={22} color={focused ? "#2563EB" : "#94A3B8"} />
+          ),
         }}
       />
     </Tabs>

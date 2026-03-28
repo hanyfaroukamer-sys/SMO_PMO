@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator } from "react-native";
 import { useState, useCallback } from "react";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useApi, apiFetch } from "@/utils/api";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -64,7 +65,7 @@ export default function NotificationsScreen() {
 
       {!isLoading && notifications.length === 0 && (
         <View style={{ alignItems: "center", paddingVertical: 64 }}>
-          <Text style={{ fontSize: 48, marginBottom: 12 }}>🔔</Text>
+          <Ionicons name="notifications-off-outline" size={48} color="#CBD5E1" style={{ marginBottom: 12 }} />
           <Text style={{ fontSize: 18, fontWeight: "bold", color: "#0F172A" }}>No notifications yet</Text>
           <Text style={{ fontSize: 13, color: "#64748B", marginTop: 4, textAlign: "center" }}>Updates will appear here when someone comments or assigns tasks.</Text>
         </View>
