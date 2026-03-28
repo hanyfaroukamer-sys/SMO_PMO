@@ -131,17 +131,17 @@ export async function seedTestData(): Promise<TestSeeds> {
     color: "#3B82F6",
   }).returning();
 
-  // Pillars
+  // Pillars — use weight 0 so multiple parallel test workers don't push total over 100%
   const [pillar] = await db.insert(spmoPillarsTable).values({
     name: uid(),
     description: "E2E test pillar",
-    weight: 50,
+    weight: 0,
   }).returning();
 
   const [pillar2] = await db.insert(spmoPillarsTable).values({
     name: uid(),
     description: "E2E test pillar 2",
-    weight: 50,
+    weight: 0,
   }).returning();
 
   // Initiatives
@@ -188,11 +188,11 @@ export async function seedTestData(): Promise<TestSeeds> {
     weight: 40,
   }).returning();
 
-  // Milestones
+  // Milestones — weights sum to 70 (leaving room for tests to add milestones with weight up to 30)
   const [ms] = await db.insert(spmoMilestonesTable).values({
     projectId: project.id,
     name: uid(),
-    weight: 60,
+    weight: 40,
     progress: 50,
     status: "in_progress",
     startDate: "2025-01-01",
@@ -202,7 +202,7 @@ export async function seedTestData(): Promise<TestSeeds> {
   const [ms2] = await db.insert(spmoMilestonesTable).values({
     projectId: project.id,
     name: uid(),
-    weight: 40,
+    weight: 30,
     progress: 0,
     status: "not_started",
     startDate: "2025-07-01",

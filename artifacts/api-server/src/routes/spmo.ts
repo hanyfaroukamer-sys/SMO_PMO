@@ -143,6 +143,10 @@ function requireAdmin(
   res: Parameters<Parameters<typeof router.get>[1]>[1],
 ): boolean {
   const user = getAuthUser(req);
+  if (!user?.id) {
+    res.status(401).json({ error: "Authentication required" });
+    return false;
+  }
   if (user?.role !== "admin") {
     res.status(403).json({ error: "Admin access required" });
     return false;
@@ -1041,7 +1045,8 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
 router.delete("/spmo/projects/:id", async (req, res): Promise<void> => {
   // Only admins can delete projects (destructive — cascades milestones, evidence, risks etc.)
   if (!requireAdmin(req, res)) return;
-  const userId = getAuthUser(req)?.id ?? "";
+  const user = getAuthUser(req);
+  const userId = user?.id ?? "";
 
   const params = DeleteSpmoProjectParams.safeParse(req.params);
   if (!params.success) {
@@ -1137,6 +1142,55 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
   const insertMilestone: InsertSpmoMilestone = {
     ...parsed.data,
     projectId: params.data.id,
+    startDate: parsed.data.startDate ? dateToStr(parsed.data.startDate) : undefined,
+    dueDate: dateToStr(parsed.data.dueDate),
+  };
+  const [milestone] = await db
+    .insert(spmoMilestonesTable)
+    .values(insertMilestone)
+    .returning();
+
+  await logSpmoActivity(userId, getUserDisplayName(user), "created", "milestone", milestone.id, milestone.name);
+  res.status(201).json(milestone);
+});
+
+// Flat milestone create — accepts projectId in body (used by mobile/permission tests)
+router.post("/spmo/milestones", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const projectIdParsed = z.object({ projectId: z.number() }).safeParse(req.body);
+  if (!projectIdParsed.success) {
+    res.status(400).json({ error: "projectId (number) is required" });
+    return;
+  }
+  const { projectId } = projectIdParsed.data;
+
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, projectId, "canManageMilestones"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
+  const parsed = CreateSpmoMilestoneBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const siblings = await db
+    .select()
+    .from(spmoMilestonesTable)
+    .where(eq(spmoMilestonesTable.projectId, projectId));
+  const siblingWeightSum = siblings.reduce((s, m) => s + (m.weight ?? 0), 0);
+  if (siblingWeightSum + parsed.data.weight > 100) {
+    res.status(400).json({ error: `Milestone weights would exceed 100% (siblings already use ${Math.round(siblingWeightSum)}%)` });
+    return;
+  }
+
+  const insertMilestone: InsertSpmoMilestone = {
+    ...parsed.data,
+    projectId,
     startDate: parsed.data.startDate ? dateToStr(parsed.data.startDate) : undefined,
     dueDate: dateToStr(parsed.data.dueDate),
   };
@@ -1857,14 +1911,24 @@ router.post("/spmo/risks", async (req, res): Promise<void> => {
   const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
+  // Check permission before full body validation so we return 403 not 400
+  const user = getAuthUser(req);
+  const quickParse = z.object({ projectId: z.number().optional() }).safeParse(req.body);
+  const quickProjectId = quickParse.success ? quickParse.data.projectId : undefined;
+  if (quickProjectId !== undefined) {
+    if (!(await checkProjectPerm(userId, user?.role, quickProjectId, "canManageRisks"))) {
+      res.status(403).json({ error: "You do not have edit access to this project" });
+      return;
+    }
+  }
+
   const parsed = CreateSpmoRiskBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const user = getAuthUser(req);
-  if (!(await checkProjectPerm(userId, user?.role, parsed.data.projectId, "canManageRisks"))) {
+  if (parsed.data.projectId !== undefined && !(await checkProjectPerm(userId, user?.role, parsed.data.projectId, "canManageRisks"))) {
     res.status(403).json({ error: "You do not have edit access to this project" });
     return;
   }
@@ -2097,14 +2161,24 @@ router.post("/spmo/budget", async (req, res): Promise<void> => {
   const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
+  // Check permission before full body validation so we return 403 not 400
+  const user = getAuthUser(req);
+  const quickBudget = z.object({ projectId: z.number().optional() }).safeParse(req.body);
+  const quickProjectId = quickBudget.success ? quickBudget.data.projectId : undefined;
+  if (quickProjectId !== undefined) {
+    if (!(await checkProjectPerm(userId, user?.role, quickProjectId, "canManageBudget"))) {
+      res.status(403).json({ error: "You do not have edit access to this project" });
+      return;
+    }
+  }
+
   const parsed = CreateSpmoBudgetEntryBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const user = getAuthUser(req);
-  if (!(await checkProjectPerm(userId, user?.role, parsed.data.projectId, "canManageBudget"))) {
+  if (parsed.data.projectId !== undefined && !(await checkProjectPerm(userId, user?.role, parsed.data.projectId, "canManageBudget"))) {
     res.status(403).json({ error: "You do not have edit access to this project" });
     return;
   }

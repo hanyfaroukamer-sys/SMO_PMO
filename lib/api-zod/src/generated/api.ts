@@ -905,13 +905,16 @@ export const CreateSpmoInitiativeBody = zod.object({
   initiativeCode: zod.string().optional().nullable(),
   name: zod.string().min(1),
   description: zod.string().optional(),
-  ownerId: zod.string(),
+  ownerId: zod.string().optional(),
   startDate: zod.coerce.date(),
   targetDate: zod.coerce.date(),
+  budget: zod.number().optional(),
   weight: zod
     .number()
     .min(createSpmoInitiativeBodyWeightMin)
-    .max(createSpmoInitiativeBodyWeightMax),
+    .max(createSpmoInitiativeBodyWeightMax)
+    .optional()
+    .default(0),
   status: zod.enum(["active", "on_hold", "completed", "cancelled"]).optional(),
 });
 
