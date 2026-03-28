@@ -1434,6 +1434,49 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
     }
   }
 
+  const [resettingToDuration, setResettingToDuration] = useState(false);
+  async function resetWeightsToDuration() {
+    if (milestones.length === 0) return;
+    // Compute weights purely from date duration, ignoring effortDays
+    const items = milestones.map((m) => {
+      let days = 0;
+      if (m.startDate && m.dueDate) {
+        days = Math.max(1, Math.round((new Date(m.dueDate).getTime() - new Date(m.startDate).getTime()) / 86_400_000));
+      }
+      return { id: m.id, value: days };
+    });
+    const totalDays = items.reduce((s, i) => s + i.value, 0);
+    if (totalDays === 0) {
+      toast({ variant: "destructive", title: "No dates", description: "Milestones need start and due dates to compute duration-based weights." });
+      return;
+    }
+    // Also set effortDays to the duration so the data is consistent
+    setResettingToDuration(true);
+    try {
+      // Update each milestone's effortDays to its duration + set weight proportionally
+      const exact = items.map((i) => ({ id: i.id, exact: (i.value / totalDays) * 100 }));
+      const floored = exact.map((e) => ({ id: e.id, floor: Math.floor(e.exact), rem: e.exact - Math.floor(e.exact) }));
+      let remainder = 100 - floored.reduce((s, e) => s + e.floor, 0);
+      floored.sort((a, b) => b.rem - a.rem);
+      const weightMap = new Map<number, number>();
+      floored.forEach((e, i) => weightMap.set(e.id, e.floor + (i < remainder ? 1 : 0)));
+
+      // Update effortDays on each milestone to match its duration
+      for (const item of items) {
+        if (item.value > 0) {
+          await updateMutation.mutateAsync({ id: item.id, data: { effortDays: item.value, weight: weightMap.get(item.id) ?? 0 } });
+        }
+      }
+      invalidate();
+      toast({ title: "Reset to duration", description: "Effort days and weights set from milestone date ranges" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed";
+      toast({ variant: "destructive", title: "Reset failed", description: msg });
+    } finally {
+      setResettingToDuration(false);
+    }
+  }
+
   function handleDelete(id: number, name: string) {
     if (!confirm(`Delete milestone "${name}"?`)) return;
     deleteMutation.mutate({ id }, {
@@ -1548,17 +1591,30 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
               </span>
               <div className="flex items-center gap-2 shrink-0">
                 {isAdmin && (
-                  <button
-                    onClick={applyAutoWeights}
-                    disabled={applyingAutoWeights}
-                    className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded border border-current hover:opacity-70 transition-opacity disabled:opacity-40"
-                    title="Recalculate all weights proportionally from effort days"
-                  >
-                    {applyingAutoWeights
-                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                      : <RotateCcw className="w-3 h-3" />}
-                    Auto-weight
-                  </button>
+                  <>
+                    <button
+                      onClick={applyAutoWeights}
+                      disabled={applyingAutoWeights}
+                      className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded border border-current hover:opacity-70 transition-opacity disabled:opacity-40"
+                      title="Recalculate weights from effort days (or dates if no effort)"
+                    >
+                      {applyingAutoWeights
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <RotateCcw className="w-3 h-3" />}
+                      Auto-weight
+                    </button>
+                    <button
+                      onClick={resetWeightsToDuration}
+                      disabled={resettingToDuration}
+                      className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded border border-blue-400 text-blue-600 hover:opacity-70 transition-opacity disabled:opacity-40"
+                      title="Reset effort days and weights from milestone date ranges (overrides effort days)"
+                    >
+                      {resettingToDuration
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <Calendar className="w-3 h-3" />}
+                      Duration
+                    </button>
+                  </>
                 )}
                 <span className="w-16 text-right">{Math.max(0, Math.round(100 - totalWeight))}% left</span>
               </div>
