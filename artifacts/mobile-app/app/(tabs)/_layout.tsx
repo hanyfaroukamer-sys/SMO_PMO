@@ -8,10 +8,10 @@ const API = process.env.EXPO_PUBLIC_DOMAIN
   : "http://localhost:3000";
 
 function TabIcon({ name, focused, badge }: { name: string; focused: boolean; badge?: number }) {
-  const icons: Record<string, string> = { home: "🏠", inbox: "📥", projects: "📊", profile: "👤" };
+  const icons: Record<string, string> = { home: "🏠", approvals: "✅", inbox: "📥", projects: "📊", profile: "👤" };
   return (
     <View style={{ alignItems: "center", position: "relative" }}>
-      <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>{icons[name] ?? "●"}</Text>
+      <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.45 }}>{icons[name] ?? "●"}</Text>
       {(badge ?? 0) > 0 && (
         <View style={{
           position: "absolute", top: -4, right: -10,
@@ -27,6 +27,7 @@ function TabIcon({ name, focused, badge }: { name: string; focused: boolean; bad
 
 export default function TabsLayout() {
   const { accessToken } = useAuth();
+
   const { data: taskCount } = useQuery<{ total: number }>({
     queryKey: ["/spmo/my-tasks/count"],
     queryFn: async () => {
@@ -38,6 +39,20 @@ export default function TabsLayout() {
     enabled: !!accessToken,
     refetchInterval: 30_000,
   });
+
+  const { data: approvalsData } = useQuery<{ items: unknown[] }>({
+    queryKey: ["/spmo/pending-approvals"],
+    queryFn: async () => {
+      const res = await fetch(`${API}/api/spmo/pending-approvals`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
+      return res.json();
+    },
+    enabled: !!accessToken,
+    refetchInterval: 30_000,
+  });
+
+  const pendingApprovals = approvalsData?.items?.length ?? 0;
 
   return (
     <Tabs
@@ -56,12 +71,8 @@ export default function TabsLayout() {
           paddingBottom: 8,
           paddingTop: 8,
         },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
-        headerStyle: {
-          backgroundColor: "#0F172A",
-          elevation: 0,
-          shadowOpacity: 0,
-        },
+        tabBarLabelStyle: { fontSize: 9, fontWeight: "700", letterSpacing: 0.2 },
+        headerStyle: { backgroundColor: "#0F172A", elevation: 0, shadowOpacity: 0 },
         headerTitleStyle: { color: "#FFFFFF", fontWeight: "bold", fontSize: 17 },
         headerTintColor: "#FFFFFF",
       }}
@@ -72,6 +83,14 @@ export default function TabsLayout() {
           title: "Home",
           headerTitle: "StrategyPMO",
           tabBarIcon: ({ focused }) => <TabIcon name="home" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="approvals"
+        options={{
+          title: "Approvals",
+          headerTitle: "Pending Approvals",
+          tabBarIcon: ({ focused }) => <TabIcon name="approvals" focused={focused} badge={pendingApprovals} />,
         }}
       />
       <Tabs.Screen
