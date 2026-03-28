@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { readFileSync, existsSync } from "fs";
-import { resolve, dirname } from "path";
+import { resolve } from "path";
 
 export async function seedIfEmpty(): Promise<void> {
   const forceReseed = process.env.FORCE_RESEED === "1" || process.env.FORCE_RESEED === "true";
@@ -14,12 +14,12 @@ export async function seedIfEmpty(): Promise<void> {
     `);
     const { pillars, projects } = res.rows[0] as { pillars: number; projects: number };
 
-    if (pillars >= 9 && projects >= 50) {
-      console.log(`[seed] Data already present (${pillars} pillars, ${projects} projects) — skipping full seed.`);
+    if (pillars > 0 || projects > 0) {
+      console.log(`[seed] Data already present (${pillars} pillars, ${projects} projects) — skipping seed.`);
       return;
     }
 
-    console.log(`[seed] Incomplete data detected (${pillars} pillars, ${projects} projects) — reloading full dataset...`);
+    console.log(`[seed] Empty database detected — loading seed dataset...`);
   } else {
     console.log("[seed] FORCE_RESEED=1 — forcing full dataset reload...");
   }
@@ -49,15 +49,10 @@ export async function seedIfEmpty(): Promise<void> {
 
   const demoMode = process.env.DEMO_MODE === "1" || process.env.DEMO_MODE === "true";
   const seedFile = demoMode ? "seed-demo.sql" : "seed-full.sql";
-  console.log(`[seed] Loading ${demoMode ? "DEMO (NSA)" : "full (KFCA)"} dataset from ${seedFile}…`);
+  console.log(`[seed] Loading ${demoMode ? "demo" : "full"} dataset from ${seedFile}…`);
 
-  let seedPath: string;
-  if (typeof __dirname !== "undefined") {
-    seedPath = resolve(__dirname, seedFile);
-  } else {
-    const { fileURLToPath } = await import("url");
-    seedPath = resolve(dirname(fileURLToPath(import.meta.url)), seedFile);
-  }
+  // In CJS builds (production), __dirname is always available
+  const seedPath = resolve(__dirname, seedFile);
   if (!existsSync(seedPath)) {
     console.log(`[seed] ${seedFile} not found at ${seedPath} — skipping.`);
     return;

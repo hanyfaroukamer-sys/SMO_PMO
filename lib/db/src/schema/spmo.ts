@@ -97,6 +97,12 @@ export const spmoDepartmentsTable = pgTable("spmo_departments", {
   name: text("name").notNull(),
   description: text("description"),
   color: text("color").notNull().default("#3B82F6"),
+  headName: text("head_name"),
+  headEmail: text("head_email"),
+  taskReminderCcUserId: text("task_reminder_cc_user_id"),
+  taskReminderCcName: text("task_reminder_cc_name"),
+  weeklyOverdueCcUserId: text("weekly_overdue_cc_user_id"),
+  weeklyOverdueCcName: text("weekly_overdue_cc_name"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -515,6 +521,10 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   projectAtRiskThreshold: integer("project_at_risk_threshold").notNull().default(5),
   projectDelayedThreshold: integer("project_delayed_threshold").notNull().default(10),
   milestoneAtRiskThreshold: integer("milestone_at_risk_threshold").notNull().default(5),
+  riskAlertThreshold: integer("risk_alert_threshold").notNull().default(9),
+  reminderDaysAhead: integer("reminder_days_ahead").notNull().default(3),
+  weeklyReportDeadlineHour: integer("weekly_report_deadline_hour").notNull().default(15),
+  weeklyReportCcEmails: text("weekly_report_cc_emails"),
   weeklyResetDay: integer("weekly_reset_day").notNull().default(3),
   lastAiAssessment: jsonb("last_ai_assessment"),
   lastAiAssessmentAt: timestamp("last_ai_assessment_at", { withTimezone: true }),
@@ -773,3 +783,75 @@ export const insertSpmoDependencySchema = createInsertSchema(spmoDependenciesTab
 });
 export type InsertSpmoDependency = z.infer<typeof insertSpmoDependencySchema>;
 export type SpmoDependency = typeof spmoDependenciesTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// COMMENTS (discussion threads on any entity)
+// ─────────────────────────────────────────────
+export const spmoCommentsTable = pgTable("spmo_comments", {
+  id: serial("id").primaryKey(),
+  entityType: text("entity_type", { enum: ["project", "milestone", "risk", "kpi", "initiative"] }).notNull(),
+  entityId: integer("entity_id").notNull(),
+  parentId: integer("parent_id"),
+  authorId: text("author_id").notNull(),
+  authorName: text("author_name"),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  index("idx_comments_entity").on(t.entityType, t.entityId),
+]);
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS (in-app bell icon)
+// ─────────────────────────────────────────────
+export const spmoNotificationsTable = pgTable("spmo_notifications", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  type: text("type", { enum: ["comment", "approval", "assignment", "mention", "alert"] }).notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  link: text("link"),
+  read: boolean("read").notNull().default(false),
+  entityType: text("entity_type"),
+  entityId: integer("entity_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_notifications_user").on(t.userId),
+]);
+
+
+// ─────────────────────────────────────────────
+// PROJECT ACCESS GRANTS
+// ─────────────────────────────────────────────
+export const spmoProjectAccessTable = pgTable(
+  "spmo_project_access",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => spmoProjectsTable.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    userName: text("user_name"),
+    userEmail: text("user_email"),
+    grantedById: text("granted_by_id").notNull(),
+    grantedByName: text("granted_by_name"),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+    // ── Fine-grained permission flags ──────────────────────────────────
+    canEditDetails:          boolean("can_edit_details").notNull().default(true),
+    canManageMilestones:     boolean("can_manage_milestones").notNull().default(true),
+    canSubmitReports:        boolean("can_submit_reports").notNull().default(true),
+    canManageRisks:          boolean("can_manage_risks").notNull().default(true),
+    canManageBudget:         boolean("can_manage_budget").notNull().default(false),
+    canManageDocuments:      boolean("can_manage_documents").notNull().default(true),
+    canManageActions:        boolean("can_manage_actions").notNull().default(true),
+    canManageRaci:           boolean("can_manage_raci").notNull().default(false),
+    canSubmitChangeRequests: boolean("can_submit_change_requests").notNull().default(true),
+  },
+  (t) => [
+    unique("uniq_project_access").on(t.projectId, t.userId),
+    index("idx_project_access_project_id").on(t.projectId),
+    index("idx_project_access_user_id").on(t.userId),
+  ],
+);
+
+export type SpmoProjectAccess = typeof spmoProjectAccessTable.$inferSelect;

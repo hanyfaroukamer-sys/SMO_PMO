@@ -1,5 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { CommandPalette, SearchTrigger } from "@/components/command-palette";
+import { NotificationBell } from "@/components/notification-bell";
 import {
   LayoutDashboard,
   Network,
@@ -24,6 +26,8 @@ import {
   Flag,
   FolderOpen,
   ClipboardList,
+  FolderKanban,
+  Stethoscope,
   Menu,
   X,
 } from "lucide-react";
@@ -31,25 +35,34 @@ import { cn } from "@/lib/utils";
 import { useGetCurrentAuthUser, useGetSpmoMyTaskCount } from "@workspace/api-client-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+// ── Project Manager items (everyone sees these) ──
+const pmNavItems = [
+  { title: "Dashboard",        href: "/",             icon: LayoutDashboard, badge: false },
+  { title: "My Tasks",         href: "/my-tasks",     icon: ClipboardList,   badge: true },
+  { title: "My Projects",      href: "/my-projects",  icon: FolderKanban,    badge: false },
+  { title: "Projects",         href: "/projects",     icon: Briefcase,       badge: false },
+  { title: "KPIs",             href: "/kpis",         icon: LineChart,       badge: false },
+  { title: "Risks",            href: "/risks",        icon: ShieldAlert,     badge: false },
+  { title: "Documents",        href: "/documents",    icon: FolderOpen,      badge: false },
+];
+
+// ── PMO Administration items (admin only) ──
+const adminNavItems = [
+  { title: "Strategy Map",        href: "/strategy-map", icon: Network,      badge: false },
+  { title: "Pillars & Initiatives", href: "/pillars",    icon: Layers,       badge: false },
+  { title: "Financials",          href: "/budget",       icon: Wallet,       badge: false },
+  { title: "Departments",         href: "/departments",  icon: Building2,    badge: false },
+  { title: "Dependencies",        href: "/dependencies", icon: GitMerge,     badge: false },
+  { title: "Progress Proof",      href: "/progress",     icon: CheckSquare,  badge: false },
+  { title: "Monitoring",          href: "/alerts",       icon: BellRing,     badge: false },
+  { title: "Import Data",         href: "/import",       icon: Upload,       badge: false },
+  { title: "Diagnostics",         href: "/admin/diagnostics", icon: Stethoscope, badge: false },
+];
+
+// Legacy compat — build flat list for rendering logic
 const navItems = [
-  { title: "Dashboard",        href: "/",             icon: LayoutDashboard, adminOnly: false, hidden: false },
-  { title: "My Tasks",         href: "/my-tasks",     icon: ClipboardList,    adminOnly: false, hidden: false, badge: true },
-  { title: "Strategy Map",     href: "/strategy-map", icon: Network,          adminOnly: false, hidden: false },
-  { title: "Pillars & Enablers", href: "/pillars",    icon: Layers,           adminOnly: true,  hidden: false },
-  { title: "Initiatives",      href: "/initiatives",  icon: Flag,             adminOnly: true,  hidden: false },
-  { title: "Projects",         href: "/projects",     icon: Briefcase,        adminOnly: false, hidden: false },
-  { title: "Progress Proof",   href: "/progress",     icon: CheckSquare,      adminOnly: true,  hidden: false },
-  { title: "Strategic KPIs",   href: "/kpis",         icon: LineChart,        adminOnly: false, hidden: false },
-  { title: "Op. KPIs",         href: "/op-kpis",      icon: Activity,         adminOnly: false, hidden: false },
-  { title: "Budget",           href: "/budget",       icon: Wallet,           adminOnly: true,  hidden: false },
-  { title: "Procurement",      href: "/procurement",  icon: ShoppingCart,     adminOnly: true,  hidden: false },
-  { title: "Departments",      href: "/departments",  icon: Building2,        adminOnly: false, hidden: false },
-  { title: "Risks",            href: "/risks",        icon: ShieldAlert,      adminOnly: false, hidden: false },
-  { title: "Documents",        href: "/documents",    icon: FolderOpen,       adminOnly: false, hidden: false },
-  { title: "Dependencies",     href: "/dependencies", icon: GitMerge,         adminOnly: false, hidden: false },
-  { title: "Alerts",           href: "/alerts",       icon: BellRing,         adminOnly: true,  hidden: false },
-  { title: "Activity Log",     href: "/activity",     icon: ScrollText,       adminOnly: true,  hidden: false },
-  { title: "Import Strategy",  href: "/import",       icon: Upload,           adminOnly: true,  hidden: false },
+  ...pmNavItems.map((i) => ({ ...i, adminOnly: false, hidden: false })),
+  ...adminNavItems.map((i) => ({ ...i, adminOnly: true, hidden: false })),
 ];
 
 function Logo({ collapsed }: { collapsed: boolean }) {
@@ -73,8 +86,14 @@ function Logo({ collapsed }: { collapsed: boolean }) {
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { data: authData } = useGetCurrentAuthUser();
-  const { data: taskCount } = useGetSpmoMyTaskCount();
-  const [collapsed, setCollapsed] = useState(false);
+  const { data: taskCount } = useGetSpmoMyTaskCount({ refetchInterval: 30_000 });
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem("sidebar-collapsed") === "true"; } catch { return false; }
+  });
+  const toggleCollapsed = (v: boolean) => {
+    setCollapsed(v);
+    try { localStorage.setItem("sidebar-collapsed", String(v)); } catch { /* ignore */ }
+  };
   const [mobileOpen, setMobileOpen] = useState(false);
   const isMobile = useIsMobile();
   const user = authData?.user;
@@ -87,16 +106,35 @@ export function Layout({ children }: { children: ReactNode }) {
         <Logo collapsed={collapsed && !isMobile} />
       </div>
 
+      {/* Search trigger */}
+      <div className="px-1.5 pt-3 pb-1">
+        <SearchTrigger collapsed={collapsed && !isMobile} />
+      </div>
+
       {/* Nav items */}
-      <nav role="navigation" aria-label="Main navigation" className="flex-1 overflow-y-auto py-3 px-1.5 space-y-0.5 scrollbar-hide">
-        {navItems.filter((item) => !item.hidden && (!item.adminOnly || user?.role === "admin")).map((item) => {
+      <nav role="navigation" aria-label="Main navigation" className="flex-1 overflow-y-auto py-1 px-1.5 space-y-0.5 scrollbar-hide">
+        {navItems.filter((item) => !item.hidden && (!item.adminOnly || user?.role === "admin")).map((item, idx, arr) => {
+          const showDivider = idx > 0 && item.adminOnly && !arr[idx - 1].adminOnly;
           const isActive =
             location === item.href ||
             (item.href !== "/" && location.startsWith(item.href));
           const badge = (item as { badge?: boolean }).badge && myTasksBadge > 0 ? myTasksBadge : 0;
           return (
+            <div key={item.href}>
+            {showDivider && (
+              <div className="pt-3 pb-1.5 px-2.5">
+                {(isMobile || !collapsed) ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-px flex-1 bg-sidebar-border/40" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/30">Administration</span>
+                    <div className="h-px flex-1 bg-sidebar-border/40" />
+                  </div>
+                ) : (
+                  <div className="h-px bg-sidebar-border/40 mx-1" />
+                )}
+              </div>
+            )}
             <Link
-              key={item.href}
               href={item.href}
               onClick={() => isMobile && setMobileOpen(false)}
               className={cn(
@@ -130,6 +168,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 </span>
               )}
             </Link>
+            </div>
           );
         })}
         {user?.role === "admin" && (() => {
@@ -163,6 +202,10 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* User footer */}
       <div className="border-t border-sidebar-border/40 p-2 space-y-1.5">
+        {/* Notification bell */}
+        <div className={`flex items-center ${!isMobile && collapsed ? "justify-center" : "justify-end px-1"}`}>
+          <NotificationBell />
+        </div>
         {(isMobile || !collapsed) && (
           <div className="flex items-center gap-2 px-1 py-1">
             <div className="w-8 h-8 rounded-full bg-sidebar-accent border border-sidebar-border flex items-center justify-center overflow-hidden shrink-0 ring-1 ring-sidebar-border/60">
@@ -187,7 +230,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className={cn("flex gap-1", !isMobile && collapsed ? "flex-col" : "items-center")}>
           {!isMobile && (
             <button
-              onClick={() => setCollapsed(!collapsed)}
+              onClick={() => toggleCollapsed(!collapsed)}
               className="p-2 rounded-lg hover:bg-white/10 text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors"
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
@@ -270,6 +313,9 @@ export function Layout({ children }: { children: ReactNode }) {
           {children}
         </div>
       </main>
+
+      {/* Global search palette */}
+      <CommandPalette />
     </div>
   );
 }

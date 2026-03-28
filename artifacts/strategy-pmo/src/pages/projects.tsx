@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { UserMentionInput } from "@/components/user-mention-input";
 import {
   useListSpmoProjects,
   useListSpmoInitiatives,
@@ -302,6 +303,7 @@ type ProjectForm = {
   description: string;
   initiativeId: string;
   departmentId: string;
+  ownerId: string;
   ownerName: string;
   weight: string;
   status: string;
@@ -311,7 +313,7 @@ type ProjectForm = {
 };
 
 const emptyProject = (): ProjectForm => ({
-  name: "", projectCode: "", description: "", initiativeId: "", departmentId: "", ownerName: "",
+  name: "", projectCode: "", description: "", initiativeId: "", departmentId: "", ownerId: "", ownerName: "",
   weight: "50", status: "active", budget: "", startDate: "", targetDate: "",
 });
 
@@ -402,6 +404,7 @@ export default function Projects() {
       description: project.description ?? "",
       initiativeId: String(project.initiativeId),
       departmentId: project.departmentId != null ? String(project.departmentId) : "",
+      ownerId: project.ownerId ?? "",
       ownerName: project.ownerName ?? "",
       weight: String(project.weight),
       status: project.status,
@@ -450,13 +453,14 @@ export default function Projects() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (projectWeightError) return; // Block submit when weights exceed 100%
     const commonFields = {
       name: form.name,
       projectCode: form.projectCode || null,
       description: form.description || undefined,
       initiativeId: parseInt(form.initiativeId),
       departmentId: form.departmentId ? parseInt(form.departmentId) : null,
-      ownerId: "user",
+      ownerId: form.ownerId || "user",
       ownerName: form.ownerName || undefined,
       weight: parseFloat(form.weight) || 0,
       status: form.status as "active" | "on_hold" | "completed" | "cancelled",
@@ -567,7 +571,7 @@ export default function Projects() {
                   "Milestone Name": item.milestone.name,
                   "Project": item.project.name,
                   "Initiative": item.initiative.name,
-                  "Pillar": item.pillar.name,
+                  "Pillar/Enabler": item.pillar.name,
                   "Progress": Math.round(item.milestone.progress) + "%",
                   "Status": item.milestone.status,
                   "Due Date": item.milestone.dueDate ?? "",
@@ -602,13 +606,13 @@ export default function Projects() {
       {/* Filter bar — shown in both list and Gantt views */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pillar</label>
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pillar / Enabler</label>
           <select
             className={`${selectClass} py-1.5 text-xs w-44`}
             value={pillarFilter === "all" ? "all" : String(pillarFilter)}
             onChange={(e) => setPillarFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
           >
-            <option value="all">All Pillars</option>
+            <option value="all">All Pillars & Enablers</option>
             {(pillars as Array<{id: number; name: string}>).map((p) => (
               <option key={p.id} value={String(p.id)}>{p.name}</option>
             ))}
@@ -657,7 +661,7 @@ export default function Projects() {
         <GanttChart pillarFilter={pillarFilter} departmentFilter={departmentFilter} />
       )}
 
-      {/* List view — Pillar → Initiative → Project hierarchy */}
+      {/* List view — Pillar/Enabler → Initiative → Project hierarchy */}
       {viewMode === "list" && <div className="space-y-5">
         {pillars
           .filter((pillar) => pillarFilter === "all" || pillar.id === pillarFilter)
@@ -687,7 +691,7 @@ export default function Projects() {
                   style={{ borderLeft: `4px solid ${pillarColor}` }}
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: pillarColor }}>Pillar</div>
+                    <div className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: pillarColor }}>{(pillar as { pillarType?: string }).pillarType === "enabler" ? "Enabler" : "Pillar"}</div>
                     <h3 className="font-bold text-lg">{pillar.name}</h3>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
@@ -889,7 +893,12 @@ export default function Projects() {
 
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Owner Name">
-              <input className={inputClass} value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} placeholder="e.g. Rania Ibrahim" />
+              <UserMentionInput
+                value={form.ownerName}
+                onChange={(name, userId) => setForm({ ...form, ownerName: name, ...(userId ? { ownerId: userId } : {}) })}
+                placeholder="Type @ to search users…"
+                className={inputClass}
+              />
             </FormField>
           </div>
 

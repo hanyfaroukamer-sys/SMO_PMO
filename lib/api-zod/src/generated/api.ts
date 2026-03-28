@@ -1332,7 +1332,7 @@ export const updateSpmoMilestoneBodyProgressMax = 100;
 export const UpdateSpmoMilestoneBody = zod.object({
   name: zod.string().optional(),
   description: zod.string().optional(),
-  weight: zod.number().optional(),
+  weight: zod.number().min(0).max(100).optional(),
   effortDays: zod.number().optional(),
   progress: zod
     .number()
@@ -2348,6 +2348,10 @@ export const UpdateSpmoConfigBody = zod.object({
   projectAtRiskThreshold: zod.number().int().min(1).max(50).optional(),
   projectDelayedThreshold: zod.number().int().min(1).max(50).optional(),
   milestoneAtRiskThreshold: zod.number().int().min(1).max(50).optional(),
+  riskAlertThreshold: zod.number().int().min(1).max(20).optional(),
+  reminderDaysAhead: zod.number().int().min(1).max(14).optional(),
+  weeklyReportDeadlineHour: zod.number().int().min(0).max(23).optional(),
+  weeklyReportCcEmails: zod.string().nullable().optional(),
   weeklyResetDay: zod.number().int().min(0).max(6).optional(),
   defaultPlanningWeight: zod.number().min(0).max(100).optional(),
   defaultTenderingWeight: zod.number().min(0).max(100).optional(),

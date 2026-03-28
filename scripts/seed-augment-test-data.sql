@@ -28,7 +28,7 @@ VALUES
   (196, 'Permitting & Site Access',       15, 100, 'approved',
    'Municipality permits and site access agreements for all border lighting nodes.'),
   (196, 'Electrical Design Sign-off',      10, 80, 'in_progress',
-   'Electrical engineering drawings reviewed and signed off by KFCA infrastructure team.'),
+   'Electrical engineering drawings reviewed and signed off by the organisation infrastructure team.'),
   (196, 'Installation — Phase A',          20, 35, 'in_progress',
    'Installation of smart LED units on the KSA approach corridor (24 poles).'),
   (196, 'Installation — Phase B',          20, 0,  'pending',
@@ -102,7 +102,7 @@ VALUES
    'SCADA integration test results — all 180 feeds live, latency < 200ms.'),
   (720, 'Vendor-Handover-Certificate.pdf', 'application/pdf',
    '/objects/test-evidence/720-handover-cert.pdf', '56298317', 'Hany Al-Rashidi',
-   'Vendor handover and acceptance certificate signed by KFCA project manager.');
+   'Vendor handover and acceptance certificate signed by the organisation project manager.');
 
 -- Milestone 722 (submitted) — 2 evidence files
 INSERT INTO spmo_evidence (milestone_id, file_name, content_type, object_path, uploaded_by_id, uploaded_by_name, description)

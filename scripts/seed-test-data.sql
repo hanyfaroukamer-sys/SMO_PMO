@@ -1,6 +1,6 @@
 -- =============================================================================
 -- StrategyPMO — Test Data Seed Script
--- KFCA Programme Management Dashboard
+-- PMO Programme Management Dashboard
 -- =============================================================================
 -- Run against the PostgreSQL database after the main schema and base data
 -- are in place.  This script is IDEMPOTENT: it truncates the target tables
@@ -30,7 +30,7 @@ VALUES
    'high', 'high', 15, 'Head of Projects', 'open', 'procurement'),
 
   (16, 215, 'Dynamic pricing model regulatory non-compliance',
-   'Proposed toll price variance ranges may conflict with bilateral KFCA–Saudi agreement pricing caps.',
+   'Proposed toll price variance ranges may conflict with bilateral PMO–Saudi agreement pricing caps.',
    'low', 'critical', 12, 'Head of Legal & Compliance', 'open', 'compliance'),
 
   (17, 228, 'Organisation restructure resistance from middle management',
@@ -54,7 +54,7 @@ VALUES
    'medium', 'high', 12, 'Head of HR', 'open', 'organizational'),
 
   (22, 223, 'Investment optimisation programme deliverable quality',
-   'External consultants may deliver generic recommendations without sufficient KFCA-specific context.',
+   'External consultants may deliver generic recommendations without sufficient PMO-specific context.',
    'medium', 'medium', 9, 'Head of Strategy', 'open', 'operational'),
 
   (14, 190, 'Customer care centralisation — data migration risk',
@@ -74,7 +74,7 @@ VALUES
    'low', 'high', 8, 'Head of Communications', 'open', 'reputational'),
 
   (21, 225, 'Strategy communication plan — message misalignment',
-   'Inconsistent messaging across Arabic and English channels could undermine the KFCA brand narrative.',
+   'Inconsistent messaging across Arabic and English channels could undermine the PMO brand narrative.',
    'medium', 'medium', 9, 'Head of Branding', 'open', 'reputational');
 
 
@@ -127,7 +127,7 @@ SELECT id, 'Introduce retention bonuses for critical roles and publish internal 
 FROM spmo_risks WHERE title = 'Talent retention risk during restructuring';
 
 INSERT INTO spmo_mitigations (risk_id, description, due_date, status)
-SELECT id, 'Mandate KFCA context-discovery workshops (3 days minimum) as part of the RFP evaluation criteria. Owner: Head of Strategy.',
+SELECT id, 'Mandate PMO context-discovery workshops (3 days minimum) as part of the RFP evaluation criteria. Owner: Head of Strategy.',
        '2026-04-30', 'open'
 FROM spmo_risks WHERE title = 'Investment optimisation programme deliverable quality';
 
@@ -342,7 +342,7 @@ VALUES
    '56298317', 'Hany Al-Rashidi'),
 
   (215, NULL, 'Prepare bilateral agreement pricing analysis memo',
-   'Legal team to produce a 5-page memo mapping proposed price variance bands against KFCA–KSA treaty clauses.',
+   'Legal team to produce a 5-page memo mapping proposed price variance bands against PMO–KSA treaty clauses.',
    '56298317', 'Hany Al-Rashidi', '2026-05-01', 'high', 'in_progress',
    '56298317', 'Hany Al-Rashidi'),
 

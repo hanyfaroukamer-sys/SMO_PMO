@@ -1,15 +1,17 @@
+import { useState } from "react";
 import { useGetSpmoMyTasks, type SpmoMyTask, type SpmoMyTaskPriority } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
-import { Loader2, AlertTriangle, Clock, CheckCircle2, FileText, RefreshCw, ArrowRight, Lock } from "lucide-react";
+import { Loader2, AlertTriangle, Clock, CheckCircle2, FileText, RefreshCw, ArrowRight, Lock, ChevronDown, ChevronRight } from "lucide-react";
 import { useLocation } from "wouter";
 
-const PRIORITY_CONFIG: Record<SpmoMyTaskPriority, { label: string; bg: string; border: string; text: string; icon: React.ReactNode }> = {
+const PRIORITY_CONFIG: Record<SpmoMyTaskPriority, { label: string; bg: string; border: string; text: string; icon: React.ReactNode; summary: string }> = {
   critical: {
     label: "Critical",
     bg: "bg-destructive/10",
     border: "border-destructive/30",
     text: "text-destructive",
     icon: <AlertTriangle className="w-3.5 h-3.5" />,
+    summary: "Requires immediate action",
   },
   high: {
     label: "High Priority",
@@ -17,6 +19,7 @@ const PRIORITY_CONFIG: Record<SpmoMyTaskPriority, { label: string; bg: string; b
     border: "border-orange-200",
     text: "text-orange-700",
     icon: <AlertTriangle className="w-3.5 h-3.5" />,
+    summary: "Needs attention soon",
   },
   medium: {
     label: "Medium",
@@ -24,6 +27,7 @@ const PRIORITY_CONFIG: Record<SpmoMyTaskPriority, { label: string; bg: string; b
     border: "border-warning/20",
     text: "text-warning",
     icon: <Clock className="w-3.5 h-3.5" />,
+    summary: "Upcoming deadlines",
   },
   low: {
     label: "Low",
@@ -31,6 +35,7 @@ const PRIORITY_CONFIG: Record<SpmoMyTaskPriority, { label: string; bg: string; b
     border: "border-border",
     text: "text-muted-foreground",
     icon: <RefreshCw className="w-3.5 h-3.5" />,
+    summary: "Routine updates",
   },
   info: {
     label: "Info",
@@ -38,6 +43,7 @@ const PRIORITY_CONFIG: Record<SpmoMyTaskPriority, { label: string; bg: string; b
     border: "border-blue-200",
     text: "text-blue-600",
     icon: <Lock className="w-3.5 h-3.5" />,
+    summary: "For your awareness",
   },
 };
 
@@ -48,6 +54,12 @@ const TYPE_LABELS: Record<string, string> = {
   weekly_report: "Weekly Report Due",
   progress_update: "Progress Update",
   blocked: "Blocked",
+  action_assigned: "Action Item",
+  risk_alert: "Risk Alert",
+  owner_milestone_overdue: "Project Milestone Overdue",
+  owner_milestone_due_soon: "Project Milestone Due Soon",
+  project_delayed: "Project Delayed",
+  project_at_risk: "Project At Risk",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -57,6 +69,12 @@ const ACTION_LABELS: Record<string, string> = {
   weekly_report: "Submit Report",
   progress_update: "Update Progress",
   blocked: "View Details",
+  action_assigned: "Complete Action",
+  risk_alert: "Review Risk",
+  owner_milestone_overdue: "Follow Up",
+  owner_milestone_due_soon: "Check Status",
+  project_delayed: "Intervene Now",
+  project_at_risk: "Review Plan",
 };
 
 function TaskCard({ task }: { task: SpmoMyTask }) {
@@ -105,6 +123,37 @@ const SECTION_TITLES: Record<SpmoMyTaskPriority, string> = {
   info: "Informational",
 };
 
+function CollapsibleSection({ priority, tasks }: { priority: SpmoMyTaskPriority; tasks: SpmoMyTask[] }) {
+  const [expanded, setExpanded] = useState(priority === "critical" || priority === "high");
+  const cfg = PRIORITY_CONFIG[priority];
+
+  return (
+    <section>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 py-2 text-left group"
+      >
+        <span className={`transition-transform ${expanded ? "" : "-rotate-90"}`}>
+          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+        </span>
+        <span className={`w-2.5 h-2.5 rounded-full shrink-0`} style={{ backgroundColor: priority === "critical" ? "#ef4444" : priority === "high" ? "#f97316" : priority === "medium" ? "#eab308" : priority === "info" ? "#3b82f6" : "#9ca3af" }} />
+        <span className="text-[13px] font-bold text-foreground uppercase tracking-wide flex-1">
+          <span className={cfg.text}>{SECTION_TITLES[priority]}</span>
+        </span>
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cfg.border} ${cfg.bg} ${cfg.text}`}>
+          {tasks.length}
+        </span>
+        <span className="text-[11px] text-muted-foreground hidden sm:block">{cfg.summary}</span>
+      </button>
+      {expanded && (
+        <div className="space-y-2.5 ml-6 mt-1 mb-4 animate-in slide-in-from-top-1 duration-200">
+          {tasks.map((task) => <TaskCard key={task.id} task={task} />)}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function MyTasks() {
   const { data, isLoading, error, refetch, isFetching } = useGetSpmoMyTasks();
 
@@ -115,10 +164,10 @@ export default function MyTasks() {
   }, { critical: [], high: [], medium: [], low: [], info: [] });
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
         title="My Tasks"
-        description="Pending approvals, overdue milestones, weekly reports, and progress updates assigned to you"
+        description="Milestones, action items, reports, and project alerts assigned to you"
       >
         <button
           onClick={() => refetch()}
@@ -155,36 +204,29 @@ export default function MyTasks() {
           {/* Summary banner */}
           <div className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card shadow-sm">
             <FileText className="w-5 h-5 text-primary shrink-0" />
-            <div className="flex-1">
-              <span className="text-sm font-semibold">{data?.taskCount ?? 0} task{(data?.taskCount ?? 0) !== 1 ? "s" : ""} require your attention</span>
-              {(data?.criticalCount ?? 0) > 0 && (
-                <span className="ml-2 text-sm text-destructive font-bold">· {data?.criticalCount} critical</span>
-              )}
-              {(data?.highCount ?? 0) > 0 && (
-                <span className="ml-2 text-sm text-orange-600 font-bold">· {data?.highCount} high</span>
-              )}
+            <div className="flex-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-sm font-semibold">{data?.taskCount ?? 0} task{(data?.taskCount ?? 0) !== 1 ? "s" : ""}</span>
+              {PRIORITY_ORDER.map((p) => {
+                const count = tasksByPriority[p].length;
+                if (count === 0) return null;
+                const cfg = PRIORITY_CONFIG[p];
+                return (
+                  <span key={p} className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cfg.border} ${cfg.bg} ${cfg.text}`}>
+                    {count} {cfg.label.toLowerCase()}
+                  </span>
+                );
+              })}
             </div>
           </div>
 
-          {/* Tasks by priority */}
-          {PRIORITY_ORDER.map((priority) => {
-            const group = tasksByPriority[priority];
-            if (group.length === 0) return null;
-            const cfg = PRIORITY_CONFIG[priority];
-            return (
-              <section key={priority}>
-                <h2 className="text-[13px] font-bold text-foreground uppercase tracking-wide border-l-[3px] border-primary pl-2 mb-3">
-                  <span className={cfg.text}>{SECTION_TITLES[priority]}</span>
-                  <span className="ml-2 text-muted-foreground font-normal normal-case">({group.length})</span>
-                </h2>
-                <div className="space-y-2.5">
-                  {group.map((task) => (
-                    <TaskCard key={task.id} task={task} />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+          {/* Collapsible priority groups */}
+          <div className="space-y-1">
+            {PRIORITY_ORDER.map((priority) => {
+              const group = tasksByPriority[priority];
+              if (group.length === 0) return null;
+              return <CollapsibleSection key={priority} priority={priority} tasks={group} />;
+            })}
+          </div>
         </>
       )}
     </div>

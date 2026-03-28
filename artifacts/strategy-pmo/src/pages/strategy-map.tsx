@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useLocation } from "wouter";
 import {
   useListSpmoPillars,
   useListSpmoInitiatives,
@@ -22,6 +23,7 @@ function PillarIcon({ name, className, color }: { name: string; className?: stri
 }
 
 export default function StrategyMap() {
+  const [, navigate] = useLocation();
   const { data: pillarsData, isLoading: pillarsLoading } = useListSpmoPillars();
   const { data: initiativesData, isLoading: initLoading } = useListSpmoInitiatives();
   const { data: projectsData, isLoading: projLoading } = useListSpmoProjects();
@@ -35,6 +37,10 @@ export default function StrategyMap() {
   const [atRiskThreshold, setAtRiskThreshold] = useState(5);
   const [delayedThreshold, setDelayedThreshold] = useState(10);
   const [msAtRiskThreshold, setMsAtRiskThreshold] = useState(5);
+  const [riskAlertThreshold, setRiskAlertThreshold] = useState(9);
+  const [reminderDaysAhead, setReminderDaysAhead] = useState(3);
+  const [weeklyDeadlineHour, setWeeklyDeadlineHour] = useState(15);
+  const [weeklyReportCc, setWeeklyReportCc] = useState("");
 
   const updateConfig = useUpdateSpmoConfig();
   const isLoading = pillarsLoading || initLoading || projLoading;
@@ -45,13 +51,17 @@ export default function StrategyMap() {
     setAtRiskThreshold(configData?.projectAtRiskThreshold ?? 5);
     setDelayedThreshold(configData?.projectDelayedThreshold ?? 10);
     setMsAtRiskThreshold(configData?.milestoneAtRiskThreshold ?? 5);
+    setRiskAlertThreshold((configData as Record<string, unknown>)?.riskAlertThreshold as number ?? 9);
+    setReminderDaysAhead((configData as Record<string, unknown>)?.reminderDaysAhead as number ?? 3);
+    setWeeklyDeadlineHour((configData as Record<string, unknown>)?.weeklyReportDeadlineHour as number ?? 15);
+    setWeeklyReportCc((configData as Record<string, unknown>)?.weeklyReportCcEmails as string ?? "");
     setEditModalOpen(true);
   }
 
   function handleSaveVision(e: React.FormEvent) {
     e.preventDefault();
     updateConfig.mutate(
-      { data: { vision: visionText, mission: missionText, projectAtRiskThreshold: atRiskThreshold, projectDelayedThreshold: delayedThreshold, milestoneAtRiskThreshold: msAtRiskThreshold } },
+      { data: { vision: visionText, mission: missionText, projectAtRiskThreshold: atRiskThreshold, projectDelayedThreshold: delayedThreshold, milestoneAtRiskThreshold: msAtRiskThreshold, riskAlertThreshold, reminderDaysAhead, weeklyReportDeadlineHour: weeklyDeadlineHour, weeklyReportCcEmails: weeklyReportCc || null } },
       {
         onSuccess: () => { toast({ title: "Vision & Mission updated" }); setEditModalOpen(false); },
         onError: () => toast({ variant: "destructive", title: "Failed to save" }),
@@ -169,7 +179,7 @@ export default function StrategyMap() {
                       >
                         <PillarIcon name={pillar.iconName ?? ""} className="w-4 h-4" color={pillar.color} />
                       </div>
-                      <h4 className="text-xs font-bold leading-tight" style={{ color: pillar.color }}>{pillar.name}</h4>
+                      <h4 className="text-xs font-bold leading-tight cursor-pointer hover:underline" style={{ color: pillar.color }} onClick={() => navigate(`/pillars/${pillar.id}/portfolio`)}>{pillar.name}</h4>
                       <div className="text-2xl font-bold mt-1.5" style={{ color: pillar.color }}>{pct}%</div>
                       <div className="h-1.5 bg-secondary rounded-full overflow-hidden mt-2 mx-1">
                         <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%`, backgroundColor: pillar.color }} />
@@ -195,7 +205,7 @@ export default function StrategyMap() {
                                   {code}
                                 </span>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-semibold leading-tight line-clamp-2 text-foreground">{initiative.name}</p>
+                                  <p className="text-[11px] font-semibold leading-tight line-clamp-2 text-foreground cursor-pointer hover:text-primary hover:underline" onClick={() => navigate(`/projects?initiative=${initiative.id}`)}>{initiative.name}</p>
                                   <div className="flex items-center gap-1.5 mt-1">
                                     <div className="h-1 flex-1 bg-secondary rounded-full overflow-hidden">
                                       <div className="h-full rounded-full" style={{ width: `${Math.min(100, ipct)}%`, backgroundColor: pillar.color }} />
@@ -254,7 +264,7 @@ export default function StrategyMap() {
 
                       {/* Name + progress */}
                       <div className="w-48 shrink-0">
-                        <div className="text-xs font-bold leading-tight" style={{ color: enabler.color }}>{enabler.name}</div>
+                        <div className="text-xs font-bold leading-tight cursor-pointer hover:underline" style={{ color: enabler.color }} onClick={() => navigate(`/pillars/${enabler.id}/portfolio`)}>{enabler.name}</div>
                         <div className="flex items-center gap-1.5 mt-1">
                           <div className="h-1.5 flex-1 bg-secondary rounded-full overflow-hidden">
                             <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, epct)}%`, backgroundColor: enabler.color }} />
@@ -275,7 +285,8 @@ export default function StrategyMap() {
                             return (
                               <div
                                 key={initiative.id}
-                                className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg border border-border bg-secondary/50 text-foreground/80"
+                                className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg border border-border bg-secondary/50 text-foreground/80 cursor-pointer hover:bg-secondary hover:border-primary/30 transition-colors"
+                                onClick={() => navigate(`/projects?initiative=${initiative.id}`)}
                               >
                                 {code && (
                                   <span className="font-bold text-[9px] px-1 py-0.5 rounded text-white leading-none" style={{ backgroundColor: enabler.color }}>{code}</span>
@@ -333,20 +344,46 @@ export default function StrategyMap() {
           </FormField>
           <div className="border-t border-border pt-4">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Health Status Thresholds (%)</p>
-            <div className="grid grid-cols-3 gap-3">
-              <FormField label="Project At Risk">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <FormField label="Project At Risk %">
                 <input type="number" min={1} max={50} className={inputClass} value={atRiskThreshold} onChange={(e) => setAtRiskThreshold(Number(e.target.value))} />
               </FormField>
-              <FormField label="Project Delayed">
+              <FormField label="Project Delayed %">
                 <input type="number" min={1} max={50} className={inputClass} value={delayedThreshold} onChange={(e) => setDelayedThreshold(Number(e.target.value))} />
               </FormField>
-              <FormField label="Milestone At Risk">
+              <FormField label="Milestone At Risk %">
                 <input type="number" min={1} max={50} className={inputClass} value={msAtRiskThreshold} onChange={(e) => setMsAtRiskThreshold(Number(e.target.value))} />
+              </FormField>
+              <FormField label="Risk Alert Score">
+                <input type="number" min={1} max={20} className={inputClass} value={riskAlertThreshold} onChange={(e) => setRiskAlertThreshold(Number(e.target.value))} />
+              </FormField>
+              <FormField label="Reminder Days Ahead">
+                <input type="number" min={1} max={14} className={inputClass} value={reminderDaysAhead} onChange={(e) => setReminderDaysAhead(Number(e.target.value))} />
               </FormField>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              A project/milestone is <span className="text-warning font-semibold">At Risk</span> when actual progress lags planned by more than the At Risk % threshold.
+              Projects/milestones are <span className="text-warning font-semibold">At Risk</span> when progress lags by the threshold %. Risks ≥ alert score appear in notifications. Reminders sent X days before deadlines.
             </p>
+
+            {/* Weekly Report Deadline Settings */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="text-sm font-semibold mb-2">Weekly Report Deadline</div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Deadline Hour (24h)">
+                  <select className={inputClass} value={weeklyDeadlineHour} onChange={(e) => setWeeklyDeadlineHour(Number(e.target.value))}>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{String(i).padStart(2, "0")}:00{i === 15 ? " (default)" : ""}</option>
+                    ))}
+                  </select>
+                </FormField>
+                <FormField label="CC Emails (comma-separated)">
+                  <input className={inputClass} value={weeklyReportCc} onChange={(e) => setWeeklyReportCc(e.target.value)} placeholder="director@example.gov, pmo@example.gov" />
+                </FormField>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                If a PM hasn't submitted their weekly report by the deadline hour, a reminder email is sent to them (and CC'd to the addresses above).
+              </p>
+            </div>
           </div>
           <FormActions loading={updateConfig.isPending} label="Save Changes" onCancel={() => setEditModalOpen(false)} />
         </form>

@@ -25,6 +25,9 @@ import {
   spmoDocumentsTable,
   spmoActionsTable,
   spmoKpiMeasurementsTable,
+  spmoProjectAccessTable,
+  spmoCommentsTable,
+  spmoNotificationsTable,
   type InsertSpmoInitiative,
   type InsertSpmoProject,
   type InsertSpmoMilestone,
@@ -192,6 +195,66 @@ function requireRole(
   return user.id;
 }
 
+type ProjectPermission =
+  | "canEditDetails"
+  | "canManageMilestones"
+  | "canSubmitReports"
+  | "canManageRisks"
+  | "canManageBudget"
+  | "canManageDocuments"
+  | "canManageActions"
+  | "canManageRaci"
+  | "canSubmitChangeRequests";
+
+const ALL_PERMISSIONS: ProjectPermission[] = [
+  "canEditDetails",
+  "canManageMilestones",
+  "canSubmitReports",
+  "canManageRisks",
+  "canManageBudget",
+  "canManageDocuments",
+  "canManageActions",
+  "canManageRaci",
+  "canSubmitChangeRequests",
+];
+
+/** Returns true if the user has the given permission on this project. Admins always pass. PMs have full access to projects they own; for other projects they need an explicit grant row. */
+async function checkProjectPerm(
+  userId: string,
+  userRole: string | null | undefined,
+  projectId: number,
+  permission: ProjectPermission,
+): Promise<boolean> {
+  if (userRole === "admin") return true;
+  if (userRole !== "project-manager") return false;
+
+  // Check if PM owns this project — owners have all permissions
+  const [project] = await db.select({ ownerId: spmoProjectsTable.ownerId }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, projectId)).limit(1);
+  if (project?.ownerId === userId) return true;
+
+  // Not the owner — check explicit grant
+  const [grant] = await db
+    .select({
+      canEditDetails:          spmoProjectAccessTable.canEditDetails,
+      canManageMilestones:     spmoProjectAccessTable.canManageMilestones,
+      canSubmitReports:        spmoProjectAccessTable.canSubmitReports,
+      canManageRisks:          spmoProjectAccessTable.canManageRisks,
+      canManageBudget:         spmoProjectAccessTable.canManageBudget,
+      canManageDocuments:      spmoProjectAccessTable.canManageDocuments,
+      canManageActions:        spmoProjectAccessTable.canManageActions,
+      canManageRaci:           spmoProjectAccessTable.canManageRaci,
+      canSubmitChangeRequests: spmoProjectAccessTable.canSubmitChangeRequests,
+    })
+    .from(spmoProjectAccessTable)
+    .where(and(eq(spmoProjectAccessTable.projectId, projectId), eq(spmoProjectAccessTable.userId, userId)))
+    .limit(1);
+  // Non-owner PM with no explicit grant row — no access
+  if (!grant) return false;
+  return grant[permission] ?? false;
+}
+
+// canEditProject removed — use checkProjectPerm instead
+
 function parseId(req: { params: Record<string, string> }, res: any, paramName = "id"): number | null {
   const id = Number(req.params[paramName]);
   if (!Number.isInteger(id) || id <= 0) {
@@ -263,11 +326,20 @@ async function runPhaseGateMigration(): Promise<void> {
 runPhaseGateMigration();
 
 // ─────────────────────────────────────────────────────────────
-// Programme Overview
+// Programme Overview (cached 60 seconds)
 // ─────────────────────────────────────────────────────────────
+let _overviewCache: { data: unknown; ts: number } | null = null;
+const OVERVIEW_CACHE_TTL = 60_000; // 60 seconds
+
 router.get("/spmo/programme", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;
+
+  // Return cached overview if fresh (avoids heavy calcProgrammeProgress on every dashboard load)
+  if (_overviewCache && Date.now() - _overviewCache.ts < OVERVIEW_CACHE_TTL) {
+    res.json(_overviewCache.data);
+    return;
+  }
 
   const { programmeProgress, pillarSummaries } = await calcProgrammeProgress();
 
@@ -283,12 +355,12 @@ router.get("/spmo/programme", async (req, res): Promise<void> => {
 
   const alertCount = await computeAlertCount();
 
-  const [config] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const [config] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   const programmeName = config?.programmeName ?? "National Transformation Programme";
   const vision = config?.vision ?? null;
   const mission = config?.mission ?? null;
 
-  res.json({
+  const responseData = {
     programmeName,
     vision,
     mission,
@@ -313,8 +385,14 @@ router.get("/spmo/programme", async (req, res): Promise<void> => {
     pendingApprovals,
     activeRisks: activeRisks[0]?.count ?? 0,
     alertCount,
-  });
+  };
+
+  _overviewCache = { data: responseData, ts: Date.now() };
+  res.json(responseData);
 });
+
+// Invalidate overview cache on any write operation
+function invalidateOverviewCache() { _overviewCache = null; }
 
 // ─────────────────────────────────────────────────────────────
 // Pillars
@@ -436,6 +514,8 @@ router.put("/spmo/pillars/:id", async (req, res): Promise<void> => {
     }
   }
 
+  const [oldPillar] = await db.select().from(spmoPillarsTable).where(eq(spmoPillarsTable.id, params.data.id)).limit(1);
+
   const [pillar] = await db
     .update(spmoPillarsTable)
     .set(parsed.data)
@@ -447,7 +527,17 @@ router.put("/spmo/pillars/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "pillar", pillar.id, pillar.name);
+  const pillarChanges: Record<string, { from: unknown; to: unknown }> = {};
+  if (oldPillar) {
+    for (const f of ["name", "description", "pillarType", "weight", "color"] as const) {
+      const ov = (oldPillar as Record<string, unknown>)[f];
+      const nv = (pillar as Record<string, unknown>)[f];
+      if (ov !== nv && nv !== undefined) pillarChanges[f] = { from: ov, to: nv };
+    }
+  }
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "pillar", pillar.id, pillar.name, {
+    link: `/pillars/${pillar.id}/portfolio`, changes: pillarChanges,
+  });
   res.json(pillar);
 });
 
@@ -643,6 +733,8 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     ...(td !== undefined && { targetDate: dateToStr(td) as string }),
   };
 
+  const [oldInit] = await db.select().from(spmoInitiativesTable).where(eq(spmoInitiativesTable.id, params.data.id)).limit(1);
+
   if (parsed.data.initiativeCode) {
     const [codeConflict] = await db.select({ id: spmoInitiativesTable.id }).from(spmoInitiativesTable).where(and(eq(spmoInitiativesTable.initiativeCode, parsed.data.initiativeCode), ne(spmoInitiativesTable.id, params.data.id))).limit(1);
     if (codeConflict) {
@@ -652,7 +744,7 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
   }
 
   if (parsed.data.weight !== undefined) {
-    const [existingInit] = await db.select({ pillarId: spmoInitiativesTable.pillarId }).from(spmoInitiativesTable).where(eq(spmoInitiativesTable.id, params.data.id));
+    const existingInit = oldInit;
     if (existingInit) {
       const pillarId = parsed.data.pillarId ?? existingInit.pillarId;
       const siblings = await db.select({ id: spmoInitiativesTable.id, weight: spmoInitiativesTable.weight }).from(spmoInitiativesTable).where(eq(spmoInitiativesTable.pillarId, pillarId));
@@ -675,7 +767,17 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "initiative", initiative.id, initiative.name);
+  const initChanges: Record<string, { from: unknown; to: unknown }> = {};
+  if (oldInit) {
+    for (const f of ["name", "description", "status", "weight", "budget", "ownerName", "startDate", "targetDate", "initiativeCode"] as const) {
+      const ov = (oldInit as Record<string, unknown>)[f];
+      const nv = (initiative as Record<string, unknown>)[f];
+      if (ov !== nv && nv !== undefined) initChanges[f] = { from: ov, to: nv };
+    }
+  }
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "initiative", initiative.id, initiative.name, {
+    link: `/initiatives`, changes: initChanges,
+  });
   res.json(initiative);
 });
 
@@ -801,6 +903,7 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
   ]);
 
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "project", project.id, project.name);
+  invalidateOverviewCache();
   res.status(201).json(project);
 });
 
@@ -825,13 +928,23 @@ router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
   }
 
   const stats = await projectProgress(project.id);
-  const milestones = await db
+  const milestonesRaw = await db
     .select()
     .from(spmoMilestonesTable)
-    .where(eq(spmoMilestonesTable.projectId, project.id));
+    .where(eq(spmoMilestonesTable.projectId, project.id))
+    .orderBy(asc(spmoMilestonesTable.createdAt));
+
+  const PHASE_ORDER: Record<string, number> = { planning: 0, tendering: 1, closure: 3 };
+  const milestonesSorted = [...milestonesRaw].sort((a, b) => {
+    const aOrder = a.phaseGate ? PHASE_ORDER[a.phaseGate] : 2;
+    const bOrder = b.phaseGate ? PHASE_ORDER[b.phaseGate] : 2;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    // Stable sort: use ID as final tiebreaker (never changes on update)
+    return a.id - b.id;
+  });
 
   const milestonesWithEvidence = await Promise.all(
-    milestones.map(async (m) => {
+    milestonesSorted.map(async (m) => {
       const evidence = await db.select().from(spmoEvidenceTable).where(eq(spmoEvidenceTable.milestoneId, m.id));
       return { ...m, evidence };
     })
@@ -850,11 +963,20 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, params.data.id, "canEditDetails"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
   const parsed = UpdateSpmoProjectBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  // Fetch old record for audit diff
+  const [oldProject] = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.id, params.data.id)).limit(1);
 
   const { startDate: psd, targetDate: ptd, ...restProjectUpdate } = parsed.data;
   const updateProject = {
@@ -895,21 +1017,31 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const user = getAuthUser(req);
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "project", project.id, project.name);
+  // Build audit details with before/after for changed fields
+  const projectChanges: Record<string, { from: unknown; to: unknown }> = {};
+  if (oldProject) {
+    const trackFields = ["name", "status", "budget", "budgetCapex", "budgetOpex", "budgetSpent", "startDate", "targetDate", "ownerName", "projectCode", "weight", "departmentId"] as const;
+    for (const f of trackFields) {
+      const oldVal = (oldProject as Record<string, unknown>)[f];
+      const newVal = (project as Record<string, unknown>)[f];
+      if (oldVal !== newVal && newVal !== undefined) {
+        projectChanges[f] = { from: oldVal, to: newVal };
+      }
+    }
+  }
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "project", project.id, project.name, {
+    projectId: project.id,
+    projectCode: project.projectCode,
+    link: `/projects/${project.id}`,
+    changes: projectChanges,
+  });
   res.json(project);
 });
 
 router.delete("/spmo/projects/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
-  if (!userId) return;
-
-  const user = getAuthUser(req);
-  const role = user?.role;
-  if (role !== "admin" && role !== "project-manager") {
-    res.status(403).json({ error: "Admin or project-manager role required" });
-    return;
-  }
+  // Only admins can delete projects (destructive — cascades milestones, evidence, risks etc.)
+  if (!requireAdmin(req, res)) return;
+  const userId = getAuthUser(req)?.id ?? "";
 
   const params = DeleteSpmoProjectParams.safeParse(req.params);
   if (!params.success) {
@@ -928,6 +1060,7 @@ router.delete("/spmo/projects/:id", async (req, res): Promise<void> => {
   }
 
   await logSpmoActivity(userId, getUserDisplayName(user), "deleted", "project", project.id, project.name);
+  invalidateOverviewCache();
   res.json({ success: true });
 });
 
@@ -979,6 +1112,12 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
     return;
   }
 
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, params.data.id, "canManageMilestones"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
   const parsed = CreateSpmoMilestoneBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -1006,32 +1145,58 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
     .values(insertMilestone)
     .returning();
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "milestone", milestone.id, milestone.name);
   res.status(201).json(milestone);
+});
+
+// Lightweight milestone list for Gantt chart (single query, no N+1)
+router.get("/spmo/milestones/list", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const milestones = await db.select({
+    id: spmoMilestonesTable.id,
+    projectId: spmoMilestonesTable.projectId,
+    name: spmoMilestonesTable.name,
+    startDate: spmoMilestonesTable.startDate,
+    dueDate: spmoMilestonesTable.dueDate,
+    status: spmoMilestonesTable.status,
+    progress: spmoMilestonesTable.progress,
+  }).from(spmoMilestonesTable);
+  res.json({ milestones });
 });
 
 router.get("/spmo/milestones/all", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;
 
-  const allMilestones = await db
-    .select()
-    .from(spmoMilestonesTable)
-    .orderBy(desc(spmoMilestonesTable.updatedAt));
+  // Batch load all data in 4 parallel queries (was: 4 queries PER milestone)
+  const [allMilestones, allEvidence, allProjects, allInitiatives, allPillarsRaw] = await Promise.all([
+    db.select().from(spmoMilestonesTable).orderBy(desc(spmoMilestonesTable.updatedAt)),
+    db.select().from(spmoEvidenceTable),
+    db.select().from(spmoProjectsTable),
+    db.select().from(spmoInitiativesTable),
+    db.select().from(spmoPillarsTable),
+  ]);
 
-  const items = await Promise.all(
-    allMilestones.map(async (m) => {
-      const evidence = await db.select().from(spmoEvidenceTable).where(eq(spmoEvidenceTable.milestoneId, m.id));
-      const [project] = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.id, m.projectId));
-      if (!project) return null;
-      const [initiative] = await db.select().from(spmoInitiativesTable).where(eq(spmoInitiativesTable.id, project.initiativeId));
-      if (!initiative) return null;
-      const [pillar] = await db.select().from(spmoPillarsTable).where(eq(spmoPillarsTable.id, initiative.pillarId));
-      if (!pillar) return null;
-      return { milestone: { ...m, evidence }, project, initiative, pillar };
-    })
-  );
+  const evidenceByMilestone = new Map<number, typeof allEvidence>();
+  for (const e of allEvidence) {
+    const list = evidenceByMilestone.get(e.milestoneId) ?? [];
+    list.push(e);
+    evidenceByMilestone.set(e.milestoneId, list);
+  }
+  const projectMap = new Map(allProjects.map((p) => [p.id, p]));
+  const initiativeMap = new Map(allInitiatives.map((i) => [i.id, i]));
+  const pillarMap = new Map(allPillarsRaw.map((p) => [p.id, p]));
+
+  const items = allMilestones.map((m) => {
+    const project = projectMap.get(m.projectId);
+    if (!project) return null;
+    const initiative = initiativeMap.get(project.initiativeId);
+    if (!initiative) return null;
+    const pillar = pillarMap.get(initiative.pillarId);
+    if (!pillar) return null;
+    return { milestone: { ...m, evidence: evidenceByMilestone.get(m.id) ?? [] }, project, initiative, pillar };
+  });
 
   res.json({ items: items.filter(Boolean) });
 });
@@ -1046,31 +1211,48 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Access check + fetch old record for audit diff
+  const [oldMilestone] = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
+  if (!oldMilestone) { res.status(404).json({ error: "Milestone not found" }); return; }
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, oldMilestone.projectId, "canManageMilestones"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
   const parsed = UpdateSpmoMilestoneBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  if (parsed.data.weight !== undefined) {
-    const [current] = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id));
-    if (!current) {
-      res.status(404).json({ error: "Milestone not found" });
+  // PMs can only update progress — weight, dates, name, description etc. require admin
+  if (user?.role !== "admin") {
+    const restrictedFields = ["weight", "name", "description", "dueDate", "startDate", "effortDays", "phaseGate", "assigneeName", "assigneeId", "status"] as const;
+    const attempted = restrictedFields.filter((f) => (parsed.data as Record<string, unknown>)[f] !== undefined);
+    if (attempted.length > 0) {
+      res.status(403).json({ error: `Only admins can modify ${attempted.join(", ")}. Project managers can only update progress. Please raise a change request for other modifications.` });
       return;
     }
-    const siblings = await db
-      .select()
-      .from(spmoMilestonesTable)
-      .where(
-        and(
-          eq(spmoMilestonesTable.projectId, current.projectId),
-          sql`${spmoMilestonesTable.id} != ${params.data.id}`
-        )
-      );
-    const siblingWeightSum = siblings.reduce((s, m) => s + (m.weight ?? 0), 0);
-    if (siblingWeightSum + parsed.data.weight > 100) {
-      res.status(400).json({ error: `Milestone weights would exceed 100% (siblings use ${Math.round(siblingWeightSum)}%)` });
-      return;
+  }
+
+  if (parsed.data.weight !== undefined) {
+    // Only validate against siblings when the weight is actually changing
+    if (parsed.data.weight !== oldMilestone.weight) {
+      const siblings = await db
+        .select()
+        .from(spmoMilestonesTable)
+        .where(
+          and(
+            eq(spmoMilestonesTable.projectId, oldMilestone.projectId),
+            sql`${spmoMilestonesTable.id} != ${params.data.id}`
+          )
+        );
+      const siblingWeightSum = siblings.reduce((s, m) => s + (m.weight ?? 0), 0);
+      if (siblingWeightSum + parsed.data.weight > 100) {
+        res.status(400).json({ error: `Milestone weights would exceed 100% (siblings use ${Math.round(siblingWeightSum)}%)` });
+        return;
+      }
     }
   }
 
@@ -1091,8 +1273,25 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const user = getAuthUser(req);
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "milestone", milestone.id, milestone.name, { progress: milestone.progress });
+  // Build audit diff for milestone
+  const msChanges: Record<string, { from: unknown; to: unknown }> = {};
+  const msTrackFields = ["name", "progress", "status", "weight", "effortDays", "startDate", "dueDate", "assigneeName", "phaseGate", "description"] as const;
+  for (const f of msTrackFields) {
+    const oldVal = (oldMilestone as Record<string, unknown>)[f];
+    const newVal = (milestone as Record<string, unknown>)[f];
+    if (oldVal !== newVal && newVal !== undefined) {
+      msChanges[f] = { from: oldVal, to: newVal };
+    }
+  }
+  // Fetch project name for context
+  const [msProject] = await db.select({ name: spmoProjectsTable.name, projectCode: spmoProjectsTable.projectCode }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, milestone.projectId)).limit(1);
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "milestone", milestone.id, milestone.name, {
+    projectId: milestone.projectId,
+    projectName: msProject?.name,
+    projectCode: msProject?.projectCode,
+    link: `/projects/${milestone.projectId}?tab=milestones`,
+    changes: msChanges,
+  });
   res.json(milestone);
 });
 
@@ -1107,7 +1306,15 @@ router.delete("/spmo/milestones/:id", async (req, res): Promise<void> => {
   }
 
   const [existing] = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
-  if (existing?.phaseGate) {
+  if (!existing) { res.status(404).json({ error: "Milestone not found" }); return; }
+
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, existing.projectId, "canManageMilestones"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
+  if (existing.phaseGate) {
     res.status(403).json({ error: `Cannot delete mandatory phase gate "${existing.name}". Phase gates (Planning, Tendering, Closure) are required for programme reporting.` });
     return;
   }
@@ -1122,7 +1329,6 @@ router.delete("/spmo/milestones/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "deleted", "milestone", milestone.id, milestone.name);
   res.json({ success: true });
 });
@@ -1138,6 +1344,12 @@ router.put("/spmo/projects/:id/milestones/weights", async (req, res): Promise<vo
   if (!params.success) { res.status(400).json({ error: "Invalid project id" }); return; }
   const projectId = params.data.id;
 
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, projectId, "canManageMilestones"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
   const body = z.object({
     weights: z.array(z.object({ id: z.number().int().positive(), weight: z.number().min(0).max(100) })),
   }).safeParse(req.body);
@@ -1150,11 +1362,13 @@ router.put("/spmo/projects/:id/milestones/weights", async (req, res): Promise<vo
     return;
   }
 
-  for (const { id, weight } of weights) {
-    await db.update(spmoMilestonesTable)
-      .set({ weight, updatedAt: new Date() })
-      .where(and(eq(spmoMilestonesTable.id, id), eq(spmoMilestonesTable.projectId, projectId)));
-  }
+  await db.transaction(async (tx: typeof db) => {
+    for (const { id, weight } of weights) {
+      await tx.update(spmoMilestonesTable)
+        .set({ weight, updatedAt: new Date() })
+        .where(and(eq(spmoMilestonesTable.id, id), eq(spmoMilestonesTable.projectId, projectId)));
+    }
+  });
 
   res.json({ success: true });
 });
@@ -1172,13 +1386,41 @@ router.post("/spmo/milestones/:id/submit", async (req, res): Promise<void> => {
     return;
   }
 
+  // Fetch milestone for validation + permission check
+  const [existing] = await db.select({
+    status: spmoMilestonesTable.status,
+    progress: spmoMilestonesTable.progress,
+    projectId: spmoMilestonesTable.projectId,
+  }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
+  if (!existing) { res.status(404).json({ error: "Milestone not found" }); return; }
+
+  // Permission check
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, existing.projectId, "canManageMilestones"))) {
+    res.status(403).json({ error: "You do not have permission to submit milestones on this project" });
+    return;
+  }
+
+  // Status guard: only pending, in_progress, or rejected milestones can be submitted
+  if (!["pending", "in_progress", "rejected"].includes(existing.status)) {
+    res.status(400).json({ error: `Cannot submit a milestone with status "${existing.status}". Only pending, in-progress, or rejected milestones can be submitted.` });
+    return;
+  }
+
+  // Progress guard: milestone must be at 100% to submit for approval
+  if ((existing.progress ?? 0) < 100) {
+    res.status(400).json({ error: `Milestone progress must be 100% before submitting for approval. Current progress: ${existing.progress ?? 0}%` });
+    return;
+  }
+
+  // Evidence guard: at least one evidence file required
   const evidence = await db
     .select()
     .from(spmoEvidenceTable)
     .where(eq(spmoEvidenceTable.milestoneId, params.data.id));
 
   if (evidence.length === 0) {
-    res.status(400).json({ error: "At least one evidence file must be attached before submitting" });
+    res.status(400).json({ error: "At least one evidence file must be attached before submitting for approval" });
     return;
   }
 
@@ -1193,8 +1435,8 @@ router.post("/spmo/milestones/:id/submit", async (req, res): Promise<void> => {
     return;
   }
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "submitted", "milestone", milestone.id, milestone.name);
+  invalidateOverviewCache();
   res.json(milestone);
 });
 
@@ -1232,6 +1474,7 @@ router.post("/spmo/milestones/:id/approve", async (req, res): Promise<void> => {
 
   const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "approved", "milestone", milestone.id, milestone.name);
+  invalidateOverviewCache();
 
   // Recalculate dep_status on all downstream dependencies
   await recalculateDownstreamStatuses(milestone.id);
@@ -1255,6 +1498,14 @@ router.post("/spmo/milestones/:id/reject", async (req, res): Promise<void> => {
     return;
   }
 
+  // Status guard: only submitted milestones can be rejected
+  const [existingForReject] = await db.select({ status: spmoMilestonesTable.status }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
+  if (!existingForReject) { res.status(404).json({ error: "Milestone not found" }); return; }
+  if (existingForReject.status !== "submitted") {
+    res.status(400).json({ error: `Cannot reject a milestone with status "${existingForReject.status}". Only submitted milestones can be rejected.` });
+    return;
+  }
+
   const [milestone] = await db
     .update(spmoMilestonesTable)
     .set({
@@ -1273,6 +1524,7 @@ router.post("/spmo/milestones/:id/reject", async (req, res): Promise<void> => {
 
   const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "rejected", "milestone", milestone.id, milestone.name, { reason: parsed.data.reason });
+  invalidateOverviewCache();
   res.json(milestone);
 });
 
@@ -1318,6 +1570,13 @@ router.post("/spmo/milestones/:id/evidence", async (req, res): Promise<void> => 
   const params = AddSpmoEvidenceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  // Permission check — verify user can manage milestones on this project
+  const [msForPerm] = await db.select({ projectId: spmoMilestonesTable.projectId }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, params.data.id)).limit(1);
+  if (msForPerm && !(await checkProjectPerm(userId, user?.role, msForPerm.projectId, "canManageMilestones"))) {
+    res.status(403).json({ error: "You do not have permission to upload evidence on this project" });
     return;
   }
 
@@ -1368,15 +1627,19 @@ router.delete("/spmo/evidence/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Check ownership — only uploader or admin can delete
+  const [evCheck] = await db.select({ uploadedById: spmoEvidenceTable.uploadedById }).from(spmoEvidenceTable).where(eq(spmoEvidenceTable.id, params.data.id)).limit(1);
+  if (!evCheck) { res.status(404).json({ error: "Evidence not found" }); return; }
+  const user = getAuthUser(req);
+  if (evCheck.uploadedById !== userId && user?.role !== "admin") {
+    res.status(403).json({ error: "You can only delete evidence you uploaded" });
+    return;
+  }
+
   const [evidence] = await db
     .delete(spmoEvidenceTable)
     .where(eq(spmoEvidenceTable.id, params.data.id))
     .returning();
-
-  if (!evidence) {
-    res.status(404).json({ error: "Evidence not found" });
-    return;
-  }
 
   res.json({ success: true });
 });
@@ -1506,6 +1769,8 @@ router.put("/spmo/kpis/:id", async (req, res): Promise<void> => {
     }
   }
 
+  const [oldKpi] = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.id, params.data.id)).limit(1);
+
   // Auto-track velocity: when actual changes, snapshot old actual → prevActual
   if (updateValues.actual !== undefined) {
     const [existing] = await db
@@ -1530,7 +1795,17 @@ router.put("/spmo/kpis/:id", async (req, res): Promise<void> => {
   }
 
   const user = getAuthUser(req);
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "kpi", kpi.id, kpi.name, { actual: kpi.actual });
+  const kpiChanges: Record<string, { from: unknown; to: unknown }> = {};
+  if (oldKpi) {
+    for (const f of ["name", "target", "actual", "baseline", "status", "unit", "description"] as const) {
+      const ov = (oldKpi as Record<string, unknown>)[f];
+      const nv = (kpi as Record<string, unknown>)[f];
+      if (ov !== nv && nv !== undefined) kpiChanges[f] = { from: ov, to: nv };
+    }
+  }
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "kpi", kpi.id, kpi.name, {
+    link: "/kpis", changes: kpiChanges,
+  });
   res.json(kpi);
 });
 
@@ -1588,6 +1863,12 @@ router.post("/spmo/risks", async (req, res): Promise<void> => {
     return;
   }
 
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, parsed.data.projectId, "canManageRisks"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
   const riskScore = computeRiskScore(parsed.data.probability, parsed.data.impact);
 
   const [risk] = await db
@@ -1595,7 +1876,6 @@ router.post("/spmo/risks", async (req, res): Promise<void> => {
     .values({ ...parsed.data, riskScore })
     .returning();
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "risk", risk.id, risk.title);
   res.status(201).json(risk);
 });
@@ -1616,14 +1896,20 @@ router.put("/spmo/risks/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Check per-project permission
+  const [existingRisk] = await db.select().from(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id));
+  if (!existingRisk) { res.status(404).json({ error: "Risk not found" }); return; }
+  const user = getAuthUser(req);
+  if (existingRisk.projectId && !(await checkProjectPerm(userId, user?.role, existingRisk.projectId, "canManageRisks"))) {
+    res.status(403).json({ error: "You do not have permission to manage risks on this project" });
+    return;
+  }
+
   const updateData: Record<string, unknown> = { ...parsed.data };
   if (parsed.data.probability || parsed.data.impact) {
-    const [existing] = await db.select().from(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id));
-    if (existing) {
-      const prob = parsed.data.probability ?? existing.probability;
-      const imp = parsed.data.impact ?? existing.impact;
-      updateData.riskScore = computeRiskScore(prob, imp);
-    }
+    const prob = parsed.data.probability ?? existingRisk.probability;
+    const imp = parsed.data.impact ?? existingRisk.impact;
+    updateData.riskScore = computeRiskScore(prob, imp);
   }
 
   const [risk] = await db
@@ -1632,12 +1918,6 @@ router.put("/spmo/risks/:id", async (req, res): Promise<void> => {
     .where(eq(spmoRisksTable.id, params.data.id))
     .returning();
 
-  if (!risk) {
-    res.status(404).json({ error: "Risk not found" });
-    return;
-  }
-
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "updated", "risk", risk.id, risk.title);
   res.json(risk);
 });
@@ -1652,12 +1932,16 @@ router.delete("/spmo/risks/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [risk] = await db.delete(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id)).returning();
-  if (!risk) {
-    res.status(404).json({ error: "Risk not found" });
+  // Check per-project permission
+  const [existingRisk] = await db.select({ projectId: spmoRisksTable.projectId }).from(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id)).limit(1);
+  if (!existingRisk) { res.status(404).json({ error: "Risk not found" }); return; }
+  const user = getAuthUser(req);
+  if (existingRisk.projectId && !(await checkProjectPerm(userId, user?.role, existingRisk.projectId, "canManageRisks"))) {
+    res.status(403).json({ error: "You do not have permission to manage risks on this project" });
     return;
   }
 
+  await db.delete(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id));
   res.json({ success: true });
 });
 
@@ -1668,6 +1952,15 @@ router.post("/spmo/risks/:id/mitigations", async (req, res): Promise<void> => {
   const params = CreateSpmoMitigationParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  // Check per-project permission via the parent risk
+  const [parentRisk] = await db.select({ projectId: spmoRisksTable.projectId }).from(spmoRisksTable).where(eq(spmoRisksTable.id, params.data.id)).limit(1);
+  if (!parentRisk) { res.status(404).json({ error: "Risk not found" }); return; }
+  const user = getAuthUser(req);
+  if (parentRisk.projectId && !(await checkProjectPerm(userId, user?.role, parentRisk.projectId, "canManageRisks"))) {
+    res.status(403).json({ error: "You do not have permission to manage risks on this project" });
     return;
   }
 
@@ -1699,6 +1992,17 @@ router.put("/spmo/mitigations/:id", async (req, res): Promise<void> => {
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
+  }
+
+  // Check per-project permission via mitigation → risk → project
+  const [mitForAccess] = await db.select({ riskId: spmoMitigationsTable.riskId }).from(spmoMitigationsTable).where(eq(spmoMitigationsTable.id, params.data.id)).limit(1);
+  if (mitForAccess) {
+    const [risk] = await db.select({ projectId: spmoRisksTable.projectId }).from(spmoRisksTable).where(eq(spmoRisksTable.id, mitForAccess.riskId)).limit(1);
+    const user = getAuthUser(req);
+    if (risk?.projectId && !(await checkProjectPerm(userId, user?.role, risk.projectId, "canManageRisks"))) {
+      res.status(403).json({ error: "You do not have permission to manage risks on this project" });
+      return;
+    }
   }
 
   const parsed = UpdateSpmoMitigationBody.safeParse(req.body);
@@ -1799,6 +2103,12 @@ router.post("/spmo/budget", async (req, res): Promise<void> => {
     return;
   }
 
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, parsed.data.projectId, "canManageBudget"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
+
   const [entry] = await db.insert(spmoBudgetTable).values(parsed.data).returning();
   res.status(201).json(entry);
 });
@@ -1808,16 +2118,18 @@ router.put("/spmo/budget/:id", async (req, res): Promise<void> => {
   if (!userId) return;
 
   const params = UpdateSpmoBudgetEntryParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  // Project-level permission check
+  const [budgetCheck] = await db.select({ projectId: spmoBudgetTable.projectId }).from(spmoBudgetTable).where(eq(spmoBudgetTable.id, params.data.id)).limit(1);
+  if (!budgetCheck) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (budgetCheck.projectId && !(await checkProjectPerm(userId, user?.role, budgetCheck.projectId, "canManageBudget"))) {
+    res.status(403).json({ error: "You do not have permission to manage budget on this project" }); return;
   }
 
   const parsed = UpdateSpmoBudgetEntryBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const [entry] = await db
     .update(spmoBudgetTable)
@@ -1843,12 +2155,15 @@ router.delete("/spmo/budget/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [entry] = await db.delete(spmoBudgetTable).where(eq(spmoBudgetTable.id, params.data.id)).returning();
-  if (!entry) {
-    res.status(404).json({ error: "Budget entry not found" });
-    return;
+  // Project-level permission check
+  const [budgetDel] = await db.select({ projectId: spmoBudgetTable.projectId }).from(spmoBudgetTable).where(eq(spmoBudgetTable.id, params.data.id)).limit(1);
+  if (!budgetDel) { res.status(404).json({ error: "Budget entry not found" }); return; }
+  const user = getAuthUser(req);
+  if (budgetDel.projectId && !(await checkProjectPerm(userId, user?.role, budgetDel.projectId, "canManageBudget"))) {
+    res.status(403).json({ error: "You do not have permission" }); return;
   }
 
+  await db.delete(spmoBudgetTable).where(eq(spmoBudgetTable.id, params.data.id));
   res.json({ success: true });
 });
 
@@ -2360,9 +2675,13 @@ router.put("/spmo/procurement/:id", async (req, res): Promise<void> => {
   if (!userId) return;
 
   const params = UpdateSpmoProcurementParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [procCheck] = await db.select({ projectId: spmoProcurementTable.projectId }).from(spmoProcurementTable).where(eq(spmoProcurementTable.id, params.data.id)).limit(1);
+  if (!procCheck) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, procCheck.projectId, "canManageBudget"))) {
+    res.status(403).json({ error: "You do not have permission to manage procurement on this project" }); return;
   }
 
   const parsed = UpdateSpmoProcurementBody.safeParse(req.body);
@@ -2382,7 +2701,6 @@ router.put("/spmo/procurement/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const user = getAuthUser(req);
   await logSpmoActivity(userId, getUserDisplayName(user), "updated", "procurement", row.id, row.title ?? "Procurement record");
   res.json(row);
 });
@@ -2392,9 +2710,13 @@ router.delete("/spmo/procurement/:id", async (req, res): Promise<void> => {
   if (!userId) return;
 
   const params = DeleteSpmoProcurementParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  const [procDel] = await db.select({ projectId: spmoProcurementTable.projectId }).from(spmoProcurementTable).where(eq(spmoProcurementTable.id, params.data.id)).limit(1);
+  if (!procDel) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, procDel.projectId, "canManageBudget"))) {
+    res.status(403).json({ error: "You do not have permission" }); return;
   }
 
   const [row] = await db
@@ -2417,7 +2739,7 @@ router.get("/spmo/programme-config", async (req, res): Promise<void> => {
   const userId = requireAuth(req, res);
   if (!userId) return;
 
-  const [config] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const [config] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   if (!config) {
     res.json({
       id: 1,
@@ -2451,7 +2773,7 @@ router.put("/spmo/programme-config", async (req, res): Promise<void> => {
     return;
   }
 
-  const existing = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const existing = await db.select().from(spmoProgrammeConfigTable).limit(1);
   let row;
   if (existing.length === 0) {
     [row] = await db.insert(spmoProgrammeConfigTable).values({ id: 1, ...parsed.data }).returning();
@@ -2721,7 +3043,7 @@ router.get("/spmo/projects/:id/weekly-report", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: "Invalid project id" }); return; }
   const { id: projectId } = parsed.data;
 
-  const [cfg] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   const resetDay = cfg?.weeklyResetDay ?? 3;
   const weekStart = getCurrentWeekStart(resetDay);
 
@@ -2741,6 +3063,9 @@ router.get("/spmo/projects/:id/weekly-report", async (req, res) => {
 });
 
 router.put("/spmo/projects/:id/weekly-report", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
   const parsedParams = UpsertSpmoProjectWeeklyReportParams.safeParse(req.params);
   if (!parsedParams.success) { res.status(400).json({ error: "Invalid project id" }); return; }
   const { id: projectId } = parsedParams.data;
@@ -2750,8 +3075,12 @@ router.put("/spmo/projects/:id/weekly-report", async (req, res) => {
   const { keyAchievements, nextSteps } = parsedBody.data;
 
   const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, projectId, "canSubmitReports"))) {
+    res.status(403).json({ error: "You do not have permission to submit weekly reports for this project" });
+    return;
+  }
 
-  const [cfg] = await db.select().from(spmoProgrammeConfigTable).where(eq(spmoProgrammeConfigTable.id, 1));
+  const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   const resetDay = cfg?.weeklyResetDay ?? 3;
   const weekStart = getCurrentWeekStart(resetDay);
   const updatedByName = getUserDisplayName(user) ?? user?.email ?? null;
@@ -2861,6 +3190,10 @@ router.post("/spmo/change-requests", async (req, res) => {
     timelineImpact: z.number().optional(),
   }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  if (!(await checkProjectPerm(userId, user.role, body.data.projectId, "canSubmitChangeRequests"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
   const [row] = await db.insert(spmoChangeRequestsTable).values({
     ...body.data,
     requestedById: user.id,
@@ -2885,6 +3218,12 @@ router.patch("/spmo/change-requests/:id", async (req, res) => {
   const user = getAuthUser(req)!;
   const id = parseId(req, res);
   if (!id) return;
+  // Project-level permission check
+  const [cr] = await db.select({ projectId: spmoChangeRequestsTable.projectId }).from(spmoChangeRequestsTable).where(eq(spmoChangeRequestsTable.id, id)).limit(1);
+  if (!cr) { res.status(404).json({ error: "Not found" }); return; }
+  if (!(await checkProjectPerm(userId, user.role, cr.projectId, "canSubmitChangeRequests"))) {
+    res.status(403).json({ error: "You do not have permission to manage change requests on this project" }); return;
+  }
   const body = z.object({
     title: z.string().optional(),
     description: z.string().optional(),
@@ -2919,10 +3258,15 @@ router.patch("/spmo/change-requests/:id", async (req, res) => {
 router.delete("/spmo/change-requests/:id", async (req, res) => {
   const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
+  const user = getAuthUser(req);
   const id = parseId(req, res);
   if (!id) return;
+  const [crDel] = await db.select({ projectId: spmoChangeRequestsTable.projectId }).from(spmoChangeRequestsTable).where(eq(spmoChangeRequestsTable.id, id)).limit(1);
+  if (!crDel) { res.status(404).json({ error: "Not found" }); return; }
+  if (!(await checkProjectPerm(userId, user?.role, crDel.projectId, "canSubmitChangeRequests"))) {
+    res.status(403).json({ error: "You do not have permission" }); return;
+  }
   const [row] = await db.delete(spmoChangeRequestsTable).where(eq(spmoChangeRequestsTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ ok: true });
 });
 
@@ -2956,6 +3300,10 @@ router.post("/spmo/raci", async (req, res) => {
     role: z.enum(["responsible", "accountable", "consulted", "informed"]),
   }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  if (!(await checkProjectPerm(userId, user.role, body.data.projectId, "canManageRaci"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
   const existing = body.data.milestoneId
     ? await db.select().from(spmoRaciTable).where(
         and(eq(spmoRaciTable.milestoneId, body.data.milestoneId), eq(spmoRaciTable.userId, body.data.userId))
@@ -2979,8 +3327,14 @@ router.post("/spmo/raci", async (req, res) => {
 router.patch("/spmo/raci/:id", async (req, res) => {
   const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
+  const user = getAuthUser(req);
   const id = parseId(req, res);
   if (!id) return;
+  const [raciRow] = await db.select({ projectId: spmoRaciTable.projectId }).from(spmoRaciTable).where(eq(spmoRaciTable.id, id)).limit(1);
+  if (!raciRow) { res.status(404).json({ error: "Not found" }); return; }
+  if (!(await checkProjectPerm(userId, user?.role, raciRow.projectId, "canManageRaci"))) {
+    res.status(403).json({ error: "You do not have permission to manage RACI on this project" }); return;
+  }
   const body = z.object({ role: z.enum(["responsible", "accountable", "consulted", "informed"]) }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error }); return; }
   const [row] = await db.update(spmoRaciTable).set(body.data).where(eq(spmoRaciTable.id, id)).returning();
@@ -2991,8 +3345,14 @@ router.patch("/spmo/raci/:id", async (req, res) => {
 router.delete("/spmo/raci/:id", async (req, res) => {
   const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
+  const user = getAuthUser(req);
   const id = parseId(req, res);
   if (!id) return;
+  const [raciDel] = await db.select({ projectId: spmoRaciTable.projectId }).from(spmoRaciTable).where(eq(spmoRaciTable.id, id)).limit(1);
+  if (!raciDel) { res.status(404).json({ error: "Not found" }); return; }
+  if (!(await checkProjectPerm(userId, user?.role, raciDel.projectId, "canManageRaci"))) {
+    res.status(403).json({ error: "You do not have permission" }); return;
+  }
   const [row] = await db.delete(spmoRaciTable).where(eq(spmoRaciTable.id, id)).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ ok: true });
@@ -3042,6 +3402,10 @@ router.post("/spmo/documents", async (req, res) => {
     tags: z.array(z.string()).optional(),
   }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  if (body.data.projectId && !(await checkProjectPerm(userId, user.role, body.data.projectId, "canManageDocuments"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
   const [row] = await db.insert(spmoDocumentsTable).values({
     ...body.data,
     uploadedById: user.id,
@@ -3065,6 +3429,14 @@ router.patch("/spmo/documents/:id", async (req, res) => {
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
+  // Check per-project permission
+  const [doc] = await db.select({ projectId: spmoDocumentsTable.projectId }).from(spmoDocumentsTable).where(eq(spmoDocumentsTable.id, id)).limit(1);
+  if (!doc) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (doc.projectId && !(await checkProjectPerm(userId, user?.role, doc.projectId, "canManageDocuments"))) {
+    res.status(403).json({ error: "You do not have permission to manage documents on this project" });
+    return;
+  }
   const body = z.object({
     title: z.string().optional(),
     description: z.string().optional(),
@@ -3087,8 +3459,15 @@ router.delete("/spmo/documents/:id", async (req, res) => {
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
-  const [row] = await db.delete(spmoDocumentsTable).where(eq(spmoDocumentsTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  // Check per-project permission
+  const [doc] = await db.select({ projectId: spmoDocumentsTable.projectId }).from(spmoDocumentsTable).where(eq(spmoDocumentsTable.id, id)).limit(1);
+  if (!doc) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (doc.projectId && !(await checkProjectPerm(userId, user?.role, doc.projectId, "canManageDocuments"))) {
+    res.status(403).json({ error: "You do not have permission to manage documents on this project" });
+    return;
+  }
+  await db.delete(spmoDocumentsTable).where(eq(spmoDocumentsTable.id, id));
   res.json({ ok: true });
 });
 
@@ -3125,6 +3504,10 @@ router.post("/spmo/actions", async (req, res) => {
     status: z.enum(["open", "in_progress", "done", "cancelled"]).default("open"),
   }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error }); return; }
+  if (!(await checkProjectPerm(userId, user.role, body.data.projectId, "canManageActions"))) {
+    res.status(403).json({ error: "You do not have edit access to this project" });
+    return;
+  }
   const [row] = await db.insert(spmoActionsTable).values({
     ...body.data,
     createdById: user.id,
@@ -3138,6 +3521,14 @@ router.patch("/spmo/actions/:id", async (req, res) => {
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
+  // Check per-project permission
+  const [action] = await db.select({ projectId: spmoActionsTable.projectId }).from(spmoActionsTable).where(eq(spmoActionsTable.id, id)).limit(1);
+  if (!action) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, action.projectId, "canManageActions"))) {
+    res.status(403).json({ error: "You do not have permission to manage actions on this project" });
+    return;
+  }
   const body = z.object({
     title: z.string().optional(),
     description: z.string().optional(),
@@ -3158,9 +3549,312 @@ router.delete("/spmo/actions/:id", async (req, res) => {
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
-  const [row] = await db.delete(spmoActionsTable).where(eq(spmoActionsTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  // Check per-project permission
+  const [action] = await db.select({ projectId: spmoActionsTable.projectId }).from(spmoActionsTable).where(eq(spmoActionsTable.id, id)).limit(1);
+  if (!action) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (!(await checkProjectPerm(userId, user?.role, action.projectId, "canManageActions"))) {
+    res.status(403).json({ error: "You do not have permission to manage actions on this project" });
+    return;
+  }
+  await db.delete(spmoActionsTable).where(eq(spmoActionsTable.id, id));
   res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────
+// COMMENTS & DISCUSSION THREADS
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/comments", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const entityType = req.query.entityType as string;
+  const entityId = req.query.entityId ? Number(req.query.entityId) : null;
+  if (!entityType || !entityId) { res.status(400).json({ error: "entityType and entityId required" }); return; }
+  const rows = await db.select().from(spmoCommentsTable).where(and(eq(spmoCommentsTable.entityType, entityType), eq(spmoCommentsTable.entityId, entityId))).orderBy(asc(spmoCommentsTable.createdAt));
+  res.json({ comments: rows });
+});
+
+router.post("/spmo/comments", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const user = getAuthUser(req);
+  const body = z.object({
+    entityType: z.enum(["project", "milestone", "risk", "kpi", "initiative"]),
+    entityId: z.number(),
+    parentId: z.number().nullable().optional(),
+    body: z.string().min(1),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+
+  // Verify entity exists
+  const entityTable = { project: spmoProjectsTable, milestone: spmoMilestonesTable, risk: spmoRisksTable, kpi: spmoKpisTable, initiative: spmoInitiativesTable }[body.data.entityType];
+  if (entityTable) {
+    const [exists] = await db.select({ id: (entityTable as { id: typeof spmoProjectsTable.id }).id }).from(entityTable).where(eq((entityTable as { id: typeof spmoProjectsTable.id }).id, body.data.entityId)).limit(1);
+    if (!exists) { res.status(404).json({ error: `${body.data.entityType} with id ${body.data.entityId} not found` }); return; }
+  }
+
+  const [row] = await db.insert(spmoCommentsTable).values({
+    ...body.data,
+    authorId: userId,
+    authorName: getUserDisplayName(user),
+  }).returning();
+
+  // Create notification for relevant owner
+  let notifyUserId: string | null = null;
+  let entityName = "";
+  let entityLink = "";
+  if (body.data.entityType === "project") {
+    const [proj] = await db.select({ ownerId: spmoProjectsTable.ownerId, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, body.data.entityId)).limit(1);
+    if (proj) { notifyUserId = proj.ownerId; entityName = proj.name; entityLink = `/projects/${body.data.entityId}`; }
+  } else if (body.data.entityType === "milestone") {
+    const [ms] = await db.select({ projectId: spmoMilestonesTable.projectId, name: spmoMilestonesTable.name }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, body.data.entityId)).limit(1);
+    if (ms) {
+      const [proj] = await db.select({ ownerId: spmoProjectsTable.ownerId }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, ms.projectId)).limit(1);
+      notifyUserId = proj?.ownerId ?? null; entityName = ms.name; entityLink = `/projects/${ms.projectId}?tab=milestones`;
+    }
+  } else if (body.data.entityType === "risk") {
+    const [risk] = await db.select({ projectId: spmoRisksTable.projectId, title: spmoRisksTable.title }).from(spmoRisksTable).where(eq(spmoRisksTable.id, body.data.entityId)).limit(1);
+    if (risk?.projectId) {
+      const [proj] = await db.select({ ownerId: spmoProjectsTable.ownerId }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, risk.projectId)).limit(1);
+      notifyUserId = proj?.ownerId ?? null; entityName = risk.title; entityLink = `/projects/${risk.projectId}?tab=risks`;
+    }
+  }
+  if (notifyUserId && notifyUserId !== userId) {
+    await db.insert(spmoNotificationsTable).values({
+      userId: notifyUserId, type: "comment",
+      title: `New comment on ${entityName}`,
+      body: body.data.body.slice(0, 200),
+      link: entityLink,
+      entityType: body.data.entityType, entityId: body.data.entityId,
+    });
+  }
+
+  res.status(201).json(row);
+});
+
+router.delete("/spmo/comments/:id", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const id = parseId(req, res);
+  if (!id) return;
+  const [comment] = await db.select({ authorId: spmoCommentsTable.authorId }).from(spmoCommentsTable).where(eq(spmoCommentsTable.id, id)).limit(1);
+  if (!comment) { res.status(404).json({ error: "Not found" }); return; }
+  const user = getAuthUser(req);
+  if (comment.authorId !== userId && user?.role !== "admin") { res.status(403).json({ error: "Can only delete your own comments" }); return; }
+  await db.delete(spmoCommentsTable).where(eq(spmoCommentsTable.id, id));
+  res.json({ ok: true });
+});
+
+// NOTIFICATIONS (in-app bell icon)
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/notifications", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const rows = await db.select().from(spmoNotificationsTable).where(eq(spmoNotificationsTable.userId, userId)).orderBy(desc(spmoNotificationsTable.createdAt)).limit(50);
+  const unread = rows.filter((r) => !r.read).length;
+  res.json({ notifications: rows, unreadCount: unread });
+});
+
+router.post("/spmo/notifications/read-all", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  await db.update(spmoNotificationsTable).set({ read: true }).where(and(eq(spmoNotificationsTable.userId, userId), eq(spmoNotificationsTable.read, false)));
+  res.json({ ok: true });
+});
+
+router.post("/spmo/notifications/:id/read", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const id = parseId(req, res);
+  if (!id) return;
+  await db.update(spmoNotificationsTable).set({ read: true }).where(and(eq(spmoNotificationsTable.id, id), eq(spmoNotificationsTable.userId, userId)));
+  res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────
+// EMAIL REMINDERS
+// ─────────────────────────────────────────────────────────────
+
+// Send task reminders (milestones, actions, risks)
+router.post("/spmo/admin/send-reminders", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  try {
+    const { generateTaskReminders, formatReminderHtml, formatReminderText } = await import("../lib/email-reminders");
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}/strategy-pmo`;
+    const reminders = await generateTaskReminders(baseUrl);
+    const preview = reminders.map((r) => ({
+      to: r.to, toName: r.toName, cc: r.cc, subject: r.subject,
+      totalItems: r.sections.reduce((s, sec) => s + sec.items.length, 0),
+      textPreview: formatReminderText(r).slice(0, 500),
+      html: formatReminderHtml(r),
+    }));
+    res.json({ type: "task_reminders", sent: reminders.length, reminders: preview });
+  } catch (err) {
+    req.log.error({ err }, "Failed to generate task reminders");
+    res.status(500).json({ error: "Failed to generate reminders" });
+  }
+});
+
+// Send weekly report deadline reminders (overdue reports only)
+router.post("/spmo/admin/send-weekly-report-reminders", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  try {
+    const { generateWeeklyReportReminders, formatReminderHtml, formatReminderText } = await import("../lib/email-reminders");
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}/strategy-pmo`;
+    const reminders = await generateWeeklyReportReminders(baseUrl);
+    const preview = reminders.map((r) => ({
+      to: r.to, toName: r.toName, cc: r.cc, subject: r.subject,
+      totalItems: r.sections.reduce((s, sec) => s + sec.items.length, 0),
+      textPreview: formatReminderText(r).slice(0, 500),
+      html: formatReminderHtml(r),
+    }));
+    res.json({ type: "weekly_report_deadline", sent: reminders.length, reminders: preview });
+  } catch (err) {
+    req.log.error({ err }, "Failed to generate weekly report reminders");
+    res.status(500).json({ error: "Failed to generate reminders" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// GLOBAL SEARCH (Cmd+K — searches projects, milestones, KPIs, risks, documents)
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/search", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const q = ((req.query.q as string) || "").trim();
+  if (q.length < 2) { res.json({ results: [] }); return; }
+
+  // Single SQL query using UNION ALL with ILIKE (was: 5 full table scans + JS filtering)
+  const pattern = `%${q}%`;
+  const searchResults = await db.execute(sql`
+    (SELECT 'project' as type, id, name as title, COALESCE(project_code || ' · ' || COALESCE(owner_name, ''), '') as subtitle, '/projects/' || id as link FROM spmo_projects WHERE name ILIKE ${pattern} OR project_code ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
+    UNION ALL
+    (SELECT 'milestone', id, name, 'Milestone', '/projects/' || project_id || '?tab=milestones' FROM spmo_milestones WHERE name ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
+    UNION ALL
+    (SELECT 'kpi', id, name, type || ' KPI', '/kpis' FROM spmo_kpis WHERE name ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
+    UNION ALL
+    (SELECT 'risk', id, title, 'Risk', CASE WHEN project_id IS NOT NULL THEN '/projects/' || project_id || '?tab=risks' ELSE '/risks' END FROM spmo_risks WHERE title ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
+    UNION ALL
+    (SELECT 'initiative', id, name, 'Initiative ' || COALESCE(initiative_code, ''), '/initiatives' FROM spmo_initiatives WHERE name ILIKE ${pattern} OR initiative_code ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
+  `);
+
+  const results = (searchResults.rows as { type: string; id: number; title: string; subtitle: string; link: string }[]).slice(0, 20);
+  res.json({ results });
+});
+
+// ─────────────────────────────────────────────────────────────
+// USER SEARCH (for @ tagging in action items — any authenticated user)
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/users/search", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const q = ((req.query.q as string) || "").trim().toLowerCase();
+  const allUsers = await db.select({
+    id: usersTable.id,
+    email: usersTable.email,
+    firstName: usersTable.firstName,
+    lastName: usersTable.lastName,
+    role: usersTable.role,
+  }).from(usersTable);
+
+  const filtered = q
+    ? allUsers.filter(u => {
+        const name = `${u.firstName ?? ""} ${u.lastName ?? ""}`.toLowerCase();
+        const email = (u.email ?? "").toLowerCase();
+        return name.includes(q) || email.includes(q);
+      })
+    : allUsers;
+
+  res.json({ users: filtered.slice(0, 20) });
+});
+
+// ─────────────────────────────────────────────────────────────
+// ADMIN: DIAGNOSTICS
+// ─────────────────────────────────────────────────────────────
+
+const SERVER_START_TIME = Date.now();
+
+router.get("/spmo/admin/diagnostics", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  try {
+    // DB connectivity
+    let dbStatus = "healthy";
+    let dbLatencyMs = 0;
+    try {
+      const t0 = Date.now();
+      await db.execute(sql`SELECT 1`);
+      dbLatencyMs = Date.now() - t0;
+    } catch {
+      dbStatus = "unreachable";
+    }
+
+    // Table row counts
+    const counts = await db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM spmo_pillars) AS pillars,
+        (SELECT count(*)::int FROM spmo_initiatives) AS initiatives,
+        (SELECT count(*)::int FROM spmo_projects) AS projects,
+        (SELECT count(*)::int FROM spmo_milestones) AS milestones,
+        (SELECT count(*)::int FROM spmo_kpis) AS kpis,
+        (SELECT count(*)::int FROM spmo_risks) AS risks,
+        (SELECT count(*)::int FROM spmo_budget_entries) AS budget_entries,
+        (SELECT count(*)::int FROM spmo_activity_log) AS activity_log,
+        (SELECT count(*)::int FROM users) AS users
+    `);
+    const tableCounts = counts.rows[0] as Record<string, number>;
+
+    // Programme config
+    const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
+    const lastAiAssessmentAt = cfg?.lastAiAssessmentAt ?? null;
+
+    // Memory usage
+    const mem = process.memoryUsage();
+
+    // Uptime
+    const uptimeMs = Date.now() - SERVER_START_TIME;
+    const uptimeDays = Math.floor(uptimeMs / 86_400_000);
+    const uptimeHours = Math.floor((uptimeMs % 86_400_000) / 3_600_000);
+    const uptimeMins = Math.floor((uptimeMs % 3_600_000) / 60_000);
+
+    res.json({
+      appVersion: "1.1.0",
+      nodeVersion: process.version,
+      environment: process.env.NODE_ENV ?? "development",
+      database: {
+        status: dbStatus,
+        latencyMs: dbLatencyMs,
+      },
+      tableCounts,
+      config: {
+        programmeName: cfg?.programmeName ?? null,
+        weeklyResetDay: cfg?.weeklyResetDay ?? null,
+        riskAlertThreshold: cfg?.riskAlertThreshold ?? null,
+        reminderDaysAhead: cfg?.reminderDaysAhead ?? null,
+        lastAiAssessmentAt,
+      },
+      memory: {
+        rss: `${Math.round(mem.rss / 1_048_576)}MB`,
+        heapUsed: `${Math.round(mem.heapUsed / 1_048_576)}MB`,
+        heapTotal: `${Math.round(mem.heapTotal / 1_048_576)}MB`,
+        external: `${Math.round(mem.external / 1_048_576)}MB`,
+      },
+      uptime: {
+        formatted: `${uptimeDays}d ${uptimeHours}h ${uptimeMins}m`,
+        ms: uptimeMs,
+      },
+      serverTime: new Date().toISOString(),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Diagnostics failed");
+    res.status(500).json({ error: "Diagnostics check failed" });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -3183,6 +3877,51 @@ router.get("/spmo/admin/users", async (req, res) => {
     .orderBy(asc(usersTable.createdAt));
 
   res.json({ users });
+});
+
+// GET /spmo/admin/users-access — All users with their project access grants
+router.get("/spmo/admin/users-access", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const users = await db.select({
+    id: usersTable.id,
+    email: usersTable.email,
+    firstName: usersTable.firstName,
+    lastName: usersTable.lastName,
+    role: usersTable.role,
+  }).from(usersTable).orderBy(asc(usersTable.createdAt));
+
+  const grants = await db.select().from(spmoProjectAccessTable);
+  const projects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name, projectCode: spmoProjectsTable.projectCode, ownerId: spmoProjectsTable.ownerId }).from(spmoProjectsTable);
+  const projectMap = new Map(projects.map((p) => [p.id, p]));
+
+  const result = users.map((u) => {
+    const userGrants = grants.filter((g) => g.userId === u.id);
+    const ownedProjects = projects.filter((p) => p.ownerId === u.id);
+    return {
+      ...u,
+      ownedProjects: ownedProjects.map((p) => ({ id: p.id, name: p.name, projectCode: p.projectCode })),
+      accessGrants: userGrants.map((g) => {
+        const proj = projectMap.get(g.projectId);
+        return {
+          projectId: g.projectId,
+          projectName: proj?.name ?? "Unknown",
+          projectCode: proj?.projectCode ?? null,
+          canEditDetails: g.canEditDetails,
+          canManageMilestones: g.canManageMilestones,
+          canSubmitReports: g.canSubmitReports,
+          canManageRisks: g.canManageRisks,
+          canManageBudget: g.canManageBudget,
+          canManageDocuments: g.canManageDocuments,
+          canManageActions: g.canManageActions,
+          canManageRaci: g.canManageRaci,
+          canSubmitChangeRequests: g.canSubmitChangeRequests,
+        };
+      }),
+    };
+  });
+
+  res.json({ users: result });
 });
 
 router.put("/spmo/admin/users/:userId/role", async (req, res) => {
@@ -3227,7 +3966,7 @@ router.get("/spmo/kpis/:id/measurements", async (req, res) => {
 });
 
 router.post("/spmo/kpis/:id/measurements", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const kpiId = parseId(req, res);
   if (!kpiId) return;
@@ -3257,7 +3996,7 @@ router.post("/spmo/kpis/:id/measurements", async (req, res) => {
 });
 
 router.delete("/spmo/kpis/:kpiId/measurements/:id", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
@@ -3279,25 +4018,67 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
   const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   const isApprover = userRow?.role === "admin" || userRow?.role === "approver";
 
-  const myProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.ownerId, userId));
+  // Only include active projects — completed/on_hold/cancelled projects should not generate tasks
+  const myProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(and(eq(spmoProjectsTable.ownerId, userId), eq(spmoProjectsTable.status, "active")));
   const myProjectIds = myProjects.map((p) => p.id);
 
+  // Only admin and approver roles see pending approvals
   let pendingApprovals = 0;
   if (isApprover) {
     const rows = await db.select({ id: spmoMilestonesTable.id }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.status, "submitted"));
     pendingApprovals = rows.length;
-  } else if (myProjectIds.length > 0) {
-    const rows = await db.select({ id: spmoMilestonesTable.id }).from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), eq(spmoMilestonesTable.status, "submitted")));
-    pendingApprovals = rows.length;
   }
 
-  const myMilestones = await db.select().from(spmoMilestonesTable).where(and(eq(spmoMilestonesTable.assigneeId, userId), ne(spmoMilestonesTable.status, "approved")));
+  // Exclude milestones from completed/cancelled/on_hold projects
+  const activeProjectIds = (await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.status, "active"))).map((p) => p.id);
+  const myMilestones = activeProjectIds.length > 0
+    ? await db.select().from(spmoMilestonesTable).where(and(eq(spmoMilestonesTable.assigneeId, userId), ne(spmoMilestonesTable.status, "approved"), inArray(spmoMilestonesTable.projectId, activeProjectIds)))
+    : [];
   const overdueCount = myMilestones.filter((m) => m.dueDate && m.dueDate < today).length;
   const dueSoonCount = myMilestones.filter((m) => {
     if (!m.dueDate || m.dueDate < today) return false;
     const daysLeft = Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000);
     return daysLeft >= 0 && daysLeft <= 7;
   }).length;
+
+  // Count action items assigned to this user that are open/in_progress
+  const myActions = await db.select({ id: spmoActionsTable.id, dueDate: spmoActionsTable.dueDate, status: spmoActionsTable.status }).from(spmoActionsTable).where(and(eq(spmoActionsTable.assigneeId, userId), inArray(spmoActionsTable.status, ["open", "in_progress"])));
+  const overdueActions = myActions.filter((a) => a.dueDate && a.dueDate < today).length;
+  const pendingActions = myActions.length - overdueActions;
+
+  // Load risk alert threshold from config
+  const [riskCfg] = await db.select({ riskAlertThreshold: spmoProgrammeConfigTable.riskAlertThreshold }).from(spmoProgrammeConfigTable).limit(1);
+  const riskThreshold = riskCfg?.riskAlertThreshold ?? 9;
+
+  // Count project-level alerts for owned projects
+  let projectAlerts = 0;
+  let ownerOverdueMilestones = 0;
+  let ownerDueSoonMilestones = 0;
+  let delayedProjects = 0;
+  let atRiskProjects = 0;
+  if (myProjectIds.length > 0) {
+    const highRisks = await db.select({ id: spmoRisksTable.id }).from(spmoRisksTable).where(and(inArray(spmoRisksTable.projectId, myProjectIds), eq(spmoRisksTable.status, "open"), gte(spmoRisksTable.riskScore, riskThreshold)));
+    projectAlerts = highRisks.length;
+
+    // Milestones in owned projects (overdue/due soon)
+    const assignedMsIds = new Set(myMilestones.map((m) => m.id));
+    const ownedMs = await db.select({ id: spmoMilestonesTable.id, dueDate: spmoMilestonesTable.dueDate, status: spmoMilestonesTable.status, assigneeId: spmoMilestonesTable.assigneeId }).from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), ne(spmoMilestonesTable.status, "approved")));
+    for (const m of ownedMs) {
+      if (assignedMsIds.has(m.id) || !m.dueDate) continue;
+      const dl = Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000);
+      if (m.dueDate < today) ownerOverdueMilestones++;
+      else if (dl <= 7) ownerDueSoonMilestones++;
+    }
+
+    // Project health
+    const myProjsFull = await db.select().from(spmoProjectsTable).where(inArray(spmoProjectsTable.id, myProjectIds));
+    for (const p of myProjsFull) {
+      const ps = await projectProgress(p.id);
+      const h = computeStatus(ps.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, ps.rawProgress);
+      if (h.status === "delayed") delayedProjects++;
+      else if (h.status === "at_risk") atRiskProjects++;
+    }
+  }
 
   const [cfg] = await db.select({ weeklyResetDay: spmoProgrammeConfigTable.weeklyResetDay }).from(spmoProgrammeConfigTable).limit(1);
   const resetDay = cfg?.weeklyResetDay ?? 3;
@@ -3308,10 +4089,10 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
     weeklyDue = myProjectIds.length - existing.length;
   }
 
-  const total = pendingApprovals + overdueCount + dueSoonCount + weeklyDue;
-  const critical = overdueCount;
-  const high = pendingApprovals;
-  res.json({ total, critical, high, medium: dueSoonCount + weeklyDue, low: 0 });
+  const total = pendingApprovals + overdueCount + dueSoonCount + weeklyDue + overdueActions + pendingActions + projectAlerts + ownerOverdueMilestones + ownerDueSoonMilestones + delayedProjects + atRiskProjects;
+  const critical = overdueCount + overdueActions + delayedProjects;
+  const high = pendingApprovals + projectAlerts + ownerOverdueMilestones + atRiskProjects;
+  res.json({ total, critical, high, medium: dueSoonCount + weeklyDue + pendingActions + ownerDueSoonMilestones, low: 0 });
 });
 
 router.get("/spmo/my-tasks", async (req, res) => {
@@ -3323,10 +4104,12 @@ router.get("/spmo/my-tasks", async (req, res) => {
   const [userRow] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   const isApprover = userRow?.role === "admin" || userRow?.role === "approver";
 
-  const myProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(eq(spmoProjectsTable.ownerId, userId));
+  // Only include active projects — completed/on_hold/cancelled should not generate tasks
+  const myProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(and(eq(spmoProjectsTable.ownerId, userId), eq(spmoProjectsTable.status, "active")));
   const myProjectIds = myProjects.map((p) => p.id);
   const projectNameMap = new Map(myProjects.map((p) => [p.id, p.name]));
 
+  // Only admin and approver roles see pending approvals — PMs submit evidence, not approve
   let pendingApprovals: typeof spmoMilestonesTable.$inferSelect[] = [];
   if (isApprover) {
     pendingApprovals = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.status, "submitted"));
@@ -3336,11 +4119,13 @@ router.get("/spmo/my-tasks", async (req, res) => {
       const extraProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(inArray(spmoProjectsTable.id, submittedProjectIds));
       for (const p of extraProjects) if (!projectNameMap.has(p.id)) projectNameMap.set(p.id, p.name);
     }
-  } else if (myProjectIds.length > 0) {
-    pendingApprovals = await db.select().from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), eq(spmoMilestonesTable.status, "submitted")));
   }
 
-  const myMilestones = await db.select().from(spmoMilestonesTable).where(and(eq(spmoMilestonesTable.assigneeId, userId), ne(spmoMilestonesTable.status, "approved")));
+  // Exclude milestones from completed/cancelled/on_hold projects
+  const activeProjectIds = (await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.status, "active"))).map((p) => p.id);
+  const myMilestones = activeProjectIds.length > 0
+    ? await db.select().from(spmoMilestonesTable).where(and(eq(spmoMilestonesTable.assigneeId, userId), ne(spmoMilestonesTable.status, "approved"), inArray(spmoMilestonesTable.projectId, activeProjectIds)))
+    : [];
   const overdue = myMilestones.filter((m) => m.dueDate && m.dueDate < today && m.status !== "approved");
   const dueSoon = myMilestones.filter((m) => {
     if (!m.dueDate || m.status === "approved" || overdue.some((o) => o.id === m.id)) return false;
@@ -3362,7 +4147,9 @@ router.get("/spmo/my-tasks", async (req, res) => {
 
   const tasks: object[] = [];
   for (const m of pendingApprovals) {
-    tasks.push({ id: `approve-${m.id}`, type: "approval", priority: "high", title: `Approve: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Submitted · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: null, daysLeft: null, action: "Review evidence and approve or reject", link: `/projects/${m.projectId}?tab=milestones` });
+    const daysSubmitted = m.submittedAt ? Math.ceil((now.getTime() - new Date(m.submittedAt).getTime()) / 86400000) : 0;
+    const isEscalated = daysSubmitted >= 5;
+    tasks.push({ id: `approve-${m.id}`, type: "approval", priority: isEscalated ? "critical" : "high", title: `${isEscalated ? "⚠ ESCALATED: " : ""}Approve: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Submitted${daysSubmitted > 0 ? ` ${daysSubmitted}d ago` : ""} · ${m.progress}%`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: null, daysLeft: null, action: isEscalated ? "Overdue approval — submitted over 5 days ago" : "Review evidence and approve or reject", link: `/projects/${m.projectId}?tab=milestones` });
   }
   for (const m of overdue) {
     const daysOver = Math.ceil((now.getTime() - new Date(m.dueDate!).getTime()) / 86400000);
@@ -3380,6 +4167,140 @@ router.get("/spmo/my-tasks", async (req, res) => {
   }
   for (const m of blocked) {
     tasks.push({ id: `blocked-${m.id}`, type: "blocked", priority: "info", title: `Blocked: ${m.name}`, subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · Waiting on dependency`, entityType: "milestone", entityId: m.id, projectId: m.projectId, dueDate: m.dueDate, daysLeft: null, action: "No action needed — blocked by upstream dependency", link: `/projects/${m.projectId}?tab=milestones` });
+  }
+
+  // ── Action items assigned to this user ──
+  const myActions = await db.select().from(spmoActionsTable).where(and(eq(spmoActionsTable.assigneeId, userId), inArray(spmoActionsTable.status, ["open", "in_progress"])));
+  // Build project name map for action projects
+  const actionProjectIds = [...new Set(myActions.map((a) => a.projectId))];
+  if (actionProjectIds.length > 0) {
+    const actionProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(inArray(spmoProjectsTable.id, actionProjectIds));
+    for (const p of actionProjects) if (!projectNameMap.has(p.id)) projectNameMap.set(p.id, p.name);
+  }
+  for (const a of myActions) {
+    const isOverdueAction = a.dueDate && a.dueDate < today;
+    const daysLeft = a.dueDate ? Math.ceil((new Date(a.dueDate).getTime() - now.getTime()) / 86400000) : null;
+    tasks.push({
+      id: `action-${a.id}`,
+      type: isOverdueAction ? "overdue" : "action_assigned",
+      priority: isOverdueAction ? "critical" : (a.priority === "urgent" || a.priority === "high" ? "medium" : "low"),
+      title: `${isOverdueAction ? "OVERDUE: " : ""}${a.title}`,
+      subtitle: `${projectNameMap.get(a.projectId) ?? "—"} · ${a.priority} · ${a.status.replace("_", " ")}${a.dueDate ? ` · Due ${new Date(a.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}`,
+      entityType: "action",
+      entityId: a.id,
+      projectId: a.projectId,
+      dueDate: a.dueDate,
+      daysLeft,
+      action: isOverdueAction ? "Complete overdue action item immediately" : "Complete assigned action item",
+      link: `/projects/${a.projectId}?tab=actions`,
+    });
+  }
+
+  // Load risk alert threshold from config
+  const [riskCfg2] = await db.select({ riskAlertThreshold: spmoProgrammeConfigTable.riskAlertThreshold }).from(spmoProgrammeConfigTable).limit(1);
+  const riskThreshold = riskCfg2?.riskAlertThreshold ?? 9;
+
+  // ── Project owner notifications for owned projects ──
+  if (myProjectIds.length > 0) {
+    // Risk alerts: high-score open risks
+    const highRisks = await db.select().from(spmoRisksTable).where(and(inArray(spmoRisksTable.projectId, myProjectIds), eq(spmoRisksTable.status, "open"), gte(spmoRisksTable.riskScore, riskThreshold)));
+    for (const r of highRisks) {
+      tasks.push({
+        id: `risk-alert-${r.id}`,
+        type: "risk_alert",
+        priority: r.riskScore >= 16 ? "critical" : "high",
+        title: `Risk Alert: ${r.title}`,
+        subtitle: `${projectNameMap.get(r.projectId!) ?? "—"} · Score ${r.riskScore} · ${r.probability}/${r.impact}`,
+        entityType: "risk",
+        entityId: r.id,
+        projectId: r.projectId!,
+        dueDate: null,
+        daysLeft: null,
+        action: "Review and add mitigation actions",
+        link: `/projects/${r.projectId}?tab=risks`,
+      });
+    }
+
+    // Milestone due/overdue in owned projects (not already in assignee tasks)
+    const assignedMsIds = new Set(myMilestones.map((m) => m.id));
+    const ownedProjectMilestones = await db.select().from(spmoMilestonesTable).where(and(inArray(spmoMilestonesTable.projectId, myProjectIds), ne(spmoMilestonesTable.status, "approved")));
+    for (const m of ownedProjectMilestones) {
+      if (assignedMsIds.has(m.id)) continue; // Already shown as assignee task
+      if (!m.dueDate) continue;
+      const daysLeft = Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000);
+      if (m.dueDate < today) {
+        // Overdue milestone in owned project
+        tasks.push({
+          id: `owner-overdue-${m.id}`,
+          type: "owner_milestone_overdue",
+          priority: "high",
+          title: `Your Project — Overdue: ${m.name}`,
+          subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${Math.abs(daysLeft)}d overdue · ${m.progress}%`,
+          entityType: "milestone",
+          entityId: m.id,
+          projectId: m.projectId,
+          dueDate: m.dueDate,
+          daysLeft,
+          action: "Follow up with assignee on overdue milestone",
+          link: `/projects/${m.projectId}?tab=milestones`,
+        });
+      } else if (daysLeft <= 7) {
+        // Due soon milestone in owned project
+        tasks.push({
+          id: `owner-duesoon-${m.id}`,
+          type: "owner_milestone_due_soon",
+          priority: "medium",
+          title: `Your Project — Due in ${daysLeft}d: ${m.name}`,
+          subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${m.progress}%`,
+          entityType: "milestone",
+          entityId: m.id,
+          projectId: m.projectId,
+          dueDate: m.dueDate,
+          daysLeft,
+          action: "Ensure milestone is on track before deadline",
+          link: `/projects/${m.projectId}?tab=milestones`,
+        });
+      }
+    }
+
+    // Project health alerts: delayed or at_risk status
+    for (const p of myProjects) {
+      const pStats = await projectProgress(p.id);
+      const [projRow] = await db.select({ startDate: spmoProjectsTable.startDate, targetDate: spmoProjectsTable.targetDate, budget: spmoProjectsTable.budget, budgetSpent: spmoProjectsTable.budgetSpent }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, p.id)).limit(1);
+      if (!projRow) continue;
+      const health = computeStatus(pStats.progress, projRow.startDate, projRow.targetDate, projRow.budget, projRow.budgetSpent, pStats.rawProgress);
+      if (health.status === "delayed") {
+        tasks.push({
+          id: `project-delayed-${p.id}`,
+          type: "project_delayed",
+          priority: "critical",
+          title: `PROJECT DELAYED: ${p.name}`,
+          subtitle: `Progress ${pStats.progress}% · ${health.reason}`,
+          entityType: "project",
+          entityId: p.id,
+          projectId: p.id,
+          dueDate: projRow.targetDate,
+          daysLeft: projRow.targetDate ? Math.ceil((new Date(projRow.targetDate).getTime() - now.getTime()) / 86400000) : null,
+          action: "Urgent intervention needed — project is behind schedule",
+          link: `/projects/${p.id}`,
+        });
+      } else if (health.status === "at_risk") {
+        tasks.push({
+          id: `project-atrisk-${p.id}`,
+          type: "project_at_risk",
+          priority: "high",
+          title: `At Risk: ${p.name}`,
+          subtitle: `Progress ${pStats.progress}% · ${health.reason}`,
+          entityType: "project",
+          entityId: p.id,
+          projectId: p.id,
+          dueDate: projRow.targetDate,
+          daysLeft: projRow.targetDate ? Math.ceil((new Date(projRow.targetDate).getTime() - now.getTime()) / 86400000) : null,
+          action: "Review project plan and take corrective action",
+          link: `/projects/${p.id}`,
+        });
+      }
+    }
   }
 
   const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
@@ -3417,6 +4338,157 @@ router.get("/spmo/dashboard/department-status", async (req, res) => {
   }));
 
   res.json(result.filter((d) => d.totalProjects > 0));
+});
+
+// ─────────────────────────────────────────────────────────────
+// PROJECT ACCESS GRANTS (admin-managed per-project edit rights)
+// ─────────────────────────────────────────────────────────────
+
+const PermissionsSchema = z.object({
+  canEditDetails:          z.boolean().optional(),
+  canManageMilestones:     z.boolean().optional(),
+  canSubmitReports:        z.boolean().optional(),
+  canManageRisks:          z.boolean().optional(),
+  canManageBudget:         z.boolean().optional(),
+  canManageDocuments:      z.boolean().optional(),
+  canManageActions:        z.boolean().optional(),
+  canManageRaci:           z.boolean().optional(),
+  canSubmitChangeRequests: z.boolean().optional(),
+});
+
+/** GET /spmo/my-project-access — list all projects + per-project permissions for the current user */
+router.get("/spmo/my-project-access", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const user = getAuthUser(req);
+  if (user?.role === "admin") {
+    res.json({ admin: true, grants: [] });
+    return;
+  }
+  const grants = await db
+    .select({
+      projectId:               spmoProjectAccessTable.projectId,
+      canEditDetails:          spmoProjectAccessTable.canEditDetails,
+      canManageMilestones:     spmoProjectAccessTable.canManageMilestones,
+      canSubmitReports:        spmoProjectAccessTable.canSubmitReports,
+      canManageRisks:          spmoProjectAccessTable.canManageRisks,
+      canManageBudget:         spmoProjectAccessTable.canManageBudget,
+      canManageDocuments:      spmoProjectAccessTable.canManageDocuments,
+      canManageActions:        spmoProjectAccessTable.canManageActions,
+      canManageRaci:           spmoProjectAccessTable.canManageRaci,
+      canSubmitChangeRequests: spmoProjectAccessTable.canSubmitChangeRequests,
+    })
+    .from(spmoProjectAccessTable)
+    .where(eq(spmoProjectAccessTable.userId, userId));
+  res.json({ admin: false, grants });
+});
+
+/** GET /spmo/projects/:id/access — list users + permissions for a project (admin only) */
+router.get("/spmo/projects/:id/access", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const projectId = parseId(req, res);
+  if (!projectId) return;
+  const grants = await db
+    .select()
+    .from(spmoProjectAccessTable)
+    .where(eq(spmoProjectAccessTable.projectId, projectId))
+    .orderBy(asc(spmoProjectAccessTable.grantedAt));
+  res.json({ grants });
+});
+
+const GrantAccessBody = z.object({
+  userId: z.string().min(1),
+  userName: z.string().optional(),
+  userEmail: z.string().optional(),
+}).merge(PermissionsSchema);
+
+/** POST /spmo/projects/:id/access — grant a user edit rights with specific permissions (admin only) */
+router.post("/spmo/projects/:id/access", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const projectId = parseId(req, res);
+  if (!projectId) return;
+  const parsed = GrantAccessBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const admin = getAuthUser(req);
+  const adminName = getUserDisplayName(admin);
+
+  const [project] = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, projectId)).limit(1);
+  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
+
+  const { userId: targetUserId, userName, userEmail, ...perms } = parsed.data;
+
+  const [grant] = await db
+    .insert(spmoProjectAccessTable)
+    .values({
+      projectId,
+      userId: targetUserId,
+      userName: userName ?? null,
+      userEmail: userEmail ?? null,
+      grantedById: admin!.id,
+      grantedByName: adminName,
+      ...perms,
+    })
+    .onConflictDoUpdate({
+      target: [spmoProjectAccessTable.projectId, spmoProjectAccessTable.userId],
+      set: {
+        userName: userName ?? null,
+        userEmail: userEmail ?? null,
+        grantedById: admin!.id,
+        grantedByName: adminName,
+        grantedAt: new Date(),
+        ...perms,
+      },
+    })
+    .returning();
+
+  res.status(201).json(grant);
+});
+
+/** PATCH /spmo/projects/:id/access/:userId — update permission flags for an existing grant (admin only) */
+router.patch("/spmo/projects/:id/access/:userId", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const projectId = parseId(req, res);
+  if (!projectId) return;
+  const { userId: targetUserId } = req.params;
+  if (!targetUserId) { res.status(400).json({ error: "Missing userId" }); return; }
+
+  const parsed = PermissionsSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  // Filter out undefined values — only update what was sent
+  const updates: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(parsed.data)) {
+    if (v !== undefined) updates[k] = v;
+  }
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No permission fields provided" });
+    return;
+  }
+
+  const [grant] = await db
+    .update(spmoProjectAccessTable)
+    .set(updates)
+    .where(and(eq(spmoProjectAccessTable.projectId, projectId), eq(spmoProjectAccessTable.userId, targetUserId)))
+    .returning();
+
+  if (!grant) { res.status(404).json({ error: "Grant not found" }); return; }
+  res.json(grant);
+});
+
+/** DELETE /spmo/projects/:id/access/:userId — revoke edit rights from a user (admin only) */
+router.delete("/spmo/projects/:id/access/:userId", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const projectId = parseId(req, res);
+  if (!projectId) return;
+  const { userId: targetUserId } = req.params;
+  if (!targetUserId) { res.status(400).json({ error: "Missing userId" }); return; }
+
+  await db
+    .delete(spmoProjectAccessTable)
+    .where(and(eq(spmoProjectAccessTable.projectId, projectId), eq(spmoProjectAccessTable.userId, targetUserId)));
+
+  res.json({ ok: true });
 });
 
 export default router;

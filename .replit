@@ -34,4 +34,3 @@ channel = "stable-25_05"
 
 [userenv.production]
 DEMO_MODE = "true"
-FORCE_RESEED = "1"

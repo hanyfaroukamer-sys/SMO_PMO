@@ -27,11 +27,16 @@ const ActivityLog = lazy(() => import("@/pages/activity"));
 const Admin = lazy(() => import("@/pages/admin"));
 const Pillars = lazy(() => import("@/pages/pillars"));
 const Initiatives = lazy(() => import("@/pages/initiatives"));
+const PillarsAndInitiatives = lazy(() => import("@/pages/pillars-and-initiatives"));
+const Financials = lazy(() => import("@/pages/financials"));
+const Monitoring = lazy(() => import("@/pages/monitoring"));
 const ImportPage = lazy(() => import("@/pages/import"));
 const Dependencies = lazy(() => import("@/pages/dependencies"));
 const ProjectDetail = lazy(() => import("@/pages/project-detail"));
 const Documents = lazy(() => import("@/pages/documents"));
 const MyTasks = lazy(() => import("@/pages/my-tasks"));
+const MyProjects = lazy(() => import("@/pages/my-projects"));
+const Diagnostics = lazy(() => import("@/pages/diagnostics"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const queryClient = new QueryClient({
@@ -60,26 +65,30 @@ function Router() {
             <Switch>
               <Route path="/" component={Dashboard} />
               <Route path="/strategy-map" component={StrategyMap} />
-              <Route path="/pillars" component={Pillars} />
-              <Route path="/initiatives" component={Initiatives} />
+              <Route path="/pillars">{() => <AdminGuard><PillarsAndInitiatives /></AdminGuard>}</Route>
+              <Route path="/initiatives">{() => <AdminGuard><PillarsAndInitiatives /></AdminGuard>}</Route>
               <Route path="/projects" component={Projects} />
               <Route path="/projects/:id" component={ProjectDetail} />
               <Route path="/progress" component={ProgressProof} />
               <Route path="/kpis" component={KPIs} />
-              <Route path="/op-kpis" component={OpKPIs} />
-              <Route path="/budget">{() => <AdminGuard><Budget /></AdminGuard>}</Route>
-              <Route path="/procurement">{() => <AdminGuard><Procurement /></AdminGuard>}</Route>
+              <Route path="/op-kpis">{() => { window.location.replace("/strategy-pmo/kpis"); return null; }}</Route>
+              <Route path="/budget">{() => <AdminGuard><Financials /></AdminGuard>}</Route>
+              <Route path="/procurement">{() => <AdminGuard><Financials /></AdminGuard>}</Route>
+              <Route path="/financials">{() => <AdminGuard><Financials /></AdminGuard>}</Route>
               <Route path="/departments" component={Departments} />
               <Route path="/departments/:id/portfolio" component={DepartmentPortfolio} />
               <Route path="/pillars/:id/portfolio" component={PillarPortfolio} />
               <Route path="/risks" component={Risks} />
               <Route path="/dependencies" component={Dependencies} />
-              <Route path="/alerts">{() => <AdminGuard><Alerts /></AdminGuard>}</Route>
-              <Route path="/activity">{() => <AdminGuard><ActivityLog /></AdminGuard>}</Route>
+              <Route path="/alerts">{() => <AdminGuard><Monitoring /></AdminGuard>}</Route>
+              <Route path="/activity">{() => <AdminGuard><Monitoring /></AdminGuard>}</Route>
+              <Route path="/monitoring">{() => <AdminGuard><Monitoring /></AdminGuard>}</Route>
               <Route path="/import">{() => <AdminGuard><ImportPage /></AdminGuard>}</Route>
               <Route path="/documents" component={Documents} />
               <Route path="/my-tasks" component={MyTasks} />
+              <Route path="/my-projects" component={MyProjects} />
               <Route path="/admin">{() => <AdminGuard><Admin /></AdminGuard>}</Route>
+              <Route path="/admin/diagnostics">{() => <AdminGuard><Diagnostics /></AdminGuard>}</Route>
               <Route component={NotFound} />
             </Switch>
           </Suspense>

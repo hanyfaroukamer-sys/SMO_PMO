@@ -15,6 +15,11 @@ Full-stack pnpm monorepo hosting two production-grade government applications:
 - **Documents** — document library per project with category, tags, versioning; global `/documents` page with search/filter and export
 - **Export** — XLSX export buttons on Projects, KPIs, Op KPIs, Budget, Risks, and Documents pages
 - **Project Detail Tabs** — 8 tabs: Overview, Milestones, Weekly Report, Risks, Change Control, RACI, Actions, Documents
+- **Excel Bulk Import** — structured `.xlsx` template with 13 entity sheets (Pillars, Departments, Initiatives, Projects, Milestones, KPIs, KPI Measurements, Risks, Mitigations, Budget, Procurement, Actions); download via "Import Strategy" sidebar → "Download Template" button; upload returns row counts per table + skipped-row detail; supports new/merge/replace modes (replace = admin only)
+- **AI-Powered Document Import** — upload any PDF/Excel/document; Claude AI analyses and extracts structured data into a review form before saving; accessible via same "Import Strategy" page
+- **Project-Level Access Control** — admins grant/revoke per-project edit rights to specific project managers via the Admin page; stored in `spmo_project_access` table; `canEditProject()` helper enforces access on all write endpoints (PUT project, POST/PUT/DELETE milestones, POST risks/budget/change-requests/raci/documents/actions); new API routes: GET/POST `/spmo/projects/:id/access`, DELETE `/spmo/projects/:id/access/:userId`, GET `/spmo/my-project-access`; frontend `use-project-access.ts` hooks + `useCanEditProject()` for conditional UI
+- **Security Hardening** — helmet, CORS whitelist, rate limiting, auth on all routes, RBAC on writes, file-type validation, sanitised AI inputs
+- **Demo Seed (NSA)** — 100 projects across 9 pillars, 26 initiatives, 900 milestones, 42 KPIs, 10 departments; realistic 2026 portfolio mix (60 active, 15 completed, 15 at-risk, 10 on-hold)
 
 ## Stack
 
@@ -71,7 +76,7 @@ artifacts-monorepo/
 - `spmo_projects` — id, initiativeId, name, description, ownerId, ownerName, budget, startDate, targetDate, weight, status
 - `spmo_milestones` — id, projectId, name, description, weight, progress, status, dueDate, submittedAt, approvedAt, approvedById, rejectedAt, rejectedById, rejectionReason
 - `spmo_evidence` — id, milestoneId, fileName, contentType, objectPath, uploadedById, uploadedByName, description, aiValidated, aiScore, aiReasoning
-- `spmo_kpis` — id, pillarId, name, type (strategic/operational), unit, kpiType (rate/cumul/reduc), direction (higher/lower), baseline, actual, target, target_2026–2030, formula, measurementPeriod, measurementFrequency, status, description — 42 KFCA KPIs seeded across 9 pillars/enablers (pillar_ids 14–22)
+- `spmo_kpis` — id, pillarId, name, type (strategic/operational), unit, kpiType (rate/cumul/reduc), direction (higher/lower), baseline, actual, target, target_2026–2030, formula, measurementPeriod, measurementFrequency, status, description — 42 KPIs seeded across 9 pillars/enablers (pillar_ids 14–22)
 - `spmo_risks` — id, pillarId, projectId, title, description, category, probability, impact, riskScore, status, owner
 - `spmo_mitigations` — id, riskId, description, status, dueDate
 - `spmo_budget` — id, projectId, pillarId, period, allocated, spent, currency, category, label
@@ -114,6 +119,10 @@ artifacts-monorepo/
 | GET | /activity-log | Full audit trail |
 | POST | /ai/assessment | AI programme health assessment (Claude, 5min cache) |
 | POST | /ai/validate-evidence | AI evidence quality validation |
+| GET | /import/template | Download pre-formatted `.xlsx` bulk import template (13 sheets) |
+| POST | /import/bulk | Upload filled template → insert/merge/replace; returns `{ imported, skipped }` |
+| POST | /import/analyse | AI-powered document analysis (PDF/Excel → structured data) |
+| POST | /import/save | Persist AI-extracted data after user review |
 
 ## Initiative Tracker API Routes (all under `/api`)
 

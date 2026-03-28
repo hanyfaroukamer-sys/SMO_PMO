@@ -3,8 +3,9 @@ import { useListSpmoActivityLog } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import {
   Loader2, FileText, ShieldCheck, ChevronLeft, ChevronRight,
-  Calendar, Filter, X, RefreshCw,
+  Calendar, Filter, X, RefreshCw, ExternalLink, ArrowRight,
 } from "lucide-react";
+import { Link } from "wouter";
 import { formatDistanceToNow, format } from "date-fns";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 
@@ -143,38 +144,88 @@ function renderDetails(
     ) : null;
   }
 
-  const skipKeys = new Set(["weekStart", "keyAchievements", "nextSteps", "issues", "id", "projectId", "initiativeId", "pillarId", "milestoneId"]);
-  const items = Object.entries(details).filter(([k]) => !skipKeys.has(k));
+  const skipKeys = new Set(["weekStart", "keyAchievements", "nextSteps", "issues", "id", "projectId", "initiativeId", "pillarId", "milestoneId", "link", "changes", "projectName", "projectCode"]);
 
-  if (items.length === 0) return null;
+  // Render before/after changes (new format)
+  const changes = details.changes as Record<string, { from: unknown; to: unknown }> | undefined;
+  const link = details.link as string | undefined;
+  const projectName = details.projectName as string | undefined;
+
+  const legacyItems = Object.entries(details).filter(([k]) => !skipKeys.has(k));
+  const hasChanges = changes && Object.keys(changes).length > 0;
+  const hasLegacy = legacyItems.length > 0;
+
+  if (!hasChanges && !hasLegacy) return null;
 
   const sectionLabel = ENTITY_LABELS[entityType] ?? entityType;
 
   return (
-    <div className="mt-2">
-      {action === "updated" && items.length > 0 && (
-        <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-          Fields changed in {sectionLabel}
+    <div className="mt-2 space-y-2">
+      {/* Project context for milestones */}
+      {projectName && entityType === "milestone" && (
+        <div className="text-[11px] text-muted-foreground">
+          Project: <span className="font-semibold text-foreground">{projectName}</span>
         </div>
       )}
-      <div className="flex flex-wrap gap-2">
-        {items.slice(0, 8).map(([key, value]) => {
-          const label = FRIENDLY_FIELDS[key] ?? key.replace(/([A-Z])/g, " $1").trim();
-          const val = renderFieldValue(key, value);
-          return (
-            <div
-              key={key}
-              className="inline-flex items-center gap-1 bg-secondary/50 rounded-md px-2 py-1 text-xs border border-border/60"
-            >
-              <span className="text-muted-foreground font-medium">{label}:</span>
-              <span className="text-foreground font-semibold truncate max-w-[180px]">{val}</span>
+
+      {/* Before → After changes */}
+      {hasChanges && (
+        <>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            What changed
+          </div>
+          <div className="space-y-1">
+            {Object.entries(changes).map(([key, { from: fromVal, to: toVal }]) => {
+              const label = FRIENDLY_FIELDS[key] ?? key.replace(/([A-Z])/g, " $1").trim();
+              return (
+                <div key={key} className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground font-medium min-w-[80px]">{label}</span>
+                  <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-200 line-through truncate max-w-[150px]">
+                    {renderFieldValue(key, fromVal)}
+                  </span>
+                  <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
+                  <span className="px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200 font-semibold truncate max-w-[150px]">
+                    {renderFieldValue(key, toVal)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Legacy flat items (old log entries without before/after) */}
+      {!hasChanges && hasLegacy && (
+        <>
+          {action === "updated" && (
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+              Updated values in {sectionLabel} <span className="normal-case font-normal">(logged before audit tracking — previous values not available)</span>
             </div>
-          );
-        })}
-        {items.length > 8 && (
-          <span className="text-xs text-muted-foreground self-center">+{items.length - 8} more</span>
-        )}
-      </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {legacyItems.slice(0, 8).map(([key, value]) => {
+              const label = FRIENDLY_FIELDS[key] ?? key.replace(/([A-Z])/g, " $1").trim();
+              const val = renderFieldValue(key, value);
+              return (
+                <div key={key} className="inline-flex items-center gap-1 bg-secondary/50 rounded-md px-2 py-1 text-xs border border-border/60">
+                  <span className="text-muted-foreground font-medium">{label}:</span>
+                  <span className="text-foreground font-semibold truncate max-w-[180px]">{val}</span>
+                </div>
+              );
+            })}
+            {legacyItems.length > 8 && (
+              <span className="text-xs text-muted-foreground self-center">+{legacyItems.length - 8} more</span>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Navigation link */}
+      {link && (
+        <Link href={link} className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline mt-1">
+          <ExternalLink className="w-3 h-3" /> View {sectionLabel}
+        </Link>
+      )}
     </div>
   );
 }
@@ -209,6 +260,8 @@ export default function ActivityLog() {
   const [filterAction, setFilterAction] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
+  const dateRangeError = dateFrom && dateTo && dateFrom > dateTo;
+
   const params = {
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
@@ -225,6 +278,7 @@ export default function ActivityLog() {
   const total = data?.total ?? 0;
 
   const hasActiveFilters = !!(dateFrom || dateTo || filterEntityType || filterAction);
+  const dateRangeInvalid = !!(dateFrom && dateTo && dateFrom > dateTo);
 
   function clearFilters() {
     setDateFrom("");
@@ -331,6 +385,12 @@ export default function ActivityLog() {
                 ))}
               </select>
             </div>
+            {dateRangeInvalid && (
+              <div className="flex items-center gap-1.5 text-xs text-destructive font-semibold">
+                <X className="w-3.5 h-3.5" />
+                "From" date must be before "To" date
+              </div>
+            )}
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
@@ -341,6 +401,9 @@ export default function ActivityLog() {
               </button>
             )}
           </div>
+          {dateRangeError && (
+            <p className="text-xs text-destructive mt-2">⚠ "From" date is after "To" date — no results will match.</p>
+          )}
         </Card>
       )}
 

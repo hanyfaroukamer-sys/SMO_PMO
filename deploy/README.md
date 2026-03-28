@@ -2,7 +2,7 @@
 
 ## Overview
 
-StrategyPMO is a government programme management dashboard for tracking strategic pillars, initiatives, projects, milestones, KPIs, risks, and budgets across the KFCA Corporate Strategy 2025-2030.
+StrategyPMO is a government programme management dashboard for tracking strategic pillars, initiatives, projects, milestones, KPIs, risks, and budgets.
 
 **Version:** 1.0.0
 **Architecture:** Node.js 20 + PostgreSQL 16 + Nginx reverse proxy

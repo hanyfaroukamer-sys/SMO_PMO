@@ -5,10 +5,12 @@ import {
   useCreateSpmaDepartment,
   useUpdateSpmaDepartment,
   useDeleteSpmaDepartment,
+  useGetSpmaAdminUsers,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass } from "@/components/modal";
 import { Loader2, Pencil, Trash2, Plus, Building2, FolderOpen } from "lucide-react";
+import { UserMentionInput } from "@/components/user-mention-input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -22,15 +24,26 @@ type DeptForm = {
   name: string;
   description: string;
   color: string;
+  headName: string;
+  headEmail: string;
+  taskReminderCcUserId: string;
+  taskReminderCcName: string;
+  weeklyOverdueCcUserId: string;
+  weeklyOverdueCcName: string;
   sortOrder: string;
 };
 
 const emptyForm = (): DeptForm => ({
-  name: "", description: "", color: COLORS[0], sortOrder: "0",
+  name: "", description: "", color: COLORS[0], headName: "", headEmail: "",
+  taskReminderCcUserId: "", taskReminderCcName: "",
+  weeklyOverdueCcUserId: "", weeklyOverdueCcName: "",
+  sortOrder: "0",
 });
 
 export default function Departments() {
   const { data, isLoading } = useListSpmoDepartments();
+  const { data: usersData } = useGetSpmaAdminUsers();
+  const allUsers = usersData?.users ?? [];
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<DeptForm>(emptyForm());
@@ -58,6 +71,12 @@ export default function Departments() {
       name: dept.name,
       description: dept.description ?? "",
       color: dept.color ?? COLORS[0],
+      headName: (dept as Record<string, unknown>).headName as string ?? "",
+      headEmail: (dept as Record<string, unknown>).headEmail as string ?? "",
+      taskReminderCcUserId: (dept as Record<string, unknown>).taskReminderCcUserId as string ?? "",
+      taskReminderCcName: (dept as Record<string, unknown>).taskReminderCcName as string ?? "",
+      weeklyOverdueCcUserId: (dept as Record<string, unknown>).weeklyOverdueCcUserId as string ?? "",
+      weeklyOverdueCcName: (dept as Record<string, unknown>).weeklyOverdueCcName as string ?? "",
       sortOrder: String(dept.sortOrder ?? 0),
     });
     setModalOpen(true);
@@ -79,6 +98,12 @@ export default function Departments() {
       name: form.name,
       description: form.description || undefined,
       color: form.color,
+      headName: form.headName || undefined,
+      headEmail: form.headEmail || undefined,
+      taskReminderCcUserId: form.taskReminderCcUserId || undefined,
+      taskReminderCcName: form.taskReminderCcName || undefined,
+      weeklyOverdueCcUserId: form.weeklyOverdueCcUserId || undefined,
+      weeklyOverdueCcName: form.weeklyOverdueCcName || undefined,
       sortOrder: parseInt(form.sortOrder) || 0,
     };
 
@@ -155,6 +180,16 @@ export default function Departments() {
                     {dept.description && (
                       <p className="text-sm text-slate-500 truncate">{dept.description}</p>
                     )}
+                    {(dept as Record<string, unknown>).headName && (
+                      <p className="text-xs text-muted-foreground">Head: {(dept as Record<string, unknown>).headName as string}</p>
+                    )}
+                    {((dept as Record<string, unknown>).taskReminderCcName || (dept as Record<string, unknown>).weeklyOverdueCcName) && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {(dept as Record<string, unknown>).taskReminderCcName && <span>Task CC: {(dept as Record<string, unknown>).taskReminderCcName as string}</span>}
+                        {(dept as Record<string, unknown>).taskReminderCcName && (dept as Record<string, unknown>).weeklyOverdueCcName && <span> · </span>}
+                        {(dept as Record<string, unknown>).weeklyOverdueCcName && <span>Weekly CC: {(dept as Record<string, unknown>).weeklyOverdueCcName as string}</span>}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-1 flex-shrink-0 ml-2">
@@ -218,6 +253,40 @@ export default function Departments() {
               placeholder="Optional description..."
             />
           </FormField>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Department Head Name">
+              <input className={inputClass} value={form.headName} onChange={(e) => setForm({ ...form, headName: e.target.value })} placeholder="e.g. Dr. Ahmed Al-Dosari" />
+            </FormField>
+            <FormField label="Department Head Email">
+              <input type="email" className={inputClass} value={form.headEmail} onChange={(e) => setForm({ ...form, headEmail: e.target.value })} placeholder="ahmed@example.gov" />
+            </FormField>
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
+            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email Reminder CC Recipients</div>
+            <p className="text-[10px] text-muted-foreground">Choose who gets CC'd when PMs in this department receive reminder emails.</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <FormField label="CC on Task Reminders (milestones, risks)">
+                <UserMentionInput
+                  value={form.taskReminderCcName}
+                  onChange={(name, userId) => setForm({ ...form, taskReminderCcName: name, ...(userId ? { taskReminderCcUserId: userId } : {}) })}
+                  placeholder="Type to search users…"
+                  className={inputClass}
+                />
+              </FormField>
+
+              <FormField label="CC on Weekly Report Overdue">
+                <UserMentionInput
+                  value={form.weeklyOverdueCcName}
+                  onChange={(name, userId) => setForm({ ...form, weeklyOverdueCcName: name, ...(userId ? { weeklyOverdueCcUserId: userId } : {}) })}
+                  placeholder="Type to search users…"
+                  className={inputClass}
+                />
+              </FormField>
+            </div>
+          </div>
 
           <FormField label="Colour">
             <div className="flex gap-2 flex-wrap">
