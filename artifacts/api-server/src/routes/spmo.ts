@@ -115,6 +115,8 @@ import {
   computeStatus,
   computeInitiativeStatus,
   computeMilestoneHealth,
+  computeProjectWeights,
+  computeInitiativeWeights,
   type StatusResult,
 } from "../lib/spmo-calc";
 import { logSpmoActivity } from "../lib/spmo-activity";
@@ -593,6 +595,16 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
     ? await query.where(eq(spmoInitiativesTable.pillarId, qp.data.pillarId))
     : await query;
 
+  // Pre-compute effective initiative weights grouped by pillar
+  const pillarIds = [...new Set(rows.map((i) => i.pillarId))];
+  const initWeightMaps = new Map<number, Map<number, { effectiveWeight: number; weightSource: string }>>();
+  await Promise.all(pillarIds.map(async (pId) => {
+    const weights = await computeInitiativeWeights(pId);
+    const m = new Map<number, { effectiveWeight: number; weightSource: string }>();
+    for (const w of weights) m.set(w.initiativeId, { effectiveWeight: w.effectiveWeight, weightSource: w.weightSource });
+    initWeightMaps.set(pId, m);
+  }));
+
   const withProgress = await Promise.all(
     rows.map(async (i) => {
       const stats = await initiativeProgress(i.id);
@@ -608,7 +620,8 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
         stats.rawProgress,
         stats.childProjects,
       );
-      return { ...i, budget: computedBudget, ...stats, computedStatus, healthStatus: computedStatus.status };
+      const wInfo = initWeightMaps.get(i.pillarId)?.get(i.id);
+      return { ...i, budget: computedBudget, ...stats, computedStatus, healthStatus: computedStatus.status, effectiveWeight: wInfo?.effectiveWeight ?? 0, weightSource: wInfo?.weightSource ?? "equal" };
     })
   );
 
@@ -703,15 +716,24 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     stats.childProjects,
   );
 
+  // Compute effective weights for projects in this initiative
+  const projWeights = await computeProjectWeights(initiative.id);
+  const projWeightMap = new Map(projWeights.map((w) => [w.projectId, w]));
+
   const projectsWithProgress = await Promise.all(
     projects.map(async (p) => {
       const ps = await projectProgress(p.id);
       const projStatus: StatusResult = computeStatus(ps.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, ps.rawProgress);
-      return { ...p, ...ps, computedStatus: projStatus, healthStatus: projStatus.status };
+      const pw = projWeightMap.get(p.id);
+      return { ...p, ...ps, computedStatus: projStatus, healthStatus: projStatus.status, effectiveWeight: pw?.effectiveWeight ?? 0, weightSource: pw?.weightSource ?? "equal" };
     })
   );
 
-  res.json({ ...initiative, budget: computedBudget, ...stats, computedStatus, healthStatus: computedStatus.status, projects: projectsWithProgress });
+  // Effective weight for this initiative within its pillar
+  const initWeights = await computeInitiativeWeights(initiative.pillarId);
+  const myWeight = initWeights.find((w) => w.initiativeId === initiative.id);
+
+  res.json({ ...initiative, budget: computedBudget, ...stats, computedStatus, healthStatus: computedStatus.status, effectiveWeight: myWeight?.effectiveWeight ?? 0, weightSource: myWeight?.weightSource ?? "equal", projects: projectsWithProgress });
 });
 
 router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
@@ -840,6 +862,16 @@ router.get("/spmo/projects", async (req, res): Promise<void> => {
     ? await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, qp.data.initiativeId))
     : await db.select().from(spmoProjectsTable);
 
+  // Pre-compute effective weights grouped by initiative
+  const initiativeIds = [...new Set(rows.map((p) => p.initiativeId))];
+  const weightMaps = new Map<number, Map<number, { effectiveWeight: number; weightSource: string }>>();
+  await Promise.all(initiativeIds.map(async (initId) => {
+    const weights = await computeProjectWeights(initId);
+    const m = new Map<number, { effectiveWeight: number; weightSource: string }>();
+    for (const w of weights) m.set(w.projectId, { effectiveWeight: w.effectiveWeight, weightSource: w.weightSource });
+    weightMaps.set(initId, m);
+  }));
+
   const withProgress = await Promise.all(
     rows.map(async (p) => {
       const stats = await projectProgress(p.id);
@@ -853,7 +885,8 @@ router.get("/spmo/projects", async (req, res): Promise<void> => {
       );
       const pMilestones = await db.select({ phaseGate: spmoMilestonesTable.phaseGate, status: spmoMilestonesTable.status, progress: spmoMilestonesTable.progress }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
       const currentPhase = detectProjectPhase(pMilestones);
-      return { ...p, ...stats, computedStatus, healthStatus: computedStatus.status, currentPhase };
+      const wInfo = weightMaps.get(p.initiativeId)?.get(p.id);
+      return { ...p, ...stats, computedStatus, healthStatus: computedStatus.status, currentPhase, effectiveWeight: wInfo?.effectiveWeight ?? 0, weightSource: wInfo?.weightSource ?? "equal" };
     })
   );
 
