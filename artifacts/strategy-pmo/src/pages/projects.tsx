@@ -406,13 +406,19 @@ export default function Projects() {
       departmentId: project.departmentId != null ? String(project.departmentId) : "",
       ownerId: project.ownerId ?? "",
       ownerName: project.ownerName ?? "",
-      weight: String(project.weight),
+      weight: String(Math.round((project as any).effectiveWeight ?? project.weight ?? 0)),
       status: project.status,
       budget: String(project.budget ?? ""),
       startDate: project.startDate ?? "",
       targetDate: project.targetDate ?? "",
     });
-    setSiblingWeightEdits({});
+    // Pre-populate sibling weights with effectiveWeight
+    const siblings = (data?.projects ?? []).filter(p => p.initiativeId === project.initiativeId && p.id !== project.id);
+    const edits: Record<number, string> = {};
+    for (const s of siblings) {
+      edits[s.id] = String(Math.round((s as any).effectiveWeight ?? s.weight ?? 0));
+    }
+    setSiblingWeightEdits(edits);
     setModalOpen(true);
   }
 
@@ -502,7 +508,11 @@ export default function Projects() {
 
   const selectedInitiativeId = parseInt(form.initiativeId) || 0;
   const siblingProjects = (data?.projects ?? []).filter(p => p.initiativeId === selectedInitiativeId && p.id !== editId);
-  const siblingProjectWeight = siblingProjects.reduce((s, p) => s + (p.weight ?? 0), 0);
+  const siblingProjectWeight = siblingProjects.reduce((s, p) => {
+    const editVal = siblingWeightEdits[p.id];
+    if (editVal !== undefined) return s + (parseFloat(editVal) || 0);
+    return s + ((p as any).effectiveWeight ?? p.weight ?? 0);
+  }, 0);
   const projectWeightTotal = siblingProjectWeight + (parseFloat(form.weight) || 0);
   const projectWeightError = !!form.initiativeId && projectWeightTotal > 100;
   const projectWeightUnder = !!form.initiativeId && !projectWeightError && projectWeightTotal > 0 && projectWeightTotal < 100;
@@ -939,7 +949,7 @@ export default function Projects() {
               <p className="text-muted-foreground">Adjust another project below to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(projectWeightTotal)}%</span>:</p>
               <ul className="divide-y divide-border/40">
                 {siblingProjects.map(p => {
-                  const localVal = siblingWeightEdits[p.id] ?? String(p.weight);
+                  const localVal = siblingWeightEdits[p.id] ?? String(Math.round((p as any).effectiveWeight ?? p.weight ?? 0));
                   const isSavingThis = savingSiblingId === p.id;
                   return (
                     <li key={p.id} className="flex items-center justify-between gap-2 py-1.5">
