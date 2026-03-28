@@ -32,7 +32,7 @@ const AuthContext = createContext<AuthContextType>({
   accessToken: null,
 });
 
-const API_URL = Constants.expoConfig?.extra?.apiUrl ?? "http://localhost:3000";
+const API_URL = `https://${process.env.EXPO_PUBLIC_DOMAIN ?? Constants.expoConfig?.extra?.apiUrl ?? "localhost:3000"}`;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async () => {
     try {
       // Redirect to the web-based OIDC flow
-      const redirectUri = AuthSession.makeRedirectUri({ scheme: "strategypmo" });
+      const redirectUri = AuthSession.makeRedirectUri({ scheme: "mobile-app" });
       const result = await WebBrowser.openAuthSessionAsync(
         `${API_URL}/api/auth/login?redirect=${encodeURIComponent(redirectUri)}`,
         redirectUri
