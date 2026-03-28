@@ -1,6 +1,6 @@
 /**
  * Send email notification when a user is @mentioned in a discussion.
- * Supports SMTP (nodemailer) and SendGrid as transports.
+ * Supports Resend, SendGrid, and SMTP (nodemailer) as transports.
  * Falls back gracefully — mention emails are non-blocking.
  */
 
@@ -12,7 +12,32 @@ interface MentionEmailPayload {
 }
 
 export async function sendMentionEmail(payload: MentionEmailPayload): Promise<void> {
-  // Try SendGrid first
+  const from = process.env.EMAIL_FROM || process.env.SMTP_FROM || "noreply@strategypmo.app";
+
+  // Try Resend first
+  if (process.env.RESEND_API_KEY) {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [payload.to],
+        subject: payload.subject,
+        text: payload.text,
+        html: payload.html,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Resend ${res.status}: ${body}`);
+    }
+    return;
+  }
+
+  // Try SendGrid
   if (process.env.SENDGRID_API_KEY) {
     const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
@@ -22,7 +47,7 @@ export async function sendMentionEmail(payload: MentionEmailPayload): Promise<vo
       },
       body: JSON.stringify({
         personalizations: [{ to: [{ email: payload.to }] }],
-        from: { email: process.env.SMTP_FROM || "noreply@strategypmo.app", name: "StrategyPMO" },
+        from: { email: from, name: "StrategyPMO" },
         subject: payload.subject,
         content: [
           { type: "text/plain", value: payload.text },
@@ -51,7 +76,7 @@ export async function sendMentionEmail(payload: MentionEmailPayload): Promise<vo
         } : undefined,
       });
       await transport.sendMail({
-        from: process.env.SMTP_FROM || "noreply@strategypmo.app",
+        from,
         to: payload.to,
         subject: payload.subject,
         text: payload.text,
