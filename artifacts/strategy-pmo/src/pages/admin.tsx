@@ -889,12 +889,20 @@ export default function Admin() {
   const [phaseWeights, setPhaseWeights] = useState<{ planning: number; tendering: number; execution: number; closure: number } | null>(null);
   const [savingPhase, setSavingPhase] = useState(false);
 
+  const [phaseEffort, setPhaseEffort] = useState<{ planning: number; tendering: number; execution: number; closure: number } | null>(null);
+
   const effectiveResetDay = weeklyResetDay ?? configData?.weeklyResetDay ?? 3;
   const pw = phaseWeights ?? {
     planning: configData?.defaultPlanningWeight ?? 5,
     tendering: configData?.defaultTenderingWeight ?? 5,
     execution: configData?.defaultExecutionWeight ?? 85,
     closure: configData?.defaultClosureWeight ?? 5,
+  };
+  const pe = phaseEffort ?? {
+    planning: (configData as any)?.defaultPlanningEffortDays ?? 30,
+    tendering: (configData as any)?.defaultTenderingEffortDays ?? 45,
+    execution: (configData as any)?.defaultExecutionEffortDays ?? 120,
+    closure: (configData as any)?.defaultClosureEffortDays ?? 20,
   };
   const pwTotal = pw.planning + pw.tendering + pw.execution + pw.closure;
   const pwValid = Math.abs(pwTotal - 100) < 0.01;
@@ -934,11 +942,16 @@ export default function Admin() {
           defaultTenderingWeight: pw.tendering,
           defaultExecutionWeight: pw.execution,
           defaultClosureWeight: pw.closure,
-        },
+          defaultPlanningEffortDays: pe.planning,
+          defaultTenderingEffortDays: pe.tendering,
+          defaultExecutionEffortDays: pe.execution,
+          defaultClosureEffortDays: pe.closure,
+        } as any,
       });
       qc.invalidateQueries({ queryKey: ["/api/spmo/programme-config"] });
       setPhaseWeights(null);
-      toast({ title: "Phase gate defaults saved", description: "New projects will use these weights." });
+      setPhaseEffort(null);
+      toast({ title: "Phase gate defaults saved", description: "New projects will use these weights and effort days." });
     } catch {
       toast({ variant: "destructive", title: "Save failed", description: "Could not update phase gate defaults." });
     } finally {
@@ -965,7 +978,7 @@ export default function Admin() {
       <PageHeader title="Admin Settings" description="Manage users, roles, and programme configuration." />
 
       {/* Phase Gate Defaults */}
-      <SectionCard title="Phase Gate Default Weights" icon={Lock}>
+      <SectionCard title="Phase Gate Defaults" icon={Lock}>
         {configLoading ? (
           <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
         ) : (
@@ -979,7 +992,8 @@ export default function Admin() {
                   <tr className="bg-secondary/50">
                     <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground uppercase">Phase Gate</th>
                     <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground uppercase w-28">Weight (%)</th>
-                    <th className="px-4 py-2 w-16" />
+                    <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground uppercase w-28">Effort (days)</th>
+                    <th className="px-4 py-2 w-8" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
@@ -1008,13 +1022,25 @@ export default function Admin() {
                           className="w-20 text-right text-sm border border-border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 ml-auto block"
                         />
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground text-right">%</td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          min={1}
+                          max={999}
+                          step={1}
+                          value={pe[key]}
+                          onChange={(e) => setPhaseEffort({ ...pe, [key]: Number(e.target.value) })}
+                          className="w-20 text-right text-sm border border-border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 ml-auto block"
+                        />
+                      </td>
+                      <td className="px-4 py-3" />
                     </tr>
                   ))}
                   <tr className={`font-bold ${pwValid ? "bg-green-50" : "bg-red-50"}`}>
                     <td className="px-4 py-2 text-sm">Total</td>
-                    <td className="px-4 py-2 text-right text-sm">{pwTotal.toFixed(1)}</td>
-                    <td className="px-4 py-2 text-xs text-right">{pwValid ? "✓ 100%" : <span className="text-red-600">Must = 100%</span>}</td>
+                    <td className="px-4 py-2 text-right text-sm">{pwTotal.toFixed(1)}%{!pwValid && <span className="text-red-600 ml-1">≠100</span>}</td>
+                    <td className="px-4 py-2 text-right text-sm text-muted-foreground">{pe.planning + pe.tendering + pe.execution + pe.closure}d</td>
+                    <td className="px-4 py-2" />
                   </tr>
                 </tbody>
               </table>

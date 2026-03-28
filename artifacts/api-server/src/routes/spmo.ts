@@ -287,7 +287,7 @@ function detectProjectPhase(milestones: Array<{ phaseGate: string | null; status
   const planning = milestones.find((m) => m.phaseGate === "planning");
   const tendering = milestones.find((m) => m.phaseGate === "tendering");
   const closure = milestones.find((m) => m.phaseGate === "closure");
-  const executionMs = milestones.filter((m) => m.phaseGate === null);
+  const executionMs = milestones.filter((m) => m.phaseGate === null || m.phaseGate === "execution_placeholder");
 
   if (!planning || planning.progress === 0) return "not_started";
   if (planning.status !== "approved") return "planning";
@@ -946,10 +946,10 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
 
   const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   await db.insert(spmoMilestonesTable).values([
-    { projectId: project.id, name: "Planning & Requirements", description: "Define scope, requirements, stakeholders, project plan. Obtain charter approval.", weight: cfg?.defaultPlanningWeight ?? 5, effortDays: 30, progress: 0, status: "pending", depStatus: "ready", phaseGate: "planning" },
-    { projectId: project.id, name: "Tendering & Procurement", description: "Prepare RFP/RFQ, publish tender, evaluate proposals, award contract.", weight: cfg?.defaultTenderingWeight ?? 5, effortDays: 45, progress: 0, status: "pending", depStatus: "ready", phaseGate: "tendering" },
-    { projectId: project.id, name: "Execution & Delivery", description: "Implementation, development, testing, UAT, and go-live. Split into detailed milestones.", weight: cfg?.defaultExecutionWeight ?? 85, effortDays: 120, progress: 0, status: "pending", depStatus: "ready", phaseGate: null },
-    { projectId: project.id, name: "Closure & Handover", description: "Final acceptance, documentation, knowledge transfer, warranty activation, lessons learned.", weight: cfg?.defaultClosureWeight ?? 5, effortDays: 20, progress: 0, status: "pending", depStatus: "ready", phaseGate: "closure" },
+    { projectId: project.id, name: "Planning & Requirements", description: "Define scope, requirements, stakeholders, project plan. Obtain charter approval.", weight: cfg?.defaultPlanningWeight ?? 5, effortDays: cfg?.defaultPlanningEffortDays ?? 30, progress: 0, status: "pending", depStatus: "ready", phaseGate: "planning" },
+    { projectId: project.id, name: "Tendering & Procurement", description: "Prepare RFP/RFQ, publish tender, evaluate proposals, award contract.", weight: cfg?.defaultTenderingWeight ?? 5, effortDays: cfg?.defaultTenderingEffortDays ?? 45, progress: 0, status: "pending", depStatus: "ready", phaseGate: "tendering" },
+    { projectId: project.id, name: "Execution & Delivery", description: "Implementation, development, testing, UAT, and go-live. Split into detailed milestones.", weight: cfg?.defaultExecutionWeight ?? 85, effortDays: cfg?.defaultExecutionEffortDays ?? 120, progress: 0, status: "pending", depStatus: "ready", phaseGate: "execution_placeholder" },
+    { projectId: project.id, name: "Closure & Handover", description: "Final acceptance, documentation, knowledge transfer, warranty activation, lessons learned.", weight: cfg?.defaultClosureWeight ?? 5, effortDays: cfg?.defaultClosureEffortDays ?? 20, progress: 0, status: "pending", depStatus: "ready", phaseGate: "closure" },
   ]);
 
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "project", project.id, project.name);
@@ -1134,10 +1134,16 @@ router.get("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
     .where(eq(spmoMilestonesTable.projectId, params.data.id))
     .orderBy(asc(spmoMilestonesTable.createdAt));
 
-  const PHASE_ORDER: Record<string, number> = { planning: 0, tendering: 1, closure: 3 };
-  const sorted = [...milestones].sort((a, b) => {
-    const aOrder = a.phaseGate ? PHASE_ORDER[a.phaseGate] : 2;
-    const bOrder = b.phaseGate ? PHASE_ORDER[b.phaseGate] : 2;
+  const PHASE_ORDER: Record<string, number> = { planning: 0, tendering: 1, execution_placeholder: 2, closure: 3 };
+  // Hide execution placeholder when custom (non-phase-gate) milestones exist
+  const hasCustomMilestones = milestones.some((m) => !m.phaseGate);
+  const filtered = hasCustomMilestones
+    ? milestones.filter((m) => m.phaseGate !== "execution_placeholder")
+    : milestones;
+
+  const sorted = [...filtered].sort((a, b) => {
+    const aOrder = a.phaseGate ? (PHASE_ORDER[a.phaseGate] ?? 2) : 2;
+    const bOrder = b.phaseGate ? (PHASE_ORDER[b.phaseGate] ?? 2) : 2;
     if (aOrder !== bOrder) return aOrder - bOrder;
     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
   });
@@ -1150,7 +1156,7 @@ router.get("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
     })
   );
 
-  res.json({ milestones: withEvidence });
+  res.json({ milestones: withEvidence, executionPlaceholderHidden: hasCustomMilestones });
 });
 
 router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {

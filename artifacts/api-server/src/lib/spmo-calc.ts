@@ -54,10 +54,20 @@ async function projectProgress(projectId: number): Promise<{
   approvedMilestones: number;
   pendingApprovals: number;
 }> {
-  const milestones = await db
+  const allMilestones = await db
     .select()
     .from(spmoMilestonesTable)
     .where(eq(spmoMilestonesTable.projectId, projectId));
+
+  if (allMilestones.length === 0) {
+    return { progress: 0, rawProgress: 0, milestoneCount: 0, approvedMilestones: 0, pendingApprovals: 0 };
+  }
+
+  // Exclude execution placeholder when custom (non-phase-gate) milestones exist
+  const hasCustom = allMilestones.some((m) => !m.phaseGate);
+  const milestones = hasCustom
+    ? allMilestones.filter((m) => m.phaseGate !== "execution_placeholder")
+    : allMilestones;
 
   if (milestones.length === 0) {
     return { progress: 0, rawProgress: 0, milestoneCount: 0, approvedMilestones: 0, pendingApprovals: 0 };

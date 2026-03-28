@@ -532,6 +532,10 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   defaultTenderingWeight: real("default_tendering_weight").notNull().default(5),
   defaultExecutionWeight: real("default_execution_weight").notNull().default(85),
   defaultClosureWeight: real("default_closure_weight").notNull().default(5),
+  defaultPlanningEffortDays: real("default_planning_effort_days").notNull().default(30),
+  defaultTenderingEffortDays: real("default_tendering_effort_days").notNull().default(45),
+  defaultExecutionEffortDays: real("default_execution_effort_days").notNull().default(120),
+  defaultClosureEffortDays: real("default_closure_effort_days").notNull().default(20),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
