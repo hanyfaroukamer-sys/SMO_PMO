@@ -3867,23 +3867,96 @@ router.post("/spmo/comments", async (req, res) => {
   }
 
   // Parse @mentions in comment body and create "mention" notifications
-  // Matches patterns like @[User Name](userId) or @UserName
-  const mentionRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
-  let mentionMatch;
+  // Format 1: @[User Name](userId) — from dropdown selection
+  // Format 2: @FirstName LastName — plain text fallback (lookup by name)
   const mentionedUserIds = new Set<string>();
-  while ((mentionMatch = mentionRegex.exec(body.data.body)) !== null) {
-    const mentionedUserId = mentionMatch[2];
-    if (mentionedUserId && mentionedUserId !== userId && !mentionedUserIds.has(mentionedUserId)) {
-      mentionedUserIds.add(mentionedUserId);
-      await db.insert(spmoNotificationsTable).values({
-        userId: mentionedUserId,
-        type: "mention",
-        title: `${getUserDisplayName(user) ?? "Someone"} mentioned you`,
-        body: body.data.body.slice(0, 200),
-        link: entityLink || null,
-        entityType: body.data.entityType,
-        entityId: body.data.entityId,
-      });
+
+  // Format 1: structured mentions
+  const structuredRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
+  let sm;
+  while ((sm = structuredRegex.exec(body.data.body)) !== null) {
+    if (sm[2]) mentionedUserIds.add(sm[2]);
+  }
+
+  // Format 2: plain @Name mentions (e.g. "@John Smith" or "@john")
+  // Strip out structured mentions first to avoid double-matching
+  const strippedBody = body.data.body.replace(/@\[[^\]]+\]\([^)]+\)/g, "");
+  const plainMentionRegex = /@(\w[\w\s]{1,40}?)(?=\s{2}|[.,;!?\n]|$)/g;
+  let pm;
+  while ((pm = plainMentionRegex.exec(strippedBody)) !== null) {
+    const mentionName = pm[1].trim().toLowerCase();
+    if (mentionName.length < 2) continue;
+    // Look up user by name
+    const matchedUsers = await db.select({ id: usersTable.id, firstName: usersTable.firstName, lastName: usersTable.lastName })
+      .from(usersTable);
+    const found = matchedUsers.find(u => {
+      const fullName = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim().toLowerCase();
+      const first = (u.firstName ?? "").toLowerCase();
+      const last = (u.lastName ?? "").toLowerCase();
+      return fullName === mentionName || first === mentionName || last === mentionName;
+    });
+    if (found) mentionedUserIds.add(found.id);
+  }
+
+  // Create notifications + send emails for all mentioned users
+  for (const mentionedUserId of mentionedUserIds) {
+    if (mentionedUserId === userId) continue; // don't notify yourself
+
+    await db.insert(spmoNotificationsTable).values({
+      userId: mentionedUserId,
+      type: "mention",
+      title: `${getUserDisplayName(user) ?? "Someone"} mentioned you in a discussion`,
+      body: body.data.body.slice(0, 200),
+      link: entityLink || null,
+      entityType: body.data.entityType,
+      entityId: body.data.entityId,
+    });
+
+    // Send email notification to the mentioned user
+    try {
+      const [mentionedUser] = await db.select({ email: usersTable.email, firstName: usersTable.firstName, lastName: usersTable.lastName })
+        .from(usersTable).where(eq(usersTable.id, mentionedUserId)).limit(1);
+      if (mentionedUser?.email) {
+        const authorName = getUserDisplayName(user) ?? "A team member";
+        const entityLabel = entityName || body.data.entityType;
+        const baseUrl = process.env.APP_URL || "";
+        const fullLink = entityLink ? `${baseUrl}/strategy-pmo${entityLink}` : baseUrl;
+        const subject = `${authorName} mentioned you in ${entityLabel}`;
+        const htmlBody = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto;">
+            <div style="background: #0F172A; color: #F8FAFC; padding: 20px 24px; border-radius: 12px 12px 0 0;">
+              <h2 style="margin: 0; font-size: 16px;">💬 You were mentioned in a discussion</h2>
+            </div>
+            <div style="border: 1px solid #E2E8F0; border-top: none; padding: 24px; border-radius: 0 0 12px 12px;">
+              <p style="margin: 0 0 12px;"><strong>${authorName}</strong> mentioned you in <strong>${entityLabel}</strong>:</p>
+              <blockquote style="margin: 12px 0; padding: 12px 16px; background: #F8FAFC; border-left: 3px solid #2563EB; border-radius: 4px; color: #334155; font-size: 14px;">
+                ${body.data.body.slice(0, 300).replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+              </blockquote>
+              <a href="${fullLink}" style="display: inline-block; margin-top: 16px; padding: 10px 24px; background: #2563EB; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                View Discussion →
+              </a>
+              <p style="margin: 20px 0 0; font-size: 12px; color: #94A3B8;">
+                You received this because you were @mentioned. Reply on the platform.
+              </p>
+            </div>
+          </div>`;
+        const textBody = `${authorName} mentioned you in ${entityLabel}:\n\n"${body.data.body.slice(0, 300)}"\n\nView: ${fullLink}`;
+
+        // Use the platform's email transport if available
+        if (process.env.SMTP_HOST || process.env.SENDGRID_API_KEY || process.env.REPLIT_DEPLOY_URL) {
+          const { sendMentionEmail } = await import("../lib/mention-email.js");
+          await sendMentionEmail({
+            to: mentionedUser.email,
+            subject,
+            html: htmlBody,
+            text: textBody,
+          }).catch((err: unknown) => {
+            req.log.warn({ err, to: mentionedUser.email }, "Failed to send mention email (non-fatal)");
+          });
+        }
+      }
+    } catch (emailErr) {
+      req.log.warn({ err: emailErr, mentionedUserId }, "Failed to send mention email (non-fatal)");
     }
   }
 
