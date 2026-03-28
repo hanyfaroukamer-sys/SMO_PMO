@@ -747,8 +747,8 @@ export const CreateSpmoPillarBody = zod.object({
     .number()
     .min(createSpmoPillarBodyWeightMin)
     .max(createSpmoPillarBodyWeightMax),
-  color: zod.string(),
-  iconName: zod.string(),
+  color: zod.string().optional(),
+  iconName: zod.string().optional(),
   sortOrder: zod.number().optional(),
 });
 
@@ -1308,13 +1308,16 @@ export const createSpmoMilestoneBodyWeightMin = 0;
 export const createSpmoMilestoneBodyWeightMax = 100;
 
 export const CreateSpmoMilestoneBody = zod.object({
+  projectId: zod.number().optional(),
   name: zod.string().min(1),
   description: zod.string().optional(),
   weight: zod
     .number()
     .min(createSpmoMilestoneBodyWeightMin)
     .max(createSpmoMilestoneBodyWeightMax),
-  effortDays: zod.number(),
+  effortDays: zod.number().optional(),
+  progress: zod.number().min(0).max(100).optional(),
+  status: zod.enum(["pending", "not_started", "in_progress", "completed", "approved", "rejected"]).optional(),
   startDate: zod.coerce.date().optional(),
   dueDate: zod.coerce.date(),
 });
