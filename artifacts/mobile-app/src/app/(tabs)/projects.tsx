@@ -67,7 +67,9 @@ export default function ProjectsScreen() {
   });
 
   const allProjects = data?.projects ?? [];
-  const myProjects = allProjects.filter((p) => p.ownerId === user?.id);
+  const myProjects = allProjects.filter((p) => String(p.ownerId) === String(user?.id));
+  const activeProjects = myProjects.filter((p) => p.status !== "completed" && p.status !== "cancelled");
+  const completedProjects = myProjects.filter((p) => p.status === "completed" || p.status === "cancelled");
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => { setRefreshing(true); await refetch(); setRefreshing(false); }, [refetch]);
@@ -80,7 +82,7 @@ export default function ProjectsScreen() {
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <Text style={{ fontSize: 14, fontWeight: "800", color: "#0F172A", flex: 1 }}>
-          {myProjects.length} Project{myProjects.length !== 1 ? "s" : ""}
+          {activeProjects.length} Active Project{activeProjects.length !== 1 ? "s" : ""}
         </Text>
         <Text style={{ fontSize: 11, color: "#64748B" }}>Owned by you</Text>
       </View>
@@ -95,9 +97,22 @@ export default function ProjectsScreen() {
         </View>
       )}
 
-      {myProjects.map((p) => (
+      {activeProjects.map((p) => (
         <ProjectItem key={p.id} project={p} onPress={() => router.push(`/projects/${p.id}` as never)} />
       ))}
+
+      {completedProjects.length > 0 && (
+        <>
+          <Text style={{ fontSize: 12, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 8 }}>
+            Completed ({completedProjects.length})
+          </Text>
+          {completedProjects.map((p) => (
+            <View key={p.id} style={{ opacity: 0.6 }}>
+              <ProjectItem project={p} onPress={() => router.push(`/projects/${p.id}` as never)} />
+            </View>
+          ))}
+        </>
+      )}
     </ScrollView>
   );
 }

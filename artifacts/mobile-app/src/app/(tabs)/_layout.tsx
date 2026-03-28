@@ -32,6 +32,7 @@ export default function TabsLayout() {
       const res = await fetch(`${API}/api/spmo/my-tasks/count`, {
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
       });
+      if (!res.ok) throw new Error(`API ${res.status}`);
       return res.json();
     },
     enabled: !!accessToken,
