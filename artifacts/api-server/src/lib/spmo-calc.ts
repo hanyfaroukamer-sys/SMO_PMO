@@ -64,9 +64,14 @@ async function projectProgress(projectId: number): Promise<{
   }
 
   // Exclude execution placeholder when custom (non-phase-gate) milestones exist
-  const hasCustom = allMilestones.some((m) => !m.phaseGate);
+  // Also detect old-format placeholders: phaseGate=null + name starts with "Execution"
+  const isExecPlaceholder = (m: typeof allMilestones[0]) =>
+    m.phaseGate === "execution_placeholder" ||
+    (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
+  const nonPlaceholderCustom = allMilestones.filter((m) => !m.phaseGate && !isExecPlaceholder(m));
+  const hasCustom = nonPlaceholderCustom.length > 0;
   const milestones = hasCustom
-    ? allMilestones.filter((m) => m.phaseGate !== "execution_placeholder")
+    ? allMilestones.filter((m) => !isExecPlaceholder(m))
     : allMilestones;
 
   if (milestones.length === 0) {

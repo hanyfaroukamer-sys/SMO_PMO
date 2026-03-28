@@ -1136,9 +1136,14 @@ router.get("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
 
   const PHASE_ORDER: Record<string, number> = { planning: 0, tendering: 1, execution_placeholder: 2, closure: 3 };
   // Hide execution placeholder when custom (non-phase-gate) milestones exist
-  const hasCustomMilestones = milestones.some((m) => !m.phaseGate);
+  // Also detect old-format placeholders: phaseGate=null + name starts with "Execution"
+  const isExecutionPlaceholder = (m: typeof milestones[0]) =>
+    m.phaseGate === "execution_placeholder" ||
+    (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
+  const nonPlaceholderCustom = milestones.filter((m) => !m.phaseGate && !isExecutionPlaceholder(m));
+  const hasCustomMilestones = nonPlaceholderCustom.length > 0;
   const filtered = hasCustomMilestones
-    ? milestones.filter((m) => m.phaseGate !== "execution_placeholder")
+    ? milestones.filter((m) => !isExecutionPlaceholder(m))
     : milestones;
 
   const sorted = [...filtered].sort((a, b) => {

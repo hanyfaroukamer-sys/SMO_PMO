@@ -1450,10 +1450,9 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
       toast({ variant: "destructive", title: "No dates", description: "Milestones need start and due dates to compute duration-based weights." });
       return;
     }
-    // Also set effortDays to the duration so the data is consistent
     setResettingToDuration(true);
     try {
-      // Update each milestone's effortDays to its duration + set weight proportionally
+      // Compute proportional weights from duration
       const exact = items.map((i) => ({ id: i.id, exact: (i.value / totalDays) * 100 }));
       const floored = exact.map((e) => ({ id: e.id, floor: Math.floor(e.exact), rem: e.exact - Math.floor(e.exact) }));
       let remainder = 100 - floored.reduce((s, e) => s + e.floor, 0);
@@ -1461,12 +1460,15 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
       const weightMap = new Map<number, number>();
       floored.forEach((e, i) => weightMap.set(e.id, e.floor + (i < remainder ? 1 : 0)));
 
-      // Update effortDays on each milestone to match its duration
+      // First: update effortDays on each milestone (no weight in this call to avoid validation)
       for (const item of items) {
         if (item.value > 0) {
-          await updateMutation.mutateAsync({ id: item.id, data: { effortDays: item.value, weight: weightMap.get(item.id) ?? 0 } });
+          await updateMutation.mutateAsync({ id: item.id, data: { effortDays: item.value } });
         }
       }
+      // Then: bulk-set all weights in one call (atomic, avoids per-milestone sum validation)
+      const payload = milestones.map((m) => ({ id: m.id, weight: weightMap.get(m.id) ?? 0 }));
+      await bulkWeightMutation.mutateAsync({ projectId, data: { weights: payload } });
       invalidate();
       toast({ title: "Reset to duration", description: "Effort days and weights set from milestone date ranges" });
     } catch (err: unknown) {
