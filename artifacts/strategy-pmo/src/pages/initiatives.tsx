@@ -234,6 +234,7 @@ export default function Initiatives() {
                     <th className="px-6 py-3 font-semibold">Initiative</th>
                     <th className="px-6 py-3 font-semibold">Status</th>
                     <th className="px-6 py-3 font-semibold w-44">Progress</th>
+                    <th className="px-6 py-3 font-semibold text-center">Weight</th>
                     <th className="px-6 py-3 font-semibold">Owner</th>
                     <th className="px-6 py-3 font-semibold">Target Date</th>
                     <th className="px-6 py-3 font-semibold text-right">Projects</th>
@@ -261,6 +262,11 @@ export default function Initiatives() {
                       </td>
                       <td className="px-6 py-4">
                         <ProgressBar progress={init.progress ?? 0} className="w-full" />
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="text-xs font-bold tabular-nums" title={`Source: ${(init as any).weightSource ?? "auto"}`}>
+                          {Math.round((init as any).effectiveWeight ?? 0)}%
+                        </span>
                       </td>
                       <td className="px-6 py-4 font-medium text-foreground/80">{init.ownerName || "—"}</td>
                       <td className="px-6 py-4 text-muted-foreground">

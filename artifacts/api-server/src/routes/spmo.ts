@@ -117,6 +117,7 @@ import {
   computeMilestoneHealth,
   computeProjectWeights,
   computeInitiativeWeights,
+  computePillarWeights,
   type StatusResult,
 } from "../lib/spmo-calc";
 import { logSpmoActivity } from "../lib/spmo-activity";
@@ -412,10 +413,14 @@ router.get("/spmo/pillars", async (req, res): Promise<void> => {
     .from(spmoPillarsTable)
     .orderBy(asc(spmoPillarsTable.sortOrder));
 
+  const pillarWeights = await computePillarWeights();
+  const pwMap = new Map(pillarWeights.map((w) => [w.pillarId, w]));
+
   const pillarsWithProgress = await Promise.all(
     pillars.map(async (p) => {
       const stats = await pillarProgress(p.id);
-      return { ...p, ...stats };
+      const pw = pwMap.get(p.id);
+      return { ...p, ...stats, effectiveWeight: pw?.effectiveWeight ?? 0, weightSource: pw?.weightSource ?? "equal" };
     })
   );
 

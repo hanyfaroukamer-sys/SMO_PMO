@@ -186,7 +186,7 @@ export default function Pillars() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <div className="bg-secondary px-3 py-1 rounded-md text-sm font-bold border border-border">
-              {pillar.weight}% Weight
+              {(pillar as any).effectiveWeight ?? pillar.weight}% Weight
             </div>
             {isAdmin && (
               <>
