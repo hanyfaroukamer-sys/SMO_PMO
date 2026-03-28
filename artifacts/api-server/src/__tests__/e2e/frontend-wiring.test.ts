@@ -27,26 +27,44 @@ function extractFetchUrls(dir: string): { file: string; line: number; url: strin
       const lines = content.split("\n");
 
       lines.forEach((line, idx) => {
-        // Match fetch("/api/...") patterns
-        const fetchMatch = line.match(/fetch\(\s*["'`](\/?api\/[^"'`]+)["'`]/);
+        // Match fetch("/api/...") patterns (single, double, or backtick quotes)
+        const fetchMatch = line.match(/fetch\(\s*["'`](\/?api\/[^"'`$]+)/);
         if (fetchMatch) {
+          let fetchUrl = fetchMatch[1];
+          // If URL was in a template literal and ended with `${...}`, append :param
+          // e.g. `/api/spmo/milestones/${id}` extracts as `/api/spmo/milestones/`
+          const afterMatch = line.slice((fetchMatch.index ?? 0) + fetchMatch[0].length);
+          if (afterMatch.startsWith("${") && fetchUrl.endsWith("/")) {
+            fetchUrl += ":param";
+          }
           const method = line.includes("method:") ?
             (line.match(/method:\s*["'](\w+)["']/)?.[1] ?? "GET").toUpperCase() : "GET";
           results.push({
             file: path.relative(FRONTEND_DIR, full),
             line: idx + 1,
-            url: fetchMatch[1].replace(/\$\{[^}]+\}/g, ":param"), // normalize template vars
+            url: fetchUrl.replace(/\$\{[^}]+\}/g, ":param"),
             method,
           });
         }
 
-        // Match href="/api/..." patterns
-        const hrefMatch = line.match(/href=\{?\s*["'`](\/?api\/[^"'`\s}]+)/);
+        // Match href="/api/..." or href=`/api/...` patterns
+        const hrefMatch = line.match(/href\s*=\s*\{?\s*["'`](\/?api\/[^"'`$\s}]+)/);
         if (hrefMatch) {
           results.push({
             file: path.relative(FRONTEND_DIR, full),
             line: idx + 1,
             url: hrefMatch[1].replace(/\$\{[^}]+\}/g, ":param"),
+            method: "GET",
+          });
+        }
+
+        // Match window.location.href = `/api/...` patterns
+        const locationMatch = line.match(/location\.href\s*=\s*["'`](\/?api\/[^"'`$\s]+)/);
+        if (locationMatch) {
+          results.push({
+            file: path.relative(FRONTEND_DIR, full),
+            line: idx + 1,
+            url: locationMatch[1].replace(/\$\{[^}]+\}/g, ":param"),
             method: "GET",
           });
         }
@@ -62,15 +80,33 @@ function extractFetchUrls(dir: string): { file: string; line: number; url: strin
 function extractBackendRoutes(dir: string): Set<string> {
   const routes = new Set<string>();
 
+  // Read index.ts to find mount prefixes (e.g. router.use("/spmo/reports", reportsRouter))
+  const indexPath = path.join(dir, "index.ts");
+  const mountPrefixes = new Map<string, string>(); // filename → prefix
+  if (fs.existsSync(indexPath)) {
+    const indexContent = fs.readFileSync(indexPath, "utf-8");
+    const mountRegex = /router\.use\(\s*["']([^"']+)["']\s*,\s*(\w+)/g;
+    let mm;
+    while ((mm = mountRegex.exec(indexContent)) !== null) {
+      // Find the import that defines this variable
+      const varName = mm[2];
+      const importMatch = indexContent.match(new RegExp(`import\\s+${varName}\\s+from\\s+["']\\.\\/([^"']+)["']`));
+      if (importMatch) {
+        mountPrefixes.set(importMatch[1] + ".ts", mm[1]);
+      }
+    }
+  }
+
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".ts")) continue;
     const content = fs.readFileSync(path.join(dir, entry.name), "utf-8");
+    const prefix = mountPrefixes.get(entry.name) ?? "";
 
     // Match router.get("/path", ...), router.post("/path", ...), etc.
     const routeRegex = /router\.(get|post|put|patch|delete)\(\s*["']([^"']+)["']/g;
     let m;
     while ((m = routeRegex.exec(content)) !== null) {
-      const routePath = m[2];
+      const routePath = prefix + m[2];
       // Normalize route params: :id, *path → :param
       const normalized = routePath.replace(/:\w+/g, ":param").replace(/\*\w+/g, ":param");
       routes.add(normalized);
@@ -86,12 +122,14 @@ function normalizeUrl(url: string): string {
   let normalized = url.startsWith("/api/") ? url.slice(4) : url.startsWith("api/") ? "/" + url.slice(4) : url;
   // Remove query strings
   normalized = normalized.split("?")[0];
+  // Remove trailing slash
+  normalized = normalized.replace(/\/$/, "");
   // Replace dynamic segments with :param
   // e.g. /spmo/milestones/123 → /spmo/milestones/:param
-  // But we need to handle known ID patterns in fetch URLs
   normalized = normalized.replace(/\/\d+/g, "/:param");
-  // Handle template literal params already replaced
-  normalized = normalized.replace(/:param/g, ":param");
+  // URLs ending with a template literal variable (cut off by regex) → add :param
+  // e.g. /spmo/milestones/ from fetch(`/api/spmo/milestones/${id}`) → /spmo/milestones/:param
+  if (normalized.endsWith("/")) normalized = normalized.slice(0, -1);
   return normalized;
 }
 
