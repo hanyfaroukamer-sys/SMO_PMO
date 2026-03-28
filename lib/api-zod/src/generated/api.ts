@@ -2363,6 +2363,10 @@ export const UpdateSpmoConfigBody = zod.object({
   defaultTenderingWeight: zod.number().min(0).max(100).optional(),
   defaultExecutionWeight: zod.number().min(0).max(100).optional(),
   defaultClosureWeight: zod.number().min(0).max(100).optional(),
+  defaultPlanningEffortDays: zod.number().min(1).max(999).optional(),
+  defaultTenderingEffortDays: zod.number().min(1).max(999).optional(),
+  defaultExecutionEffortDays: zod.number().min(1).max(999).optional(),
+  defaultClosureEffortDays: zod.number().min(1).max(999).optional(),
 });
 
 export const UpdateSpmoConfigResponse = zod.object({
