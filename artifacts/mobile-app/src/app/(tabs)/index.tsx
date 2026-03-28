@@ -1,8 +1,9 @@
-import { View, Text, ScrollView, RefreshControl, Pressable, Dimensions } from "react-native";
+import { View, Text, ScrollView, RefreshControl, Pressable, Dimensions, ActivityIndicator } from "react-native";
 import { useState, useCallback } from "react";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/providers/AuthProvider";
 import { useQuery } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 
 const API = Constants.expoConfig?.extra?.apiUrl ?? process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -152,7 +153,7 @@ export default function DashboardScreen() {
               flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "rgba(239,68,68,0.3)",
             }}
           >
-            <Text style={{ fontSize: 16, marginRight: 8 }}>🚨</Text>
+            <Ionicons name="alert-circle" size={18} color="#FCA5A5" style={{ marginRight: 8 }} />
             <Text style={{ flex: 1, fontSize: 12, fontWeight: "700", color: "#FCA5A5" }}>
               {criticalTasks} critical task{criticalTasks > 1 ? "s" : ""} need immediate attention
             </Text>
@@ -213,11 +214,11 @@ export default function DashboardScreen() {
 
         {/* Quick actions */}
         <View style={{ flexDirection: "row", gap: 10 }}>
-          {[
-            { icon: "📋", label: "My Tasks", route: "/tasks", bg: "#EFF6FF", border: "#BFDBFE", color: "#2563EB" },
-            { icon: "📁", label: "Projects", route: "/projects", bg: "#F0FDF4", border: "#BBF7D0", color: "#16A34A" },
-            { icon: "🔔", label: "Alerts", route: "/notifications", bg: "#FEF3C7", border: "#FDE68A", color: "#D97706" },
-          ].map((a) => (
+          {([
+            { icon: "checkbox-outline" as const, label: "My Tasks", route: "/(tabs)/tasks", bg: "#EFF6FF", border: "#BFDBFE", color: "#2563EB" },
+            { icon: "folder-outline" as const, label: "Projects", route: "/(tabs)/projects", bg: "#F0FDF4", border: "#BBF7D0", color: "#16A34A" },
+            { icon: "notifications-outline" as const, label: "Alerts", route: "/notifications", bg: "#FEF3C7", border: "#FDE68A", color: "#D97706" },
+          ] as const).map((a) => (
             <Pressable
               key={a.label}
               onPress={() => router.push(a.route as never)}
@@ -226,7 +227,7 @@ export default function DashboardScreen() {
                 borderWidth: 1, borderColor: a.border,
               }}
             >
-              <Text style={{ fontSize: 22, marginBottom: 4 }}>{a.icon}</Text>
+              <Ionicons name={a.icon} size={22} color={a.color} style={{ marginBottom: 4 }} />
               <Text style={{ fontSize: 11, fontWeight: "700", color: a.color }}>{a.label}</Text>
             </Pressable>
           ))}
