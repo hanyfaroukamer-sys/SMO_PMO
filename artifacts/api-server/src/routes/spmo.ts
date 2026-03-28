@@ -2893,15 +2893,16 @@ router.get("/spmo/departments", async (req, res): Promise<void> => {
         }),
       );
 
-      // Budget-weighted average — larger projects have proportionally more impact
-      const totalBudget = projectStats.reduce((s, p) => s + p.budget, 0);
+      // Budget-weighted average — but only if ALL projects have budgets.
+      // If any project has no budget, fall back to equal weight to avoid ignoring them.
+      const allHaveBudget = projects.length > 0 && projectStats.every((p) => p.budget > 0);
       let progress: number;
       if (projects.length === 0) {
         progress = 0;
-      } else if (totalBudget > 0) {
+      } else if (allHaveBudget) {
+        const totalBudget = projectStats.reduce((s, p) => s + p.budget, 0);
         progress = projectStats.reduce((s, p) => s + p.progress * p.budget, 0) / totalBudget;
       } else {
-        // Fallback to simple average if no budgets set
         progress = projectStats.reduce((s, p) => s + p.progress, 0) / projects.length;
       }
 
