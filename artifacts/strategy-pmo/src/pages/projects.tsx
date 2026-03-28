@@ -1016,9 +1016,9 @@ function ProjectRow({
               ) : (
                 <ComputedStatusBadge cs={project.computedStatus} />
               )}
-              {isAdmin && project.weight > 0 && (
-                <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded text-muted-foreground">
-                  {project.weight}% weight
+              {isAdmin && (project as any).effectiveWeight > 0 && (
+                <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded text-muted-foreground" title={`Weight source: ${(project as any).weightSource ?? "auto"}`}>
+                  {Math.round((project as any).effectiveWeight)}% weight
                 </span>
               )}
             </div>
