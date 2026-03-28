@@ -61,15 +61,22 @@ export default function Pillars() {
   function openEdit(pillar: NonNullable<typeof data>["pillars"][number]) {
     setEditId(pillar.id);
     const pt = (pillar as { pillarType?: string }).pillarType;
+    const ew = (pillar as any).effectiveWeight ?? pillar.weight ?? 0;
     setForm({
       name: pillar.name,
       description: pillar.description ?? "",
       pillarType: (pt === "enabler" ? "enabler" : "pillar"),
-      weight: String(pillar.weight),
+      weight: String(Math.round(ew)),
       color: pillar.color ?? COLORS[0],
       sortOrder: String(pillar.sortOrder ?? 0),
     });
-    setSiblingWeightEdits({});
+    // Pre-populate sibling weights with their effectiveWeight
+    const siblings = (data?.pillars ?? []).filter(p => p.id !== pillar.id);
+    const edits: Record<number, string> = {};
+    for (const s of siblings) {
+      edits[s.id] = String(Math.round((s as any).effectiveWeight ?? s.weight ?? 0));
+    }
+    setSiblingWeightEdits(edits);
     setModalOpen(true);
   }
 
@@ -147,7 +154,11 @@ export default function Pillars() {
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const siblingPillars = (data?.pillars ?? []).filter(p => p.id !== editId);
-  const siblingPillarWeight = siblingPillars.reduce((s, p) => s + (p.weight ?? 0), 0);
+  const siblingPillarWeight = siblingPillars.reduce((s, p) => {
+    const editVal = siblingWeightEdits[p.id];
+    if (editVal !== undefined) return s + (parseFloat(editVal) || 0);
+    return s + ((p as any).effectiveWeight ?? p.weight ?? 0);
+  }, 0);
   const pillarWeightTotal = siblingPillarWeight + (parseFloat(form.weight) || 0);
   const pillarWeightError = pillarWeightTotal > 100;
   const pillarWeightUnder = !pillarWeightError && pillarWeightTotal > 0 && pillarWeightTotal < 100;
@@ -374,7 +385,7 @@ export default function Pillars() {
               <p className="text-muted-foreground">Adjust another pillar below to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(pillarWeightTotal)}%</span>:</p>
               <ul className="divide-y divide-border/40">
                 {siblingPillars.map(p => {
-                  const localVal = siblingWeightEdits[p.id] ?? String(p.weight);
+                  const localVal = siblingWeightEdits[p.id] ?? String(Math.round((p as any).effectiveWeight ?? p.weight ?? 0));
                   const isSavingThis = savingSiblingId === p.id;
                   return (
                     <li key={p.id} className="flex items-center justify-between gap-2 py-1.5">
