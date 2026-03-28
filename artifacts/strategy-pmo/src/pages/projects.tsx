@@ -1223,17 +1223,41 @@ function VerticalMilestoneTimeline({ projectId, pillarColor }: { projectId: numb
   );
 }
 
-function computeProportionalWeights(items: { id: number; effortDays: number }[]): Map<number, number> {
+function computeProportionalWeights(items: { id: number; effortDays: number; startDate?: string | null; dueDate?: string | null }[]): Map<number, number> {
   if (items.length === 0) return new Map();
-  const total = items.reduce((s, m) => s + m.effortDays, 0);
-  if (total === 0) {
-    const eq = Math.floor(100 / items.length);
-    const rem = 100 - eq * items.length;
-    const result = new Map<number, number>();
-    items.forEach((m, i) => result.set(m.id, i < rem ? eq + 1 : eq));
-    return result;
+
+  // Cascade: effortDays → duration from dates → equal weight
+  let values: { id: number; value: number }[];
+
+  const totalEffort = items.reduce((s, m) => s + m.effortDays, 0);
+  if (totalEffort > 0) {
+    // Use effortDays
+    values = items.map((m) => ({ id: m.id, value: m.effortDays }));
+  } else {
+    // Try duration from dates (dueDate - startDate in days)
+    const durations = items.map((m) => {
+      if (m.startDate && m.dueDate) {
+        const days = Math.max(1, Math.round((new Date(m.dueDate).getTime() - new Date(m.startDate).getTime()) / 86_400_000));
+        return { id: m.id, value: days };
+      }
+      return { id: m.id, value: 0 };
+    });
+    const totalDuration = durations.reduce((s, d) => s + d.value, 0);
+    if (totalDuration > 0) {
+      values = durations;
+    } else {
+      // Equal weight fallback
+      const eq = Math.floor(100 / items.length);
+      const rem = 100 - eq * items.length;
+      const result = new Map<number, number>();
+      items.forEach((m, i) => result.set(m.id, i < rem ? eq + 1 : eq));
+      return result;
+    }
   }
-  const exact = items.map((m) => ({ id: m.id, exact: (m.effortDays / total) * 100 }));
+
+  // Largest-remainder method to distribute integer weights summing to exactly 100
+  const total = values.reduce((s, v) => s + v.value, 0);
+  const exact = values.map((v) => ({ id: v.id, exact: (v.value / total) * 100 }));
   const floored = exact.map((e) => ({ id: e.id, floor: Math.floor(e.exact), rem: e.exact - Math.floor(e.exact) }));
   let remainder = 100 - floored.reduce((s, e) => s + e.floor, 0);
   floored.sort((a, b) => b.rem - a.rem);
@@ -1269,7 +1293,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
   const totalWeight = milestones.reduce((s: number, m) => s + (m.weight ?? 0), 0);
   const milestoneWeightError = totalWeight > 100;
   const milestoneWeightWarning = !milestoneWeightError && Math.round(totalWeight) !== 100 && milestones.length > 0;
-  const autoWeightMap = computeProportionalWeights(milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0 })));
+  const autoWeightMap = computeProportionalWeights(milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0, startDate: m.startDate, dueDate: m.dueDate })));
 
   // Auto-populate weights on first load when all milestones have 0 weight
   useEffect(() => {
@@ -1280,7 +1304,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
     const hasEffort = milestones.some((m) => (m.effortDays ?? 0) > 0);
     if (!hasEffort) return;
     autoPopulatedRef.current = true;
-    const weights = computeProportionalWeights(milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0 })));
+    const weights = computeProportionalWeights(milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0, startDate: m.startDate, dueDate: m.dueDate })));
     const payload = milestones.map((m) => ({ id: m.id, weight: weights.get(m.id) ?? 0 }));
     if (Math.abs(payload.reduce((s, w) => s + w.weight, 0) - 100) < 2) {
       bulkWeightMutation.mutate({ projectId, data: { weights: payload } }, { onSuccess: () => invalidate() });
@@ -1328,7 +1352,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
     const { pendingId, pendingEffort } = effortWeightDialog;
     setEffortWeightDialog({ open: false, pendingId: null, pendingEffort: null });
     if (pendingId === null || pendingEffort === null) return;
-    const updated = milestones.map((m) => ({ id: m.id, effortDays: m.id === pendingId ? pendingEffort : (m.effortDays ?? 0) }));
+    const updated = milestones.map((m) => ({ id: m.id, effortDays: m.id === pendingId ? pendingEffort : (m.effortDays ?? 0), startDate: m.startDate, dueDate: m.dueDate }));
     const weights = computeProportionalWeights(updated);
     const payload = updated.map((m) => ({ id: m.id, weight: weights.get(m.id) ?? 0 }));
     try {
@@ -1394,7 +1418,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
 
   async function applyAutoWeights() {
     if (milestones.length === 0) return;
-    const items = milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0 }));
+    const items = milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0, startDate: m.startDate, dueDate: m.dueDate }));
     const weights = computeProportionalWeights(items);
     const payload = milestones.map((m) => ({ id: m.id, weight: weights.get(m.id) ?? 0 }));
     setApplyingAutoWeights(true);
@@ -1429,7 +1453,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
         data: { name: "New Milestone", effortDays: newEffort, weight: 0, dueDate },
       });
       const allItems = [
-        ...milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0 })),
+        ...milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0, startDate: m.startDate, dueDate: m.dueDate })),
         { id: created.id, effortDays: newEffort },
       ];
       const weights = computeProportionalWeights(allItems);
