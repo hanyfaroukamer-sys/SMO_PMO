@@ -117,23 +117,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        // Build body — nonce must be omitted (not null) when absent
+        const body: Record<string, string> = {
+          code,
+          code_verifier: request.codeVerifier!,
+          redirect_uri: redirectUri,
+          state: state ?? "",
+        };
+        if (request.nonce) body.nonce = request.nonce;
+
+        console.log("[auth] exchanging code, redirectUri=", redirectUri, "state_len=", (state ?? "").length, "has_nonce=", !!request.nonce);
+
         const exchangeRes = await fetch(
           `${apiBase}/api/mobile-auth/token-exchange`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              code,
-              code_verifier: request.codeVerifier,
-              redirect_uri: redirectUri,
-              state,
-              nonce: request.nonce ?? null,
-            }),
+            body: JSON.stringify(body),
           },
         );
 
         if (!exchangeRes.ok) {
-          console.error("Token exchange failed:", exchangeRes.status);
+          const errBody = await exchangeRes.json().catch(() => ({}));
+          console.error("Token exchange failed:", exchangeRes.status, errBody);
           setIsLoading(false);
           return;
         }
