@@ -181,19 +181,16 @@ async function pillarProgress(pillarId: number): Promise<{
   const initiativeStats = await Promise.all(
     initiatives.map(async (i) => {
       const s = await initiativeProgress(i.id);
-      // Weight cascade: initiative budget → sum of child project budgets → sum of milestone effortDays → equal
-      let initWeight = i.budget ?? 0;
-      if (initWeight === 0) {
-        const childProjects = await db.select({ budget: spmoProjectsTable.budget }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id));
-        initWeight = childProjects.reduce((sum, p) => sum + (p.budget ?? 0), 0);
+      // Initiative budget = sum of child project budgets (computed, not stored)
+      const childProjects = await db.select({ id: spmoProjectsTable.id, budget: spmoProjectsTable.budget }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id));
+      let initWeight = childProjects.reduce((sum, p) => sum + (p.budget ?? 0), 0);
+      // Fallback: sum of milestone effortDays across all child projects
+      if (initWeight === 0 && childProjects.length > 0) {
+        const cpIds = childProjects.map((p) => p.id);
+        const milestones = await db.select({ effortDays: spmoMilestonesTable.effortDays }).from(spmoMilestonesTable).where(inArray(spmoMilestonesTable.projectId, cpIds));
+        initWeight = milestones.reduce((sum, m) => sum + (m.effortDays ?? 0), 0);
       }
-      if (initWeight === 0) {
-        const childProjectIds = (await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id))).map((p) => p.id);
-        if (childProjectIds.length > 0) {
-          const milestones = await db.select({ effortDays: spmoMilestonesTable.effortDays }).from(spmoMilestonesTable).where(inArray(spmoMilestonesTable.projectId, childProjectIds));
-          initWeight = milestones.reduce((sum, m) => sum + (m.effortDays ?? 0), 0);
-        }
-      }
+      // Final fallback: weightedAvg handles all-zero weights as equal
       return { value: s.progress, weight: initWeight, ...s };
     })
   );

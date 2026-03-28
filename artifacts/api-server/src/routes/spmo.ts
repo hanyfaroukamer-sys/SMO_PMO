@@ -596,16 +596,19 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
   const withProgress = await Promise.all(
     rows.map(async (i) => {
       const stats = await initiativeProgress(i.id);
+      // Initiative budget is computed from child projects, not stored
+      const childProjects = await db.select({ budget: spmoProjectsTable.budget }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id));
+      const computedBudget = childProjects.reduce((s, p) => s + (p.budget ?? 0), 0);
       const computedStatus: StatusResult = computeInitiativeStatus(
         stats.progress,
         i.startDate,
         i.targetDate,
-        i.budget,
+        computedBudget,
         stats.budgetSpent,
         stats.rawProgress,
         stats.childProjects,
       );
-      return { ...i, ...stats, computedStatus, healthStatus: computedStatus.status };
+      return { ...i, budget: computedBudget, ...stats, computedStatus, healthStatus: computedStatus.status };
     })
   );
 
@@ -629,8 +632,10 @@ router.post("/spmo/initiatives", async (req, res): Promise<void> => {
     return;
   }
 
+  const { budget: _ignoredBudget, ...initData } = parsed.data;
   const insertInitiative: InsertSpmoInitiative = {
-    ...parsed.data,
+    ...initData,
+    budget: 0, // Budget is computed from child projects, not manually set
     startDate: dateToStr(parsed.data.startDate) as string,
     targetDate: dateToStr(parsed.data.targetDate) as string,
   };
@@ -682,19 +687,21 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
   }
 
   const stats = await initiativeProgress(initiative.id);
-  const computedStatus: StatusResult = computeInitiativeStatus(
-    stats.progress,
-    initiative.startDate,
-    initiative.targetDate,
-    initiative.budget,
-    stats.budgetSpent,
-    stats.rawProgress,
-    stats.childProjects,
-  );
   const projects = await db
     .select()
     .from(spmoProjectsTable)
     .where(eq(spmoProjectsTable.initiativeId, initiative.id));
+  // Initiative budget is computed from child projects
+  const computedBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
+  const computedStatus: StatusResult = computeInitiativeStatus(
+    stats.progress,
+    initiative.startDate,
+    initiative.targetDate,
+    computedBudget,
+    stats.budgetSpent,
+    stats.rawProgress,
+    stats.childProjects,
+  );
 
   const projectsWithProgress = await Promise.all(
     projects.map(async (p) => {
@@ -704,7 +711,7 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     })
   );
 
-  res.json({ ...initiative, ...stats, computedStatus, healthStatus: computedStatus.status, projects: projectsWithProgress });
+  res.json({ ...initiative, budget: computedBudget, ...stats, computedStatus, healthStatus: computedStatus.status, projects: projectsWithProgress });
 });
 
 router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
@@ -730,9 +737,10 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const { startDate: sd, targetDate: td, ...restInitiativeUpdate } = parsed.data;
+  const { startDate: sd, targetDate: td, budget: _ignoredBudget2, ...restInitiativeUpdate } = parsed.data;
   const updateInitiative = {
     ...restInitiativeUpdate,
+    // Budget is computed from child projects — strip any manual budget input
     ...(sd !== undefined && { startDate: dateToStr(sd) as string }),
     ...(td !== undefined && { targetDate: dateToStr(td) as string }),
   };
