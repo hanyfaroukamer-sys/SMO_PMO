@@ -120,7 +120,7 @@ function EvidenceSection({
     if (!file) return;
     setUploading(true);
     try {
-      const urlRes = await fetch("/api/storage/uploads/request-url", {
+      const urlRes = await fetch("/api/spmo/uploads/request-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ milestoneId: milestone.id }),
