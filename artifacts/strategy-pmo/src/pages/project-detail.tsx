@@ -39,18 +39,19 @@ import {
   type SpmoRaci,
   type SpmoAction,
   type SpmoDocument,
+  customFetch,
 } from "@workspace/api-client-react";
 import { Card, ProgressBar, StatusBadge, PageHeader } from "@/components/ui-elements";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useProjectPermissions } from "@/hooks/use-project-access";
 import {
   Loader2, ArrowLeft, CheckCircle2, XCircle, FileText, FileImage,
   FileArchive, FileSpreadsheet, Upload, AlertCircle, Clock, Target,
   Calendar, DollarSign, User, Building2, Layers, ChevronRight,
   Sparkles, TrendingUp, ShieldAlert, Activity, ClipboardList, Pencil, Save, X, Plus, ExternalLink,
-  GitPullRequest, Grid3X3, ListTodo, FolderOpen, Trash2, ChevronDown, Lock,
+  GitPullRequest, Grid3X3, ListTodo, FolderOpen, Trash2, ChevronDown, Lock, MessageCircle, Send, Reply,
 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -86,7 +87,7 @@ function HealthBadge({ status }: { status: SpmoHealthStatus | null | undefined }
   );
 }
 
-type TabKey = "overview" | "milestones" | "weekly-report" | "risks" | "changes" | "raci" | "actions" | "documents" | "reports" | "team";
+type TabKey = "overview" | "milestones" | "weekly-report" | "risks" | "changes" | "raci" | "actions" | "documents" | "reports" | "team" | "discussion";
 
 // ─── Evidence inline panel ─────────────────────────────────────────────────────
 
@@ -957,6 +958,7 @@ export default function ProjectDetail({ params }: Props) {
     { key: "risks",         label: "Risks & Actions", icon: ShieldAlert,   count: (projectRisks.length + openActions) || undefined },
     { key: "reports",       label: "Reports",         icon: Activity,      count: changeRequests.length || undefined },
     { key: "team",          label: "Team & Docs",     icon: Grid3X3,       count: documents.length || undefined },
+    { key: "discussion",    label: "Discussion",      icon: MessageCircle },
   ];
 
   return (
@@ -1535,6 +1537,10 @@ export default function ProjectDetail({ params }: Props) {
           currentUser={authData?.user}
           onInvalidate={() => qc.invalidateQueries({ queryKey: docsQK })}
         />
+      )}
+
+      {activeTab === "discussion" && (
+        <DiscussionTab projectId={projectId} currentUser={authData?.user} />
       )}
     </div>
   );
@@ -2465,5 +2471,242 @@ function MilestoneTimeline({ milestones }: { milestones: SpmoMilestoneWithEviden
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Discussion Tab ─────────────────────────────────────────────────────────
+
+interface Comment {
+  id: number;
+  entityType: string;
+  entityId: number;
+  parentId: number | null;
+  authorId: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function DiscussionTab({ projectId, currentUser }: { projectId: number; currentUser?: { id: string; email?: string | null; firstName?: string | null; lastName?: string | null; role?: string | null } | null }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const commentsQK = ["spmo-comments", "project", projectId];
+
+  const { data: commentsData, isLoading } = useQuery({
+    queryKey: commentsQK,
+    queryFn: () => customFetch(`/api/spmo/comments?entityType=project&entityId=${projectId}`) as Promise<{ comments: Comment[] }>,
+    staleTime: 10_000,
+  });
+
+  const comments = commentsData?.comments ?? [];
+  const topLevel = comments.filter((c) => !c.parentId);
+  const replies = (parentId: number) => comments.filter((c) => c.parentId === parentId);
+
+  const [body, setBody] = useState("");
+  const [replyTo, setReplyTo] = useState<{ id: number; authorName: string | null } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [mentionUserId, setMentionUserId] = useState<string | undefined>();
+  const textRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleSubmit = async () => {
+    const text = body.trim();
+    if (!text) return;
+    setSubmitting(true);
+    try {
+      // If mentionUserId is set from the @mention input, wrap it in the mention format
+      let finalBody = text;
+      if (mentionUserId) {
+        // Already formatted by the inline mention
+      }
+      await customFetch("/api/spmo/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityType: "project",
+          entityId: projectId,
+          parentId: replyTo?.id ?? null,
+          body: finalBody,
+        }),
+      });
+      setBody("");
+      setReplyTo(null);
+      setMentionUserId(undefined);
+      qc.invalidateQueries({ queryKey: commentsQK });
+      toast({ title: replyTo ? "Reply posted" : "Comment posted" });
+    } catch {
+      toast({ title: "Failed to post comment", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await customFetch(`/api/spmo/comments/${id}`, { method: "DELETE" });
+      qc.invalidateQueries({ queryKey: commentsQK });
+      toast({ title: "Comment deleted" });
+    } catch {
+      toast({ title: "Failed to delete", variant: "destructive" });
+    }
+  };
+
+  const insertMention = (name: string, userId?: string) => {
+    if (userId) {
+      const mention = `@[${name}](${userId}) `;
+      setBody((prev) => prev + mention);
+      setMentionUserId(userId);
+      textRef.current?.focus();
+    }
+  };
+
+  const formatTime = (iso: string) => {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  };
+
+  const renderBody = (text: string) => {
+    // Parse @[Name](userId) mentions and render them as highlighted spans
+    const parts = text.split(/(@\[[^\]]+\]\([^)]+\))/g);
+    return parts.map((part, i) => {
+      const mentionMatch = part.match(/@\[([^\]]+)\]\(([^)]+)\)/);
+      if (mentionMatch) {
+        return <span key={i} className="text-primary font-semibold bg-primary/10 px-1 rounded">@{mentionMatch[1]}</span>;
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
+  const initials = (name: string | null) => {
+    if (!name) return "?";
+    return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+  };
+
+  const isAdmin = currentUser?.role === "admin";
+
+  function CommentCard({ comment, depth = 0 }: { comment: Comment; depth?: number }) {
+    const canDelete = comment.authorId === currentUser?.id || isAdmin;
+    const childReplies = replies(comment.id);
+    return (
+      <div className={depth > 0 ? "ml-8 border-l-2 border-border/40 pl-4" : ""}>
+        <div className="group flex gap-3 py-3">
+          <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+            {initials(comment.authorName)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-foreground">{comment.authorName ?? "Unknown"}</span>
+              <span className="text-xs text-muted-foreground">{formatTime(comment.createdAt)}</span>
+            </div>
+            <div className="text-sm text-foreground/90 mt-1 leading-relaxed whitespace-pre-wrap break-words">
+              {renderBody(comment.body)}
+            </div>
+            <div className="flex items-center gap-3 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => setReplyTo({ id: comment.id, authorName: comment.authorName })}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Reply className="w-3 h-3" /> Reply
+              </button>
+              {canDelete && (
+                <button
+                  onClick={() => handleDelete(comment.id)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" /> Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        {childReplies.length > 0 && (
+          <div>
+            {childReplies.map((r) => <CommentCard key={r.id} comment={r} depth={depth + 1} />)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
+        <MessageCircle className="w-4 h-4 text-primary" />
+        Discussion
+        {comments.length > 0 && <span className="text-xs text-muted-foreground font-normal">({comments.length})</span>}
+      </h3>
+
+      {/* Compose area */}
+      <div className="border border-border rounded-xl p-3 mb-5 focus-within:ring-2 focus-within:ring-primary/20 transition-shadow bg-card">
+        {replyTo && (
+          <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground bg-secondary/50 rounded-lg px-3 py-1.5">
+            <Reply className="w-3 h-3" />
+            <span>Replying to <strong className="text-foreground">{replyTo.authorName ?? "comment"}</strong></span>
+            <button onClick={() => setReplyTo(null)} className="ml-auto hover:text-foreground">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+        <textarea
+          ref={textRef}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="Write a comment… Use @ to mention someone"
+          rows={3}
+          className="w-full resize-none text-sm bg-transparent border-0 outline-none placeholder:text-muted-foreground/60"
+          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmit(); }}
+        />
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/40">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground">Mention:</span>
+            <UserMentionInput
+              value=""
+              onChange={(name, userId) => insertMention(name, userId)}
+              placeholder="@search user…"
+              className="text-xs h-7 w-36 border border-border/60 rounded-md px-2"
+            />
+          </div>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !body.trim()}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 disabled:opacity-40 transition-colors"
+          >
+            {submitting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+            {replyTo ? "Reply" : "Post"}
+          </button>
+        </div>
+        <div className="text-[10px] text-muted-foreground/50 mt-1">Ctrl+Enter to send</div>
+      </div>
+
+      {/* Comments list */}
+      {isLoading && (
+        <div className="flex justify-center py-8">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {!isLoading && comments.length === 0 && (
+        <div className="text-center py-10 text-muted-foreground">
+          <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm font-medium">No comments yet</p>
+          <p className="text-xs mt-1">Start a discussion about this project</p>
+        </div>
+      )}
+
+      {!isLoading && topLevel.length > 0 && (
+        <div className="divide-y divide-border/30">
+          {topLevel.map((c) => <CommentCard key={c.id} comment={c} />)}
+        </div>
+      )}
+    </Card>
   );
 }
