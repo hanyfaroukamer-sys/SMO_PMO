@@ -1435,6 +1435,87 @@ router.put("/spmo/projects/:id/milestones/weights", async (req, res): Promise<vo
   res.json({ success: true });
 });
 
+// Admin bulk-edit project weights within an initiative (must sum to 100%)
+router.put("/spmo/initiatives/:id/projects/weights", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+
+  const params = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid initiative id" }); return; }
+
+  const body = z.object({
+    weights: z.array(z.object({ id: z.number().int().positive(), weight: z.number().min(0).max(100) })),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: "Invalid weights payload" }); return; }
+
+  const { weights } = body.data;
+  const total = weights.reduce((s, w) => s + w.weight, 0);
+  if (Math.abs(total - 100) > 1) {
+    res.status(400).json({ error: `Weights must sum to 100% (got ${Math.round(total)}%)` });
+    return;
+  }
+
+  await db.transaction(async (tx: typeof db) => {
+    for (const { id, weight } of weights) {
+      await tx.update(spmoProjectsTable)
+        .set({ weight, updatedAt: new Date() })
+        .where(and(eq(spmoProjectsTable.id, id), eq(spmoProjectsTable.initiativeId, params.data.id)));
+    }
+  });
+
+  invalidateOverviewCache();
+  res.json({ success: true });
+});
+
+// Admin bulk-edit initiative weights within a pillar (must sum to 100%)
+router.put("/spmo/pillars/:id/initiatives/weights", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+
+  const params = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid pillar id" }); return; }
+
+  const body = z.object({
+    weights: z.array(z.object({ id: z.number().int().positive(), weight: z.number().min(0).max(100) })),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: "Invalid weights payload" }); return; }
+
+  const { weights } = body.data;
+  const total = weights.reduce((s, w) => s + w.weight, 0);
+  if (Math.abs(total - 100) > 1) {
+    res.status(400).json({ error: `Weights must sum to 100% (got ${Math.round(total)}%)` });
+    return;
+  }
+
+  await db.transaction(async (tx: typeof db) => {
+    for (const { id, weight } of weights) {
+      await tx.update(spmoInitiativesTable)
+        .set({ weight, updatedAt: new Date() })
+        .where(and(eq(spmoInitiativesTable.id, id), eq(spmoInitiativesTable.pillarId, params.data.id)));
+    }
+  });
+
+  invalidateOverviewCache();
+  res.json({ success: true });
+});
+
+// Admin reset weights to auto-calculated (set all weights to 0)
+router.post("/spmo/initiatives/:id/projects/weights/reset", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+  const params = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid initiative id" }); return; }
+  await db.update(spmoProjectsTable).set({ weight: 0, updatedAt: new Date() }).where(eq(spmoProjectsTable.initiativeId, params.data.id));
+  invalidateOverviewCache();
+  res.json({ success: true });
+});
+
+router.post("/spmo/pillars/:id/initiatives/weights/reset", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+  const params = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid pillar id" }); return; }
+  await db.update(spmoInitiativesTable).set({ weight: 0, updatedAt: new Date() }).where(eq(spmoInitiativesTable.pillarId, params.data.id));
+  invalidateOverviewCache();
+  res.json({ success: true });
+});
+
 // ─────────────────────────────────────────────────────────────
 // Approval Workflow
 // ─────────────────────────────────────────────────────────────

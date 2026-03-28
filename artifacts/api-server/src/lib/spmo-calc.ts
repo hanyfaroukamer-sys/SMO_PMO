@@ -107,16 +107,18 @@ async function initiativeProgress(initiativeId: number): Promise<{
     return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [] };
   }
 
+  // ── Weight cascade (highest priority first) ──────────────────
+  // 1. Admin-edited weights (any project.weight > 0 means admin set them)
+  // 2. All projects have budget → budget-weighted
+  // 3. effortDays across milestones
+  // 4. Equal weight (weightedAvg handles all-zero)
+  const adminWeightsSet = projects.some((p) => (p.weight ?? 0) > 0);
   const totalBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
-  const allHaveBudget = projects.every((p) => (p.budget ?? 0) > 0);
+  const allHaveBudget = !adminWeightsSet && projects.every((p) => (p.budget ?? 0) > 0);
 
-  // Determine weighting strategy at group level (not per-project):
-  // 1. If ALL projects have budgets → weight by budget
-  // 2. Else try effortDays: sum milestone effortDays per project
-  // 3. If that also fails → equal weight (weightedAvg handles all-zero)
   let useEffortDays = false;
   let effortByProject: Map<number, number> | null = null;
-  if (!allHaveBudget) {
+  if (!adminWeightsSet && !allHaveBudget) {
     const allProjectIds = projects.map((p) => p.id);
     const allMilestones = allProjectIds.length > 0
       ? await db.select({ projectId: spmoMilestonesTable.projectId, effortDays: spmoMilestonesTable.effortDays }).from(spmoMilestonesTable).where(inArray(spmoMilestonesTable.projectId, allProjectIds))
@@ -129,23 +131,34 @@ async function initiativeProgress(initiativeId: number): Promise<{
     useEffortDays = totalEffort > 0;
   }
 
+  const weightSource: "admin" | "budget" | "effort" | "equal" =
+    adminWeightsSet ? "admin" : allHaveBudget ? "budget" : useEffortDays ? "effort" : "equal";
+
   const projectStats = await Promise.all(
     projects.map(async (p) => {
       const s = await projectProgress(p.id);
       const projStatus = computeStatus(s.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, s.rawProgress);
 
-      // Apply group-level weighting strategy
       let projectWeight: number;
-      if (allHaveBudget) {
+      if (adminWeightsSet) {
+        projectWeight = p.weight ?? 0;
+      } else if (allHaveBudget) {
         projectWeight = p.budget ?? 0;
       } else if (useEffortDays && effortByProject) {
         projectWeight = effortByProject.get(p.id) ?? 0;
       } else {
-        projectWeight = 0; // weightedAvg treats all-zero as equal weight
+        projectWeight = 0;
       }
 
-      const budgetWeight = totalBudget > 0 && allHaveBudget ? ((p.budget ?? 0) / totalBudget) * 100 : (100 / projects.length);
-      return { value: s.progress, rawValue: s.rawProgress, weight: projectWeight, ...s, budgetSpent: p.budgetSpent ?? 0, projStatus, name: p.name, projectCode: p.projectCode ?? null, budgetWeight };
+      // Compute display weight as percentage
+      const totalWeight = adminWeightsSet
+        ? projects.reduce((s2, pp) => s2 + (pp.weight ?? 0), 0)
+        : allHaveBudget ? totalBudget
+        : useEffortDays ? [...effortByProject!.values()].reduce((s2, v) => s2 + v, 0)
+        : projects.length;
+      const displayWeight = totalWeight > 0 ? (projectWeight / totalWeight) * 100 : (100 / projects.length);
+
+      return { value: s.progress, rawValue: s.rawProgress, weight: projectWeight, ...s, budgetSpent: p.budgetSpent ?? 0, projStatus, name: p.name, projectCode: p.projectCode ?? null, budgetWeight: Math.round(displayWeight * 10) / 10 };
     })
   );
 
@@ -170,6 +183,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
     totalMilestones,
     budgetSpent: totalBudgetSpent,
     childProjects,
+    weightSource,
   };
 }
 
@@ -201,9 +215,13 @@ async function pillarProgress(pillarId: number): Promise<{
     };
   }
 
-  // Compute initiative weights at group level (same cascade as project level)
-  // 1. Sum of child project budgets per initiative
-  // 2. If ALL have budget → weight by budget; else try effortDays; else equal
+  // ── Weight cascade for initiatives (highest priority first) ──
+  // 1. Admin-edited weights (any initiative.weight > 0)
+  // 2. All initiatives have computed budget (sum of child projects) → budget-weighted
+  // 3. effortDays across all child milestones
+  // 4. Equal weight
+  const adminInitWeightsSet = initiatives.some((i) => (i.weight ?? 0) > 0);
+
   const initBudgets = await Promise.all(
     initiatives.map(async (i) => {
       const childProjects = await db.select({ id: spmoProjectsTable.id, budget: spmoProjectsTable.budget }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id));
@@ -211,11 +229,11 @@ async function pillarProgress(pillarId: number): Promise<{
       return { initId: i.id, budgetSum, projectIds: childProjects.map((p) => p.id) };
     })
   );
-  const allInitHaveBudget = initBudgets.every((ib) => ib.budgetSum > 0);
+  const allInitHaveBudget = !adminInitWeightsSet && initBudgets.every((ib) => ib.budgetSum > 0);
 
   let initUseEffort = false;
   let effortByInit: Map<number, number> | null = null;
-  if (!allInitHaveBudget) {
+  if (!adminInitWeightsSet && !allInitHaveBudget) {
     effortByInit = new Map();
     const allProjIds = initBudgets.flatMap((ib) => ib.projectIds);
     if (allProjIds.length > 0) {
@@ -235,12 +253,14 @@ async function pillarProgress(pillarId: number): Promise<{
       const s = await initiativeProgress(i.id);
       const ib = initBudgets.find((b) => b.initId === i.id);
       let initWeight: number;
-      if (allInitHaveBudget) {
+      if (adminInitWeightsSet) {
+        initWeight = i.weight ?? 0;
+      } else if (allInitHaveBudget) {
         initWeight = ib?.budgetSum ?? 0;
       } else if (initUseEffort && effortByInit) {
         initWeight = effortByInit.get(i.id) ?? 0;
       } else {
-        initWeight = 0; // equal weight fallback
+        initWeight = 0;
       }
       return { value: s.progress, weight: initWeight, ...s };
     })
