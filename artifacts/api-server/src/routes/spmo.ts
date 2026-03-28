@@ -984,12 +984,22 @@ router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
     .where(eq(spmoMilestonesTable.projectId, project.id))
     .orderBy(asc(spmoMilestonesTable.createdAt));
 
-  const PHASE_ORDER: Record<string, number> = { planning: 0, tendering: 1, closure: 3 };
-  const milestonesSorted = [...milestonesRaw].sort((a, b) => {
-    const aOrder = a.phaseGate ? PHASE_ORDER[a.phaseGate] : 2;
-    const bOrder = b.phaseGate ? PHASE_ORDER[b.phaseGate] : 2;
+  const PHASE_ORDER: Record<string, number> = { planning: 0, tendering: 1, execution_placeholder: 2, closure: 3 };
+
+  // Hide execution placeholder when custom milestones exist (same logic as list endpoint)
+  const isExecPlaceholderSingle = (m: typeof milestonesRaw[0]) =>
+    m.phaseGate === "execution_placeholder" ||
+    (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
+  const nonPlaceholderCustomSingle = milestonesRaw.filter((m) => !m.phaseGate && !isExecPlaceholderSingle(m));
+  const hasCustomSingle = nonPlaceholderCustomSingle.length > 0;
+  const milestonesFiltered = hasCustomSingle
+    ? milestonesRaw.filter((m) => !isExecPlaceholderSingle(m))
+    : milestonesRaw;
+
+  const milestonesSorted = [...milestonesFiltered].sort((a, b) => {
+    const aOrder = a.phaseGate ? (PHASE_ORDER[a.phaseGate] ?? 2) : 2;
+    const bOrder = b.phaseGate ? (PHASE_ORDER[b.phaseGate] ?? 2) : 2;
     if (aOrder !== bOrder) return aOrder - bOrder;
-    // Stable sort: use ID as final tiebreaker (never changes on update)
     return a.id - b.id;
   });
 
@@ -1000,7 +1010,7 @@ router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
     })
   );
 
-  res.json({ ...project, ...stats, milestones: milestonesWithEvidence });
+  res.json({ ...project, ...stats, milestones: milestonesWithEvidence, executionPlaceholderHidden: hasCustomSingle });
 });
 
 router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
