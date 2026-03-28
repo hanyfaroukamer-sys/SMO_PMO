@@ -1,8 +1,9 @@
-import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator, TextInput, Alert } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator, TextInput, Alert, Modal, StyleSheet } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useApi, apiFetch } from "@/utils/api";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/providers/AuthProvider";
 
 interface Milestone {
   id: number; name: string; progress: number; status: string;
@@ -41,17 +42,59 @@ function StatusPill({ status }: { status: string }) {
 }
 
 export default function ProjectDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab, milestoneId } = useLocalSearchParams<{ id: string; tab?: string; milestoneId?: string }>();
   const projectId = parseInt(id ?? "0");
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canApprove = user?.role === "admin" || user?.role === "approver";
 
   const { data: project, isLoading, isError, refetch } = useApi<ProjectData>(`/spmo/projects/${projectId}`, projectId > 0);
 
-  const [activeTab, setActiveTab] = useState<"milestones" | "risks" | "info">("milestones");
+  const [activeTab, setActiveTab] = useState<"milestones" | "risks" | "info">((tab as any) ?? "milestones");
   const [refreshing, setRefreshing] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [progressDraft, setProgressDraft] = useState("");
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [rejectModal, setRejectModal] = useState<{ id: number; name: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [isRejecting, setIsRejecting] = useState(false);
+  const highlightId = milestoneId ? parseInt(milestoneId) : null;
+
+  // Set tab from navigation params
+  useEffect(() => {
+    if (tab === "milestones" || tab === "risks" || tab === "info") setActiveTab(tab);
+  }, [tab]);
+
+  const handleApprove = async (msId: number) => {
+    setApprovingId(msId);
+    try {
+      await apiFetch(`/spmo/milestones/${msId}/approve`, { method: "POST", body: JSON.stringify({}) });
+      await qc.invalidateQueries({ queryKey: [`/spmo/projects/${projectId}`] });
+      Alert.alert("Approved", "Milestone approved successfully");
+    } catch (err: any) {
+      Alert.alert("Error", err.message ?? "Failed to approve");
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectModal) return;
+    if (!rejectReason.trim()) { Alert.alert("Required", "Please enter a rejection reason."); return; }
+    setIsRejecting(true);
+    try {
+      await apiFetch(`/spmo/milestones/${rejectModal.id}/reject`, { method: "POST", body: JSON.stringify({ reason: rejectReason.trim() }) });
+      setRejectModal(null);
+      setRejectReason("");
+      await qc.invalidateQueries({ queryKey: [`/spmo/projects/${projectId}`] });
+      Alert.alert("Rejected", "Milestone rejected");
+    } catch (err: any) {
+      Alert.alert("Error", err.message ?? "Failed to reject");
+    } finally {
+      setIsRejecting(false);
+    }
+  };
 
   const onRefresh = useCallback(async () => { setRefreshing(true); await refetch(); setRefreshing(false); }, [refetch]);
 
@@ -131,8 +174,9 @@ export default function ProjectDetailScreen() {
             {milestones.map((m) => {
               const sc = STATUS_COLORS[m.status] ?? "#64748B";
               const isEditing = editingId === m.id;
+              const isHighlighted = highlightId === m.id;
               return (
-                <View key={m.id} style={{ backgroundColor: "#FFF", borderRadius: 14, padding: 14, borderLeftWidth: 4, borderLeftColor: sc, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
+                <View key={m.id} style={{ backgroundColor: isHighlighted ? "#EFF6FF" : "#FFF", borderRadius: 14, padding: 14, borderLeftWidth: 4, borderLeftColor: sc, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, ...(isHighlighted ? { borderWidth: 1.5, borderColor: "#3B82F6" } : {}) }}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                     <Text style={{ fontSize: 13, fontWeight: "700", color: "#0F172A", flex: 1 }} numberOfLines={2}>{m.name}</Text>
                     <StatusPill status={m.status} />
@@ -145,7 +189,28 @@ export default function ProjectDetailScreen() {
                     {m.weight > 0 && <Text style={{ fontSize: 10, color: "#64748B" }}>Weight: {m.weight}%</Text>}
                     {(m.evidence?.length ?? 0) > 0 && <Text style={{ fontSize: 10, color: "#2563EB" }}>📎 {m.evidence!.length}</Text>}
                   </View>
-                  {m.status !== "approved" && (
+
+                  {/* Approve/Reject buttons for submitted milestones (admin/approver only) */}
+                  {m.status === "submitted" && canApprove && (
+                    <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9" }}>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <Pressable
+                          onPress={() => { setRejectReason(""); setRejectModal({ id: m.id, name: m.name }); }}
+                          style={{ flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: "#FECACA", alignItems: "center" }}>
+                          <Text style={{ fontSize: 12, fontWeight: "700", color: "#DC2626" }}>Reject</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => Alert.alert("Approve milestone?", `"${m.name}"`, [{ text: "Cancel", style: "cancel" }, { text: "Approve", onPress: () => handleApprove(m.id) }])}
+                          disabled={approvingId === m.id}
+                          style={{ flex: 1, paddingVertical: 8, borderRadius: 8, backgroundColor: "#16A34A", alignItems: "center" }}>
+                          {approvingId === m.id ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ fontSize: 12, fontWeight: "700", color: "#FFF" }}>Approve</Text>}
+                        </Pressable>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Update Progress for non-approved, non-submitted milestones */}
+                  {m.status !== "approved" && m.status !== "submitted" && (
                     <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#F1F5F9" }}>
                       {isEditing ? (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -216,6 +281,33 @@ export default function ProjectDetailScreen() {
           </View>
         )}
       </View>
+
+      {/* Reject modal */}
+      <Modal visible={!!rejectModal} transparent animationType="slide" onRequestClose={() => setRejectModal(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }} onPress={() => setRejectModal(null)}>
+          <Pressable style={{ backgroundColor: "#FFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 }} onPress={() => {}}>
+            <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "#E2E8F0", alignSelf: "center", marginBottom: 20 }} />
+            <Text style={{ fontSize: 18, fontWeight: "bold", color: "#0F172A", marginBottom: 4 }}>Reject Milestone</Text>
+            <Text style={{ fontSize: 13, color: "#64748B", marginBottom: 20 }} numberOfLines={2}>{rejectModal?.name}</Text>
+            <Text style={{ fontSize: 12, fontWeight: "700", color: "#475569", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Reason for rejection</Text>
+            <TextInput
+              style={{ backgroundColor: "#F8FAFC", borderRadius: 12, padding: 14, fontSize: 14, color: "#0F172A", minHeight: 100, borderWidth: 1, borderColor: "#E2E8F0", textAlignVertical: "top" }}
+              placeholder="Explain what needs to be corrected…"
+              placeholderTextColor="#94A3B8"
+              multiline numberOfLines={4}
+              value={rejectReason} onChangeText={setRejectReason} autoFocus
+            />
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+              <Pressable onPress={() => setRejectModal(null)} style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: "#E2E8F0", alignItems: "center" }}>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#475569" }}>Cancel</Text>
+              </Pressable>
+              <Pressable onPress={handleReject} disabled={isRejecting} style={{ flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: "#DC2626", alignItems: "center" }}>
+                {isRejecting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ fontSize: 14, fontWeight: "700", color: "#FFF" }}>Send Rejection</Text>}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
