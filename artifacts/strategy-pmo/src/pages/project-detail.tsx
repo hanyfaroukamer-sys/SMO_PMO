@@ -2506,19 +2506,83 @@ function DiscussionTab({ projectId, currentUser }: { projectId: number; currentU
   const [body, setBody] = useState("");
   const [replyTo, setReplyTo] = useState<{ id: number; authorName: string | null } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [mentionUserId, setMentionUserId] = useState<string | undefined>();
   const textRef = useRef<HTMLTextAreaElement>(null);
+
+  // Inline @mention state
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionResults, setMentionResults] = useState<{ id: string; firstName: string | null; lastName: string | null; email: string | null; role: string | null }[]>([]);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const [mentionStartPos, setMentionStartPos] = useState(-1);
+  const mentionDebounce = useRef<ReturnType<typeof setTimeout>>();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Search users when mentionQuery changes
+  useEffect(() => {
+    if (!mentionQuery || mentionQuery.length < 1) { setMentionResults([]); setShowMentionDropdown(false); return; }
+    clearTimeout(mentionDebounce.current);
+    mentionDebounce.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/spmo/users/search?q=${encodeURIComponent(mentionQuery)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMentionResults(data.users ?? []);
+          setShowMentionDropdown((data.users ?? []).length > 0);
+          setMentionIdx(0);
+        }
+      } catch { /* ignore */ }
+    }, 150);
+    return () => clearTimeout(mentionDebounce.current);
+  }, [mentionQuery]);
+
+  const handleBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setBody(val);
+    // Detect @ trigger — find the last @ before cursor
+    const cursorPos = e.target.selectionStart;
+    const textBefore = val.slice(0, cursorPos);
+    const lastAt = textBefore.lastIndexOf("@");
+    if (lastAt >= 0) {
+      const afterAt = textBefore.slice(lastAt + 1);
+      // Only trigger if no space in the query (still typing the name) and @ is at start or after a space
+      if (afterAt.length <= 30 && !afterAt.includes("\n") && (lastAt === 0 || val[lastAt - 1] === " " || val[lastAt - 1] === "\n")) {
+        setMentionQuery(afterAt);
+        setMentionStartPos(lastAt);
+        return;
+      }
+    }
+    setMentionQuery("");
+    setShowMentionDropdown(false);
+  };
+
+  const selectMentionUser = (user: typeof mentionResults[0]) => {
+    const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || user.id;
+    const mention = `@[${name}](${user.id})`;
+    // Replace @query with the mention format
+    const before = body.slice(0, mentionStartPos);
+    const cursorPos = textRef.current?.selectionStart ?? body.length;
+    const after = body.slice(cursorPos);
+    setBody(before + mention + " " + after);
+    setShowMentionDropdown(false);
+    setMentionQuery("");
+    setTimeout(() => textRef.current?.focus(), 0);
+  };
+
+  const handleTextKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showMentionDropdown && mentionResults.length > 0) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setMentionIdx((i) => Math.min(i + 1, mentionResults.length - 1)); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); setMentionIdx((i) => Math.max(i - 1, 0)); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); selectMentionUser(mentionResults[mentionIdx]); return; }
+      if (e.key === "Escape") { setShowMentionDropdown(false); return; }
+    }
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmit();
+  };
 
   const handleSubmit = async () => {
     const text = body.trim();
     if (!text) return;
     setSubmitting(true);
     try {
-      // If mentionUserId is set from the @mention input, wrap it in the mention format
-      let finalBody = text;
-      if (mentionUserId) {
-        // Already formatted by the inline mention
-      }
       await customFetch("/api/spmo/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2526,12 +2590,11 @@ function DiscussionTab({ projectId, currentUser }: { projectId: number; currentU
           entityType: "project",
           entityId: projectId,
           parentId: replyTo?.id ?? null,
-          body: finalBody,
+          body: text,
         }),
       });
       setBody("");
       setReplyTo(null);
-      setMentionUserId(undefined);
       qc.invalidateQueries({ queryKey: commentsQK });
       toast({ title: replyTo ? "Reply posted" : "Comment posted" });
     } catch {
@@ -2548,15 +2611,6 @@ function DiscussionTab({ projectId, currentUser }: { projectId: number; currentU
       toast({ title: "Comment deleted" });
     } catch {
       toast({ title: "Failed to delete", variant: "destructive" });
-    }
-  };
-
-  const insertMention = (name: string, userId?: string) => {
-    if (userId) {
-      const mention = `@[${name}](${userId}) `;
-      setBody((prev) => prev + mention);
-      setMentionUserId(userId);
-      textRef.current?.focus();
     }
   };
 
@@ -2656,25 +2710,40 @@ function DiscussionTab({ projectId, currentUser }: { projectId: number; currentU
             </button>
           </div>
         )}
-        <textarea
-          ref={textRef}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Write a comment… Use @ to mention someone"
-          rows={3}
-          className="w-full resize-none text-sm bg-transparent border-0 outline-none placeholder:text-muted-foreground/60"
-          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmit(); }}
-        />
+        <div className="relative">
+          <textarea
+            ref={textRef}
+            value={body}
+            onChange={handleBodyChange}
+            placeholder="Write a comment… Type @ to mention someone"
+            rows={3}
+            className="w-full resize-none text-sm bg-transparent border-0 outline-none placeholder:text-muted-foreground/60"
+            onKeyDown={handleTextKeyDown}
+          />
+          {/* @mention dropdown — appears inline below the textarea */}
+          {showMentionDropdown && mentionResults.length > 0 && (
+            <div ref={dropdownRef} className="absolute z-50 left-0 right-0 bottom-0 translate-y-full bg-popover border border-border rounded-lg shadow-xl max-h-52 overflow-y-auto">
+              {mentionResults.map((user, idx) => {
+                const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || user.id;
+                return (
+                  <button key={user.id} type="button" onClick={() => selectMentionUser(user)}
+                    className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2.5 transition-colors ${idx === mentionIdx ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}>
+                    <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                      {(user.firstName?.[0] ?? user.email?.[0] ?? "?").toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold truncate">{name}</div>
+                      {user.email && <div className="text-[11px] text-muted-foreground truncate">{user.email}</div>}
+                    </div>
+                    {user.role && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium shrink-0">{user.role}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/40">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">Mention:</span>
-            <UserMentionInput
-              value=""
-              onChange={(name, userId) => insertMention(name, userId)}
-              placeholder="@search user…"
-              className="text-xs h-7 w-36 border border-border/60 rounded-md px-2"
-            />
-          </div>
+          <div className="text-[10px] text-muted-foreground/50">Type @ to mention · Ctrl+Enter to send</div>
           <button
             onClick={handleSubmit}
             disabled={submitting || !body.trim()}
@@ -2684,7 +2753,6 @@ function DiscussionTab({ projectId, currentUser }: { projectId: number; currentU
             {replyTo ? "Reply" : "Post"}
           </button>
         </div>
-        <div className="text-[10px] text-muted-foreground/50 mt-1">Ctrl+Enter to send</div>
       </div>
 
       {/* Comments list */}
