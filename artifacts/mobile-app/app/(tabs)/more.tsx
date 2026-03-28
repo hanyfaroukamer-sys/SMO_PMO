@@ -2,57 +2,77 @@ import { View, Text, ScrollView, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/providers/AuthProvider";
 
-const MENU_ITEMS = [
-  { label: "KPIs", icon: "📊", description: "Strategic and operational KPIs" },
-  { label: "Risks", icon: "⚠️", description: "Risk register and mitigations" },
-  { label: "Documents", icon: "📄", description: "Project documents" },
-  { label: "Notifications", icon: "🔔", description: "In-app notifications", route: "/notifications" },
+const SECTIONS = [
+  {
+    title: "Views",
+    items: [
+      { icon: "⚠️", label: "Risks", desc: "Risk register & mitigations", route: null },
+      { icon: "📄", label: "Documents", desc: "Project files & evidence", route: null },
+      { icon: "🔔", label: "Notifications", desc: "In-app alerts & updates", route: "/notifications" },
+    ],
+  },
 ];
 
-export default function MoreScreen() {
+export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
 
+  const initials = ((user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "")).toUpperCase() || "?";
+  const name = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "User";
+  const roleLabel = user?.role === "admin" ? "Administrator" : user?.role === "approver" ? "Approver" : "Project Manager";
+  const roleColor = user?.role === "admin" ? "#7C3AED" : user?.role === "approver" ? "#2563EB" : "#D97706";
+
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: "#F8FAFC" }} contentContainerStyle={{ padding: 16, gap: 16 }}>
-      {/* User info */}
-      <View style={{ backgroundColor: "#FFFFFF", borderRadius: 12, padding: 16, borderWidth: 1, borderColor: "#E2E8F0", flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ fontSize: 18, fontWeight: "bold", color: "#2563EB" }}>
-            {(user?.firstName?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
-          </Text>
+    <ScrollView style={{ flex: 1, backgroundColor: "#F8FAFC" }} contentContainerStyle={{ paddingBottom: 32 }}>
+      {/* Profile header */}
+      <View style={{ backgroundColor: "#0F172A", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, alignItems: "center" }}>
+        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: "#1E293B", alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "#334155" }}>
+          <Text style={{ fontSize: 24, fontWeight: "900", color: "#E2E8F0" }}>{initials}</Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: "bold", color: "#0F172A" }}>
-            {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "User"}
-          </Text>
-          <Text style={{ fontSize: 12, color: "#64748B" }}>{user?.role ?? "project-manager"}</Text>
+        <Text style={{ fontSize: 18, fontWeight: "bold", color: "#F8FAFC", marginTop: 12 }}>{name}</Text>
+        <View style={{ backgroundColor: roleColor + "20", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4, marginTop: 6 }}>
+          <Text style={{ fontSize: 11, fontWeight: "700", color: roleColor }}>{roleLabel}</Text>
         </View>
+        {user?.email && <Text style={{ fontSize: 12, color: "#64748B", marginTop: 6 }}>{user.email}</Text>}
       </View>
 
-      {/* Menu items */}
-      {MENU_ITEMS.map((item) => (
-        <Pressable
-          key={item.label}
-          onPress={() => item.route && router.push(item.route as never)}
-          style={{ backgroundColor: "#FFFFFF", borderRadius: 12, padding: 16, borderWidth: 1, borderColor: "#E2E8F0", flexDirection: "row", alignItems: "center", gap: 12 }}
-        >
-          <Text style={{ fontSize: 24 }}>{item.icon}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 14, fontWeight: "600", color: "#0F172A" }}>{item.label}</Text>
-            <Text style={{ fontSize: 12, color: "#64748B" }}>{item.description}</Text>
+      <View style={{ padding: 16, gap: 16 }}>
+        {SECTIONS.map((section) => (
+          <View key={section.title}>
+            <Text style={{ fontSize: 11, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, paddingLeft: 4 }}>{section.title}</Text>
+            <View style={{ backgroundColor: "#FFFFFF", borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
+              {section.items.map((item, i) => (
+                <Pressable
+                  key={item.label}
+                  onPress={() => item.route && router.push(item.route as never)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderBottomWidth: i < section.items.length - 1 ? 1 : 0, borderBottomColor: "#F1F5F9" }}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#F8FAFC", alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontSize: 20 }}>{item.icon}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: "#0F172A" }}>{item.label}</Text>
+                    <Text style={{ fontSize: 11, color: "#94A3B8" }}>{item.desc}</Text>
+                  </View>
+                  <Text style={{ fontSize: 16, color: "#CBD5E1" }}>›</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
-          <Text style={{ color: "#94A3B8" }}>›</Text>
-        </Pressable>
-      ))}
+        ))}
 
-      {/* Sign out */}
-      <Pressable
-        onPress={signOut}
-        style={{ backgroundColor: "#FEF2F2", borderRadius: 12, padding: 16, borderWidth: 1, borderColor: "#FECACA", alignItems: "center" }}
-      >
-        <Text style={{ fontSize: 14, fontWeight: "600", color: "#DC2626" }}>Sign Out</Text>
-      </Pressable>
+        <View style={{ backgroundColor: "#FFFFFF", borderRadius: 16, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
+          <Text style={{ fontSize: 11, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>App</Text>
+          <Text style={{ fontSize: 12, color: "#64748B" }}>StrategyPMO Mobile v1.0.0</Text>
+        </View>
+
+        <Pressable
+          onPress={signOut}
+          style={{ backgroundColor: "#FFFFFF", borderRadius: 16, paddingVertical: 16, alignItems: "center", borderWidth: 1, borderColor: "#FECACA", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "700", color: "#DC2626" }}>Sign Out</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }

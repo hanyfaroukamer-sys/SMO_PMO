@@ -1,142 +1,150 @@
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Platform } from "react-native";
+import { View, Text, ScrollView, RefreshControl, Pressable } from "react-native";
+import { useState, useCallback } from "react";
 import { useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useListSpmoProjects } from "@workspace/api-client-react";
 import { useAuth } from "@/providers/AuthProvider";
+import { useQuery } from "@tanstack/react-query";
 
-type StatusKey = "on-track" | "at-risk" | "delayed" | "completed" | "not-started";
+const API = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : "http://localhost:3000";
 
-const STATUS_COLORS: Record<StatusKey, { bg: string; text: string; dot: string }> = {
-  "on-track":    { bg: "#DCFCE7", text: "#15803D", dot: "#16A34A" },
-  "at-risk":     { bg: "#FEF9C3", text: "#A16207", dot: "#D97706" },
-  "delayed":     { bg: "#FEE2E2", text: "#B91C1C", dot: "#DC2626" },
-  "completed":   { bg: "#DBEAFE", text: "#1D4ED8", dot: "#2563EB" },
-  "not-started": { bg: "#F1F5F9", text: "#475569", dot: "#94A3B8" },
-};
+function useApi<T>(path: string) {
+  const { accessToken } = useAuth();
+  return useQuery<T>({
+    queryKey: [path],
+    queryFn: async () => {
+      const res = await fetch(`${API}/api${path}`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      return res.json();
+    },
+    enabled: !!accessToken,
+    staleTime: 30_000,
+  });
+}
 
-function StatCard({ label, value, color, icon }: { label: string; value: number | string; color: string; icon: keyof typeof Feather.glyphMap }) {
+function ProgressRing({ progress, size = 120, strokeWidth = 10, color = "#3B82F6" }: { progress: number; size?: number; strokeWidth?: number; color?: string }) {
+  const pct = Math.min(100, Math.max(0, progress));
   return (
-    <View style={{ flex: 1, backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E2E8F0" }}>
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-        <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: color + "20", alignItems: "center", justifyContent: "center", marginRight: 8 }}>
-          <Feather name={icon} size={14} color={color} />
-        </View>
-        <Text style={{ fontSize: 11, color: "#64748B", fontFamily: "Inter_500Medium", flex: 1 }}>{label}</Text>
-      </View>
-      <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: "#0F172A" }}>{value}</Text>
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: size, height: size, borderRadius: size / 2, borderWidth: strokeWidth, borderColor: "#1E3A5F", position: "absolute" }} />
+      <View style={{
+        width: size, height: size, borderRadius: size / 2,
+        borderWidth: strokeWidth, borderColor: color,
+        borderTopColor: pct > 25 ? color : "transparent",
+        borderRightColor: pct > 50 ? color : "transparent",
+        borderBottomColor: pct > 75 ? color : "transparent",
+        borderLeftColor: pct > 0 ? color : "transparent",
+        position: "absolute",
+        transform: [{ rotate: "-90deg" }],
+      }} />
+      <Text style={{ fontSize: size * 0.28, fontWeight: "900", color: "#FFFFFF" }}>{Math.round(pct)}%</Text>
+      <Text style={{ fontSize: size * 0.09, color: "#94A3B8", fontWeight: "600" }}>PROGRESS</Text>
     </View>
   );
 }
 
+function MetricCard({ label, value, sub, color, onPress }: { label: string; value: string; sub?: string; color: string; onPress?: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ flex: 1, backgroundColor: "#FFFFFF", borderRadius: 16, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
+      <View style={{ width: 32, height: 4, borderRadius: 2, backgroundColor: color, marginBottom: 10 }} />
+      <Text style={{ fontSize: 10, color: "#94A3B8", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</Text>
+      <Text style={{ fontSize: 24, fontWeight: "900", color: "#0F172A", marginTop: 2 }}>{value}</Text>
+      {sub && <Text style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>{sub}</Text>}
+    </Pressable>
+  );
+}
+
+function PillarRow({ name, progress, color }: { name: string; progress: number; color: string }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" }}>
+      <View style={{ width: 4, height: 28, borderRadius: 2, backgroundColor: color }} />
+      <Text style={{ flex: 1, fontSize: 13, fontWeight: "600", color: "#1E293B" }} numberOfLines={1}>{name}</Text>
+      <View style={{ width: 80, height: 6, backgroundColor: "#F1F5F9", borderRadius: 3, overflow: "hidden" }}>
+        <View style={{ height: "100%", width: `${Math.min(100, progress)}%`, backgroundColor: color, borderRadius: 3 }} />
+      </View>
+      <Text style={{ fontSize: 13, fontWeight: "800", color, width: 40, textAlign: "right" }}>{Math.round(progress)}%</Text>
+    </View>
+  );
+}
+
+const PILLAR_COLORS = ["#2563EB", "#7C3AED", "#0891B2", "#059669", "#D97706", "#DC2626"];
+
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const isWeb = Platform.OS === "web";
 
-  const { data: projectsData, isLoading } = useListSpmoProjects({ page: 1, limit: 100 });
-  const projects = projectsData?.projects ?? [];
+  const { data: overview, refetch } = useApi<{
+    programmeName: string; programmeProgress: number;
+    totalMilestones: number; approvedMilestones: number; pendingApprovals: number; activeRisks: number;
+    pillarSummaries: { id: number; name: string; pillarType: string; progress: number; color: string }[];
+  }>("/spmo/programme");
 
-  const onTrack    = projects.filter((p) => p.status === "on-track").length;
-  const atRisk     = projects.filter((p) => p.status === "at-risk").length;
-  const delayed    = projects.filter((p) => p.status === "delayed").length;
-  const completed  = projects.filter((p) => p.status === "completed").length;
-  const total      = projects.length;
-  const avgProgress = total > 0 ? Math.round(projects.reduce((acc, p) => acc + (p.progress ?? 0), 0) / total) : 0;
+  const { data: taskCount } = useApi<{ total: number; critical: number; high: number }>("/spmo/my-tasks/count");
 
-  const recentProjects = projects.slice(0, 5);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => { setRefreshing(true); await refetch(); setRefreshing(false); }, [refetch]);
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const firstName = user?.firstName ?? user?.email?.split("@")[0] ?? "there";
+
+  const pillars = (overview?.pillarSummaries ?? []).filter((p) => p.pillarType === "strategic_pillar");
+  const enablers = (overview?.pillarSummaries ?? []).filter((p) => p.pillarType !== "strategic_pillar");
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: "#F8FAFC" }}
-      contentContainerStyle={{
-        padding: 16,
-        paddingTop: isWeb ? 16 + 67 : 16,
-        paddingBottom: isWeb ? 34 + 84 : 100,
-        gap: 16,
-      }}
+      contentContainerStyle={{ paddingBottom: 100 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />}
     >
-      {/* Greeting */}
-      <View>
-        <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: "#0F172A" }}>
-          {user?.firstName ? `Hello, ${user.firstName}` : "Dashboard"}
-        </Text>
-        <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Inter_400Regular", marginTop: 2 }}>
-          Programme status overview
-        </Text>
+      <View style={{ backgroundColor: "#0F172A", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, alignItems: "center" }}>
+        <Text style={{ fontSize: 13, color: "#94A3B8", fontWeight: "600", marginBottom: 4 }}>{greeting}, {firstName}</Text>
+        <Text style={{ fontSize: 15, color: "#E2E8F0", fontWeight: "700", marginBottom: 20, textAlign: "center" }}>{overview?.programmeName ?? "National Strategy"}</Text>
+        <ProgressRing progress={overview?.programmeProgress ?? 0} />
       </View>
 
-      {/* Stats grid */}
-      {isLoading ? (
-        <ActivityIndicator size="large" color="#2563EB" style={{ paddingVertical: 32 }} />
-      ) : (
-        <>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <StatCard label="Total Projects"  value={total}       color="#2563EB" icon="folder" />
-            <StatCard label="Avg Progress"    value={`${avgProgress}%`} color="#7C3AED" icon="trending-up" />
-          </View>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <StatCard label="On Track"  value={onTrack}   color="#16A34A" icon="check-circle" />
-            <StatCard label="At Risk"   value={atRisk}    color="#D97706" icon="alert-triangle" />
-          </View>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <StatCard label="Delayed"   value={delayed}   color="#DC2626" icon="alert-circle" />
-            <StatCard label="Completed" value={completed} color="#2563EB" icon="award" />
-          </View>
-        </>
-      )}
+      <View style={{ padding: 16, gap: 16 }}>
+        {(taskCount?.critical ?? 0) > 0 && (
+          <Pressable onPress={() => router.push("/(tabs)/tasks" as never)} style={{ backgroundColor: "#FEF2F2", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: "#FECACA" }}>
+            <Text style={{ fontSize: 18 }}>🚨</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#991B1B" }}>{taskCount?.critical} critical task{taskCount!.critical !== 1 ? "s" : ""} need attention</Text>
+              <Text style={{ fontSize: 11, color: "#EF4444", marginTop: 2 }}>Tap to review →</Text>
+            </View>
+          </Pressable>
+        )}
 
-      {/* Recent projects */}
-      {recentProjects.length > 0 && (
-        <View>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#0F172A" }}>Recent Projects</Text>
-            <Pressable onPress={() => router.push("/(tabs)/projects")}>
-              <Text style={{ fontSize: 13, color: "#2563EB", fontFamily: "Inter_500Medium" }}>See all</Text>
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          <MetricCard label="Milestones" value={String(overview?.approvedMilestones ?? 0)} sub={`of ${overview?.totalMilestones ?? 0}`} color="#2563EB" onPress={() => router.push("/(tabs)/projects" as never)} />
+          <MetricCard label="My Tasks" value={String(taskCount?.total ?? 0)} sub={taskCount?.high ? `${taskCount.high} high` : undefined} color="#F97316" onPress={() => router.push("/(tabs)/tasks" as never)} />
+          <MetricCard label="Risks" value={String(overview?.activeRisks ?? 0)} sub="active" color="#EF4444" />
+        </View>
+
+        {pillars.length > 0 && (
+          <View style={{ backgroundColor: "#FFFFFF", borderRadius: 16, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
+            <Text style={{ fontSize: 11, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Strategic Pillars</Text>
+            {pillars.map((p, i) => <PillarRow key={p.id} name={p.name} progress={p.progress} color={PILLAR_COLORS[i % PILLAR_COLORS.length]} />)}
+          </View>
+        )}
+
+        {enablers.length > 0 && (
+          <View style={{ backgroundColor: "#FFFFFF", borderRadius: 16, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
+            <Text style={{ fontSize: 11, fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Cross-Cutting Enablers</Text>
+            {enablers.map((p, i) => <PillarRow key={p.id} name={p.name} progress={p.progress} color={PILLAR_COLORS[(i + 3) % PILLAR_COLORS.length]} />)}
+          </View>
+        )}
+
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          {[{ icon: "📋", label: "Projects", route: "/(tabs)/projects" }, { icon: "📥", label: "Inbox", route: "/(tabs)/tasks" }, { icon: "🔔", label: "Alerts", route: "/notifications" }].map((a) => (
+            <Pressable key={a.label} onPress={() => router.push(a.route as never)} style={{ flex: 1, backgroundColor: "#FFFFFF", borderRadius: 14, padding: 14, alignItems: "center", gap: 6, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
+              <Text style={{ fontSize: 24 }}>{a.icon}</Text>
+              <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569" }}>{a.label}</Text>
             </Pressable>
-          </View>
-
-          {recentProjects.map((project) => {
-            const s = (project.status ?? "not-started") as StatusKey;
-            const colors = STATUS_COLORS[s] ?? STATUS_COLORS["not-started"];
-            const progress = project.progress ?? 0;
-
-            return (
-              <Pressable
-                key={project.id}
-                onPress={() => router.push(`/projects/${project.id}`)}
-                style={{ backgroundColor: "#FFFFFF", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#E2E8F0", marginBottom: 8 }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-                  <Text style={{ flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#0F172A" }} numberOfLines={1}>
-                    {project.name}
-                  </Text>
-                  <View style={{ backgroundColor: colors.bg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8 }}>
-                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: colors.text }}>{s.replace("-", " ")}</Text>
-                  </View>
-                </View>
-
-                {/* Progress bar */}
-                <View style={{ height: 4, backgroundColor: "#E2E8F0", borderRadius: 2 }}>
-                  <View style={{ height: 4, width: `${progress}%`, backgroundColor: colors.dot, borderRadius: 2 }} />
-                </View>
-                <Text style={{ fontSize: 11, color: "#94A3B8", fontFamily: "Inter_400Regular", marginTop: 4 }}>{progress}% complete</Text>
-              </Pressable>
-            );
-          })}
+          ))}
         </View>
-      )}
-
-      {!isLoading && total === 0 && (
-        <View style={{ alignItems: "center", paddingVertical: 48 }}>
-          <Feather name="folder" size={40} color="#CBD5E1" />
-          <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#0F172A", marginTop: 12 }}>No projects yet</Text>
-          <Text style={{ fontSize: 13, color: "#64748B", fontFamily: "Inter_400Regular", marginTop: 4 }}>
-            Projects will appear here once created.
-          </Text>
-        </View>
-      )}
+      </View>
     </ScrollView>
   );
 }
