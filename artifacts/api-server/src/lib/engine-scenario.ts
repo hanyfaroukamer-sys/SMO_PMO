@@ -24,6 +24,7 @@ export interface ScenarioInput {
   projectId: number;
   delayDays?: number;
   budgetReduction?: number;
+  adjustWeight?: boolean; // For budget_cut: also reduce project weight proportionally
 }
 
 export interface ScenarioResult {
@@ -258,8 +259,11 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     if (overSpent) {
       summaryParts.push(`⚠ CRITICAL: Actual spend (${fmtM(actualSpent)}) already exceeds the proposed new budget.`);
     }
-    // Note: progress percentages are NOT affected by budget cuts — work done is work done
-    summaryParts.push(`Progress remains unchanged — budget does not affect milestone completion.`);
+    if (input.adjustWeight) {
+      summaryParts.push(`Strategic weight adjusted proportionally — project's contribution to initiative progress will decrease.`);
+    } else {
+      summaryParts.push(`Progress remains unchanged — budget does not affect milestone completion. Strategic weight kept as-is.`);
+    }
   }
 
   // 5. Compute "after" state by simulating modified values in memory
@@ -277,9 +281,14 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
           continue;
         }
         const pp = await projectProgress(p.id);
-        // For all scenario types: keep the same weight (budget doesn't change work done)
-        // Cancel is handled by the `continue` above
-        progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
+        if (input.type === "budget_cut" && input.adjustWeight) {
+          // User chose to also scale down the project's strategic weight
+          const newBudget = Math.max((p.budget ?? 0) - (input.budgetReduction ?? 0), 0);
+          progItems.push({ value: pp.progress, weight: newBudget });
+        } else {
+          // Default: keep weight unchanged (budget doesn't change work done)
+          progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
+        }
       } else {
         const pp = await projectProgress(p.id);
         progItems.push({ value: pp.progress, weight: p.budget ?? 0 });

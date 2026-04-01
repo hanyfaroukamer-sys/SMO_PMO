@@ -627,6 +627,7 @@ function ScenarioPanel() {
   const [projectId, setProjectId] = useState("");
   const [delayDays, setDelayDays] = useState("90");
   const [budgetReduction, setBudgetReduction] = useState("20");
+  const [adjustWeight, setAdjustWeight] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScenarioResultData | null>(null);
 
@@ -645,7 +646,10 @@ function ScenarioPanel() {
     try {
       const body: Record<string, unknown> = { type: scenarioType, projectId: pid };
       if (scenarioType === "delay") body.delayDays = parseInt(delayDays) || 90;
-      if (scenarioType === "budget_cut") body.budgetReduction = parseInt(budgetReduction) || 20;
+      if (scenarioType === "budget_cut") {
+        body.budgetReduction = parseInt(budgetReduction) || 20;
+        body.adjustWeight = adjustWeight;
+      }
       const res = await customFetch("/api/spmo/analytics/scenario", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -711,6 +715,27 @@ function ScenarioPanel() {
             </button>
           </div>
         </div>
+
+        {/* Weight adjustment advisory for budget cuts */}
+        {scenarioType === "budget_cut" && (
+          <div className="bg-warning/5 border border-warning/20 rounded-lg px-4 py-3 mt-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" checked={adjustWeight} onChange={(e) => setAdjustWeight(e.target.checked)} className="mt-1 accent-primary w-4 h-4" />
+              <div>
+                <span className="text-sm font-semibold text-foreground">Also reduce strategic weight?</span>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  If yes, the project's contribution to initiative and pillar progress will decrease proportionally to the budget cut. This reflects a strategic deprioritisation — not just a financial adjustment.
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {adjustWeight
+                    ? "⚠ Progress will shift because the project carries less strategic weight in the portfolio."
+                    : "Progress stays unchanged — only financial metrics (CPI, EAC) are affected."
+                  }
+                </p>
+              </div>
+            </label>
+          </div>
+        )}
       </Card>
 
       {/* Results */}
