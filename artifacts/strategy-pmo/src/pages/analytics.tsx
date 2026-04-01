@@ -88,7 +88,7 @@ function SectionHeader({ title, icon: Icon, count, children }: { title: string; 
 
 // ─── Main Component ─────────────────────────────────────────────
 
-type Tab = "overview" | "delays" | "budget" | "stakeholders" | "evm" | "advisor";
+type Tab = "overview" | "delays" | "budget" | "stakeholders" | "evm" | "scenario" | "advisor" | "board-report";
 
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -107,7 +107,9 @@ export default function AnalyticsPage() {
     { key: "budget", label: "Budget Forecast", icon: DollarSign },
     { key: "stakeholders", label: "Stakeholder Intel", icon: Users },
     { key: "evm", label: "Earned Value", icon: TrendingUp },
+    { key: "scenario", label: "Scenarios", icon: Play },
     { key: "advisor", label: "AI Advisor", icon: Brain },
+    { key: "board-report", label: "Board Report", icon: FileText },
   ];
 
   return (
@@ -236,8 +238,14 @@ export default function AnalyticsPage() {
       {/* ─── EVM Tab ───────────────────────────────────────────── */}
       {activeTab === "evm" && <EvmPanel />}
 
+      {/* ─── Scenario Tab ─────────────────────────────────────── */}
+      {activeTab === "scenario" && <ScenarioPanel />}
+
       {/* ─── AI Advisor Tab ────────────────────────────────────── */}
       {activeTab === "advisor" && <AdvisorPanel />}
+
+      {/* ─── Board Report Tab ──────────────────────────────────── */}
+      {activeTab === "board-report" && <BoardReportPanel />}
     </div>
   );
 }
@@ -598,6 +606,306 @@ function AdvisorPanel() {
           </button>
         </div>
       </Card>
+    </div>
+  );
+}
+
+// ─── Scenario Simulation Panel ──────────────────────────────────
+
+interface ScenarioResultData {
+  input: { type: string; projectId: number; delayDays?: number; budgetReduction?: number };
+  before: { programmeProgress: number; affectedPillarProgress: { pillarId: number; pillarName: string; progress: number }[]; affectedInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[] };
+  after: { programmeProgress: number; affectedPillarProgress: { pillarId: number; pillarName: string; progress: number }[]; affectedInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[] };
+  cascadeImpact: { milestoneId: number; milestoneName: string; projectName: string; shiftDays: number; newDueDate: string }[];
+  summary: string;
+}
+
+function ScenarioPanel() {
+  const { toast } = useToast();
+  const [scenarioType, setScenarioType] = useState<"delay" | "cancel" | "budget_cut">("delay");
+  const [projectId, setProjectId] = useState("");
+  const [delayDays, setDelayDays] = useState("90");
+  const [budgetReduction, setBudgetReduction] = useState("20");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<ScenarioResultData | null>(null);
+
+  // Fetch projects for the dropdown
+  const { data: projectsData } = useQuery<{ projects: { id: number; name: string }[] }>({
+    queryKey: ["/api/spmo/projects"],
+    queryFn: () => customFetch("/api/spmo/projects"),
+    staleTime: 60_000,
+  });
+  const projects = projectsData?.projects ?? [];
+
+  const handleSimulate = async () => {
+    const pid = parseInt(projectId);
+    if (!pid) { toast({ variant: "destructive", title: "Select a project" }); return; }
+    setLoading(true);
+    try {
+      const body: Record<string, unknown> = { type: scenarioType, projectId: pid };
+      if (scenarioType === "delay") body.delayDays = parseInt(delayDays) || 90;
+      if (scenarioType === "budget_cut") body.budgetReduction = parseInt(budgetReduction) || 20;
+      const res = await customFetch("/api/spmo/analytics/scenario", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }) as ScenarioResultData;
+      setResult(res);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Simulation failed", description: err.message ?? "Check console" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const SCENARIO_LABELS: Record<string, { label: string; desc: string; color: string }> = {
+    delay: { label: "Delay Project", desc: "What if this project slips by N days?", color: "#DC2626" },
+    cancel: { label: "Cancel Project", desc: "What if we remove this project entirely?", color: "#6B7280" },
+    budget_cut: { label: "Cut Budget", desc: "What if we reduce budget by N%?", color: "#D97706" },
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <SectionHeader title="Scenario Simulation" icon={Play} />
+        <p className="text-sm text-muted-foreground mb-4">Test the impact of changes before they happen. Select a scenario, pick a project, and see the cascade effect across the programme.</p>
+
+        {/* Scenario type selector */}
+        <div className="flex gap-2 mb-4">
+          {(["delay", "cancel", "budget_cut"] as const).map((t) => (
+            <button key={t} onClick={() => { setScenarioType(t); setResult(null); }}
+              className={`flex-1 px-3 py-2.5 rounded-lg text-xs font-semibold border transition-all ${scenarioType === t ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/50 border-border text-muted-foreground hover:bg-secondary"}`}>
+              {SCENARIO_LABELS[t].label}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-xs text-muted-foreground mb-3">{SCENARIO_LABELS[scenarioType].desc}</p>
+
+        {/* Input form */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground block mb-1">Project</label>
+            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background">
+              <option value="">Select project…</option>
+              {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          {scenarioType === "delay" && (
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">Delay (days)</label>
+              <input type="number" value={delayDays} onChange={(e) => setDelayDays(e.target.value)} min={1} max={365} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" />
+            </div>
+          )}
+          {scenarioType === "budget_cut" && (
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1">Reduction (%)</label>
+              <input type="number" value={budgetReduction} onChange={(e) => setBudgetReduction(e.target.value)} min={1} max={100} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background" />
+            </div>
+          )}
+          <div className="flex items-end">
+            <button onClick={handleSimulate} disabled={loading || !projectId} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold disabled:opacity-40 hover:bg-primary/90 transition-colors">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              Simulate
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Results */}
+      {result && (
+        <div className="space-y-4">
+          {/* Summary */}
+          <Card className="p-5 border-l-4 border-l-primary">
+            <h3 className="font-bold text-sm mb-2">Impact Summary</h3>
+            <p className="text-sm text-muted-foreground">{result.summary}</p>
+          </Card>
+
+          {/* Before / After comparison */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="p-5">
+              <h4 className="text-xs font-bold uppercase text-muted-foreground mb-3">Before</h4>
+              <div className="text-2xl font-bold mb-3">{result.before.programmeProgress.toFixed(1)}%</div>
+              {result.before.affectedPillarProgress.map((p) => (
+                <div key={p.pillarId} className="flex justify-between text-sm py-1 border-b border-border/30">
+                  <span className="text-muted-foreground">{p.pillarName}</span>
+                  <span className="font-semibold">{p.progress.toFixed(1)}%</span>
+                </div>
+              ))}
+            </Card>
+            <Card className="p-5 border-l-4 border-l-destructive">
+              <h4 className="text-xs font-bold uppercase text-muted-foreground mb-3">After</h4>
+              <div className="text-2xl font-bold mb-3">
+                {result.after.programmeProgress.toFixed(1)}%
+                <span className="text-sm text-destructive ml-2">
+                  ({(result.after.programmeProgress - result.before.programmeProgress).toFixed(1)}%)
+                </span>
+              </div>
+              {result.after.affectedPillarProgress.map((p) => {
+                const before = result.before.affectedPillarProgress.find((bp) => bp.pillarId === p.pillarId);
+                const delta = before ? p.progress - before.progress : 0;
+                return (
+                  <div key={p.pillarId} className="flex justify-between text-sm py-1 border-b border-border/30">
+                    <span className="text-muted-foreground">{p.pillarName}</span>
+                    <span>
+                      <span className="font-semibold">{p.progress.toFixed(1)}%</span>
+                      {delta !== 0 && <span className={`text-xs ml-1 ${delta < 0 ? "text-destructive" : "text-green-600"}`}>({delta > 0 ? "+" : ""}{delta.toFixed(1)})</span>}
+                    </span>
+                  </div>
+                );
+              })}
+            </Card>
+          </div>
+
+          {/* Cascade impact */}
+          {result.cascadeImpact.length > 0 && (
+            <Card className="p-5">
+              <SectionHeader title="Cascade Impact" icon={GitBranch} count={result.cascadeImpact.length} />
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-secondary/50 text-xs uppercase text-muted-foreground">
+                    <th className="px-4 py-2 text-left">Milestone</th>
+                    <th className="px-4 py-2 text-left">Project</th>
+                    <th className="px-4 py-2 text-right">Shift</th>
+                    <th className="px-4 py-2 text-right">New Due Date</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-border/50">
+                    {result.cascadeImpact.map((c) => (
+                      <tr key={c.milestoneId} className="hover:bg-secondary/20">
+                        <td className="px-4 py-2 font-semibold">{c.milestoneName}</td>
+                        <td className="px-4 py-2 text-muted-foreground">{c.projectName}</td>
+                        <td className="px-4 py-2 text-right font-bold text-destructive">+{c.shiftDays}d</td>
+                        <td className="px-4 py-2 text-right">{fmtDate(c.newDueDate)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Board Report Panel ──────────────────────────────────────────
+
+interface BoardReportData {
+  generatedAt: string;
+  periodLabel: string;
+  executiveSummary: string;
+  sections: { title: string; narrative: string; keyMetrics: { label: string; value: string; trend?: string }[]; attentionItems: string[] }[];
+  recommendations: string[];
+}
+
+function BoardReportPanel() {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [report, setReport] = useState<BoardReportData | null>(null);
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    try {
+      const res = await customFetch("/api/spmo/analytics/board-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      }) as BoardReportData;
+      setReport(res);
+      toast({ title: "Board report generated" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Generation failed", description: err.message ?? "Check AI configuration (ANTHROPIC_API_KEY)" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {!report && (
+        <Card className="p-10 text-center">
+          <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-bold mb-2">Quarterly Board Report</h3>
+          <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+            Generate an AI-written executive board report in McKinsey/BCG format. Includes programme progress, budget analysis, risk landscape, KPI performance, and strategic recommendations.
+          </p>
+          <button onClick={handleGenerate} disabled={loading} className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors">
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileText className="w-5 h-5" />}
+            {loading ? "Generating Report…" : "Generate Board Report"}
+          </button>
+          {loading && <p className="text-xs text-muted-foreground mt-3">This may take 15-30 seconds as the AI analyzes your full programme data.</p>}
+        </Card>
+      )}
+
+      {report && (
+        <div className="space-y-4">
+          {/* Header */}
+          <Card className="p-5 bg-primary/5 border-primary/20">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="text-lg font-bold">Board Report — {report.periodLabel}</h3>
+                <p className="text-xs text-muted-foreground">Generated {new Date(report.generatedAt).toLocaleString()}</p>
+              </div>
+              <button onClick={handleGenerate} disabled={loading} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 disabled:opacity-50">
+                {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                Regenerate
+              </button>
+            </div>
+          </Card>
+
+          {/* Executive Summary */}
+          <Card className="p-5 border-l-4 border-l-primary">
+            <h4 className="text-sm font-bold mb-3">Executive Summary</h4>
+            <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{report.executiveSummary}</p>
+          </Card>
+
+          {/* Sections */}
+          {report.sections.map((section, i) => (
+            <Card key={i} className="p-5">
+              <h4 className="text-sm font-bold mb-3">{section.title}</h4>
+              <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap mb-4">{section.narrative}</p>
+
+              {section.keyMetrics.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  {section.keyMetrics.map((m, j) => (
+                    <div key={j} className="bg-secondary/50 rounded-lg px-3 py-2">
+                      <div className="text-[10px] text-muted-foreground uppercase font-semibold">{m.label}</div>
+                      <div className="text-sm font-bold mt-0.5">{m.value}</div>
+                      {m.trend && <div className={`text-[10px] ${m.trend === "up" ? "text-green-600" : m.trend === "down" ? "text-destructive" : "text-muted-foreground"}`}>{m.trend === "up" ? "↑" : m.trend === "down" ? "↓" : "→"} {m.trend}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {section.attentionItems.length > 0 && (
+                <div className="bg-warning/5 border border-warning/20 rounded-lg px-4 py-3">
+                  <div className="text-xs font-bold text-warning mb-1.5">⚠ Attention Items</div>
+                  <ul className="space-y-1">
+                    {section.attentionItems.map((item, k) => (
+                      <li key={k} className="text-xs text-foreground/80 flex items-start gap-2"><span className="text-warning mt-0.5">•</span>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Card>
+          ))}
+
+          {/* Recommendations */}
+          {report.recommendations.length > 0 && (
+            <Card className="p-5 bg-primary/5 border-primary/20">
+              <h4 className="text-sm font-bold mb-3">Strategic Recommendations</h4>
+              <ol className="space-y-2">
+                {report.recommendations.map((r, i) => (
+                  <li key={i} className="flex items-start gap-3 text-sm">
+                    <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
+                    <span className="text-foreground/90 pt-0.5">{r}</span>
+                  </li>
+                ))}
+              </ol>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }
