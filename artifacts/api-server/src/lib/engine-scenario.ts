@@ -39,6 +39,16 @@ export interface ScenarioResult {
     affectedInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[];
   };
   cascadeImpact: { milestoneId: number; milestoneName: string; projectName: string; shiftDays: number; newDueDate: string }[];
+  financialImpact?: {
+    originalBudget: number;
+    newBudget: number;
+    actualSpent: number;
+    overSpent: boolean;
+    originalCpi: number;
+    newCpi: number;
+    originalEac: number;
+    newEac: number;
+  };
   summary: string;
 }
 
@@ -220,20 +230,36 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     );
   }
 
+  let financialImpact: ScenarioResult["financialImpact"];
+
   if (input.type === "budget_cut") {
     const reduction = input.budgetReduction ?? 0;
     if (reduction <= 0) {
       throw new Error("budgetReduction must be > 0 for a budget_cut scenario");
     }
-    const newBudget = Math.max((project.budget ?? 0) - reduction, 0);
-    summaryParts.push(
-      `Cutting "${project.name}" budget by ${reduction.toLocaleString()} (from ${(project.budget ?? 0).toLocaleString()} to ${newBudget.toLocaleString()}) would impact EVM forecasts.`
-    );
-    if ((project.budgetSpent ?? 0) > newBudget) {
-      summaryParts.push(
-        `WARNING: Actual spend (${(project.budgetSpent ?? 0).toLocaleString()}) already exceeds the proposed new budget.`
-      );
+    const originalBudget = project.budget ?? 0;
+    const newBudget = Math.max(originalBudget - reduction, 0);
+    const actualSpent = project.budgetSpent ?? 0;
+    const overSpent = actualSpent > newBudget;
+
+    // Compute EVM impact
+    const pp = await projectProgress(project.id);
+    const ev = originalBudget * (pp.progress / 100);
+    const originalCpi = actualSpent > 0 ? ev / actualSpent : 1;
+    const newCpi = actualSpent > 0 ? (newBudget * (pp.progress / 100)) / actualSpent : 1;
+    const originalEac = originalCpi > 0 ? originalBudget / originalCpi : originalBudget;
+    const newEac = newCpi > 0 ? newBudget / newCpi : newBudget;
+
+    financialImpact = { originalBudget, newBudget, actualSpent, overSpent, originalCpi: Math.round(originalCpi * 100) / 100, newCpi: Math.round(newCpi * 100) / 100, originalEac: Math.round(originalEac), newEac: Math.round(newEac) };
+
+    const fmtM = (n: number) => n >= 1_000_000 ? `SAR ${(n / 1_000_000).toFixed(1)}M` : `SAR ${n.toLocaleString()}`;
+    summaryParts.push(`Cutting "${project.name}" budget from ${fmtM(originalBudget)} to ${fmtM(newBudget)} (reduction: ${fmtM(reduction)}).`);
+    summaryParts.push(`CPI would shift from ${financialImpact.originalCpi} to ${financialImpact.newCpi}. EAC from ${fmtM(originalEac)} to ${fmtM(newEac)}.`);
+    if (overSpent) {
+      summaryParts.push(`⚠ CRITICAL: Actual spend (${fmtM(actualSpent)}) already exceeds the proposed new budget.`);
     }
+    // Note: progress percentages are NOT affected by budget cuts — work done is work done
+    summaryParts.push(`Progress remains unchanged — budget does not affect milestone completion.`);
   }
 
   // 5. Compute "after" state by simulating modified values in memory
@@ -251,13 +277,9 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
           continue;
         }
         const pp = await projectProgress(p.id);
-        if (input.type === "budget_cut") {
-          const newBudget = Math.max((p.budget ?? 0) - (input.budgetReduction ?? 0), 0);
-          progItems.push({ value: pp.progress, weight: newBudget });
-        } else {
-          // delay: progress stays the same, but weight unchanged
-          progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
-        }
+        // For all scenario types: keep the same weight (budget doesn't change work done)
+        // Cancel is handled by the `continue` above
+        progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
       } else {
         const pp = await projectProgress(p.id);
         progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
@@ -307,6 +329,7 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
       affectedInitiativeProgress: afterInitiativeProgress,
     },
     cascadeImpact,
+    financialImpact,
     summary: summaryParts.join(" "),
   };
 }

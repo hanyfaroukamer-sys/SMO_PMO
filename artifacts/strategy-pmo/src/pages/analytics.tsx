@@ -617,6 +617,7 @@ interface ScenarioResultData {
   before: { programmeProgress: number; affectedPillarProgress: { pillarId: number; pillarName: string; progress: number }[]; affectedInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[] };
   after: { programmeProgress: number; affectedPillarProgress: { pillarId: number; pillarName: string; progress: number }[]; affectedInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[] };
   cascadeImpact: { milestoneId: number; milestoneName: string; projectName: string; shiftDays: number; newDueDate: string }[];
+  financialImpact?: { originalBudget: number; newBudget: number; actualSpent: number; overSpent: boolean; originalCpi: number; newCpi: number; originalEac: number; newEac: number };
   summary: string;
 }
 
@@ -781,6 +782,41 @@ function ScenarioPanel() {
                   </tbody>
                 </table>
               </div>
+            </Card>
+          )}
+
+          {/* Financial impact for budget cut scenarios */}
+          {result.financialImpact && (
+            <Card className="p-5">
+              <SectionHeader title="Financial Impact" icon={DollarSign} />
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                <div className="bg-secondary/50 rounded-lg px-3 py-2.5">
+                  <div className="text-[10px] text-muted-foreground uppercase font-semibold">Original Budget</div>
+                  <div className="text-sm font-bold">SAR {fmtM(result.financialImpact.originalBudget)}</div>
+                </div>
+                <div className="bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2.5">
+                  <div className="text-[10px] text-muted-foreground uppercase font-semibold">New Budget</div>
+                  <div className="text-sm font-bold text-destructive">SAR {fmtM(result.financialImpact.newBudget)}</div>
+                </div>
+                <div className={`rounded-lg px-3 py-2.5 ${result.financialImpact.overSpent ? "bg-destructive/10 border border-destructive/30" : "bg-secondary/50"}`}>
+                  <div className="text-[10px] text-muted-foreground uppercase font-semibold">Actual Spent</div>
+                  <div className={`text-sm font-bold ${result.financialImpact.overSpent ? "text-destructive" : ""}`}>SAR {fmtM(result.financialImpact.actualSpent)}</div>
+                  {result.financialImpact.overSpent && <div className="text-[10px] text-destructive font-bold mt-0.5">⚠ EXCEEDS NEW BUDGET</div>}
+                </div>
+                <div className="bg-secondary/50 rounded-lg px-3 py-2.5">
+                  <div className="text-[10px] text-muted-foreground uppercase font-semibold">EAC Change</div>
+                  <div className="text-sm font-bold">SAR {fmtM(result.financialImpact.originalEac)} → {fmtM(result.financialImpact.newEac)}</div>
+                </div>
+              </div>
+              <div className="flex gap-6">
+                <div>
+                  <span className="text-xs text-muted-foreground">CPI: </span>
+                  <span className={`text-sm font-bold ${result.financialImpact.newCpi < 0.9 ? "text-destructive" : ""}`}>
+                    {result.financialImpact.originalCpi} → {result.financialImpact.newCpi}
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3 italic">Note: Progress percentages are not affected by budget changes — work completed remains the same.</p>
             </Card>
           )}
         </div>
