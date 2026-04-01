@@ -169,4 +169,32 @@ router.get("/spmo/analytics/summary", async (req, res) => {
   }
 });
 
+// ─── Programme Weekly Digest ──────────────────────────────────
+router.get("/spmo/analytics/weekly-digest", async (req, res) => {
+  const user = (req as any).user;
+  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  try {
+    const { generateProgrammeWeeklyDigest } = await import("../lib/engine-weekly-digest.js");
+    const digest = await generateProgrammeWeeklyDigest();
+    res.json(digest);
+  } catch (err: any) {
+    req.log?.error?.({ err }, "Weekly digest failed");
+    res.status(500).json({ error: err.message ?? "Failed to generate weekly digest" });
+  }
+});
+
+// ─── Anomaly Detection ────────────────────────────────────────
+router.get("/spmo/analytics/anomalies", async (req, res) => {
+  const user = (req as any).user;
+  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  try {
+    const { detectAnomalies } = await import("../lib/engine-anomaly.js");
+    const anomalies = await detectAnomalies();
+    res.json({ anomalies, count: anomalies.length, critical: anomalies.filter((a: any) => a.severity === "critical").length });
+  } catch (err: any) {
+    req.log?.error?.({ err }, "Anomaly detection failed");
+    res.status(500).json({ error: err.message ?? "Failed to detect anomalies" });
+  }
+});
+
 export default router;

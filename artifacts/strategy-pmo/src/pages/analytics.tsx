@@ -88,7 +88,7 @@ function SectionHeader({ title, icon: Icon, count, children }: { title: string; 
 
 // ─── Main Component ─────────────────────────────────────────────
 
-type Tab = "overview" | "delays" | "budget" | "stakeholders" | "evm" | "scenario" | "advisor" | "board-report";
+type Tab = "overview" | "weekly" | "anomalies" | "delays" | "budget" | "stakeholders" | "evm" | "scenario" | "advisor" | "board-report";
 
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -103,6 +103,8 @@ export default function AnalyticsPage() {
 
   const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
     { key: "overview", label: "Overview", icon: BarChart3 },
+    { key: "weekly", label: "Weekly Digest", icon: FileText },
+    { key: "anomalies", label: "Anomalies", icon: AlertTriangle },
     { key: "delays", label: "Delay Predictions", icon: Clock },
     { key: "budget", label: "Budget Forecast", icon: DollarSign },
     { key: "stakeholders", label: "Stakeholder Intel", icon: Users },
@@ -227,6 +229,8 @@ export default function AnalyticsPage() {
       )}
 
       {/* ─── Delays Tab ────────────────────────────────────────── */}
+      {activeTab === "weekly" && <WeeklyDigestPanel />}
+      {activeTab === "anomalies" && <AnomalyPanel />}
       {activeTab === "delays" && <DelaysPanel />}
 
       {/* ─── Budget Tab ────────────────────────────────────────── */}
@@ -967,6 +971,174 @@ function BoardReportPanel() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Weekly Digest Panel ─────────────────────────────────────────
+
+interface ProjectDigest {
+  projectId: number; projectName: string; projectCode: string | null;
+  departmentName: string | null; ownerName: string | null;
+  currentProgress: number; progressLastWeek: number; progressDelta: number; velocityPerDay: number;
+  healthStatus: string; computedStatus: { status: string; reason: string } | null;
+  milestonesCompleted: { id: number; name: string }[];
+  milestonesSubmitted: { id: number; name: string }[];
+  milestonesOverdue: { id: number; name: string; daysOverdue: number }[];
+  milestonesDueSoon: { id: number; name: string; daysLeft: number }[];
+  budget: number; spent: number; spentPct: number;
+  activeRiskCount: number; highRiskCount: number; newRisksThisWeek: number;
+  weeklyReportSubmitted: boolean;
+  weeklyReportAchievements: string | null; weeklyReportNextSteps: string | null;
+  flags: string[];
+}
+
+interface WeeklyDigestData {
+  generatedAt: string; weekLabel: string;
+  programmeProgress: number; programmeProgressDelta: number;
+  totalProjects: number; activeProjects: number;
+  milestonesCompletedThisWeek: number; milestonesSubmittedThisWeek: number;
+  totalOverdueMilestones: number; projectsWithNoProgress: number;
+  projectsAtRisk: number; projectsDelayed: number;
+  totalBudget: number; totalSpent: number;
+  projects: ProjectDigest[];
+  highlights: string[]; concerns: string[];
+}
+
+function WeeklyDigestPanel() {
+  const { data, isLoading } = useQuery<WeeklyDigestData>({
+    queryKey: ["/api/spmo/analytics/weekly-digest"],
+    queryFn: () => customFetch("/api/spmo/analytics/weekly-digest"),
+    staleTime: 120_000,
+  });
+
+  if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  if (!data) return null;
+
+  const SC: Record<string, string> = { on_track: "#16A34A", at_risk: "#D97706", delayed: "#DC2626", completed: "#2563EB", not_started: "#94A3B8" };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5 bg-primary/5 border-primary/20">
+        <div className="flex items-center justify-between mb-3">
+          <div><h3 className="text-lg font-bold">{data.weekLabel}</h3><p className="text-xs text-muted-foreground">Generated {new Date(data.generatedAt).toLocaleString()}</p></div>
+          <div className="text-right">
+            <div className="text-2xl font-bold">{data.programmeProgress.toFixed(1)}%</div>
+            <div className={`text-sm font-semibold ${data.programmeProgressDelta >= 0 ? "text-green-600" : "text-destructive"}`}>{data.programmeProgressDelta >= 0 ? "+" : ""}{data.programmeProgressDelta.toFixed(1)}pp this week</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Milestones Completed", value: data.milestonesCompletedThisWeek, color: "text-green-600" },
+            { label: "Overdue", value: data.totalOverdueMilestones, color: "text-destructive" },
+            { label: "No Progress", value: data.projectsWithNoProgress, color: "text-warning" },
+            { label: "At Risk / Delayed", value: `${data.projectsAtRisk} / ${data.projectsDelayed}`, color: "" },
+          ].map((m) => (
+            <div key={m.label} className="bg-background rounded-lg px-3 py-2 border border-border">
+              <div className="text-[10px] text-muted-foreground uppercase font-semibold">{m.label}</div>
+              <div className={`text-lg font-bold ${m.color}`}>{m.value}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {data.highlights.length > 0 && (<Card className="p-4 border-l-4 border-l-green-500"><h4 className="text-xs font-bold uppercase text-green-700 mb-2">Highlights</h4><ul className="space-y-1">{data.highlights.map((h, i) => <li key={i} className="text-sm flex items-start gap-2"><CheckCircle2 className="w-3.5 h-3.5 mt-0.5 text-green-500 shrink-0" />{h}</li>)}</ul></Card>)}
+        {data.concerns.length > 0 && (<Card className="p-4 border-l-4 border-l-destructive"><h4 className="text-xs font-bold uppercase text-destructive mb-2">Concerns</h4><ul className="space-y-1">{data.concerns.map((c, i) => <li key={i} className="text-sm flex items-start gap-2"><AlertCircle className="w-3.5 h-3.5 mt-0.5 text-destructive shrink-0" />{c}</li>)}</ul></Card>)}
+      </div>
+      <div className="space-y-3">
+        {data.projects.map((p) => (
+          <Card key={p.projectId} className="p-4" style={{ borderLeftWidth: 4, borderLeftColor: SC[p.healthStatus] ?? "#94A3B8" }}>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {p.projectCode && <span className="text-[10px] font-mono text-muted-foreground">{p.projectCode}</span>}
+                  <span className="text-sm font-bold truncate">{p.projectName}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ backgroundColor: (SC[p.healthStatus] ?? "#94A3B8") + "18", color: SC[p.healthStatus] ?? "#94A3B8" }}>{p.healthStatus?.replace(/_/g, " ").toUpperCase()}</span>
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">{p.ownerName ?? "—"} · {p.departmentName ?? "—"}</div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-lg font-bold">{Math.round(p.currentProgress)}%</div>
+                <div className={`text-xs font-semibold ${p.progressDelta > 0 ? "text-green-600" : p.progressDelta < 0 ? "text-destructive" : "text-muted-foreground"}`}>{p.progressDelta > 0 ? "+" : ""}{p.progressDelta.toFixed(1)}pp</div>
+                {p.velocityPerDay > 0 && <div className="text-[10px] text-muted-foreground">{p.velocityPerDay.toFixed(2)}%/day</div>}
+              </div>
+            </div>
+            <div className="flex gap-4 mt-2 text-xs flex-wrap">
+              {p.milestonesCompleted.length > 0 && <span className="text-green-600">✓ {p.milestonesCompleted.length} completed</span>}
+              {p.milestonesSubmitted.length > 0 && <span className="text-blue-600">⏳ {p.milestonesSubmitted.length} awaiting approval</span>}
+              {p.milestonesOverdue.length > 0 && <span className="text-destructive">⚠ {p.milestonesOverdue.length} overdue</span>}
+              {p.milestonesDueSoon.length > 0 && <span className="text-warning">📅 {p.milestonesDueSoon.length} due this week</span>}
+            </div>
+            {p.weeklyReportSubmitted && p.weeklyReportAchievements && (
+              <div className="mt-2 bg-secondary/30 rounded-lg px-3 py-2">
+                <div className="text-[10px] font-bold text-muted-foreground uppercase mb-0.5">Achievements</div>
+                <div className="text-xs text-foreground/80">{p.weeklyReportAchievements}</div>
+                {p.weeklyReportNextSteps && (<><div className="text-[10px] font-bold text-muted-foreground uppercase mt-1.5 mb-0.5">Next Steps</div><div className="text-xs text-foreground/80">{p.weeklyReportNextSteps}</div></>)}
+              </div>
+            )}
+            {p.flags.length > 0 && (<div className="flex gap-1.5 mt-2 flex-wrap">{p.flags.map((f, i) => (<span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20 font-medium">{f}</span>))}</div>)}
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Anomaly Detection Panel ─────────────────────────────────────
+
+interface AnomalyItem {
+  type: string; severity: string;
+  projectId: number; projectName: string;
+  entityType: string; entityId: number; entityName: string;
+  detectedAt: string; description: string; evidence: string; suggestedAction: string;
+}
+
+const ANOMALY_LABELS: Record<string, { label: string; icon: string }> = {
+  progress_spike: { label: "Progress Spike", icon: "⚡" },
+  progress_stagnant: { label: "Stagnant Progress", icon: "🔴" },
+  budget_burn_mismatch: { label: "Budget Mismatch", icon: "💰" },
+  duplicate_report: { label: "Duplicate Report", icon: "📋" },
+  ghost_project: { label: "Ghost Project", icon: "👻" },
+  velocity_collapse: { label: "Velocity Collapse", icon: "📉" },
+  risk_ignored: { label: "Ignored Risk", icon: "🛑" },
+  approval_stale: { label: "Stale Approval", icon: "⏰" },
+  weight_gaming: { label: "Weight Gaming", icon: "🎮" },
+  weekend_warrior: { label: "Weekend Updates", icon: "📅" },
+};
+
+function AnomalyPanel() {
+  const { data, isLoading } = useQuery<{ anomalies: AnomalyItem[]; count: number; critical: number }>({
+    queryKey: ["/api/spmo/analytics/anomalies"],
+    queryFn: () => customFetch("/api/spmo/analytics/anomalies"),
+    staleTime: 120_000,
+  });
+
+  if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  const anomalies = data?.anomalies ?? [];
+  const grouped = anomalies.reduce<Record<string, AnomalyItem[]>>((acc, a) => { (acc[a.severity] ??= []).push(a); return acc; }, {});
+  const SEV_ORDER = ["critical", "high", "medium", "low"];
+  const SS: Record<string, { bg: string; border: string; text: string; label: string }> = {
+    critical: { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", label: "Critical" },
+    high: { bg: "bg-orange-50", border: "border-orange-200", text: "text-orange-700", label: "High" },
+    medium: { bg: "bg-yellow-50", border: "border-yellow-200", text: "text-yellow-700", label: "Medium" },
+    low: { bg: "bg-slate-50", border: "border-slate-200", text: "text-slate-600", label: "Low" },
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <SectionHeader title="Anomaly Detection" icon={AlertTriangle} count={anomalies.length} />
+        <p className="text-sm text-muted-foreground mb-4">Automated pattern detection across all projects. Flags suspicious data, stagnant progress, gaming patterns, and process violations.</p>
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {SEV_ORDER.map((sev) => { const count = grouped[sev]?.length ?? 0; if (count === 0) return null; const s = SS[sev]; return (<div key={sev} className={`${s.bg} ${s.border} border rounded-full px-3 py-1 flex items-center gap-1.5`}><span className={`text-xs font-bold ${s.text}`}>{count}</span><span className={`text-[10px] font-semibold ${s.text}`}>{s.label}</span></div>); })}
+        </div>
+      </Card>
+      {anomalies.length === 0 && (<Card className="p-10 text-center"><CheckCircle2 className="w-10 h-10 mx-auto text-green-500 mb-3" /><h3 className="text-lg font-bold">No Anomalies Detected</h3><p className="text-sm text-muted-foreground mt-1">All projects show normal patterns.</p></Card>)}
+      {SEV_ORDER.map((sev) => { const items = grouped[sev]; if (!items || items.length === 0) return null; const s = SS[sev]; return (
+        <Card key={sev} className="p-5"><h4 className={`text-xs font-bold uppercase ${s.text} mb-3`}>{s.label} ({items.length})</h4><div className="space-y-3">{items.map((a, i) => { const t = ANOMALY_LABELS[a.type] ?? { label: a.type, icon: "⚠" }; return (
+          <div key={i} className={`${s.bg} ${s.border} border rounded-xl p-4`}><div className="flex items-start justify-between gap-3"><div className="flex-1"><div className="flex items-center gap-2 mb-1"><span>{t.icon}</span><span className={`text-xs font-bold ${s.text}`}>{t.label}</span><span className="text-xs text-muted-foreground">· {a.projectName}</span></div><p className="text-sm font-semibold text-foreground">{a.description}</p><p className="text-xs text-muted-foreground mt-1 italic">{a.evidence}</p></div></div><div className="mt-2 pt-2 border-t border-border/30"><div className="text-xs text-primary font-medium">{a.suggestedAction}</div></div></div>
+        ); })}</div></Card>
+      ); })}
     </div>
   );
 }

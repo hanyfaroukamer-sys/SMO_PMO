@@ -61,10 +61,10 @@ describe("Analytics router registers all 9 endpoints", () => {
     });
   }
 
-  it("has exactly 9 route registrations", () => {
+  it("has at least 11 route registrations (9 original + weekly-digest + anomalies)", () => {
     const routeMatches = src.match(/router\.(get|post|put|patch|delete)\s*\(/g);
     expect(routeMatches).not.toBeNull();
-    expect(routeMatches!.length).toBe(9);
+    expect(routeMatches!.length).toBeGreaterThanOrEqual(11);
   });
 });
 
