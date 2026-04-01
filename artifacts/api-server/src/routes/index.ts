@@ -10,6 +10,7 @@ import importRouter from "./import";
 import bulkImportRouter from "./bulk-import";
 import dependenciesRouter from "./dependencies";
 import reportsRouter from "./reports";
+import analyticsRouter from "./analytics";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(importRouter);
 router.use(bulkImportRouter);
 router.use(dependenciesRouter);
 router.use("/spmo/reports", reportsRouter);
+router.use(analyticsRouter);
 
 export default router;
