@@ -28,6 +28,7 @@ import {
   ClipboardList,
   FolderKanban,
   Stethoscope,
+  BarChart3,
   Menu,
   X,
 } from "lucide-react";
@@ -56,6 +57,7 @@ const adminNavItems = [
   { title: "Progress Proof",      href: "/progress",     icon: CheckSquare,  badge: false },
   { title: "Monitoring",          href: "/alerts",       icon: BellRing,     badge: false },
   { title: "Import Data",         href: "/import",       icon: Upload,       badge: false },
+  { title: "Analytics",            href: "/admin/analytics",   icon: BarChart3,    badge: false },
   { title: "Diagnostics",         href: "/admin/diagnostics", icon: Stethoscope, badge: false },
 ];
 
