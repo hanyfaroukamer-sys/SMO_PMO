@@ -197,4 +197,18 @@ router.get("/spmo/analytics/anomalies", async (req, res) => {
   }
 });
 
+// ─── Dependency Finder ────────────────────────────────────────
+router.get("/spmo/analytics/dependency-suggestions", async (req, res) => {
+  const user = (req as any).user;
+  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  try {
+    const { findDependencies } = await import("../lib/engine-dependency-finder.js");
+    const result = await findDependencies();
+    res.json(result);
+  } catch (err: any) {
+    req.log?.error?.({ err }, "Dependency finder failed");
+    res.status(500).json({ error: err.message ?? "Failed to find dependencies" });
+  }
+});
+
 export default router;

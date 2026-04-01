@@ -88,7 +88,7 @@ function SectionHeader({ title, icon: Icon, count, children }: { title: string; 
 
 // ─── Main Component ─────────────────────────────────────────────
 
-type Tab = "overview" | "weekly" | "anomalies" | "delays" | "budget" | "stakeholders" | "evm" | "scenario" | "advisor" | "board-report";
+type Tab = "overview" | "weekly" | "anomalies" | "dependencies" | "delays" | "budget" | "stakeholders" | "evm" | "scenario" | "advisor" | "board-report";
 
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -105,6 +105,7 @@ export default function AnalyticsPage() {
     { key: "overview", label: "Overview", icon: BarChart3 },
     { key: "weekly", label: "Weekly Digest", icon: FileText },
     { key: "anomalies", label: "Anomalies", icon: AlertTriangle },
+    { key: "dependencies", label: "Dep. Finder", icon: GitBranch },
     { key: "delays", label: "Delay Predictions", icon: Clock },
     { key: "budget", label: "Budget Forecast", icon: DollarSign },
     { key: "stakeholders", label: "Stakeholder Intel", icon: Users },
@@ -231,6 +232,7 @@ export default function AnalyticsPage() {
       {/* ─── Delays Tab ────────────────────────────────────────── */}
       {activeTab === "weekly" && <WeeklyDigestPanel />}
       {activeTab === "anomalies" && <AnomalyPanel />}
+      {activeTab === "dependencies" && <DependencyFinderPanel />}
       {activeTab === "delays" && <DelaysPanel />}
 
       {/* ─── Budget Tab ────────────────────────────────────────── */}
@@ -1139,6 +1141,142 @@ function AnomalyPanel() {
           <div key={i} className={`${s.bg} ${s.border} border rounded-xl p-4`}><div className="flex items-start justify-between gap-3"><div className="flex-1"><div className="flex items-center gap-2 mb-1"><span>{t.icon}</span><span className={`text-xs font-bold ${s.text}`}>{t.label}</span><span className="text-xs text-muted-foreground">· {a.projectName}</span></div><p className="text-sm font-semibold text-foreground">{a.description}</p><p className="text-xs text-muted-foreground mt-1 italic">{a.evidence}</p></div></div><div className="mt-2 pt-2 border-t border-border/30"><div className="text-xs text-primary font-medium">{a.suggestedAction}</div></div></div>
         ); })}</div></Card>
       ); })}
+    </div>
+  );
+}
+
+// ─── Dependency Finder Panel ─────────────────────────────────────
+
+interface DepSuggestion {
+  sourceType: string; sourceId: number; sourceName: string; sourceProjectName: string | null;
+  targetType: string; targetId: number; targetName: string; targetProjectName: string | null;
+  depType: string; confidence: string; reason: string; suggestedLagDays: number;
+  isHard: boolean; source: string; alreadyExists: boolean;
+}
+
+interface DepFinderData {
+  suggestions: DepSuggestion[];
+  analysisMethod: string;
+  totalAnalysed: { milestones: number; projects: number; risks: number };
+  existingDependencies: number;
+  newSuggestionsCount: number;
+}
+
+const DEP_TYPE_LABELS: Record<string, string> = {
+  finish_to_start: "Finish → Start",
+  start_to_start: "Start → Start",
+  finish_to_finish: "Finish → Finish",
+  budget: "Budget Constraint",
+  risk: "Risk Cascade",
+  resource: "Resource Conflict",
+};
+
+const CONFIDENCE_STYLES: Record<string, { bg: string; text: string }> = {
+  high: { bg: "bg-green-100", text: "text-green-700" },
+  medium: { bg: "bg-yellow-100", text: "text-yellow-700" },
+  low: { bg: "bg-slate-100", text: "text-slate-600" },
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  heuristic: "Rule-based",
+  ai: "AI Suggested",
+  name_similarity: "Name Match",
+  timeline_overlap: "Timeline",
+  budget_link: "Budget Link",
+};
+
+function DependencyFinderPanel() {
+  const { data, isLoading } = useQuery<DepFinderData>({
+    queryKey: ["/api/spmo/analytics/dependency-suggestions"],
+    queryFn: () => customFetch("/api/spmo/analytics/dependency-suggestions"),
+    staleTime: 300_000,
+  });
+
+  if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  if (!data) return null;
+
+  const newSuggestions = data.suggestions.filter((s) => !s.alreadyExists);
+  const existing = data.suggestions.filter((s) => s.alreadyExists);
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5">
+        <SectionHeader title="Auto Dependency Finder" icon={GitBranch} count={data.newSuggestionsCount} />
+        <p className="text-sm text-muted-foreground mb-4">
+          Analyses all projects, milestones, risks, and budgets to suggest missing dependencies.
+          Method: <span className="font-semibold">{data.analysisMethod === "ai_enhanced" ? "AI-Enhanced + Rules" : "Rule-Based"}</span>.
+          Scanned {data.totalAnalysed.milestones} milestones, {data.totalAnalysed.projects} projects, {data.totalAnalysed.risks} risks.
+          {data.existingDependencies} dependencies already registered.
+        </p>
+        <div className="flex gap-3 flex-wrap">
+          {["high", "medium", "low"].map((c) => {
+            const count = newSuggestions.filter((s) => s.confidence === c).length;
+            if (count === 0) return null;
+            const cs = CONFIDENCE_STYLES[c] ?? CONFIDENCE_STYLES.low;
+            return <div key={c} className={`${cs.bg} rounded-full px-3 py-1 text-xs font-bold ${cs.text}`}>{count} {c}</div>;
+          })}
+        </div>
+      </Card>
+
+      {newSuggestions.length === 0 && (
+        <Card className="p-10 text-center">
+          <CheckCircle2 className="w-10 h-10 mx-auto text-green-500 mb-3" />
+          <h3 className="text-lg font-bold">No Missing Dependencies Found</h3>
+          <p className="text-sm text-muted-foreground mt-1">All detected dependencies are already registered.</p>
+        </Card>
+      )}
+
+      {newSuggestions.length > 0 && (
+        <Card className="p-5">
+          <h4 className="text-sm font-bold mb-3">Suggested Dependencies ({newSuggestions.length})</h4>
+          <div className="space-y-3">
+            {newSuggestions.map((s, i) => {
+              const cs = CONFIDENCE_STYLES[s.confidence] ?? CONFIDENCE_STYLES.low;
+              return (
+                <div key={i} className="border border-border rounded-xl p-4 hover:bg-secondary/20 transition-colors">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cs.bg} ${cs.text}`}>{s.confidence}</span>
+                        <span className="text-[10px] font-semibold text-muted-foreground bg-secondary px-2 py-0.5 rounded">{SOURCE_LABELS[s.source] ?? s.source}</span>
+                        <span className="text-[10px] text-muted-foreground">{DEP_TYPE_LABELS[s.depType] ?? s.depType}</span>
+                        {s.isHard && <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">BLOCKING</span>}
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-semibold">{s.sourceName}</span>
+                        {s.sourceProjectName && <span className="text-muted-foreground text-xs"> ({s.sourceProjectName})</span>}
+                        <span className="mx-2 text-muted-foreground">→</span>
+                        <span className="font-semibold">{s.targetName}</span>
+                        {s.targetProjectName && <span className="text-muted-foreground text-xs"> ({s.targetProjectName})</span>}
+                      </div>
+                    </div>
+                    {s.suggestedLagDays !== 0 && (
+                      <div className="text-xs text-muted-foreground shrink-0">Lag: {s.suggestedLagDays}d</div>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{s.reason}</p>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {existing.length > 0 && (
+        <Card className="p-5">
+          <h4 className="text-sm font-bold text-muted-foreground mb-3">Already Registered ({existing.length})</h4>
+          <div className="space-y-1">
+            {existing.slice(0, 10).map((s, i) => (
+              <div key={i} className="text-xs text-muted-foreground py-1 border-b border-border/30 last:border-0 flex items-center gap-2">
+                <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />
+                <span>{s.sourceName} → {s.targetName}</span>
+                <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded">{DEP_TYPE_LABELS[s.depType] ?? s.depType}</span>
+              </div>
+            ))}
+            {existing.length > 10 && <div className="text-xs text-muted-foreground mt-1">...and {existing.length - 10} more</div>}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
