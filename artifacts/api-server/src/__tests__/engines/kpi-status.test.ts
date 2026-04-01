@@ -166,10 +166,20 @@ describe("computeKpiStatus — reduction KPI", () => {
     const { periodStart, periodEnd } = periodAtPct(50);
     const result = computeKpiStatus({
       ...BASE, kpiType: "reduction", direction: "lower",
-      baseline: 50, target: 60, actual: 55, periodStart, periodEnd,
+      baseline: 50, target: 60, actual: 45, periodStart, periodEnd,
     });
     expect(result.status).toBe("not-started");
     expect(result.reason).toContain("Misconfigured");
+  });
+
+  it("14b. Reduction KPI: actual > baseline (worsened) → critical", () => {
+    const { periodStart, periodEnd } = periodAtPct(50);
+    const result = computeKpiStatus({
+      ...BASE, kpiType: "reduction", direction: "lower",
+      baseline: 100, target: 60, actual: 110, periodStart, periodEnd,
+    });
+    expect(result.status).toBe("critical");
+    expect(result.reason).toContain("worsened");
   });
 
   it("15. Achieved: actual ≤ target", () => {

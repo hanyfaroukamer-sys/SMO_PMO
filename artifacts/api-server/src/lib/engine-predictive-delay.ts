@@ -134,8 +134,8 @@ export async function computeDelayPredictions(): Promise<DelayPrediction[]> {
     dataPoints.sort((a, b) => a.date.getTime() - b.date.getTime());
 
     // Overall velocity: progress change / time span
-    const oldest = dataPoints[dataPoints.length - 1];
-    const newest = dataPoints[0];
+    const oldest = dataPoints[0];
+    const newest = dataPoints[dataPoints.length - 1];
     const totalDays = Math.max(
       1,
       (newest.date.getTime() - oldest.date.getTime()) / (1000 * 60 * 60 * 24),

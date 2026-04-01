@@ -9,8 +9,14 @@ import {
   spmoKpisTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { calcProgrammeProgress } from "./spmo-calc";
+
+let anthropic: any;
+try {
+  anthropic = require("@workspace/integrations-anthropic-ai").anthropic;
+} catch {
+  anthropic = null;
+}
 
 // ─────────────────────────────────────────────────────────────
 // AI Programme Advisor Engine
@@ -279,7 +285,17 @@ export async function queryAdvisor(input: AdvisorQuery): Promise<AdvisorResponse
     allSources.push(...project.sources);
   }
 
-  // 2. Build system prompt
+  // 2. Check if Anthropic is configured
+  if (!anthropic) {
+    return {
+      answer: "AI advisor requires ANTHROPIC_API_KEY to be configured.",
+      dataUsed: [],
+      suggestedActions: ["Configure ANTHROPIC_API_KEY environment variable"],
+      relatedLinks: [],
+    };
+  }
+
+  // 3. Build system prompt
   const systemPrompt = `You are a senior PMO advisor for a government transformation programme. You have access to the full programme data below. Answer the user's question with specific data, numbers, and actionable recommendations.
 
 Be concise but thorough. Reference specific project names, pillar names, and numbers when available. Structure your response clearly.
@@ -289,28 +305,42 @@ At the end of your response, include a section called "SUGGESTED_ACTIONS:" with 
 Programme Data:
 ${JSON.stringify(allData, null, 2)}`;
 
-  // 3. Call the Anthropic API
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 2000,
-    system: systemPrompt,
-    messages: [{ role: "user", content: input.question }],
-  });
+  // 4. Call the Anthropic API with 30-second timeout
+  let message: any;
+  try {
+    const apiCall = anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2000,
+      system: systemPrompt,
+      messages: [{ role: "user", content: input.question }],
+    });
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("AI advisor request timed out after 30 seconds")), 30_000)
+    );
+    message = await Promise.race([apiCall, timeout]);
+  } catch (err: any) {
+    return {
+      answer: `AI advisor error: ${err?.message ?? "Unknown error"}`,
+      dataUsed: [...new Set(allSources)],
+      suggestedActions: ["Retry the query or check API key configuration"],
+      relatedLinks: generateRelatedLinks(input.context, input.projectId),
+    };
+  }
 
-  // 4. Extract the response text
+  // 5. Extract the response text
   const responseText = message.content
-    .filter((block): block is { type: "text"; text: string } => block.type === "text")
-    .map((block) => block.text)
+    .filter((block: any): block is { type: "text"; text: string } => block.type === "text")
+    .map((block: any) => block.text)
     .join("\n");
 
-  // 5. Parse suggested actions from the response
+  // 6. Parse suggested actions from the response
   const suggestedActions: string[] = [];
   const actionsMatch = responseText.match(/SUGGESTED_ACTIONS:\s*([\s\S]*?)$/i);
   if (actionsMatch) {
     const actionLines = actionsMatch[1]
       .split("\n")
-      .map((line) => line.replace(/^[\s\-*•]+/, "").trim())
-      .filter((line) => line.length > 0);
+      .map((line: string) => line.replace(/^[\s\-*•]+/, "").trim())
+      .filter((line: string) => line.length > 0);
     suggestedActions.push(...actionLines);
   }
 
@@ -319,7 +349,7 @@ ${JSON.stringify(allData, null, 2)}`;
     .replace(/SUGGESTED_ACTIONS:\s*[\s\S]*$/i, "")
     .trim();
 
-  // 6. Generate related links
+  // 7. Generate related links
   const relatedLinks = generateRelatedLinks(input.context, input.projectId);
 
   return {

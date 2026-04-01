@@ -137,18 +137,21 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     ? await db.select().from(spmoInitiativesTable).where(eq(spmoInitiativesTable.pillarId, initiative.pillarId))
     : [];
 
-  const beforeInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[] = [];
+  const beforeInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number; budget: number }[] = [];
   for (const init of siblingInitiatives) {
     const projects = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, init.id));
     const progItems: { value: number; weight: number }[] = [];
+    let initBudget = 0;
     for (const p of projects) {
       const pp = await projectProgress(p.id);
       progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
+      initBudget += p.budget ?? 0;
     }
     beforeInitiativeProgress.push({
       initiativeId: init.id,
       initiativeName: init.name,
       progress: weightedAvg(progItems),
+      budget: initBudget,
     });
   }
 
@@ -234,7 +237,7 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
   let financialImpact: ScenarioResult["financialImpact"];
 
   if (input.type === "budget_cut") {
-    const reduction = input.budgetReduction ?? 0;
+    const reduction = Math.min(input.budgetReduction ?? 0, project.budget ?? 0);
     if (reduction <= 0) {
       throw new Error("budgetReduction must be > 0 for a budget_cut scenario");
     }
@@ -302,15 +305,15 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     });
   }
 
-  // Recalculate pillar progress with modified initiative values
+  // Recalculate pillar progress with modified initiative values (weighted by initiative budget)
   const afterPillarProgress = beforePillarProgress.map((bp) => {
     if (pillar && bp.pillarId === pillar.id) {
-      // Use our simulated initiative progress for this pillar
-      const initValues = afterInitiativeProgress.map((ip) => ip.progress);
-      const avg = initValues.length > 0
-        ? round1(initValues.reduce((s, v) => s + v, 0) / initValues.length)
-        : 0;
-      return { ...bp, progress: avg };
+      // Use our simulated initiative progress for this pillar, weighted by budget
+      const initItems = afterInitiativeProgress.map((ip) => {
+        const budgetWeight = beforeInitiativeProgress.find((bip) => bip.initiativeId === ip.initiativeId)?.budget ?? 0;
+        return { value: ip.progress, weight: budgetWeight };
+      });
+      return { ...bp, progress: weightedAvg(initItems) };
     }
     return bp;
   });

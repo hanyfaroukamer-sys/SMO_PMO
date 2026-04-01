@@ -29,8 +29,10 @@ export interface EvmMetrics {
   estimateToComplete: number;       // ETC = EAC - AC
   varianceAtCompletion: number;     // VAC = budget - EAC
   toCompletePerformanceIndex: number; // TCPI = (budget - EV) / (budget - AC)
+  // Duration overrun
+  durationOverrunPct: number;   // 0 if not overdue, e.g. 20 if 120% of planned duration elapsed
   // Status
-  costStatus: "under_budget" | "on_budget" | "over_budget";
+  costStatus: "under_budget" | "on_budget" | "over_budget" | "not_started";
   scheduleStatus: "ahead" | "on_schedule" | "behind";
 }
 
@@ -74,7 +76,7 @@ export async function computeEvmMetrics(): Promise<EvmMetrics[]> {
 
     const totalDays = Math.max((end.getTime() - start.getTime()) / 86_400_000, 1);
     const elapsedDays = Math.max((today.getTime() - start.getTime()) / 86_400_000, 0);
-    const elapsedPct = Math.min(elapsedDays / totalDays, 1.5); // cap at 150%
+    const elapsedPct = Math.min(elapsedDays / totalDays, 1.0); // cap at 100%
 
     // Get progress via the standard calculator
     const projProg = await projectProgress(project.id);
@@ -99,7 +101,9 @@ export async function computeEvmMetrics(): Promise<EvmMetrics[]> {
     const vac = budget - eac;
     const remainingWork = budget - ev;
     const remainingBudget = budget - ac;
-    const tcpi = remainingBudget > 0 ? remainingWork / remainingBudget : remainingWork > 0 ? Infinity : 1;
+    const tcpi = remainingBudget > 0 ? remainingWork / remainingBudget : remainingWork > 0 ? 99.99 : 1;
+
+    const durationOverrunPct = round2(Math.max(0, (elapsedDays / totalDays - 1) * 100));
 
     results.push({
       projectId: project.id,
@@ -115,7 +119,8 @@ export async function computeEvmMetrics(): Promise<EvmMetrics[]> {
       estimateToComplete: round2(Math.max(etc, 0)),
       varianceAtCompletion: round2(vac),
       toCompletePerformanceIndex: round2(tcpi),
-      costStatus: deriveCostStatus(cpi),
+      durationOverrunPct,
+      costStatus: ac === 0 ? "not_started" : deriveCostStatus(cpi),
       scheduleStatus: deriveScheduleStatus(spi),
     });
   }

@@ -30,6 +30,7 @@ export interface CriticalPathResult {
     milestoneName: string;
     dependentCount: number;
   }[];
+  cycles: number[]; // IDs of nodes involved in dependency cycles
 }
 
 interface MilestoneNode {
@@ -72,6 +73,7 @@ export async function computeCriticalPath(
       totalDuration: 0,
       projectCompletionDate: new Date().toISOString().split("T")[0],
       bottlenecks: [],
+      cycles: [],
     };
   }
 
@@ -178,10 +180,11 @@ export async function computeCriticalPath(
     }
   }
 
-  // If topoOrder doesn't contain all nodes, there's a cycle — include remaining
+  // If topoOrder doesn't contain all nodes, there's a cycle — collect cycled node IDs
+  const cycles: number[] = [];
   if (topoOrder.length < nodes.size) {
     for (const id of nodes.keys()) {
-      if (!topoOrder.includes(id)) topoOrder.push(id);
+      if (!topoOrder.includes(id)) cycles.push(id);
     }
   }
 
@@ -293,5 +296,6 @@ export async function computeCriticalPath(
     totalDuration: Math.round(maxEF),
     projectCompletionDate: completionDate.toISOString().split("T")[0],
     bottlenecks,
+    cycles,
   };
 }

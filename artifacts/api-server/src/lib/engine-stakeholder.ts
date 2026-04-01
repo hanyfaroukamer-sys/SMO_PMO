@@ -31,6 +31,7 @@ export interface StakeholderAlert {
   entityName: string;
   daysPending: number;
   actionRequired: string;
+  escalateTo?: string | null;
 }
 
 export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
@@ -89,6 +90,21 @@ export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
 
     const projectName = project[0]?.name ?? "Unknown Project";
 
+    // Find the project owner name for escalation
+    let projectOwnerName: string | null = project[0]?.ownerName ?? null;
+    if (!projectOwnerName && project[0]?.ownerId) {
+      const projectOwner = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, project[0].ownerId))
+        .limit(1);
+      if (projectOwner.length > 0) {
+        projectOwnerName = projectOwner[0].firstName
+          ? `${projectOwner[0].firstName} ${projectOwner[0].lastName ?? ""}`.trim()
+          : projectOwner[0].email;
+      }
+    }
+
     // Find approvers (admins or approvers)
     const approvers = await db
       .select()
@@ -99,6 +115,10 @@ export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
 
     const severity: "critical" | "high" | "medium" =
       daysPending > 21 ? "critical" : daysPending > 14 ? "high" : "medium";
+
+    const escalateNote = projectOwnerName
+      ? ` Escalate to ${projectOwnerName} if not resolved.`
+      : "";
 
     alerts.push({
       type: "approval_bottleneck",
@@ -111,7 +131,8 @@ export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
       entityId: milestone.id,
       entityName: milestone.name,
       daysPending,
-      actionRequired: `Review and approve/reject milestone "${milestone.name}".`,
+      actionRequired: `Review and approve/reject milestone "${milestone.name}".${escalateNote}`,
+      escalateTo: projectOwnerName ?? null,
     });
   }
 
@@ -281,7 +302,22 @@ export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
   }
 
   for (const [ownerId, projects] of ownerProjects) {
-    // Check if this PM has any recent activity
+    // Get milestone IDs belonging to this PM's active projects only
+    const activeMilestones = await db
+      .select({ id: spmoMilestonesTable.id })
+      .from(spmoMilestonesTable)
+      .where(
+        inArray(
+          spmoMilestonesTable.projectId,
+          projects.map((p) => p.id),
+        ),
+      );
+    const activeMilestoneIds = activeMilestones.map((m) => m.id);
+
+    // Skip PMs who have no milestones on active projects
+    if (activeMilestoneIds.length === 0) continue;
+
+    // Check if this PM has any recent activity on active-project milestones
     const recentActivity = await db
       .select()
       .from(spmoActivityLogTable)
@@ -289,6 +325,7 @@ export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
         and(
           eq(spmoActivityLogTable.actorId, ownerId),
           eq(spmoActivityLogTable.entityType, "milestone"),
+          inArray(spmoActivityLogTable.entityId, activeMilestoneIds),
           gte(spmoActivityLogTable.createdAt, twentyOneDaysAgo),
         ),
       )
@@ -296,7 +333,7 @@ export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
 
     if (recentActivity.length > 0) continue;
 
-    // Find the last activity date
+    // Find the last activity date on active-project milestones
     const lastActivity = await db
       .select()
       .from(spmoActivityLogTable)
@@ -304,6 +341,7 @@ export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
         and(
           eq(spmoActivityLogTable.actorId, ownerId),
           eq(spmoActivityLogTable.entityType, "milestone"),
+          inArray(spmoActivityLogTable.entityId, activeMilestoneIds),
         ),
       )
       .orderBy(desc(spmoActivityLogTable.createdAt))

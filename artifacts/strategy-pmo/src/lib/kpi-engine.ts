@@ -267,6 +267,15 @@ function computeReductionKpi(kpi: KpiEngineInput): KpiStatusResult {
   const totalReduction = baseline - target;
   const achievedReduction = baseline - actual;
 
+  // Handle worsening: actual exceeds baseline (things got worse, not reduced)
+  if (achievedReduction < 0) {
+    return r(
+      "critical",
+      `Metric worsened: actual ${fmtN(actual)}${unit} exceeds baseline ${fmtN(baseline)}${unit}. Target was to reduce to ${fmtN(target)}${unit}.`,
+      0, null, time, kpi
+    );
+  }
+
   if (totalReduction <= 0) {
     // Fix #3: Don't silently fall back to rate logic — report misconfiguration
     return r(

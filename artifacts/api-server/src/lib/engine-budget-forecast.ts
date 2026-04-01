@@ -19,8 +19,8 @@ export interface BudgetForecast {
   projectedTotalSpend: number; // at current burn rate
   projectedOverrun: number; // positive = over budget
   projectedUnderspend: number; // positive = under budget
-  costPerformanceIndex: number; // EV/AC — >1 = under budget
-  alert: "overrun" | "underspend" | "on-track";
+  costPerformanceIndex: number | null; // EV/AC — >1 = under budget, null = insufficient data
+  alert: "overrun" | "underspend" | "on-track" | "insufficient_data";
   reason: string;
 }
 
@@ -65,7 +65,26 @@ export async function computeBudgetForecasts(): Promise<BudgetForecast[]> {
 
     // 5. CPI = (progress/100 * budget) / spent — earned value / actual cost
     const earnedValue = (progress / 100) * budget;
-    const cpi = spent > 0 ? earnedValue / spent : progress > 0 ? 999 : 1;
+    if (spent === 0 && progress > 0) {
+      // Insufficient data — skip CPI calculation when no spend is recorded
+      results.push({
+        projectId: project.id,
+        projectName: project.name,
+        totalBudget: budget,
+        spent,
+        spentPct: 0,
+        progress,
+        burnRate: 0,
+        projectedTotalSpend: 0,
+        projectedOverrun: 0,
+        projectedUnderspend: budget,
+        costPerformanceIndex: null,
+        alert: "insufficient_data",
+        reason: `Project has ${progress}% progress but zero recorded spend. CPI cannot be calculated. Possible under-reporting of costs.`,
+      });
+      continue;
+    }
+    const cpi = spent > 0 ? earnedValue / spent : 1;
 
     // Spent percentage
     const spentPct = budget > 0 ? Math.round((spent / budget) * 1000) / 10 : 0;
@@ -79,8 +98,12 @@ export async function computeBudgetForecasts(): Promise<BudgetForecast[]> {
     const expectedSpend = budget * timeElapsedRatio;
 
     // 6. Determine alert
-    let alert: "overrun" | "underspend" | "on-track" = "on-track";
+    let alert: "overrun" | "underspend" | "on-track" | "insufficient_data" = "on-track";
     let reason = "";
+
+    const targetDateWarning = progress > 80
+      ? " Note: projection based on target date, not completion pace."
+      : "";
 
     if (projectedTotalSpend > budget * 1.1) {
       // Projected to exceed budget by >10%
@@ -88,11 +111,11 @@ export async function computeBudgetForecasts(): Promise<BudgetForecast[]> {
       const overrunPct = Math.round(
         ((projectedTotalSpend - budget) / budget) * 100,
       );
-      reason = `At current burn rate of ${Math.round(burnRate).toLocaleString()} SAR/day, projected total spend is ${Math.round(projectedTotalSpend).toLocaleString()} SAR (${overrunPct}% over budget of ${Math.round(budget).toLocaleString()} SAR). CPI=${cpi.toFixed(2)}.`;
+      reason = `At current burn rate of ${Math.round(burnRate).toLocaleString()} SAR/day, projected total spend is ${Math.round(projectedTotalSpend).toLocaleString()} SAR (${overrunPct}% over budget of ${Math.round(budget).toLocaleString()} SAR). CPI=${cpi.toFixed(2)}.${targetDateWarning}`;
     } else if (spent < expectedSpend * 0.5 && progress > 50) {
       // Significantly underspending while progress is high
       alert = "underspend";
-      reason = `Only ${spentPct}% of budget spent while progress is at ${progress}%. Expected spend at this point: ~${Math.round(expectedSpend).toLocaleString()} SAR, actual: ${Math.round(spent).toLocaleString()} SAR. Possible under-reporting of costs.`;
+      reason = `Only ${spentPct}% of budget spent while progress is at ${progress}%. Expected spend at this point: ~${Math.round(expectedSpend).toLocaleString()} SAR, actual: ${Math.round(spent).toLocaleString()} SAR. Possible under-reporting of costs.${targetDateWarning}`;
     }
 
     // 7. Only return projects with alerts (not on-track)

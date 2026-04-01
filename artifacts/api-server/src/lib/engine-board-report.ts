@@ -10,8 +10,14 @@ import {
   spmoActivityLogTable,
 } from "@workspace/db";
 import { eq, gte, desc } from "drizzle-orm";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { calcProgrammeProgress } from "./spmo-calc";
+
+let anthropic: any;
+try {
+  anthropic = require("@workspace/integrations-anthropic-ai").anthropic;
+} catch {
+  anthropic = null;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Board Report Narrative Generator
@@ -230,8 +236,20 @@ function buildKpiMetrics(data: Awaited<ReturnType<typeof gatherAllData>>): Board
 // ─────────────────────────────────────────────────────────────
 
 export async function generateBoardReport(): Promise<BoardReport> {
-  const data = await gatherAllData();
   const periodLabel = getCurrentQuarterLabel();
+
+  // Check if Anthropic is configured
+  if (!anthropic) {
+    return {
+      generatedAt: new Date().toISOString(),
+      periodLabel,
+      executiveSummary: "AI report generation requires ANTHROPIC_API_KEY.",
+      sections: [],
+      recommendations: ["Configure ANTHROPIC_API_KEY"],
+    };
+  }
+
+  const data = await gatherAllData();
 
   // Build a detailed prompt with all data
   const systemPrompt = `You are a McKinsey-trained programme management advisor writing a quarterly board report for a government transformation programme. Write in professional executive language. Be specific with numbers. Use the actual data provided — do not fabricate numbers.
@@ -275,17 +293,33 @@ Return ONLY the JSON object, no markdown code fences or extra text.`;
 
 ${JSON.stringify(data, null, 2)}`;
 
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 8192,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userPrompt }],
-  });
+  // Call Anthropic API with 60-second timeout
+  let message: any;
+  try {
+    const apiCall = anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 8192,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    });
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Board report generation timed out after 60 seconds")), 60_000)
+    );
+    message = await Promise.race([apiCall, timeout]);
+  } catch (err: any) {
+    return {
+      generatedAt: new Date().toISOString(),
+      periodLabel,
+      executiveSummary: `AI report generation failed: ${err?.message ?? "Unknown error"}`,
+      sections: [],
+      recommendations: ["Retry report generation or check API key configuration"],
+    };
+  }
 
   // Extract text from the response
   const responseText = message.content
-    .filter((block): block is { type: "text"; text: string } => block.type === "text")
-    .map((block) => block.text)
+    .filter((block: any): block is { type: "text"; text: string } => block.type === "text")
+    .map((block: any) => block.text)
     .join("\n");
 
   // Parse the AI response

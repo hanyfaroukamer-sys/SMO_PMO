@@ -87,9 +87,9 @@ describe("computeInitiativeStatus — child-project escalation", () => {
     expect(hasProjectName).toBe(true);
   });
 
-  it("7. No start date → returns on_track without crash", () => {
+  it("7. No start date → returns not_started (dates not configured)", () => {
     const children: ChildProjectSummary[] = [];
     const result = computeInitiativeStatus(50, null, null, 100, 0, undefined, children);
-    expect(result.status).toBe("on_track");
+    expect(result.status).toBe("not_started");
   });
 });

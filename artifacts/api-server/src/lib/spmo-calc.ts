@@ -590,7 +590,7 @@ function computeStatusCore(
   t: StatusThresholds,
 ): StatusResult {
   if (!startDate || !endDate) {
-    return { status: "on_track", reason: "Dates not set.", spi: 1, burnGap: 0 };
+    return { status: "not_started", reason: "Project dates not configured.", spi: 1, burnGap: 0 };
   }
 
   const today = new Date();
@@ -642,7 +642,7 @@ function computeStatusCore(
     if (spi < t.earlyStallSpi && actualProgress < t.earlyStallProgress) {
       return {
         status: "at_risk",
-        reason: `Mobilisation stalled: ${Math.round(elapsedPct)}% elapsed, only ${Math.round(actualProgress)}% complete.`,
+        reason: `Mobilising — project has minimal progress in early stage (${Math.round(elapsedPct)}% elapsed, ${Math.round(actualProgress)}% complete).`,
         spi: r2(spi),
         burnGap: Math.round(burnGap),
       };
