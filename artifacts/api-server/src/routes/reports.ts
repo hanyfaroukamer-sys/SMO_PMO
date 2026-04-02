@@ -331,7 +331,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="Programme-Report-${new Date().toISOString().slice(0, 10)}.pdf"`,
+      `attachment; filename="Strategy-Weekly-Report-${new Date().toISOString().slice(0, 10)}.pdf"`,
     );
     doc.pipe(res);
 
@@ -381,7 +381,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       .font("Helvetica")
       .fontSize(16)
       .fillColor(C.secondary)
-      .text("Executive Report", M, H * 0.30 + 50, { align: "center", width: CW });
+      .text("Strategy Weekly Report", M, H * 0.30 + 50, { align: "center", width: CW });
     // Thin accent line
     doc.save().moveTo(W * 0.35, H * 0.30 + 80).lineTo(W * 0.65, H * 0.30 + 80).lineWidth(1).strokeColor(C.primary).stroke().restore();
     doc
@@ -1284,7 +1284,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     const pptx = new PptxGenJS();
     pptx.layout = "LAYOUT_WIDE";
     pptx.author = "StrategyPMO";
-    pptx.title = `Programme Report — ${new Date().toISOString().slice(0, 10)}`;
+    pptx.title = `Strategy Weekly Report — ${new Date().toISOString().slice(0, 10)}`;
 
     function addSlideBar(slide: PptxGenJS.Slide) {
       slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: "100%", h: 0.07, fill: { color: PC.primary } });
@@ -1297,12 +1297,12 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
       });
     }
 
-    const totalSlides = 5;
+    const totalSlides = 9;
 
     // ── SLIDE 1: Cover ────────────────────────────────────────────────────────
     const s1 = pptx.addSlide();
     addSlideBar(s1);
-    s1.addText("PROGRAMME\nEXECUTIVE SUMMARY", {
+    s1.addText("STRATEGY\nWEEKLY REPORT", {
       x: 1.5, y: 1.3, w: 10, h: 2,
       fontSize: 36, bold: true, color: PC.dark, align: "center",
     });
@@ -1352,7 +1352,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
       s2.addShape(pptx.ShapeType.roundRect, { x, y: 0.95, w: 2.95, h: 1.3, fill: { color: PC.light }, line: { color: PC.border, width: 0.5 }, rectRadius: 0.08 });
       s2.addShape(pptx.ShapeType.rect, { x, y: 0.95, w: 0.06, h: 1.3, fill: { color: c.color } });
       s2.addText(c.label, { x: x + 0.15, y: 1.0, w: 2.6, h: 0.35, fontSize: 8, color: PC.grey });
-      s2.addText(c.value, { x: x + 0.15, y: 1.28, w: 2.6, h: 0.55, fontSize: 28, bold: true, color: PC.dark });
+      s2.addText(c.value, { x: x + 0.15, y: 1.28, w: 2.6, h: 0.55, fontSize: 22, bold: true, color: PC.dark });
       if (c.sub) s2.addText(c.sub, { x: x + 0.15, y: 1.88, w: 2.6, h: 0.25, fontSize: 8, color: PC.grey });
     });
 
@@ -1694,7 +1694,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="Programme-Report-${new Date().toISOString().slice(0, 10)}.pptx"`,
+      `attachment; filename="Strategy-Weekly-Report-${new Date().toISOString().slice(0, 10)}.pptx"`,
     );
     res.send(pptxBuffer);
   } catch (err) {
