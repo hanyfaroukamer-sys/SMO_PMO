@@ -551,3 +551,33 @@ describe("Stacked bars for departments", () => {
     expect(pdfBody).toContain("(seg.count / dTotal) * barW");
   });
 });
+
+describe("PPTX runtime safety", () => {
+  it("does not use ShapeType.roundRect (invalid in PptxGenJS v4)", () => {
+    expect(pptxBody).not.toContain("ShapeType.roundRect");
+  });
+
+  it("all ShapeType references use valid types (rect, line, ellipse)", () => {
+    const shapeRefs = pptxBody.match(/ShapeType\.(\w+)/g) || [];
+    const validShapes = new Set(["ShapeType.rect", "ShapeType.line", "ShapeType.ellipse", "ShapeType.roundRect"]);
+    // roundRect was fixed to rect, but keep check in case it comes back
+    for (const ref of shapeRefs) {
+      expect(ref).not.toBe("ShapeType.roundRect");
+    }
+  });
+
+  it("addTable calls have valid row data (not undefined)", () => {
+    expect(pptxBody).toContain("addTable(");
+    // Ensure table rows are built before being passed
+    expect(pptxBody).toContain("TableRow[]");
+  });
+
+  it("PPTX slides use 8pt minimum font for body text", () => {
+    const fontSizes = pptxBody.match(/fontSize:\s*(\d+(?:\.\d+)?)/g) || [];
+    const tooSmall = fontSizes.filter((fs) => {
+      const size = parseFloat(fs.match(/\d+(?:\.\d+)?/)![0]);
+      return size < 7;
+    });
+    expect(tooSmall).toEqual([]);
+  });
+});

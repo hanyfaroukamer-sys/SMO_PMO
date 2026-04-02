@@ -1354,7 +1354,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
 
     cardData.forEach((c, i) => {
       const x = 0.4 + i * 3.15;
-      s2.addShape(pptx.ShapeType.roundRect, { x, y: 0.95, w: 2.95, h: 1.3, fill: { color: PC.light }, line: { color: PC.border, width: 0.5 }, rectRadius: 0.08 });
+      s2.addShape(pptx.ShapeType.rect, { x, y: 0.95, w: 2.95, h: 1.3, fill: { color: PC.light }, line: { color: PC.border, width: 0.5 }, rectRadius: 0.08 });
       s2.addShape(pptx.ShapeType.rect, { x, y: 0.95, w: 0.06, h: 1.3, fill: { color: c.color } });
       s2.addText(c.label, { x: x + 0.15, y: 1.0, w: 2.6, h: 0.35, fontSize: 8, color: PC.grey });
       s2.addText(c.value, { x: x + 0.15, y: 1.28, w: 2.6, h: 0.55, fontSize: 22, bold: true, color: PC.dark });
