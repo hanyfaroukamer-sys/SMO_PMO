@@ -245,7 +245,7 @@ function EvidenceSection({
               onInvalidate();
             }}
             disabled={submitMutation.isPending}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {submitMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Target className="w-3.5 h-3.5" />}
             Submit for Approval
@@ -276,7 +276,7 @@ function EvidenceSection({
             placeholder="Reason for rejection (optional)"
             className="flex-1 text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50"
           />
-          <button onClick={handleReject} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-destructive text-white hover:opacity-90">Confirm</button>
+          <button onClick={handleReject} className="px-3 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-destructive text-white hover:opacity-90">Confirm</button>
           <button onClick={() => setRejecting(false)} className="px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-secondary">Cancel</button>
         </div>
       )}
@@ -422,7 +422,7 @@ function MilestonesTab({
             <button
               onClick={handleCreate}
               disabled={createMilestone.isPending || !form.name.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Save className="w-3 h-3" />
               {createMilestone.isPending ? "Creating…" : "Create Milestone"}
