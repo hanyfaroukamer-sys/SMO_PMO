@@ -1416,38 +1416,85 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     foot(s3);
 
     // ══════════════════════════════════════════════════════════════════════════
-    // SLIDE 4: Project Portfolio (9-column table)
+    // SLIDE 4+: Project Portfolio GROUPED BY DEPARTMENT (mirrors PDF exactly)
     // ══════════════════════════════════════════════════════════════════════════
-    const s4 = pptx.addSlide(); bar(s4);
-    s4.addText("Project Portfolio", { x: 0.5, y: 0.15, w: 12, h: 0.5, fontSize: 22, bold: true, color: P.navy });
-    const portRows: PptxGenJS.TableRow[] = [[
-      { text: "#", options: { bold: true, fontSize: 8, fill: { color: P.navy }, color: P.white } },
-      { text: "Code", options: { bold: true, fontSize: 8, fill: { color: P.navy }, color: P.white } },
-      { text: "Project", options: { bold: true, fontSize: 8, fill: { color: P.navy }, color: P.white } },
-      { text: "Status", options: { bold: true, fontSize: 8, fill: { color: P.navy }, color: P.white, align: "center" } },
-      { text: "%", options: { bold: true, fontSize: 8, fill: { color: P.navy }, color: P.white, align: "center" } },
-      { text: "Start", options: { bold: true, fontSize: 8, fill: { color: P.navy }, color: P.white } },
-      { text: "End", options: { bold: true, fontSize: 8, fill: { color: P.navy }, color: P.white } },
-      { text: "Budget", options: { bold: true, fontSize: 8, fill: { color: P.navy }, color: P.white } },
-      { text: "Owner", options: { bold: true, fontSize: 8, fill: { color: P.navy }, color: P.white } },
-    ]];
-    projRows.slice(0, 18).forEach((p, i) => {
-      const rf = i % 2 === 0 ? P.white : P.bg;
-      const sc = stColor(p.cs);
-      portRows.push([
-        { text: String(i + 1), options: { fontSize: 8, fill: { color: rf } } },
-        { text: p.projectCode ?? "—", options: { fontSize: 8, fill: { color: rf } } },
-        { text: (p.name ?? "").slice(0, 30), options: { fontSize: 8, fill: { color: rf } } },
-        { text: stLabel(p.cs), options: { fontSize: 8, bold: true, color: P.white, fill: { color: sc }, align: "center" } },
-        { text: `${p.progress}%`, options: { fontSize: 8, bold: true, fill: { color: rf }, align: "center" } },
-        { text: fmtD(p.startDate), options: { fontSize: 8, fill: { color: rf } } },
-        { text: fmtD(p.targetDate), options: { fontSize: 8, fill: { color: rf } } },
-        { text: fmtM(p.budget ?? 0), options: { fontSize: 8, fill: { color: rf } } },
-        { text: (p.ownerName ?? "—").slice(0, 15), options: { fontSize: 8, fill: { color: rf } } },
-      ]);
-    });
-    s4.addTable(portRows, { x: 0.3, y: 0.75, w: 12.7, colW: [0.4, 0.7, 3.2, 1, 0.6, 1, 1, 1.2, 1.5], border: { color: P.border, pt: 0.5 } });
-    foot(s4);
+    {
+      const headerOpts = (text: string): PptxGenJS.TableCell => ({ text, options: { bold: true, fontSize: 8, fill: { color: P.navy }, color: P.white } });
+      const colW = [0.35, 0.6, 2.4, 0.85, 0.55, 0.85, 0.85, 0.85, 1.4, 2.2, 1.8];
+      const headers: PptxGenJS.TableRow = [
+        headerOpts("#"), headerOpts("Code"), headerOpts("Project"), headerOpts("Status"),
+        headerOpts("%"), headerOpts("Start"), headerOpts("End"), headerOpts("Budget"),
+        headerOpts("Owner"), headerOpts("Achievements"), headerOpts("Next Steps"),
+      ];
+
+      // Group projects by department (same as PDF)
+      const pptxDeptGroups = data.departments.map((dept) => {
+        const dp = projRows.filter((p) => (p as any).departmentId === dept.id);
+        dp.sort((a, b) => (sOrd[a.cs] ?? 5) - (sOrd[b.cs] ?? 5));
+        const avg = dp.length === 0 ? 0 : Math.round(dp.reduce((s, p) => s + p.progress, 0) / dp.length);
+        return { name: dept.name, projects: dp, avg };
+      }).filter((g) => g.projects.length > 0);
+
+      let slidePortfolio = pptx.addSlide(); bar(slidePortfolio);
+      slidePortfolio.addText("Project Portfolio", { x: 0.5, y: 0.15, w: 12, h: 0.5, fontSize: 22, bold: true, color: P.navy });
+      let rowCount = 0;
+      let globalNum = 0;
+      const MAX_ROWS_PER_SLIDE = 14;
+
+      for (const group of pptxDeptGroups) {
+        // Check if we need a new slide
+        if (rowCount + 2 + group.projects.length > MAX_ROWS_PER_SLIDE && rowCount > 0) {
+          foot(slidePortfolio);
+          slidePortfolio = pptx.addSlide(); bar(slidePortfolio);
+          slidePortfolio.addText("Project Portfolio (cont.)", { x: 0.5, y: 0.15, w: 12, h: 0.5, fontSize: 22, bold: true, color: P.navy });
+          rowCount = 0;
+        }
+
+        // Build table rows for this department
+        const tableRows: PptxGenJS.TableRow[] = [];
+
+        // Department header row (navy, full span via merged-like approach)
+        const deptHeaderCell: PptxGenJS.TableCell = { text: `${group.name} — ${group.projects.length} projects, avg ${group.avg}%`, options: { bold: true, fontSize: 9, fill: { color: P.navy }, color: P.white, colspan: 11 } };
+        tableRows.push([deptHeaderCell]);
+
+        // Column headers
+        tableRows.push(headers);
+
+        // Project rows
+        group.projects.forEach((p, i) => {
+          globalNum++;
+          const rf = i % 2 === 0 ? P.white : P.bg;
+          const sc = stColor(p.cs);
+          const report = data.weeklyReports.get(p.id);
+          const achieve = ((report as any)?.keyAchievements || (report as any)?.statusReason || "—").slice(0, 60);
+          const next = ((report as any)?.nextSteps || (report as any)?.completionReason || "—").slice(0, 60);
+
+          tableRows.push([
+            { text: String(globalNum), options: { fontSize: 8, fill: { color: rf } } },
+            { text: (p.projectCode ?? "—").slice(0, 8), options: { fontSize: 8, bold: true, fill: { color: rf } } },
+            { text: (p.name ?? "").slice(0, 28), options: { fontSize: 8, fill: { color: rf } } },
+            { text: stLabel(p.cs), options: { fontSize: 7, bold: true, color: P.white, fill: { color: sc }, align: "center" } },
+            { text: `${p.progress}%`, options: { fontSize: 8, bold: true, fill: { color: rf }, align: "center" } },
+            { text: fmtD(p.startDate), options: { fontSize: 7, fill: { color: rf } } },
+            { text: fmtD(p.targetDate), options: { fontSize: 7, fill: { color: rf } } },
+            { text: fmtM(p.budget ?? 0), options: { fontSize: 7, fill: { color: rf } } },
+            { text: (p.ownerName ?? "—").slice(0, 14), options: { fontSize: 8, fill: { color: rf } } },
+            { text: achieve, options: { fontSize: 7, fill: { color: rf } } },
+            { text: next, options: { fontSize: 7, fill: { color: rf } } },
+          ]);
+        });
+
+        const tableY = 0.7 + rowCount * 0.28;
+        slidePortfolio.addTable(tableRows, {
+          x: 0.15, y: tableY, w: 13,
+          colW,
+          border: { color: P.border, pt: 0.3 },
+        });
+
+        rowCount += 2 + group.projects.length;
+      }
+      foot(slidePortfolio);
+    }
 
     // ══════════════════════════════════════════════════════════════════════════
     // SLIDE 5: Budget & KPIs
