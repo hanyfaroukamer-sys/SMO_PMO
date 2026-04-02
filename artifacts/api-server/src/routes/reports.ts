@@ -1263,7 +1263,8 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
 
     const data = await gatherReportData();
 
-    const pptx = new PptxGenJS();
+    const PptxGen = (PptxGenJS as any).default ?? PptxGenJS;
+    const pptx = new PptxGen();
     pptx.layout = "LAYOUT_WIDE";
     pptx.author = "StrategyPMO";
     pptx.title = `Strategy Weekly Report — ${new Date().toISOString().slice(0, 10)}`;
