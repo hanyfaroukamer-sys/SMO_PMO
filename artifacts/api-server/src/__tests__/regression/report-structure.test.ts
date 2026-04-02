@@ -289,7 +289,7 @@ describe("PPTX handler", () => {
   });
 
   it("creates PptxGenJS instance", () => {
-    expect(pptxBody).toContain("new PptxGenJS()");
+    expect(pptxBody).toContain("new PptxGen()");
   });
 
   it("adds at least 5 slides via addSlide()", () => {

@@ -96,7 +96,8 @@ describe("Code quality: no undefined variables in reports.ts", () => {
     const blockScopedAllowed = new Set(["i", "idx", "m", "r", "p", "s", "x", "y", "slide",
       "ms", "prog", "sc", "report", "match", "entry", "item", "row", "col",
       "rowFill", "topRisk", "spentPct", "fmtBudget",
-      "cs", "deptProjs", "projRisks", "barSegs", "segW", "dTotal", "segX"]);
+      "cs", "deptProjs", "projRisks", "barSegs", "segW", "dTotal", "segX",
+      "rf", "dp", "sc", "proj", "dr", "crit", "high", "med"]);
     let match;
     while ((match = declRegex.exec(pptxBody)) !== null) {
       const varName = match[1];
