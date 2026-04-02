@@ -1741,7 +1741,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
   } catch (err) {
     req.log?.error?.({ err }, "PPTX generation error");
     if (!res.headersSent) {
-      res.status(500).json({ error: "Failed to generate PPTX report" });
+      res.status(500).json({ error: "Failed to generate PPTX report", detail: String(err), stack: (err as Error)?.stack?.slice(0, 500) });
     }
   }
 });
