@@ -30,11 +30,12 @@ function requireAuth(req: Request, res: Response): string | null {
   return user.id;
 }
 
-// ─── Colours ──────────────────────────────────────────────────────────────────
+// ─── McKinsey/BCG Colour Palette ─────────────────────────────────────────────
 const C = {
-  primary: "#2563EB",
+  primary: "#1E3A5F",
+  accent: "#2563EB",
   dark: "#0F172A",
-  secondary: "#64748B",
+  secondary: "#475569",
   bg: "#F8FAFC",
   border: "#E2E8F0",
   green: "#16A34A",
@@ -48,9 +49,10 @@ const C = {
 
 // PPTX hex colours (no #)
 const PC = {
-  primary: "2563EB",
+  primary: "1E3A5F",
+  accent: "2563EB",
   dark: "0F172A",
-  grey: "64748B",
+  grey: "475569",
   light: "F8FAFC",
   green: "16A34A",
   amber: "D97706",
@@ -97,7 +99,23 @@ function kpiStatusPtxColor(status: string): string {
 }
 
 function formatDate(d: Date): string {
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function fmtSAR(v: number): string {
+  if (v >= 1_000_000_000) return `SAR ${(v / 1_000_000_000).toFixed(1)}B`;
+  if (v >= 1_000_000) return `SAR ${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `SAR ${(v / 1_000).toFixed(0)}K`;
+  return `SAR ${v.toFixed(0)}`;
+}
+
+function statusLabelUpper(status: string): string {
+  if (status === "on_track") return "ON TRACK";
+  if (status === "at_risk") return "AT RISK";
+  if (status === "delayed") return "DELAYED";
+  if (status === "completed") return "COMPLETED";
+  if (status === "not_started") return "NOT STARTED";
+  return status.toUpperCase();
 }
 
 const SEVERITY_ORDER: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
@@ -217,23 +235,42 @@ async function gatherReportData() {
   };
 }
 
-// ─── PDF helpers ──────────────────────────────────────────────────────────────
+// ─── PDF helpers (McKinsey/BCG style) ────────────────────────────────────────
 
 function pdfAccentBar(doc: InstanceType<typeof PDFDocument>) {
-  doc.save().rect(0, 0, doc.page.width, 5).fill(C.primary).restore();
+  doc.save().rect(0, 0, doc.page.width, 4).fill(C.primary).restore();
 }
 
 function pdfFooter(doc: InstanceType<typeof PDFDocument>, pageNum: number, total: number) {
+  const y = doc.page.height - 22;
+  doc
+    .save()
+    .moveTo(40, y - 4)
+    .lineTo(doc.page.width - 40, y - 4)
+    .lineWidth(0.5)
+    .strokeColor(C.border)
+    .stroke()
+    .restore();
   doc
     .save()
     .font("Helvetica")
     .fontSize(7)
     .fillColor(C.secondary)
     .text(
-      `StrategyPMO · Generated ${formatDate(new Date())} · Page ${pageNum} of ${total} · CONFIDENTIAL`,
+      `CONFIDENTIAL  ·  StrategyPMO  ·  ${formatDate(new Date())}`,
       40,
-      doc.page.height - 22,
+      y,
       { align: "center", width: doc.page.width - 80 },
+    );
+  doc
+    .font("Helvetica")
+    .fontSize(7)
+    .fillColor(C.secondary)
+    .text(
+      `Page ${pageNum} of ${total}`,
+      doc.page.width - 120,
+      y,
+      { align: "right", width: 80 },
     )
     .restore();
 }
@@ -248,9 +285,35 @@ function pdfHorizBar(
   fillColor: string,
   trackColor = "#E2E8F0",
 ) {
-  doc.save().roundedRect(x, y, w, h, 3).fill(trackColor);
-  if (pct > 0) doc.save().roundedRect(x, y, Math.max((w * Math.min(pct, 100)) / 100, 4), h, 3).fill(fillColor);
+  doc.save().rect(x, y, w, h).fill(trackColor);
+  if (pct > 0) doc.save().rect(x, y, Math.max((w * Math.min(pct, 100)) / 100, 2), h).fill(fillColor);
   doc.restore();
+}
+
+function pdfStatusDot(
+  doc: InstanceType<typeof PDFDocument>,
+  x: number,
+  y: number,
+  status: string,
+) {
+  doc.save().circle(x, y, 4).fill(statusColor(status)).restore();
+}
+
+function pdfKpiBox(
+  doc: InstanceType<typeof PDFDocument>,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  value: string,
+  label: string,
+  color: string,
+) {
+  doc.save().rect(x, y, w, h).fill(C.white).restore();
+  doc.save().rect(x, y, w, 3).fill(color).restore();
+  doc.save().rect(x, y, w, h).lineWidth(0.5).strokeColor(C.border).stroke().restore();
+  doc.font("Helvetica-Bold").fontSize(26).fillColor(C.dark).text(value, x + 10, y + 14, { width: w - 20, align: "center" });
+  doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(label.toUpperCase(), x + 10, y + 48, { width: w - 20, align: "center" });
 }
 
 // ─── PDF REPORT ──────────────────────────────────────────────────────────────

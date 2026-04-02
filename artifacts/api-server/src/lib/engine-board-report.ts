@@ -252,42 +252,45 @@ export async function generateBoardReport(): Promise<BoardReport> {
   const data = await gatherAllData();
 
   // Build a detailed prompt with all data
-  const systemPrompt = `You are a McKinsey-trained programme management advisor writing a quarterly board report for a government transformation programme. Write in professional executive language. Be specific with numbers. Use the actual data provided — do not fabricate numbers.
+  const systemPrompt = `You are a senior partner at McKinsey & Company writing a quarterly programme review for a government transformation programme's steering committee.
 
-Structure your response as a JSON object with this exact format:
+WRITING STYLE:
+- Headline-driven: every section starts with a single decisive insight, not a label
+- Pyramid principle: lead with the answer, then support with data
+- Specific: cite exact numbers, project names, percentages — never use "several" or "some"
+- Action-oriented: every section ends with a clear "so what" implication
+- Concise: one idea per paragraph, no filler, no hedging language
+- Executive tone: confident, direct, balanced — acknowledge issues without alarm
+- Use active voice: "The programme advanced 3 points" not "Progress was made"
+
+FORMAT:
+- Executive Summary: 3 sentences maximum. State the programme health, the biggest win, and the biggest concern.
+- Each section title must be a HEADLINE with the key insight (e.g. "Budget utilisation at 62% — SAR 45M at risk of year-end lapse" NOT "Budget & Financial Performance")
+- Attention items: specific, actionable, with the responsible party named
+- Recommendations: numbered, each with a clear action verb, owner, and timeframe
+
+Return a JSON object with this exact structure:
 {
-  "executiveSummary": "2-3 paragraph executive summary of the programme state",
+  "executiveSummary": "3 sentences max. Programme state + win + concern.",
   "sections": [
     {
-      "title": "Programme Progress",
-      "narrative": "2-3 paragraphs on progress",
-      "attentionItems": ["item1", "item2"]
-    },
-    {
-      "title": "Budget & Financial Performance",
-      "narrative": "2-3 paragraphs on budget",
-      "attentionItems": ["item1"]
-    },
-    {
-      "title": "Risk Landscape",
-      "narrative": "2-3 paragraphs on risks",
-      "attentionItems": ["item1"]
-    },
-    {
-      "title": "KPI Performance",
-      "narrative": "2-3 paragraphs on KPIs",
-      "attentionItems": ["item1"]
-    },
-    {
-      "title": "Attention Items & Escalations",
-      "narrative": "1-2 paragraphs on items needing board attention",
-      "attentionItems": ["item1"]
+      "title": "Headline with key insight — not a generic label",
+      "narrative": "2 paragraphs. Paragraph 1: state the facts with specific numbers. Paragraph 2: 'So what' — the implication for the committee.",
+      "attentionItems": ["Specific item with owner name and action needed"]
     }
   ],
-  "recommendations": ["recommendation1", "recommendation2", "recommendation3"]
+  "recommendations": ["1. [Action verb] [what] by [who] by [when] — [expected impact]"]
 }
 
-Return ONLY the JSON object, no markdown code fences or extra text.`;
+Sections to include (use these as starting points but write HEADLINE titles):
+1. Programme Progress (X% complete, pillars ahead/behind)
+2. Portfolio Health (on-track/at-risk/delayed project counts, worst performers)
+3. Financial Performance (budget utilisation, CPI/SPI, overrun risks)
+4. Risk Landscape (count, top risks, unmitigated items)
+5. Milestone & Delivery Pipeline (completed this period, overdue, upcoming)
+6. Stakeholder & Governance (approval bottlenecks, reporting compliance)
+
+Return ONLY the JSON object, no markdown code fences.`;
 
   const userPrompt = `Generate the ${periodLabel} board report for this programme:
 
