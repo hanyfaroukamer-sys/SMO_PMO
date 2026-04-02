@@ -497,86 +497,91 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc.addPage();
       pdfAccentBar(doc);
       doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Department Overview", M, 20);
-      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text("Project distribution and progress by department", M, 44);
+      doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text("Project distribution and health by department", M, 44);
 
-      let deptOverY = 66;
-      const deptRowH = 50;
+      // Legend at the top — one row explaining all colors
+      const legY = 62;
+      const legItems = [
+        { label: "On Track", color: C.green },
+        { label: "At Risk", color: C.amber },
+        { label: "Delayed", color: C.red },
+        { label: "Completed", color: "#059669" },
+        { label: "Not Started", color: C.secondary },
+      ];
+      let legX = M;
+      legItems.forEach((l) => {
+        doc.save().roundedRect(legX, legY, 10, 10, 2).fill(l.color).restore();
+        doc.font("Helvetica").fontSize(9).fillColor(C.dark).text(l.label, legX + 14, legY, { width: 70 });
+        legX += 85;
+      });
 
-      for (const dept of data.departments.slice(0, 10)) {
-        if (deptOverY + deptRowH > H - 40) break;
+      // Table header
+      const deptTableY = legY + 22;
+      const deptCols = [M, M + 200, M + 340, M + 490, M + CW - 70];
+      doc.save().rect(M, deptTableY, CW, 22).fill(C.primary).restore();
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(C.white);
+      doc.text("Department", deptCols[0] + 8, deptTableY + 6, { width: 190 });
+      doc.text("Status Distribution", deptCols[1] + 8, deptTableY + 6, { width: 140 });
+      doc.text("Avg Progress", deptCols[2] + 8, deptTableY + 6, { width: 140 });
+      doc.text("Projects", deptCols[3] + 8, deptTableY + 6, { width: 60, align: "center" });
 
-        // Compute per-department status counts
+      let deptOverY = deptTableY + 24;
+      const deptRowH = 32;
+
+      for (const dept of data.departments.slice(0, 14)) {
+        if (deptOverY + deptRowH > H - 40) { doc.addPage(); pdfAccentBar(doc); deptOverY = 30; }
+
         const deptProjectRows = projectRows.filter((p: any) => p.departmentId === dept.id);
         const dOnTrack = deptProjectRows.filter((p: any) => p.computedStatus === "on_track").length;
         const dAtRisk = deptProjectRows.filter((p: any) => p.computedStatus === "at_risk").length;
         const dDelayed = deptProjectRows.filter((p: any) => p.computedStatus === "delayed").length;
         const dCompleted = deptProjectRows.filter((p: any) => p.computedStatus === "completed").length;
-        const dNotStarted = deptProjectRows.filter((p: any) => p.computedStatus === "not_started").length;
-        const dOther = dept.projectCount - dOnTrack - dAtRisk - dDelayed - dCompleted - dNotStarted;
         const dTotal = dept.projectCount || 1;
 
-        // Row background
-        doc.save().rect(M, deptOverY, CW, deptRowH).fill(C.bg).stroke(C.border).restore();
+        // Alternating row background
+        const rowBg = (data.departments.indexOf(dept) % 2 === 0) ? C.white : C.bg;
+        doc.save().rect(M, deptOverY, CW, deptRowH).fill(rowBg).restore();
 
-        // Department name (bold, 12pt)
-        doc.font("Helvetica-Bold").fontSize(12).fillColor(C.dark).text(dept.name, M + 10, deptOverY + 4, { width: 200 });
+        // Department name
+        doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(dept.name, deptCols[0] + 8, deptOverY + 9, { width: 190 });
 
-        // Colored squares legend
-        const sqY = deptOverY + 20;
-        const sqSize = 10;
-        let sqX = M + 10;
-        const segments = [
-          { count: dOnTrack, color: C.green, label: "on track" },
-          { count: dAtRisk, color: C.amber, label: "at risk" },
-          { count: dDelayed, color: C.red, label: "delayed" },
-          { count: dCompleted + dNotStarted + dOther, color: C.secondary, label: "other" },
-        ];
-        segments.forEach((seg) => {
-          for (let s = 0; s < Math.min(seg.count, 12); s++) {
-            doc.save().rect(sqX, sqY, sqSize, sqSize).fill(seg.color).restore();
-            sqX += sqSize + 2;
-          }
-        });
-
-        // Numbers inline
-        doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(
-          `${dOnTrack} on track  ·  ${dAtRisk} at risk  ·  ${dDelayed} delayed  ·  ${dCompleted} completed`,
-          M + 10, deptOverY + 35, { width: 300 }
-        );
-
-        // Stacked progress bar (180px wide, 14px tall)
-        const barX = M + 320;
-        const barW = 180;
+        // Stacked status bar (clean, proportional)
+        const barX = deptCols[1] + 8;
+        const barW = 130;
         const barH = 14;
-        const barY = deptOverY + 8;
-        // Track
-        doc.save().rect(barX, barY, barW, barH).fill(C.border).restore();
-        // Segments
-        let segOffset = 0;
-        const barSegments = [
+        const barY = deptOverY + 9;
+        doc.save().roundedRect(barX, barY, barW, barH, 3).fill(C.border).restore();
+        let segX = barX;
+        const barSegs = [
           { count: dOnTrack, color: C.green },
           { count: dAtRisk, color: C.amber },
           { count: dDelayed, color: C.red },
-          { count: dCompleted + dNotStarted + dOther, color: C.secondary },
+          { count: dCompleted, color: "#059669" },
         ];
-        barSegments.forEach((seg) => {
+        barSegs.forEach((seg) => {
           const segW = (seg.count / dTotal) * barW;
-          if (segW > 0) {
-            doc.save().rect(barX + segOffset, barY, segW, barH).fill(seg.color).restore();
-            segOffset += segW;
+          if (segW >= 2) {
+            doc.save().rect(segX, barY, segW, barH).fill(seg.color).restore();
+            // Show count inside segment if wide enough
+            if (segW > 14) {
+              doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white).text(String(seg.count), segX, barY + 2, { width: segW, align: "center" });
+            }
+            segX += segW;
           }
         });
 
-        // Average progress
-        doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(`Avg ${dept.avgProgress}%`, barX, barY + 18, { width: barW });
+        // Average progress with bar
+        const progBarX = deptCols[2] + 8;
+        const progBarW = 100;
+        doc.save().roundedRect(progBarX, barY, progBarW, barH, 3).fill(C.border).restore();
+        const progColor = dept.avgProgress >= 70 ? C.green : dept.avgProgress >= 40 ? C.amber : C.red;
+        doc.save().roundedRect(progBarX, barY, Math.max((dept.avgProgress / 100) * progBarW, 2), barH, 3).fill(progColor).restore();
+        doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(`${dept.avgProgress}%`, progBarX + progBarW + 8, barY + 1, { width: 40 });
 
-        // Total projects count in a circle
-        const circleX = M + CW - 40;
-        const circleY = deptOverY + deptRowH / 2;
-        doc.save().circle(circleX, circleY, 16).fill(C.primary).restore();
-        doc.font("Helvetica-Bold").fontSize(12).fillColor(C.white).text(String(dept.projectCount), circleX - 14, circleY - 7, { width: 28, align: "center" });
+        // Project count
+        doc.font("Helvetica-Bold").fontSize(12).fillColor(C.primary).text(String(dept.projectCount), deptCols[3] + 8, deptOverY + 8, { width: 60, align: "center" });
 
-        deptOverY += deptRowH + 4;
+        deptOverY += deptRowH;
       }
     }
 

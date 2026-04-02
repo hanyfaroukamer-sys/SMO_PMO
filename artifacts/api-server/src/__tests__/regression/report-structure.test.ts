@@ -386,11 +386,11 @@ describe("CONFIDENTIAL text", () => {
 // ════════════════════════════════════════════════════════════════════════════
 describe("Report filename includes date", () => {
   it("PDF Content-Disposition includes ISO date", () => {
-    expect(pdfBody).toMatch(/Content-Disposition.*Programme-Report-.*toISOString/s);
+    expect(pdfBody).toMatch(/Content-Disposition.*Strategy-Weekly-Report-.*toISOString/s);
   });
 
   it("PPTX Content-Disposition includes ISO date", () => {
-    expect(pptxBody).toMatch(/Content-Disposition.*Programme-Report-.*toISOString/s);
+    expect(pptxBody).toMatch(/Content-Disposition.*Strategy-Weekly-Report-.*toISOString/s);
   });
 });
 
@@ -532,8 +532,8 @@ describe("Budget SAR formatting", () => {
 describe("Stacked bars for departments", () => {
   it("Department Overview section renders stacked/segmented bars", () => {
     // The department overview has barSegments with on_track/at_risk/delayed
-    expect(pdfBody).toContain("barSegments");
-    expect(pdfBody).toContain("segOffset");
+    expect(pdfBody).toContain("barSegs");
+    expect(pdfBody).toContain("segX");
   });
 
   it("bar segments use green, amber, red, and secondary colors", () => {
