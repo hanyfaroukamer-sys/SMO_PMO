@@ -1298,7 +1298,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     function addFooter(slide: PptxGenJS.Slide, pageNum: number, total: number) {
       slide.addText(`StrategyPMO · ${formatDate(new Date())} · Page ${pageNum} of ${total} · CONFIDENTIAL`, {
         x: 0.5, y: 7.0, w: 12.3, h: 0.3,
-        fontSize: 7, color: PC.grey, align: "center",
+        fontSize: 8, color: PC.grey, align: "center",
       });
     }
 
@@ -1393,269 +1393,350 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
 
     addFooter(s2, 2, totalSlides);
 
-    // ── SLIDE 3: Initiative Performance ───────────────────────────────────────
-    const s3 = pptx.addSlide();
-    addSlideBar(s3);
-    s3.addText("Initiative Performance", { x: 0.5, y: 0.15, w: 12, h: 0.6, fontSize: 22, bold: true, color: PC.dark });
-
-    const tableRows: PptxGenJS.TableRow[] = [
-      [
-        { text: "Initiative", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
-        { text: "Pillar", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
-        { text: "Progress %", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
-        { text: "SPI", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
-        { text: "Status", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
-        { text: "Budget (M)", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
-      ],
-    ];
-
-    data.initiatives.forEach((init, idx) => {
-      const rowFill = idx % 2 === 0 ? PC.white : PC.light;
-      const sc = statusPtxColor(init.status);
-      tableRows.push([
-        { text: init.name, options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
-        { text: init.pillarName, options: { fontSize: 8, color: PC.grey, fill: { color: rowFill } } },
-        { text: `${init.progress}%`, options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
-        { text: init.spi.toFixed(2), options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
-        { text: statusLabel(init.status), options: { fontSize: 8, bold: true, color: PC.white, fill: { color: sc } } },
-        { text: `${(init.budget / 1_000_000).toFixed(1)}`, options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
-      ]);
-    });
-
-    s3.addTable(tableRows, {
-      x: 0.4, y: 0.95, w: 12.5,
-      border: { type: "solid", pt: 0.5, color: PC.border },
-      colW: [3.8, 2.3, 1.5, 1.0, 1.5, 1.5],
-      margin: [3, 5, 3, 5],
-    });
-
-    const delayed = data.initiatives.filter((i) => i.status === "delayed");
-    if (delayed.length > 0) {
-      const delayedText = `Delayed: ${delayed.map((d) => `${d.name} (SPI ${d.spi.toFixed(2)})`).join(", ")}`;
-      s3.addText(delayedText, {
-        x: 0.4, y: 6.3, w: 12.5, h: 0.5,
-        fontSize: 8, color: PC.red, italic: true,
-      });
-    }
-
-    addFooter(s3, 3, totalSlides);
-
-    // ── SLIDE 4: Budget & KPIs ────────────────────────────────────────────────
-    const s4 = pptx.addSlide();
-    addSlideBar(s4);
-    s4.addText("Budget Health & Strategic KPIs", { x: 0.5, y: 0.15, w: 12, h: 0.6, fontSize: 22, bold: true, color: PC.dark });
-
-    // Budget chart — stacked bar (allocated vs spent per pillar)
-    const pillarBudgets2 = data.programme.pillarSummaries.map((ps) => {
-      const inits = data.initiatives.filter((i) => i.pillarName === ps.pillar.name);
-      const allocated = inits.reduce((s, i) => s + i.budget, 0);
-      const pillarProjects2 = data.projects.filter((p) => inits.some((i) => i.id === p.initiativeId));
-      const spent = pillarProjects2.reduce((s, p) => s + (p.budgetSpent ?? 0), 0);
-      return { name: ps.pillar.name, allocated, spent };
-    });
-
-    s4.addChart(
-      pptx.ChartType.bar,
-      [
-        { name: "Allocated (M)", labels: pillarBudgets2.map((p) => p.name), values: pillarBudgets2.map((p) => Math.round(p.allocated / 1_000_000)) },
-        { name: "Spent (M)", labels: pillarBudgets2.map((p) => p.name), values: pillarBudgets2.map((p) => Math.round(p.spent / 1_000_000)) },
-      ],
-      {
-        x: 0.4, y: 0.9, w: 7.0, h: 5.8,
-        showTitle: true, title: "Budget by Pillar (M SAR)",
-        barDir: "bar",
-        barGrouping: "stacked",
-        showLegend: true, legendPos: "t",
-        catAxisLabelFontSize: 8,
-        chartColors: ["BFDBFE", "2563EB"],
-      },
-    );
-
-    // KPI table on right
-    const kpiRows: PptxGenJS.TableRow[] = [
-      [
-        { text: "KPI Name", options: { bold: true, fontSize: 7.5, color: PC.white, fill: { color: PC.primary } } },
-        { text: "Actual", options: { bold: true, fontSize: 7.5, color: PC.white, fill: { color: PC.primary } } },
-        { text: "Target", options: { bold: true, fontSize: 7.5, color: PC.white, fill: { color: PC.primary } } },
-        { text: "Status", options: { bold: true, fontSize: 7.5, color: PC.white, fill: { color: PC.primary } } },
-      ],
-    ];
-
-    data.kpis.slice(0, 10).forEach((kpi, idx) => {
-      const rowFill = idx % 2 === 0 ? PC.white : PC.light;
-      const sc = kpiStatusPtxColor(kpi.status ?? "");
-      kpiRows.push([
-        { text: kpi.name ?? "—", options: { fontSize: 7.5, color: PC.dark, fill: { color: rowFill } } },
-        { text: String(kpi.actual ?? "—"), options: { fontSize: 7.5, color: PC.dark, fill: { color: rowFill } } },
-        { text: String(kpi.target ?? "—"), options: { fontSize: 7.5, color: PC.dark, fill: { color: rowFill } } },
-        { text: (kpi.status ?? "—").replace("_", " "), options: { fontSize: 7.5, bold: true, color: PC.white, fill: { color: sc } } },
-      ]);
-    });
-
-    s4.addTable(kpiRows, {
-      x: 7.6, y: 0.9, w: 5.3,
-      border: { type: "solid", pt: 0.5, color: PC.border },
-      colW: [2.2, 1.0, 1.0, 1.1],
-      margin: [3, 4, 3, 4],
-    });
-
-    addFooter(s4, 4, totalSlides);
-
-    // ── SLIDE 5: Risks & AI Assessment ────────────────────────────────────────
-    const s5 = pptx.addSlide();
-    addSlideBar(s5);
-    s5.addText("Risk Summary & AI Assessment", { x: 0.5, y: 0.15, w: 12, h: 0.6, fontSize: 22, bold: true, color: PC.dark });
-
-    // Top risks table
-    const riskRows: PptxGenJS.TableRow[] = [
-      [
-        { text: "Risk", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
-        { text: "Severity", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
-        { text: "Score", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
-        { text: "Status", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
-      ],
-    ];
-
-    data.topRisks.forEach((risk, idx) => {
-      const rowFill = idx % 2 === 0 ? PC.white : PC.light;
-      const sc = sevPtxColor(risk.impact);
-      riskRows.push([
-        { text: risk.title, options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
-        { text: (risk.impact ?? "—").toUpperCase(), options: { fontSize: 8, bold: true, color: PC.white, fill: { color: sc } } },
-        { text: String(sevNum(risk.impact) * sevNum(risk.probability)), options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
-        { text: risk.status ?? "open", options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
-      ]);
-    });
-
-    s5.addTable(riskRows, {
-      x: 0.4, y: 0.9, w: 6.5,
-      border: { type: "solid", pt: 0.5, color: PC.border },
-      colW: [3.0, 1.3, 1.0, 1.2],
-      margin: [3, 5, 3, 5],
-    });
-
-    // AI Assessment box
-    const aiBox = { x: 7.1, y: 0.9, w: 6.0, h: 5.8 };
-    s5.addShape(pptx.ShapeType.roundRect, { ...aiBox, fill: { color: PC.light }, line: { color: PC.border, width: 0.5 }, rectRadius: 0.08 });
-    s5.addText("AI Programme Assessment", { x: aiBox.x + 0.15, y: aiBox.y + 0.1, w: 5.7, h: 0.4, fontSize: 11, bold: true, color: PC.dark });
-
-    if (data.aiAssessment) {
-      const hColor = data.aiAssessment.overallHealth === "excellent" || data.aiAssessment.overallHealth === "good"
-        ? PC.green : data.aiAssessment.overallHealth === "at_risk" || data.aiAssessment.overallHealth === "critical"
-          ? PC.red : PC.amber;
-      s5.addShape(pptx.ShapeType.roundRect, { x: aiBox.x + 0.15, y: aiBox.y + 0.6, w: 5.7, h: 0.45, fill: { color: hColor }, rectRadius: 0.05 });
-      s5.addText(`Overall: ${data.aiAssessment.overallHealth.replace("_", " ").toUpperCase()}`, {
-        x: aiBox.x + 0.3, y: aiBox.y + 0.65, w: 5.5, h: 0.35, fontSize: 11, bold: true, color: PC.white,
-      });
-
-      s5.addText(data.aiAssessment.summary, {
-        x: aiBox.x + 0.15, y: aiBox.y + 1.2, w: 5.7, h: 1.2, fontSize: 8.5, color: PC.dark,
-      });
-
-      let aiTxtY = aiBox.y + 2.5;
-      if (data.aiAssessment.recommendations?.length > 0) {
-        s5.addText("Key Recommendations:", { x: aiBox.x + 0.15, y: aiTxtY, w: 5.7, h: 0.28, fontSize: 8.5, bold: true, color: PC.primary });
-        aiTxtY += 0.3;
-        data.aiAssessment.recommendations.slice(0, 3).forEach((r) => {
-          s5.addText(`• ${r}`, { x: aiBox.x + 0.3, y: aiTxtY, w: 5.5, h: 0.35, fontSize: 8, color: PC.dark });
-          aiTxtY += 0.37;
-        });
-      }
-
-      if (data.aiAssessment.riskFlags?.length > 0) {
-        aiTxtY += 0.1;
-        s5.addText("Risk Flags:", { x: aiBox.x + 0.15, y: aiTxtY, w: 5.7, h: 0.28, fontSize: 8.5, bold: true, color: PC.red });
-        aiTxtY += 0.3;
-        data.aiAssessment.riskFlags.slice(0, 2).forEach((r) => {
-          s5.addText(`• ${r}`, { x: aiBox.x + 0.3, y: aiTxtY, w: 5.5, h: 0.35, fontSize: 8, color: PC.dark });
-          aiTxtY += 0.37;
-        });
-      }
-    } else {
-      s5.addText(
-        "Run AI Assessment from the dashboard to include AI-powered analysis in this report.",
-        { x: aiBox.x + 0.15, y: aiBox.y + 0.7, w: 5.7, h: 1.0, fontSize: 9, color: PC.grey, italic: true },
-      );
-    }
-
-    addFooter(s5, 5, totalSlides);
-
-    // ── SLIDE 6: Department Overview ──────────────────────────────────────────
-    if (data.departments.length > 0) {
-      const sDept = pptx.addSlide();
-      addSlideBar(sDept);
-      sDept.addText("Department Progress Overview", { x: 0.5, y: 0.15, w: 12, h: 0.6, fontSize: 22, bold: true, color: PC.dark });
-      sDept.addText("Programme delivery by department — project count, average progress, and status", {
+    // ── SLIDE 3: Department Overview ────────────────────────────────────────────
+    {
+      const slide3 = pptx.addSlide();
+      addSlideBar(slide3);
+      slide3.addText("Department Overview", { x: 0.5, y: 0.2, w: "90%", fontSize: 20, bold: true, color: PC.primary });
+      slide3.addText("Project distribution and status by department", {
         x: 0.5, y: 0.6, w: 12, h: 0.3, fontSize: 10, color: PC.grey,
       });
 
-      const deptTableRows: PptxGenJS.TableRow[] = [
-        [
-          { text: "Department", options: { bold: true, fontSize: 9, fill: { color: PC.primary }, color: PC.white } },
-          { text: "Projects", options: { bold: true, fontSize: 9, fill: { color: PC.primary }, color: PC.white, align: "center" } },
-          { text: "Avg Progress", options: { bold: true, fontSize: 9, fill: { color: PC.primary }, color: PC.white, align: "center" } },
-          { text: "On Track", options: { bold: true, fontSize: 9, fill: { color: PC.primary }, color: PC.white, align: "center" } },
-          { text: "Status", options: { bold: true, fontSize: 9, fill: { color: PC.primary }, color: PC.white, align: "center" } },
-        ],
-      ];
-      for (const dept of data.departments.slice(0, 12)) {
-        const deptStatus = dept.onTrack === dept.projectCount ? "on_track" : dept.onTrack >= dept.projectCount * 0.7 ? "at_risk" : "delayed";
-        deptTableRows.push([
-          { text: dept.name, options: { fontSize: 9 } },
-          { text: String(dept.projectCount), options: { fontSize: 9, align: "center" } },
-          { text: `${dept.avgProgress}%`, options: { fontSize: 9, align: "center", bold: true } },
-          { text: `${dept.onTrack} / ${dept.projectCount}`, options: { fontSize: 9, align: "center" } },
-          { text: statusLabel(deptStatus), options: { fontSize: 9, align: "center", color: statusPtxColor(deptStatus), bold: true } },
-        ]);
+      // Enriched project rows for department status counts
+      const pptxProjectRows = data.projects.map((p) => {
+        const ms = data.milestones.filter((m) => m.projectId === p.id);
+        const prog = ms.length === 0 ? 0 : Math.round(ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length);
+        const cs = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
+        return { ...p, progress: prog, computedStatus: cs.status };
+      });
+
+      let deptBarY = 1.1;
+      for (const dept of data.departments.slice(0, 10)) {
+        const deptProjs = pptxProjectRows.filter((p: any) => p.departmentId === dept.id);
+        const dOnTrack = deptProjs.filter((p: any) => p.computedStatus === "on_track").length;
+        const dAtRisk = deptProjs.filter((p: any) => p.computedStatus === "at_risk").length;
+        const dDelayed = deptProjs.filter((p: any) => p.computedStatus === "delayed").length;
+        const dOther = dept.projectCount - dOnTrack - dAtRisk - dDelayed;
+        const dTotal = dept.projectCount || 1;
+
+        slide3.addText(dept.name, { x: 0.4, y: deptBarY, w: 2.5, h: 0.35, fontSize: 10, bold: true, color: PC.dark });
+
+        const barX = 3.0;
+        const barW = 7.5;
+        const barH = 0.25;
+        let segOff = 0;
+        const segs = [
+          { count: dOnTrack, color: PC.green },
+          { count: dAtRisk, color: PC.amber },
+          { count: dDelayed, color: PC.red },
+          { count: dOther, color: PC.grey },
+        ];
+        slide3.addShape(pptx.ShapeType.rect, { x: barX, y: deptBarY + 0.05, w: barW, h: barH, fill: { color: PC.border } });
+        segs.forEach((seg) => {
+          const segW = (seg.count / dTotal) * barW;
+          if (segW > 0) {
+            slide3.addShape(pptx.ShapeType.rect, { x: barX + segOff, y: deptBarY + 0.05, w: segW, h: barH, fill: { color: seg.color } });
+            segOff += segW;
+          }
+        });
+
+        slide3.addText(`${dOnTrack} on track · ${dAtRisk} at risk · ${dDelayed} delayed · Avg ${dept.avgProgress}%`, {
+          x: barX, y: deptBarY + 0.3, w: barW, h: 0.2, fontSize: 8, color: PC.grey,
+        });
+
+        slide3.addShape(pptx.ShapeType.ellipse, { x: 11.2, y: deptBarY + 0.02, w: 0.5, h: 0.35, fill: { color: PC.primary } });
+        slide3.addText(String(dept.projectCount), { x: 11.2, y: deptBarY + 0.04, w: 0.5, h: 0.3, fontSize: 10, bold: true, color: PC.white, align: "center" });
+
+        deptBarY += 0.6;
       }
-      sDept.addTable(deptTableRows, { x: 0.4, y: 1.1, w: 12.4, colW: [3.5, 1.5, 2, 2, 3.4], border: { color: PC.border, pt: 0.5 } });
+
+      addFooter(slide3, 3, totalSlides);
     }
 
-    // ── SLIDE 7: Support Required / Escalations ──────────────────────────────
-    const sSupport = pptx.addSlide();
-    addSlideBar(sSupport);
-    sSupport.addText("Support Required & Escalations", { x: 0.5, y: 0.15, w: 12, h: 0.6, fontSize: 22, bold: true, color: PC.dark });
-    sSupport.addText("Items requiring executive decision or intervention", {
-      x: 0.5, y: 0.6, w: 12, h: 0.3, fontSize: 10, color: PC.grey,
-    });
+    // ── SLIDE 4: Risk Heat Map ───────────────────────────────────────────────
+    {
+      const slide4 = pptx.addSlide();
+      addSlideBar(slide4);
+      slide4.addText("Risk Heat Map", { x: 0.5, y: 0.2, w: "90%", fontSize: 20, bold: true, color: PC.primary });
 
-    const criticalRisks = data.risks.filter((r) => r.status === "open" && r.riskScore >= 12);
-    if (criticalRisks.length > 0) {
-      const supportRows: PptxGenJS.TableRow[] = [
+      const hmProbLevels = ["low", "medium", "high", "critical"];
+      const hmImpactLevels = ["low", "medium", "high", "critical"];
+      const hmCellW = 1.4;
+      const hmCellH = 1.0;
+      const hmStartX = 2.0;
+      const hmStartY = 1.2;
+      const hmLabelW = 1.4;
+
+      hmImpactLevels.forEach((imp, ci) => {
+        slide4.addText(imp.charAt(0).toUpperCase() + imp.slice(1), {
+          x: hmLabelW + hmStartX + ci * hmCellW, y: hmStartY - 0.3, w: hmCellW, h: 0.3,
+          fontSize: 9, bold: true, color: PC.grey, align: "center",
+        });
+      });
+
+      slide4.addText("Probability →", { x: 0.3, y: hmStartY + 1.5, w: 1.2, h: 0.3, fontSize: 9, color: PC.grey, align: "center" });
+
+      for (let ri = hmProbLevels.length - 1; ri >= 0; ri--) {
+        const rowIdx = hmProbLevels.length - 1 - ri;
+        const probLabel = hmProbLevels[ri].charAt(0).toUpperCase() + hmProbLevels[ri].slice(1);
+        slide4.addText(probLabel, {
+          x: hmStartX, y: hmStartY + rowIdx * hmCellH, w: hmLabelW, h: hmCellH,
+          fontSize: 9, bold: true, color: PC.grey, align: "right", valign: "middle",
+        });
+
+        for (let ci = 0; ci < hmImpactLevels.length; ci++) {
+          const count = data.risks.filter((r) => r.status === "open" && r.probability === hmProbLevels[ri] && r.impact === hmImpactLevels[ci]).length;
+          const probScore = ri + 1;
+          const impScore = ci + 1;
+          const score = probScore * impScore;
+
+          let cellBg: string;
+          let cellTextColor: string;
+          if (score >= 12) { cellBg = "FEE2E2"; cellTextColor = "991B1B"; }
+          else if (score >= 6) { cellBg = "FEF3C7"; cellTextColor = "92400E"; }
+          else { cellBg = "DCFCE7"; cellTextColor = "166534"; }
+
+          const cx = hmLabelW + hmStartX + ci * hmCellW;
+          const cy = hmStartY + rowIdx * hmCellH;
+          slide4.addShape(pptx.ShapeType.rect, { x: cx, y: cy, w: hmCellW, h: hmCellH, fill: { color: cellBg }, line: { color: PC.border, width: 0.5 } });
+          slide4.addText(String(count), { x: cx, y: cy, w: hmCellW, h: hmCellH, fontSize: 18, bold: true, color: cellTextColor, align: "center", valign: "middle" });
+        }
+      }
+
+      slide4.addText("Impact →", {
+        x: hmLabelW + hmStartX, y: hmStartY + 4 * hmCellH + 0.1, w: 4 * hmCellW, h: 0.3,
+        fontSize: 9, color: PC.grey, align: "center",
+      });
+
+      const critListY = hmStartY + 4 * hmCellH + 0.5;
+      slide4.addText("Critical Risks:", { x: hmStartX, y: critListY, w: 8, h: 0.3, fontSize: 10, bold: true, color: PC.dark });
+      data.topRisks.slice(0, 3).forEach((risk, idx) => {
+        const rScore = sevNum(risk.impact) * sevNum(risk.probability);
+        slide4.addText(`${idx + 1}. ${risk.title} — Score: ${rScore}`, {
+          x: hmStartX + 0.2, y: critListY + 0.35 + idx * 0.3, w: 9, h: 0.28,
+          fontSize: 10, color: PC.dark,
+        });
+      });
+
+      addFooter(slide4, 4, totalSlides);
+    }
+
+    // ── SLIDE 5: Project Portfolio ────────────────────────────────────────────
+    {
+      const slide5 = pptx.addSlide();
+      addSlideBar(slide5);
+      slide5.addText("Project Portfolio", { x: 0.5, y: 0.2, w: "90%", fontSize: 20, bold: true, color: PC.primary });
+
+      const pptxProjRows = data.projects.map((p) => {
+        const ms = data.milestones.filter((m) => m.projectId === p.id);
+        const prog = ms.length === 0 ? 0 : Math.round(ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length);
+        const cs = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
+        return { ...p, progress: prog, computedStatus: cs.status };
+      });
+      const pptxStatusOrder: Record<string, number> = { delayed: 0, at_risk: 1, not_started: 2, on_track: 3, completed: 4 };
+      pptxProjRows.sort((a: any, b: any) => (pptxStatusOrder[a.computedStatus] ?? 5) - (pptxStatusOrder[b.computedStatus] ?? 5));
+
+      const portfolioRows: PptxGenJS.TableRow[] = [
         [
-          { text: "#", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white, align: "center" } },
-          { text: "Issue / Risk", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
-          { text: "Impact", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
-          { text: "Support Needed", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
-          { text: "Owner", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
+          { text: "#", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
+          { text: "Code", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
+          { text: "Project Name", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
+          { text: "Status", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
+          { text: "Progress", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary }, align: "center" } },
+          { text: "Start", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
+          { text: "End", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
+          { text: "Budget", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
+          { text: "Owner", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
         ],
       ];
-      criticalRisks.slice(0, 6).forEach((r, i) => {
-        supportRows.push([
-          { text: String(i + 1), options: { fontSize: 9, align: "center" } },
-          { text: r.title, options: { fontSize: 8 } },
-          { text: `${r.probability}/${r.impact} (Score: ${r.riskScore})`, options: { fontSize: 8 } },
-          { text: "Decision required — see mitigation plan", options: { fontSize: 8, italic: true } },
-          { text: r.owner ?? "—", options: { fontSize: 8 } },
+
+      const fmtDatePptx = (d: Date | string | null | undefined): string => {
+        if (!d) return "—";
+        const dt = typeof d === "string" ? new Date(d) : d;
+        if (isNaN(dt.getTime())) return "—";
+        return `${String(dt.getDate()).padStart(2, "0")} ${dt.toLocaleString("en-GB", { month: "short" }).toUpperCase()} ${String(dt.getFullYear()).slice(2)}`;
+      };
+
+      pptxProjRows.forEach((p: any, idx: number) => {
+        const rowFill = idx % 2 === 0 ? PC.white : PC.bg;
+        const sc = statusPtxColor(p.computedStatus);
+        const budgetVal = p.budget ?? 0;
+        const budgetStr = budgetVal >= 1_000_000 ? `SAR ${(budgetVal / 1_000_000).toFixed(1)}M` : budgetVal >= 1_000 ? `SAR ${(budgetVal / 1_000).toFixed(0)}K` : `SAR ${budgetVal}`;
+        portfolioRows.push([
+          { text: String(idx + 1), options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
+          { text: (p.projectCode ?? "—").slice(0, 8), options: { fontSize: 8, bold: true, color: PC.dark, fill: { color: rowFill } } },
+          { text: (p.name ?? "").slice(0, 30), options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
+          { text: statusLabel(p.computedStatus), options: { fontSize: 8, bold: true, color: PC.white, fill: { color: sc } } },
+          { text: `${p.progress}%`, options: { fontSize: 8, bold: true, color: PC.dark, fill: { color: rowFill }, align: "center" } },
+          { text: fmtDatePptx(p.startDate), options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
+          { text: fmtDatePptx(p.targetDate), options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
+          { text: budgetStr, options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
+          { text: (p.ownerName ?? "—").slice(0, 20), options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
         ]);
       });
-      sSupport.addTable(supportRows, { x: 0.4, y: 1.1, w: 12.4, colW: [0.5, 4, 2.5, 3, 2.4], border: { color: PC.border, pt: 0.5 } });
-    } else {
-      sSupport.addText("No critical escalations this week. All risks within acceptable thresholds.", {
-        x: 0.4, y: 2.0, w: 12, h: 1, fontSize: 14, color: PC.green, align: "center",
+
+      slide5.addTable(portfolioRows, {
+        x: 0.3, y: 0.8, w: 12.7,
+        border: { type: "solid", pt: 0.5, color: PC.border },
+        colW: [0.4, 0.8, 2.8, 1.1, 0.8, 1.1, 1.1, 1.3, 3.3],
+        margin: [3, 5, 3, 5],
       });
+
+      addFooter(slide5, 5, totalSlides);
     }
 
-    // ── SLIDE 8: Appendix Divider ────────────────────────────────────────────
-    const sAppDiv = pptx.addSlide();
-    addSlideBar(sAppDiv);
-    sAppDiv.addText("APPENDIX", { x: 0, y: 2.5, w: 13.3, h: 1.2, fontSize: 36, bold: true, color: PC.dark, align: "center" });
-    sAppDiv.addText("Detailed project status, weekly achievements, and risk register", {
-      x: 0, y: 3.7, w: 13.3, h: 0.5, fontSize: 14, color: PC.grey, align: "center",
-    });
+    // ── SLIDE 6: Budget & KPIs ────────────────────────────────────────────────
+    {
+      const slide6 = pptx.addSlide();
+      addSlideBar(slide6);
+      slide6.addText("Budget Health & Strategic KPIs", { x: 0.5, y: 0.2, w: "90%", fontSize: 20, bold: true, color: PC.primary });
+
+      const pillarBudgets2 = data.programme.pillarSummaries.map((ps) => {
+        const inits = data.initiatives.filter((i) => i.pillarName === ps.pillar.name);
+        const allocated = inits.reduce((s, i) => s + i.budget, 0);
+        const pillarProjects2 = data.projects.filter((p) => inits.some((i) => i.id === p.initiativeId));
+        const spent = pillarProjects2.reduce((s, p) => s + (p.budgetSpent ?? 0), 0);
+        return { name: ps.pillar.name, allocated, spent };
+      });
+
+      slide6.addChart(
+        pptx.ChartType.bar,
+        [
+          { name: "Allocated (M)", labels: pillarBudgets2.map((p) => p.name), values: pillarBudgets2.map((p) => Math.round(p.allocated / 1_000_000)) },
+          { name: "Spent (M)", labels: pillarBudgets2.map((p) => p.name), values: pillarBudgets2.map((p) => Math.round(p.spent / 1_000_000)) },
+        ],
+        {
+          x: 0.4, y: 0.9, w: 7.0, h: 5.8,
+          showTitle: true, title: "Budget by Pillar (M SAR)",
+          barDir: "bar",
+          barGrouping: "stacked",
+          showLegend: true, legendPos: "t",
+          catAxisLabelFontSize: 8,
+          chartColors: ["BFDBFE", "2563EB"],
+        },
+      );
+
+      const kpiRows: PptxGenJS.TableRow[] = [
+        [
+          { text: "KPI Name", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
+          { text: "Actual", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
+          { text: "Target", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
+          { text: "Status", options: { bold: true, fontSize: 8, color: PC.white, fill: { color: PC.primary } } },
+        ],
+      ];
+
+      data.kpis.slice(0, 10).forEach((kpi, idx) => {
+        const rowFill = idx % 2 === 0 ? PC.white : PC.bg;
+        const sc = kpiStatusPtxColor(kpi.status ?? "");
+        kpiRows.push([
+          { text: kpi.name ?? "—", options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
+          { text: String(kpi.actual ?? "—"), options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
+          { text: String(kpi.target ?? "—"), options: { fontSize: 8, color: PC.dark, fill: { color: rowFill } } },
+          { text: (kpi.status ?? "—").replace("_", " "), options: { fontSize: 8, bold: true, color: PC.white, fill: { color: sc } } },
+        ]);
+      });
+
+      slide6.addTable(kpiRows, {
+        x: 7.6, y: 0.9, w: 5.3,
+        border: { type: "solid", pt: 0.5, color: PC.border },
+        colW: [2.2, 1.0, 1.0, 1.1],
+        margin: [3, 4, 3, 4],
+      });
+
+      addFooter(slide6, 6, totalSlides);
+    }
+
+    // ── SLIDE 7: Weekly Achievements Highlight ───────────────────────────────
+    {
+      const slide7 = pptx.addSlide();
+      addSlideBar(slide7);
+      slide7.addText("Weekly Achievements Highlight", { x: 0.5, y: 0.2, w: "90%", fontSize: 20, bold: true, color: PC.primary });
+      slide7.addText("Top project achievements from weekly reports", {
+        x: 0.5, y: 0.6, w: 12, h: 0.3, fontSize: 10, color: PC.grey,
+      });
+
+      const topAchievements: Array<{ name: string; code: string; text: string }> = [];
+      for (const [projId, report] of data.weeklyReports) {
+        const project = data.projects.find((p) => p.id === projId);
+        const text = (report as any).keyAchievements || (report as any).statusReason || "";
+        if (text && project) topAchievements.push({ name: project.name, code: project.projectCode ?? "", text });
+      }
+
+      if (topAchievements.length > 0) {
+        let achY = 1.1;
+        topAchievements.slice(0, 5).forEach((ach) => {
+          slide7.addText(`${ach.code} ${ach.name}`.trim(), {
+            x: 0.5, y: achY, w: 12, h: 0.3,
+            fontSize: 11, bold: true, color: PC.dark,
+          });
+          slide7.addText(ach.text.slice(0, 250), {
+            x: 0.7, y: achY + 0.3, w: 11.5, h: 0.6,
+            fontSize: 10, color: PC.grey,
+          });
+          achY += 1.1;
+        });
+      } else {
+        slide7.addText("No weekly achievements reported this period.", {
+          x: 0.5, y: 2.0, w: 12, h: 1, fontSize: 14, color: PC.grey, align: "center",
+        });
+      }
+
+      addFooter(slide7, 7, totalSlides);
+    }
+
+    // ── SLIDE 8: Escalations & Critical Issues ──────────────────────────────
+    {
+      const slide8 = pptx.addSlide();
+      addSlideBar(slide8);
+      slide8.addText("Escalations & Critical Issues", { x: 0.5, y: 0.2, w: "90%", fontSize: 20, bold: true, color: PC.primary });
+      slide8.addText("Critical risks requiring board decision or executive intervention", {
+        x: 0.5, y: 0.6, w: 12, h: 0.3, fontSize: 10, color: PC.grey,
+      });
+
+      const criticalRisks = data.risks.filter((r) => r.status === "open" && r.riskScore >= 12);
+      if (criticalRisks.length > 0) {
+        const supportRows: PptxGenJS.TableRow[] = [
+          [
+            { text: "#", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white, align: "center" } },
+            { text: "Issue / Risk", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
+            { text: "Impact", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
+            { text: "Decision Required", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
+            { text: "Owner", options: { bold: true, fontSize: 9, fill: { color: PC.red }, color: PC.white } },
+          ],
+        ];
+        criticalRisks.slice(0, 6).forEach((r, i) => {
+          supportRows.push([
+            { text: String(i + 1), options: { fontSize: 9, align: "center" } },
+            { text: r.title, options: { fontSize: 8 } },
+            { text: `${r.probability}/${r.impact} (Score: ${r.riskScore})`, options: { fontSize: 8 } },
+            { text: "Decision required — see mitigation plan", options: { fontSize: 8, italic: true } },
+            { text: r.owner ?? "—", options: { fontSize: 8 } },
+          ]);
+        });
+        slide8.addTable(supportRows, { x: 0.4, y: 1.1, w: 12.4, colW: [0.5, 4, 2.5, 3, 2.4], border: { color: PC.border, pt: 0.5 } });
+      } else {
+        slide8.addText("No critical escalations this week. All risks within acceptable thresholds.", {
+          x: 0.4, y: 2.0, w: 12, h: 1, fontSize: 14, color: PC.green, align: "center",
+        });
+      }
+
+      addFooter(slide8, 8, totalSlides);
+    }
+
+    // ── SLIDE 9: Appendix — Per-Department Details ───────────────────────────
+    {
+      const slide9 = pptx.addSlide();
+      addSlideBar(slide9);
+      slide9.addText("Appendix: Per-Department Details", { x: 0.5, y: 0.2, w: "90%", fontSize: 20, bold: true, color: PC.primary });
+      slide9.addText("Detailed project status, weekly achievements, and risk register", {
+        x: 0.5, y: 0.6, w: 12, h: 0.3, fontSize: 10, color: PC.grey,
+      });
+      addFooter(slide9, 9, totalSlides);
+    }
 
     // ── APPENDIX SLIDES: Per-department project details ──────────────────────
     for (const dept of data.departments) {
+      const deptProjs = dept.projects.slice(0, 8);
       const sD = pptx.addSlide();
       addSlideBar(sD);
       sD.addText(`${dept.name} — Project Status`, { x: 0.5, y: 0.15, w: 12, h: 0.5, fontSize: 18, bold: true, color: PC.dark });
@@ -1674,7 +1755,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
         ],
       ];
 
-      for (const p of dept.projects.slice(0, 15)) {
+      for (const p of deptProjs) {
         const ms = data.milestones.filter((m) => m.projectId === p.id);
         const prog = ms.length === 0 ? 0 : Math.round(ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length);
         const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
@@ -1682,12 +1763,12 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
         const topRisk = data.risks.filter((r) => r.projectId === p.id && r.status === "open").sort((a, b) => b.riskScore - a.riskScore)[0];
 
         projRows.push([
-          { text: `${p.projectCode ?? ""} ${p.name}`.trim(), options: { fontSize: 7.5 } },
-          { text: statusLabel(s.status), options: { fontSize: 7.5, align: "center", color: statusPtxColor(s.status), bold: true } },
+          { text: `${p.projectCode ?? ""} ${p.name}`.trim(), options: { fontSize: 8 } },
+          { text: statusLabel(s.status), options: { fontSize: 8, align: "center", color: statusPtxColor(s.status), bold: true } },
           { text: `${prog}%`, options: { fontSize: 8, align: "center", bold: true } },
-          { text: report?.keyAchievements?.slice(0, 120) ?? "—", options: { fontSize: 7 } },
-          { text: report?.nextSteps?.slice(0, 120) ?? "—", options: { fontSize: 7 } },
-          { text: topRisk ? `${topRisk.title} (${topRisk.riskScore})` : "—", options: { fontSize: 7, color: topRisk && topRisk.riskScore >= 9 ? PC.red : PC.grey } },
+          { text: report?.keyAchievements?.slice(0, 120) ?? "—", options: { fontSize: 8 } },
+          { text: report?.nextSteps?.slice(0, 120) ?? "—", options: { fontSize: 8 } },
+          { text: topRisk ? `${topRisk.title} (${topRisk.riskScore})` : "—", options: { fontSize: 8, color: topRisk && topRisk.riskScore >= 9 ? PC.red : PC.grey } },
         ]);
       }
 
