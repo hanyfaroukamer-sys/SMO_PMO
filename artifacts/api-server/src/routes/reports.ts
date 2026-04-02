@@ -335,6 +335,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     const W = doc.page.width;
     const H = doc.page.height;
     const M = 40;
+    const MARGIN = M; // alias for backward compat
     const CW = W - M * 2; // content width
 
     // Precompute key metrics
