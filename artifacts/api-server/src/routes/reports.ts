@@ -50,10 +50,10 @@ const C = {
 // PPTX hex colours (no #)
 const PC = {
   primary: "1E3A5F",
-  accent: "2563EB",
   dark: "0F172A",
   grey: "475569",
-  light: "F8FAFC",
+  light: "94A3B8",
+  bg: "F8FAFC",
   green: "16A34A",
   amber: "D97706",
   red: "DC2626",
@@ -492,52 +492,106 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(`${Math.round(ps.progress)}%`, pillarX + barW - 4, py + 12, { width: 36 });
     });
 
-    // ── PAGE 3: Initiative Performance ────────────────────────────────────────
-    doc.addPage();
-    pdfAccentBar(doc);
-    doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Initiative Performance", MARGIN, 20);
+    // ── PAGE 3: Project Portfolio Table ─────────────────────────────────────
+    {
+      doc.addPage();
+      pdfAccentBar(doc);
+      doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Project Portfolio", M, 20);
 
-    const cols3 = [MARGIN, MARGIN + 220, MARGIN + 370, MARGIN + 440, MARGIN + 510, MARGIN + 580];
-    const headers3 = ["Initiative", "Pillar", "Progress %", "SPI", "Status", "Budget (M)"];
-    const tableTop3 = 52;
+      // Column widths for A4 landscape (762pt content area)
+      const ptColWidths = [20, 40, 120, 55, 40, 52, 52, 50, 35, 65, 130, 123];
+      const ptColX: number[] = [];
+      { let cx = M; for (const w of ptColWidths) { ptColX.push(cx); cx += w; } }
+      const ptHeaders = ["#", "Code", "Project Name", "Status", "Progress", "Start", "End", "Budget", "Spent%", "Owner", "Achievements", "Next Steps"];
+      const ptRowH = 28;
+      const ptHeaderH = 22;
+      const ptTableTop = 50;
+      const navy = "#1E3A5F";
 
-    doc.save().rect(MARGIN, tableTop3, W - MARGIN * 2, 20).fill("#F1F5F9").restore();
-    headers3.forEach((h, i) => {
-      doc.font("Helvetica-Bold").fontSize(10).fillColor(C.secondary).text(h, cols3[i] + 4, tableTop3 + 6, { width: 95 });
-    });
+      const drawPortfolioHeader = (yPos: number) => {
+        doc.save().rect(M, yPos, CW, ptHeaderH).fill(navy).restore();
+        ptHeaders.forEach((h, i) => {
+          doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white).text(h, ptColX[i] + 3, yPos + 7, { width: ptColWidths[i] - 6, align: "left" });
+        });
+        return yPos + ptHeaderH;
+      };
 
-    let rowY3 = tableTop3 + 22;
-    data.initiatives.forEach((init, idx) => {
-      if (rowY3 > doc.page.height - 60) {
-        doc.addPage();
-        pdfAccentBar(doc);
-        rowY3 = 30;
-      }
-      const bg = idx % 2 === 0 ? C.white : C.bg;
-      doc.save().rect(MARGIN, rowY3, W - MARGIN * 2, 20).fill(bg).restore();
-      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(init.name.slice(0, 28), cols3[0] + 4, rowY3 + 6, { width: 210, ellipsis: true });
-      doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(init.pillarName.slice(0, 20), cols3[1] + 4, rowY3 + 6, { width: 140 });
-      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`${init.progress}%`, cols3[2] + 4, rowY3 + 6, { width: 60 });
-      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(String(init.spi.toFixed(2)), cols3[3] + 4, rowY3 + 6, { width: 50 });
+      let ptY = drawPortfolioHeader(ptTableTop);
 
-      const sc = statusColor(init.status);
-      doc.save().roundedRect(cols3[4] + 4, rowY3 + 4, 52, 13, 3).fill(sc).restore();
-      doc.font("Helvetica-Bold").fontSize(9).fillColor(C.white).text(statusLabel(init.status).slice(0, 9), cols3[4] + 7, rowY3 + 7, { width: 48 });
+      // Format date as DD MMM YY
+      const fmtDateShort = (d: Date | string | null | undefined): string => {
+        if (!d) return "—";
+        const dt = typeof d === "string" ? new Date(d) : d;
+        if (isNaN(dt.getTime())) return "—";
+        const day = String(dt.getDate()).padStart(2, "0");
+        const mon = dt.toLocaleString("en-GB", { month: "short" }).toUpperCase();
+        const yr = String(dt.getFullYear()).slice(2);
+        return `${day} ${mon} ${yr}`;
+      };
 
-      const bm = (init.budget / 1_000_000).toFixed(1);
-      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(bm, cols3[5] + 4, rowY3 + 6, { width: 60 });
-      rowY3 += 20;
-    });
+      projectRows.forEach((p: any, idx: number) => {
+        // Page overflow: continue on next page with same header
+        if (ptY + ptRowH > H - 40) {
+          doc.addPage();
+          pdfAccentBar(doc);
+          ptY = drawPortfolioHeader(30);
+        }
 
-    // Narrative for delayed
-    const delayed = data.initiatives.filter((i) => i.status === "delayed");
-    if (delayed.length > 0 && rowY3 < doc.page.height - 80) {
-      rowY3 += 12;
-      doc.font("Helvetica-Bold").fontSize(9).fillColor(C.red).text("Delayed Initiatives:", MARGIN, rowY3);
-      rowY3 += 14;
-      delayed.forEach((d) => {
-        doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`• ${d.name} — SPI ${d.spi.toFixed(2)}: ${d.reason}`, MARGIN + 8, rowY3, { width: W - MARGIN * 2 - 8 });
-        rowY3 += 14;
+        const rowBg = idx % 2 === 0 ? C.white : C.bg;
+        doc.save().rect(M, ptY, CW, ptRowH).fill(rowBg).restore();
+
+        const textY = ptY + 9;
+
+        // # (row number)
+        doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(String(idx + 1), ptColX[0] + 3, textY, { width: ptColWidths[0] - 6 });
+
+        // Code (bold 10pt)
+        doc.font("Helvetica-Bold").fontSize(8).fillColor(C.dark).text((p.projectCode ?? "—").slice(0, 8), ptColX[1] + 3, textY, { width: ptColWidths[1] - 6 });
+
+        // Project Name (truncated 30 chars)
+        doc.font("Helvetica").fontSize(8).fillColor(C.dark).text((p.name ?? "").slice(0, 30), ptColX[2] + 3, textY, { width: ptColWidths[2] - 6 });
+
+        // Status — colored rectangle with white text
+        const sColor = statusColor(p.computedStatus);
+        const sLabel = statusLabelUpper(p.computedStatus);
+        doc.save().roundedRect(ptColX[3] + 3, ptY + 6, ptColWidths[3] - 6, 16, 3).fill(sColor).restore();
+        doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white).text(sLabel, ptColX[3] + 5, ptY + 10, { width: ptColWidths[3] - 10, align: "center" });
+
+        // Progress — colored box with percentage (not a bar)
+        const pColor = statusColor(p.computedStatus);
+        doc.save().roundedRect(ptColX[4] + 3, ptY + 6, ptColWidths[4] - 6, 16, 3).fill(pColor).restore();
+        doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white).text(`${p.progress}%`, ptColX[4] + 3, ptY + 10, { width: ptColWidths[4] - 6, align: "center" });
+
+        // Start Date (DD MMM YY)
+        doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(fmtDateShort(p.startDate), ptColX[5] + 3, textY, { width: ptColWidths[5] - 6 });
+
+        // End Date (DD MMM YY)
+        doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(fmtDateShort(p.targetDate), ptColX[6] + 3, textY, { width: ptColWidths[6] - 6 });
+
+        // Budget (SAR XM format)
+        const budgetVal = p.budget ?? 0;
+        const budgetStr = budgetVal >= 1_000_000 ? `SAR ${(budgetVal / 1_000_000).toFixed(1)}M` : budgetVal >= 1_000 ? `SAR ${(budgetVal / 1_000).toFixed(0)}K` : `SAR ${budgetVal}`;
+        doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(budgetStr, ptColX[7] + 3, textY, { width: ptColWidths[7] - 6 });
+
+        // Spent %
+        const spentPctVal = budgetVal > 0 ? Math.round(((p.budgetSpent ?? 0) / budgetVal) * 100) : 0;
+        doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(`${spentPctVal}%`, ptColX[8] + 3, textY, { width: ptColWidths[8] - 6, align: "center" });
+
+        // Owner (truncated 15 chars)
+        doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text((p.ownerName ?? "—").slice(0, 15), ptColX[9] + 3, textY, { width: ptColWidths[9] - 6 });
+
+        // Achievements & Next Steps from weekly report
+        const report = data.weeklyReports.get(p.id);
+        let achieveText = "—";
+        let nextText = "—";
+        if (report) {
+          achieveText = ((report as any).keyAchievements || (report as any).statusReason || (report as any).notes || "—").slice(0, 50);
+          nextText = ((report as any).nextSteps || (report as any).completionReason || "—").slice(0, 50);
+        }
+        doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(achieveText, ptColX[10] + 3, textY, { width: ptColWidths[10] - 6 });
+        doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(nextText, ptColX[11] + 3, textY, { width: ptColWidths[11] - 6 });
+
+        ptY += ptRowH;
       });
     }
 
@@ -792,96 +846,171 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     }
 
     // ── DETAIL PAGES: At-Risk and Delayed Projects (full page each) ──
-    const flaggedProjects = projectRows.filter((p: any) => p.computedStatus === "delayed" || p.computedStatus === "at_risk");
-    for (const p of flaggedProjects.slice(0, 10)) {
-      doc.addPage();
-      pdfAccentBar(doc);
+    {
+      const detNavy = "#1E3A5F";
+      const detMid = "#475569";
+      const detLight = "#94A3B8";
+      const detBg = "#F8FAFC";
+      const detBorder = "#E2E8F0";
+      const detLightRed = "#FEE2E2";
 
-      const ms = data.milestones.filter((m) => m.projectId === p.id);
-      const report = data.weeklyReports.get(p.id);
-      const projRisks = data.risks.filter((r) => r.projectId === p.id && r.status === "open").sort((a, b) => b.riskScore - a.riskScore);
-      const fmtBudget = (n: number) => n >= 1_000_000 ? `SAR ${(n / 1_000_000).toFixed(1)}M` : `SAR ${n.toLocaleString()}`;
-      const spentPct = (p.budget ?? 0) > 0 ? Math.round(((p.budgetSpent ?? 0) / (p.budget ?? 0)) * 100) : 0;
+      const flaggedProjects = projectRows.filter((p: any) => p.computedStatus === "delayed" || p.computedStatus === "at_risk");
+      for (const p of flaggedProjects) {
+        doc.addPage();
+        pdfAccentBar(doc);
 
-      // Title + status badge
-      doc.font("Helvetica-Bold").fontSize(18).fillColor(C.dark).text(`${p.projectCode ?? ""}: ${p.name}`.trim(), 40, 24, { width: W - 200 });
-      const badgeColor = (p as any).computedStatus === "delayed" ? C.red : C.amber;
-      const badgeLabel = (p as any).computedStatus === "delayed" ? "DELAYED" : "AT RISK";
-      doc.rect(W - 160, 24, 120, 24).fill(badgeColor);
-      doc.font("Helvetica-Bold").fontSize(11).fillColor(C.white).text(badgeLabel, W - 160, 30, { width: 120, align: "center" });
+        const ms = data.milestones.filter((m: any) => m.projectId === p.id);
+        const report = data.weeklyReports.get(p.id);
+        const projRisks = data.risks.filter((r: any) => r.projectId === p.id && r.status === "open").sort((a: any, b: any) => b.riskScore - a.riskScore);
+        const spentPct = (p.budget ?? 0) > 0 ? Math.round(((p.budgetSpent ?? 0) / (p.budget ?? 0)) * 100) : 0;
+        const budgetVal = p.budget ?? 0;
+        const budgetStr = budgetVal >= 1_000_000 ? `SAR ${(budgetVal / 1_000_000).toFixed(1)}M` : budgetVal >= 1_000 ? `SAR ${(budgetVal / 1_000).toFixed(0)}K` : `SAR ${budgetVal}`;
 
-      // Summary metrics row
-      const metY = 58;
-      doc.rect(40, metY, W - 80, 36).fill(C.bg);
-      doc.font("Helvetica-Bold").fontSize(12).fillColor(C.dark).text(`Progress: ${(p as any).progress}%`, 52, metY + 10);
-      doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`Budget: ${fmtBudget(p.budget ?? 0)} (${spentPct}% spent)`, 220, metY + 10);
-      doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`Owner: ${p.ownerName ?? "—"}`, 460, metY + 10);
-      doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`Target: ${p.targetDate ? formatDate(new Date(p.targetDate)) : "—"}`, 620, metY + 10);
+        // ── Header area (top 90pt) ──
+        // Left: project code + name
+        doc.font("Helvetica-Bold").fontSize(16).fillColor(C.dark).text(`${p.projectCode ?? ""} ${p.name}`.trim(), M, 18, { width: W - M - 160 });
 
-      let detY = metY + 48;
+        // Right: status badge (100x24)
+        const badgeColor = (p as any).computedStatus === "delayed" ? C.red : C.amber;
+        const badgeLabel = statusLabelUpper((p as any).computedStatus);
+        doc.save().roundedRect(W - M - 100, 18, 100, 24, 4).fill(badgeColor).restore();
+        doc.font("Helvetica-Bold").fontSize(11).fillColor(C.white).text(badgeLabel, W - M - 100, 23, { width: 100, align: "center" });
 
-      // Achievements
-      doc.font("Helvetica-Bold").fontSize(12).fillColor(C.navy).text("Key Achievements", 40, detY);
-      doc.save().moveTo(40, detY + 16).lineTo(W - 40, detY + 16).lineWidth(0.5).strokeColor(C.border).stroke().restore();
-      detY += 22;
-      if (report) {
-        const achievements = (report as any).keyAchievements || (report as any).statusReason || (report as any).notes || "No details provided.";
-        doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(achievements, 40, detY, { width: W - 80, lineGap: 4 });
-        detY += doc.heightOfString(achievements, { width: W - 80, lineGap: 4 }) + 16;
-      } else {
-        doc.font("Helvetica").fontSize(11).fillColor(C.light).text("No weekly report submitted this period. PM to provide update.", 40, detY, { width: W - 80 });
-        detY += 28;
-      }
+        // Metrics row: 4 boxes side by side
+        const metY = 50;
+        const metBoxW = (CW - 24) / 4;
+        // Progress box
+        const progColor = statusColor((p as any).computedStatus);
+        doc.save().roundedRect(M, metY, 40, 24, 3).fill(progColor).restore();
+        doc.font("Helvetica-Bold").fontSize(11).fillColor(C.white).text(`${(p as any).progress}%`, M, metY + 6, { width: 40, align: "center" });
+        // Budget
+        doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`${budgetStr} (${spentPct}% spent)`, M + 50, metY + 6, { width: metBoxW - 10 });
+        // Timeline
+        const startStr = p.startDate ? formatDate(new Date(p.startDate)) : "—";
+        const endStr = p.targetDate ? formatDate(new Date(p.targetDate)) : "—";
+        doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`Start: ${startStr}  →  End: ${endStr}`, M + metBoxW + 58, metY + 6, { width: metBoxW * 1.5 });
+        // Owner
+        doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`Owner: ${p.ownerName ?? "—"}`, W - M - 180, metY + 6, { width: 180 });
 
-      // Next Steps
-      doc.font("Helvetica-Bold").fontSize(12).fillColor(C.navy).text("Next Steps", 40, detY);
-      doc.save().moveTo(40, detY + 16).lineTo(W - 40, detY + 16).lineWidth(0.5).strokeColor(C.border).stroke().restore();
-      detY += 22;
-      if (report) {
-        const nextSteps = (report as any).nextSteps || (report as any).completionReason || "No next steps provided.";
-        doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(nextSteps, 40, detY, { width: W - 80, lineGap: 4 });
-        detY += doc.heightOfString(nextSteps, { width: W - 80, lineGap: 4 }) + 16;
-      } else {
-        doc.font("Helvetica").fontSize(11).fillColor(C.light).text("Pending PM submission.", 40, detY);
-        detY += 28;
-      }
+        // ── Milestones table (starting at ~110pt) ──
+        let detY = 110;
+        if (ms.length > 0) {
+          doc.font("Helvetica-Bold").fontSize(11).fillColor(detNavy).text("Milestones", M, detY - 16);
 
-      // Milestones table
-      if (ms.length > 0 && detY < doc.page.height - 160) {
-        doc.font("Helvetica-Bold").fontSize(12).fillColor(C.navy).text("Milestones", 40, detY);
-        doc.save().moveTo(40, detY + 16).lineTo(W - 40, detY + 16).lineWidth(0.5).strokeColor(C.border).stroke().restore();
-        detY += 22;
-        // Table header
-        doc.rect(40, detY, W - 80, 20).fill(C.navy);
-        doc.font("Helvetica-Bold").fontSize(9).fillColor(C.white);
-        doc.text("Milestone", 48, detY + 5, { width: 280 });
-        doc.text("Due Date", 340, detY + 5, { width: 80 });
-        doc.text("Progress", 430, detY + 5, { width: 60, align: "right" });
-        doc.text("Status", 510, detY + 5, { width: 80 });
-        detY += 22;
-        ms.slice(0, 8).forEach((m, idx) => {
-          if (detY > doc.page.height - 60) return;
-          doc.rect(40, detY, W - 80, 20).fill(idx % 2 === 0 ? C.white : C.bg);
-          doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(m.name.slice(0, 40), 48, detY + 4, { width: 280 });
-          doc.text(m.dueDate ? formatDate(new Date(m.dueDate)) : "—", 340, detY + 4, { width: 80 });
-          doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(`${m.progress ?? 0}%`, 430, detY + 4, { width: 60, align: "right" });
-          doc.font("Helvetica").fontSize(9).fillColor(statusColor(m.status)).text(statusLabel(m.status), 510, detY + 5, { width: 80 });
-          detY += 22;
-        });
-        detY += 8;
-      }
+          // Column layout for milestones
+          const msColX = [M, M + 280, M + 380, M + 460, M + 540];
+          const msColW = [280, 100, 80, 80, CW - 540 + M];
+          const msHeaders = ["Milestone", "Due Date", "Progress", "Status", "Weight"];
+          const msHeaderH = 20;
+          const msRowH = 22;
+          const today = new Date();
 
-      // Risks for this project
-      if (projRisks.length > 0 && detY < doc.page.height - 80) {
-        doc.font("Helvetica-Bold").fontSize(12).fillColor(C.navy).text("Active Risks", 40, detY);
-        doc.save().moveTo(40, detY + 16).lineTo(W - 40, detY + 16).lineWidth(0.5).strokeColor(C.border).stroke().restore();
-        detY += 22;
-        projRisks.slice(0, 5).forEach((r, idx) => {
-          doc.rect(40, detY, 5, 16).fill(r.riskScore >= 12 ? C.red : r.riskScore >= 6 ? C.amber : C.green);
-          doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(r.title, 52, detY + 2, { width: 350 });
-          doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(`Score: ${r.riskScore} · ${r.probability}/${r.impact} · Owner: ${r.owner ?? "—"}`, 410, detY + 2, { width: 300 });
+          // Header
+          doc.save().rect(M, detY, CW, msHeaderH).fill(detNavy).restore();
+          msHeaders.forEach((h, i) => {
+            doc.font("Helvetica-Bold").fontSize(9).fillColor(C.white).text(h, msColX[i] + 4, detY + 5, { width: msColW[i] - 8 });
+          });
+          detY += msHeaderH;
+
+          ms.forEach((m: any, idx: number) => {
+            if (detY + msRowH > H - 100) return; // leave space for content below
+
+            const dueDateObj = m.dueDate ? new Date(m.dueDate) : null;
+            const isOverdue = dueDateObj && dueDateObj < today && m.status !== "approved" && m.status !== "completed";
+            const daysOverdue = isOverdue && dueDateObj ? Math.floor((today.getTime() - dueDateObj.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
+            // Row background: light red for delayed/overdue milestones, else alternating
+            const rowBg = isOverdue ? detLightRed : (idx % 2 === 0 ? C.white : detBg);
+            doc.save().rect(M, detY, CW, msRowH).fill(rowBg).restore();
+
+            // Milestone name (with red dot prefix if overdue)
+            const mName = m.name.slice(0, 40);
+            if (isOverdue) {
+              doc.save().circle(M + 8, detY + msRowH / 2, 3).fill(C.red).restore();
+              doc.font("Helvetica").fontSize(9).fillColor(C.dark).text(mName, M + 16, detY + 5, { width: msColW[0] - 20 });
+            } else {
+              doc.font("Helvetica").fontSize(9).fillColor(C.dark).text(mName, M + 4, detY + 5, { width: msColW[0] - 8 });
+            }
+
+            // Due date
+            const dueDateStr = dueDateObj ? formatDate(dueDateObj) : "—";
+            if (isOverdue) {
+              doc.font("Helvetica-Bold").fontSize(9).fillColor(C.red).text(dueDateStr, msColX[1] + 4, detY + 3, { width: msColW[1] - 8 });
+              if (daysOverdue > 0) {
+                doc.font("Helvetica").fontSize(7).fillColor(C.red).text(`${daysOverdue}d overdue`, msColX[1] + 4, detY + 13, { width: msColW[1] - 8 });
+              }
+            } else {
+              doc.font("Helvetica").fontSize(9).fillColor(C.dark).text(dueDateStr, msColX[1] + 4, detY + 5, { width: msColW[1] - 8 });
+            }
+
+            // Progress
+            doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(`${m.progress ?? 0}%`, msColX[2] + 4, detY + 5, { width: msColW[2] - 8, align: "center" });
+
+            // Status
+            const mStatusColor = statusColor(m.status);
+            doc.save().roundedRect(msColX[3] + 4, detY + 4, msColW[3] - 8, 14, 3).fill(mStatusColor).restore();
+            doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white).text(statusLabel(m.status), msColX[3] + 6, detY + 7, { width: msColW[3] - 12, align: "center" });
+
+            // Weight
+            doc.font("Helvetica").fontSize(9).fillColor(detMid).text(m.weight != null ? `${m.weight}%` : "—", msColX[4] + 4, detY + 5, { width: msColW[4] - 8 });
+
+            detY += msRowH;
+          });
+          detY += 12;
+        }
+
+        // ── Two-column layout: Achievements (60%) | Next Steps (40%) ──
+        const leftColW = CW * 0.6 - 8;
+        const rightColX = M + CW * 0.6 + 8;
+        const rightColW = CW * 0.4 - 8;
+        const twoColY = detY;
+
+        // Key Achievements (left column)
+        doc.font("Helvetica-Bold").fontSize(11).fillColor(detNavy).text("Key Achievements", M, twoColY);
+        doc.save().moveTo(M, twoColY + 14).lineTo(M + leftColW, twoColY + 14).lineWidth(0.5).strokeColor(detBorder).stroke().restore();
+        let leftY = twoColY + 20;
+        if (report) {
+          const achievements = (report as any).keyAchievements || (report as any).statusReason || (report as any).notes || "No details provided.";
+          doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(achievements, M, leftY, { width: leftColW, lineGap: 3 });
+          leftY += doc.heightOfString(achievements, { width: leftColW, lineGap: 3 });
+        } else {
+          doc.font("Helvetica").fontSize(10).fillColor(detLight).text("No weekly report submitted", M, leftY, { width: leftColW });
+          leftY += 16;
+        }
+
+        // Next Steps (right column)
+        doc.font("Helvetica-Bold").fontSize(11).fillColor(detNavy).text("Next Steps", rightColX, twoColY);
+        doc.save().moveTo(rightColX, twoColY + 14).lineTo(rightColX + rightColW, twoColY + 14).lineWidth(0.5).strokeColor(detBorder).stroke().restore();
+        let rightY = twoColY + 20;
+        if (report) {
+          const nextSteps = (report as any).nextSteps || (report as any).completionReason || "No next steps provided.";
+          doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(nextSteps, rightColX, rightY, { width: rightColW, lineGap: 3 });
+          rightY += doc.heightOfString(nextSteps, { width: rightColW, lineGap: 3 });
+        } else {
+          doc.font("Helvetica").fontSize(10).fillColor(detLight).text("No weekly report submitted", rightColX, rightY, { width: rightColW });
+          rightY += 16;
+        }
+
+        detY = Math.max(leftY, rightY) + 16;
+
+        // ── Risks section ──
+        if (projRisks.length > 0 && detY < H - 60) {
+          doc.font("Helvetica-Bold").fontSize(11).fillColor(detNavy).text(`Active Risks (${projRisks.length})`, M, detY);
+          doc.save().moveTo(M, detY + 14).lineTo(W - M, detY + 14).lineWidth(0.5).strokeColor(detBorder).stroke().restore();
           detY += 20;
-        });
+
+          projRisks.slice(0, 8).forEach((r: any) => {
+            if (detY + 20 > H - 40) return;
+            // Colored left bar (5px) based on score
+            const riskBarColor = r.riskScore >= 12 ? C.red : r.riskScore >= 6 ? C.amber : C.green;
+            doc.save().rect(M, detY, 5, 20).fill(riskBarColor).restore();
+            // Title + score + owner
+            doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(r.title, M + 12, detY + 4, { width: 350 });
+            doc.font("Helvetica").fontSize(10).fillColor(detMid).text(`Score: ${r.riskScore}`, M + 370, detY + 4, { width: 80 });
+            doc.font("Helvetica").fontSize(10).fillColor(detMid).text(`Owner: ${r.owner ?? "—"}`, M + 460, detY + 4, { width: 200 });
+            detY += 20;
+          });
+        }
       }
     }
 
