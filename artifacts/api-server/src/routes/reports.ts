@@ -489,6 +489,94 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(`${Math.round(ps.progress)}%`, pillarX + barW - 4, py + 12, { width: 36 });
     });
 
+    // ── PAGE: Department Overview ──
+    if (data.departments.length > 0) {
+      doc.addPage();
+      pdfAccentBar(doc);
+      doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Department Overview", M, 20);
+      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text("Project distribution and progress by department", M, 44);
+
+      let deptOverY = 66;
+      const deptRowH = 50;
+
+      for (const dept of data.departments.slice(0, 10)) {
+        if (deptOverY + deptRowH > H - 40) break;
+
+        // Compute per-department status counts
+        const deptProjectRows = projectRows.filter((p: any) => p.departmentId === dept.id);
+        const dOnTrack = deptProjectRows.filter((p: any) => p.computedStatus === "on_track").length;
+        const dAtRisk = deptProjectRows.filter((p: any) => p.computedStatus === "at_risk").length;
+        const dDelayed = deptProjectRows.filter((p: any) => p.computedStatus === "delayed").length;
+        const dCompleted = deptProjectRows.filter((p: any) => p.computedStatus === "completed").length;
+        const dNotStarted = deptProjectRows.filter((p: any) => p.computedStatus === "not_started").length;
+        const dOther = dept.projectCount - dOnTrack - dAtRisk - dDelayed - dCompleted - dNotStarted;
+        const dTotal = dept.projectCount || 1;
+
+        // Row background
+        doc.save().rect(M, deptOverY, CW, deptRowH).fill(C.bg).stroke(C.border).restore();
+
+        // Department name (bold, 12pt)
+        doc.font("Helvetica-Bold").fontSize(12).fillColor(C.dark).text(dept.name, M + 10, deptOverY + 4, { width: 200 });
+
+        // Colored squares legend
+        const sqY = deptOverY + 20;
+        const sqSize = 10;
+        let sqX = M + 10;
+        const segments = [
+          { count: dOnTrack, color: C.green, label: "on track" },
+          { count: dAtRisk, color: C.amber, label: "at risk" },
+          { count: dDelayed, color: C.red, label: "delayed" },
+          { count: dCompleted + dNotStarted + dOther, color: C.secondary, label: "other" },
+        ];
+        segments.forEach((seg) => {
+          for (let s = 0; s < Math.min(seg.count, 12); s++) {
+            doc.save().rect(sqX, sqY, sqSize, sqSize).fill(seg.color).restore();
+            sqX += sqSize + 2;
+          }
+        });
+
+        // Numbers inline
+        doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(
+          `${dOnTrack} on track  ·  ${dAtRisk} at risk  ·  ${dDelayed} delayed  ·  ${dCompleted} completed`,
+          M + 10, deptOverY + 35, { width: 300 }
+        );
+
+        // Stacked progress bar (180px wide, 14px tall)
+        const barX = M + 320;
+        const barW = 180;
+        const barH = 14;
+        const barY = deptOverY + 8;
+        // Track
+        doc.save().rect(barX, barY, barW, barH).fill(C.border).restore();
+        // Segments
+        let segOffset = 0;
+        const barSegments = [
+          { count: dOnTrack, color: C.green },
+          { count: dAtRisk, color: C.amber },
+          { count: dDelayed, color: C.red },
+          { count: dCompleted + dNotStarted + dOther, color: C.secondary },
+        ];
+        barSegments.forEach((seg) => {
+          const segW = (seg.count / dTotal) * barW;
+          if (segW > 0) {
+            doc.save().rect(barX + segOffset, barY, segW, barH).fill(seg.color).restore();
+            segOffset += segW;
+          }
+        });
+
+        // Average progress
+        doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(`Avg ${dept.avgProgress}%`, barX, barY + 18, { width: barW });
+
+        // Total projects count in a circle
+        const circleX = M + CW - 40;
+        const circleY = deptOverY + deptRowH / 2;
+        doc.save().circle(circleX, circleY, 16).fill(C.primary).restore();
+        doc.font("Helvetica-Bold").fontSize(12).fillColor(C.white).text(String(dept.projectCount), circleX - 14, circleY - 7, { width: 28, align: "center" });
+
+        deptOverY += deptRowH + 4;
+      }
+    }
+
     // ── PAGE 3: Project Portfolio Table ─────────────────────────────────────
     {
       doc.addPage();
@@ -502,7 +590,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       const ptHeaders = ["#", "Code", "Project Name", "Status", "Progress", "Start", "End", "Budget", "Spent%", "Owner", "Achievements", "Next Steps"];
       const ptRowH = 28;
       const ptHeaderH = 22;
-      const ptTableTop = 50;
+      const ptDeptHeaderH = 22;
       const navy = "#1E3A5F";
 
       const drawPortfolioHeader = (yPos: number) => {
@@ -513,7 +601,14 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         return yPos + ptHeaderH;
       };
 
-      let ptY = drawPortfolioHeader(ptTableTop);
+      const drawDeptHeader = (yPos: number, deptName: string, deptCount: number, deptAvg: number) => {
+        doc.save().rect(M, yPos, CW, ptDeptHeaderH).fill(navy).restore();
+        doc.font("Helvetica-Bold").fontSize(9).fillColor(C.white).text(
+          `Department: ${deptName} — ${deptCount} projects, avg ${deptAvg}% progress`,
+          M + 6, yPos + 6, { width: CW - 12 }
+        );
+        return yPos + ptDeptHeaderH;
+      };
 
       // Format date as DD MMM YY
       const fmtDateShort = (d: Date | string | null | undefined): string => {
@@ -526,70 +621,110 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         return `${day} ${mon} ${yr}`;
       };
 
-      projectRows.forEach((p: any, idx: number) => {
-        // Page overflow: continue on next page with same header
-        if (ptY + ptRowH > H - 40) {
+      let ptY = 50;
+
+      // Group projects by department
+      const deptGroups = data.departments.map((dept) => {
+        const deptProjs = projectRows.filter((p: any) => p.departmentId === dept.id);
+        // Sort within department: delayed first, at-risk, on-track, completed
+        deptProjs.sort((a: any, b: any) => (statusOrder[a.computedStatus] ?? 5) - (statusOrder[b.computedStatus] ?? 5));
+        const avg = deptProjs.length === 0 ? 0 : Math.round(deptProjs.reduce((s: number, p: any) => s + p.progress, 0) / deptProjs.length);
+        return { name: dept.name, projects: deptProjs, avg };
+      }).filter((g) => g.projects.length > 0);
+
+      // Also include projects with no department
+      const unassignedProjs = projectRows.filter((p: any) => !data.departments.some((d) => d.id === p.departmentId));
+      if (unassignedProjs.length > 0) {
+        unassignedProjs.sort((a: any, b: any) => (statusOrder[a.computedStatus] ?? 5) - (statusOrder[b.computedStatus] ?? 5));
+        const avg = Math.round(unassignedProjs.reduce((s: number, p: any) => s + p.progress, 0) / unassignedProjs.length);
+        deptGroups.push({ name: "Unassigned", projects: unassignedProjs, avg });
+      }
+
+      let globalIdx = 0;
+      for (const group of deptGroups) {
+        // Check if department header + column header + at least 1 row fits
+        const neededH = ptDeptHeaderH + ptHeaderH + ptRowH;
+        if (ptY + neededH > H - 40) {
           doc.addPage();
           pdfAccentBar(doc);
-          ptY = drawPortfolioHeader(30);
+          ptY = 30;
         }
 
-        const rowBg = idx % 2 === 0 ? C.white : C.bg;
-        doc.save().rect(M, ptY, CW, ptRowH).fill(rowBg).restore();
+        // Department header
+        ptY = drawDeptHeader(ptY, group.name, group.projects.length, group.avg);
+        // Column headers
+        ptY = drawPortfolioHeader(ptY);
 
-        const textY = ptY + 9;
+        group.projects.forEach((p: any, localIdx: number) => {
+          // Page overflow: new page with dept header repeated + column header
+          if (ptY + ptRowH > H - 40) {
+            doc.addPage();
+            pdfAccentBar(doc);
+            ptY = drawDeptHeader(30, group.name + " (cont.)", group.projects.length, group.avg);
+            ptY = drawPortfolioHeader(ptY);
+          }
 
-        // # (row number)
-        doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(String(idx + 1), ptColX[0] + 3, textY, { width: ptColWidths[0] - 6 });
+          const rowBg = localIdx % 2 === 0 ? C.white : C.bg;
+          doc.save().rect(M, ptY, CW, ptRowH).fill(rowBg).restore();
 
-        // Code (bold 10pt)
-        doc.font("Helvetica-Bold").fontSize(8).fillColor(C.dark).text((p.projectCode ?? "—").slice(0, 8), ptColX[1] + 3, textY, { width: ptColWidths[1] - 6 });
+          const textY = ptY + 9;
+          globalIdx++;
 
-        // Project Name (truncated 30 chars)
-        doc.font("Helvetica").fontSize(8).fillColor(C.dark).text((p.name ?? "").slice(0, 30), ptColX[2] + 3, textY, { width: ptColWidths[2] - 6 });
+          // # (row number)
+          doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(String(globalIdx), ptColX[0] + 3, textY, { width: ptColWidths[0] - 6 });
 
-        // Status — colored rectangle with white text
-        const sColor = statusColor(p.computedStatus);
-        const sLabel = statusLabelUpper(p.computedStatus);
-        doc.save().roundedRect(ptColX[3] + 3, ptY + 6, ptColWidths[3] - 6, 16, 3).fill(sColor).restore();
-        doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white).text(sLabel, ptColX[3] + 5, ptY + 10, { width: ptColWidths[3] - 10, align: "center" });
+          // Code (bold 10pt)
+          doc.font("Helvetica-Bold").fontSize(8).fillColor(C.dark).text((p.projectCode ?? "—").slice(0, 8), ptColX[1] + 3, textY, { width: ptColWidths[1] - 6 });
 
-        // Progress — colored box with percentage (not a bar)
-        const pColor = statusColor(p.computedStatus);
-        doc.save().roundedRect(ptColX[4] + 3, ptY + 6, ptColWidths[4] - 6, 16, 3).fill(pColor).restore();
-        doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white).text(`${p.progress}%`, ptColX[4] + 3, ptY + 10, { width: ptColWidths[4] - 6, align: "center" });
+          // Project Name (truncated 30 chars)
+          doc.font("Helvetica").fontSize(8).fillColor(C.dark).text((p.name ?? "").slice(0, 30), ptColX[2] + 3, textY, { width: ptColWidths[2] - 6 });
 
-        // Start Date (DD MMM YY)
-        doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(fmtDateShort(p.startDate), ptColX[5] + 3, textY, { width: ptColWidths[5] - 6 });
+          // Status — colored rectangle with white text
+          const sColor = statusColor(p.computedStatus);
+          const sLabel = statusLabelUpper(p.computedStatus);
+          doc.save().roundedRect(ptColX[3] + 3, ptY + 6, ptColWidths[3] - 6, 16, 3).fill(sColor).restore();
+          doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white).text(sLabel, ptColX[3] + 5, ptY + 10, { width: ptColWidths[3] - 10, align: "center" });
 
-        // End Date (DD MMM YY)
-        doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(fmtDateShort(p.targetDate), ptColX[6] + 3, textY, { width: ptColWidths[6] - 6 });
+          // Progress — colored box with percentage
+          const pColor = statusColor(p.computedStatus);
+          doc.save().roundedRect(ptColX[4] + 3, ptY + 6, ptColWidths[4] - 6, 16, 3).fill(pColor).restore();
+          doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white).text(`${p.progress}%`, ptColX[4] + 3, ptY + 10, { width: ptColWidths[4] - 6, align: "center" });
 
-        // Budget (SAR XM format)
-        const budgetVal = p.budget ?? 0;
-        const budgetStr = budgetVal >= 1_000_000 ? `SAR ${(budgetVal / 1_000_000).toFixed(1)}M` : budgetVal >= 1_000 ? `SAR ${(budgetVal / 1_000).toFixed(0)}K` : `SAR ${budgetVal}`;
-        doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(budgetStr, ptColX[7] + 3, textY, { width: ptColWidths[7] - 6 });
+          // Start Date (DD MMM YY)
+          doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(fmtDateShort(p.startDate), ptColX[5] + 3, textY, { width: ptColWidths[5] - 6 });
 
-        // Spent %
-        const spentPctVal = budgetVal > 0 ? Math.round(((p.budgetSpent ?? 0) / budgetVal) * 100) : 0;
-        doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(`${spentPctVal}%`, ptColX[8] + 3, textY, { width: ptColWidths[8] - 6, align: "center" });
+          // End Date (DD MMM YY)
+          doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(fmtDateShort(p.targetDate), ptColX[6] + 3, textY, { width: ptColWidths[6] - 6 });
 
-        // Owner (truncated 15 chars)
-        doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text((p.ownerName ?? "—").slice(0, 15), ptColX[9] + 3, textY, { width: ptColWidths[9] - 6 });
+          // Budget (SAR XM format)
+          const budgetVal = p.budget ?? 0;
+          const budgetStr = budgetVal >= 1_000_000 ? `SAR ${(budgetVal / 1_000_000).toFixed(1)}M` : budgetVal >= 1_000 ? `SAR ${(budgetVal / 1_000).toFixed(0)}K` : `SAR ${budgetVal}`;
+          doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(budgetStr, ptColX[7] + 3, textY, { width: ptColWidths[7] - 6 });
 
-        // Achievements & Next Steps from weekly report
-        const report = data.weeklyReports.get(p.id);
-        let achieveText = "—";
-        let nextText = "—";
-        if (report) {
-          achieveText = ((report as any).keyAchievements || (report as any).statusReason || (report as any).notes || "—").slice(0, 50);
-          nextText = ((report as any).nextSteps || (report as any).completionReason || "—").slice(0, 50);
-        }
-        doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(achieveText, ptColX[10] + 3, textY, { width: ptColWidths[10] - 6 });
-        doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(nextText, ptColX[11] + 3, textY, { width: ptColWidths[11] - 6 });
+          // Spent %
+          const spentPctVal = budgetVal > 0 ? Math.round(((p.budgetSpent ?? 0) / budgetVal) * 100) : 0;
+          doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(`${spentPctVal}%`, ptColX[8] + 3, textY, { width: ptColWidths[8] - 6, align: "center" });
 
-        ptY += ptRowH;
-      });
+          // Owner (truncated 15 chars)
+          doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text((p.ownerName ?? "—").slice(0, 15), ptColX[9] + 3, textY, { width: ptColWidths[9] - 6 });
+
+          // Achievements & Next Steps from weekly report
+          const report = data.weeklyReports.get(p.id);
+          let achieveText = "—";
+          let nextText = "—";
+          if (report) {
+            achieveText = ((report as any).keyAchievements || (report as any).statusReason || (report as any).notes || "—").slice(0, 50);
+            nextText = ((report as any).nextSteps || (report as any).completionReason || "—").slice(0, 50);
+          }
+          doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(achieveText, ptColX[10] + 3, textY, { width: ptColWidths[10] - 6 });
+          doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(nextText, ptColX[11] + 3, textY, { width: ptColWidths[11] - 6 });
+
+          ptY += ptRowH;
+        });
+
+        // Gap between departments
+        ptY += 8;
+      }
     }
 
     // ── PAGE 4: Budget & KPIs ─────────────────────────────────────────────────
@@ -692,6 +827,134 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       riskY += 4;
     });
 
+    // ── Risk Heat Map (4x4 matrix) ──
+    const probLevels = ["low", "medium", "high", "critical"];
+    const impactLevels = ["low", "medium", "high", "critical"];
+    const riskMatrix: number[][] = probLevels.map((prob) =>
+      impactLevels.map((imp) =>
+        data.risks.filter((r) => r.status === "open" && r.probability === prob && r.impact === imp).length
+      )
+    );
+
+    const matrixStartX = M + 12;
+    const matrixStartY = Math.max(riskY + 8, panelTop5 + 210);
+    const cellW = 50;
+    const cellH = 40;
+    const matrixLabelW = 60;
+
+    // Check if we need a new page for the matrix
+    let matrixY = matrixStartY;
+    if (matrixY + 4 * cellH + 50 > H - 40) {
+      doc.addPage();
+      pdfAccentBar(doc);
+      matrixY = 50;
+    }
+
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Risk Heat Map (Probability x Impact)", matrixLabelW + matrixStartX - 10, matrixY);
+    matrixY += 18;
+
+    // X-axis header labels
+    impactLevels.forEach((imp, ci) => {
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(C.secondary).text(
+        imp.charAt(0).toUpperCase() + imp.slice(1),
+        matrixLabelW + matrixStartX + ci * cellW, matrixY, { width: cellW, align: "center" }
+      );
+    });
+    matrixY += 14;
+
+    // Draw grid rows (top = critical probability, bottom = low)
+    for (let ri = probLevels.length - 1; ri >= 0; ri--) {
+      const probLabel = probLevels[ri].charAt(0).toUpperCase() + probLevels[ri].slice(1);
+      // Y-axis label
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(C.secondary).text(
+        probLabel, matrixStartX, matrixY + cellH / 2 - 5, { width: matrixLabelW - 4, align: "right" }
+      );
+
+      for (let ci = 0; ci < impactLevels.length; ci++) {
+        const count = riskMatrix[ri][ci];
+        const probScore = ri + 1; // 1=low, 2=medium, 3=high, 4=critical
+        const impScore = ci + 1;
+        const score = probScore * impScore;
+
+        let cellBg: string;
+        let cellTextColor: string;
+        if (score >= 12) {
+          cellBg = C.lightRed;
+          cellTextColor = "#991B1B";
+        } else if (score >= 6) {
+          cellBg = C.lightAmber;
+          cellTextColor = "#92400E";
+        } else {
+          cellBg = C.lightGreen;
+          cellTextColor = "#166534";
+        }
+
+        const cx = matrixLabelW + matrixStartX + ci * cellW;
+        doc.save().rect(cx, matrixY, cellW, cellH).fill(cellBg).restore();
+        doc.save().rect(cx, matrixY, cellW, cellH).lineWidth(0.5).strokeColor(C.border).stroke().restore();
+        doc.font("Helvetica-Bold").fontSize(14).fillColor(cellTextColor).text(
+          String(count), cx, matrixY + cellH / 2 - 8, { width: cellW, align: "center" }
+        );
+      }
+      matrixY += cellH;
+    }
+
+    // X-axis title
+    doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(
+      "Impact →", matrixLabelW + matrixStartX, matrixY + 4, { width: 4 * cellW, align: "center" }
+    );
+    matrixY += 20;
+
+    // ── Department Health Bar (risk distribution per department) ──
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Department Risk Distribution", M + 12, matrixY);
+    matrixY += 16;
+
+    const deptHealthBarW = 300;
+    const deptHealthBarH = 12;
+    const deptHealthGap = 20;
+
+    for (const dept of data.departments.slice(0, 8)) {
+      if (matrixY + deptHealthGap > H - 40) break;
+
+      const deptRisks = data.risks.filter((r) => {
+        const proj = data.projects.find((p) => p.id === r.projectId);
+        return proj && proj.departmentId === dept.id && r.status === "open";
+      });
+
+      const redCount = deptRisks.filter((r) => sevNum(r.impact) * sevNum(r.probability) >= 12).length;
+      const amberCount = deptRisks.filter((r) => { const s = sevNum(r.impact) * sevNum(r.probability); return s >= 6 && s < 12; }).length;
+      const greenCount = deptRisks.filter((r) => sevNum(r.impact) * sevNum(r.probability) < 6).length;
+      const totalDeptRisks = deptRisks.length || 1;
+
+      // Department name
+      doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(dept.name.slice(0, 20), M + 12, matrixY, { width: 120 });
+
+      // Stacked bar
+      const hBarX = M + 140;
+      doc.save().rect(hBarX, matrixY, deptHealthBarW, deptHealthBarH).fill(C.border).restore();
+      let hOffset = 0;
+      if (redCount > 0) {
+        const rw = (redCount / totalDeptRisks) * deptHealthBarW;
+        doc.save().rect(hBarX + hOffset, matrixY, rw, deptHealthBarH).fill(C.red).restore();
+        hOffset += rw;
+      }
+      if (amberCount > 0) {
+        const aw = (amberCount / totalDeptRisks) * deptHealthBarW;
+        doc.save().rect(hBarX + hOffset, matrixY, aw, deptHealthBarH).fill(C.amber).restore();
+        hOffset += aw;
+      }
+      if (greenCount > 0) {
+        const gw = (greenCount / totalDeptRisks) * deptHealthBarW;
+        doc.save().rect(hBarX + hOffset, matrixY, gw, deptHealthBarH).fill(C.green).restore();
+        hOffset += gw;
+      }
+
+      // Total count
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(C.dark).text(String(deptRisks.length), hBarX + deptHealthBarW + 8, matrixY, { width: 30 });
+
+      matrixY += deptHealthGap;
+    }
+
     // AI Assessment panel
     doc.save().roundedRect(rightX5, panelTop5, rightW5, 200, 6).fill(C.bg).stroke(C.border).restore();
     doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("AI Programme Assessment", rightX5 + 12, panelTop5 + 10);
@@ -739,26 +1002,6 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
           "Run AI Assessment from the dashboard to include AI-powered analysis in this report.",
           rightX5 + 12, panelTop5 + 40, { width: rightW5 - 24 }
         );
-    }
-
-    // ── PAGE: Department Overview ──
-    if (data.departments.length > 0) {
-      doc.addPage();
-      pdfAccentBar(doc);
-      doc.font("Helvetica-Bold").fontSize(18).fillColor(C.dark).text("Department Progress Overview", 40, 50);
-      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text("Programme delivery by department", 40, 72);
-
-      let deptY = 95;
-      for (const dept of data.departments.slice(0, 12)) {
-        const deptStatus = dept.onTrack === dept.projectCount ? "on_track" : dept.onTrack >= dept.projectCount * 0.7 ? "at_risk" : "delayed";
-        doc.rect(40, deptY, 5, 18).fill(statusColor(deptStatus));
-        doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(dept.name, 52, deptY + 3, { width: 180 });
-        doc.font("Helvetica").fontSize(10).fillColor(C.secondary)
-          .text(`${dept.projectCount} projects · Avg ${dept.avgProgress}% · ${dept.onTrack}/${dept.projectCount} on track`, 240, deptY + 4, { width: 280 });
-        pdfHorizBar(doc, 530, deptY + 6, dept.avgProgress, 8);
-        deptY += 24;
-        if (deptY > 730) break;
-      }
     }
 
     // ── PAGE: Support Required ──

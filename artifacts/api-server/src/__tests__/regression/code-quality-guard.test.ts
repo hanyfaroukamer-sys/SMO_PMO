@@ -69,7 +69,9 @@ describe("Code quality: no undefined variables in reports.ts", () => {
       "report", "match", "entry", "item", "row", "col", "dept", "init", "risk", "kpi",
       "rowFill", "topRisk", "topRisks", "spentPct", "fmtBudget", "detY", "projY",
       "budgetVal", "budgetStr", "badgeColor", "badgeLabel",
-      "rowBg", "achievements", "nextSteps", "projRisks"]);
+      "rowBg", "achievements", "nextSteps", "projRisks",
+      "barW", "avg", "deptStatus", "totalInDept", "segX", "count",
+      "score", "cx", "cy", "cellColor", "textColor", "riskCount"]);
     let match;
     while ((match = declRegex.exec(pdfBody)) !== null) {
       const varName = match[1];
