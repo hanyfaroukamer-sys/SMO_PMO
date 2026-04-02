@@ -9,16 +9,17 @@ import {
   useListSpmoProjects,
   useListSpmoInitiatives,
   useListSpmoDepartments,
+  customFetch,
   type CreateSpmoRiskRequest,
   type CreateSpmoMitigationRequest,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LabelList } from "recharts";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, ShieldAlert, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck, Building2, FolderOpen, Download } from "lucide-react";
+import { Loader2, ShieldAlert, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck, Building2, FolderOpen, Download, ArrowRight, AlertTriangle } from "lucide-react";
 import { exportToXlsx } from "@/lib/export";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 
 const RISK_STATUSES = ["open", "mitigated", "closed", "accepted"] as const;
@@ -79,6 +80,7 @@ function heatmapColor(count: number) {
 
 export default function Risks() {
   const isAdmin = useIsAdmin();
+  const [tab, setTab] = useState<"risks" | "issues">("risks");
   const { data, isLoading } = useListSpmoRisks();
   const { data: projectsData } = useListSpmoProjects();
   const { data: initiativesData } = useListSpmoInitiatives();
@@ -272,8 +274,31 @@ export default function Risks() {
   const PROB_LEVELS: ProbImpact[] = ["low", "medium", "high", "critical"];
   const IMPACT_LEVELS: ProbImpact[] = ["low", "medium", "high", "critical"];
 
+  async function handleConvertToIssue(riskId: number) {
+    try {
+      await customFetch(`/api/spmo/risks/${riskId}/convert-to-issue`, { method: "POST" });
+      toast({ title: "Risk converted to issue" });
+      qc.invalidateQueries({ queryKey: ["/api/spmo/risks"] });
+      qc.invalidateQueries({ queryKey: ["spmo-issues"] });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to convert risk" });
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in">
+      <div className="flex gap-1 bg-secondary/50 p-1 rounded-xl mb-4">
+        <button onClick={() => setTab("risks")} className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "risks" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
+          Risks
+        </button>
+        <button onClick={() => setTab("issues")} className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "issues" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
+          Issues
+        </button>
+      </div>
+
+      {tab === "issues" && <IssuesPanel />}
+
+      {tab === "risks" && <>
       <PageHeader title="Risk Register" description="Identify, assess, and mitigate programme risks.">
         <div className="flex items-center gap-2">
           <button
@@ -534,6 +559,11 @@ export default function Risks() {
                                       </div>
 
                                       <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                        {isAdmin && risk.status !== "closed" && (
+                                          <button onClick={() => handleConvertToIssue(risk.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border border-amber-400 text-amber-600 hover:bg-amber-50 transition-colors" title="Convert to Issue">
+                                            <ArrowRight className="w-3 h-3" /> Issue
+                                          </button>
+                                        )}
                                         <button onClick={() => { if (risk.status === "closed" && !confirm("This risk is closed. Are you sure you want to edit it?")) return; openEdit(risk); }} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                                           <Pencil className="w-4 h-4" />
                                         </button>
@@ -618,6 +648,11 @@ export default function Risks() {
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            {isAdmin && risk.status !== "closed" && (
+                              <button onClick={() => handleConvertToIssue(risk.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border border-amber-400 text-amber-600 hover:bg-amber-50 transition-colors" title="Convert to Issue">
+                                <ArrowRight className="w-3 h-3" /> Issue
+                              </button>
+                            )}
                             <button onClick={() => { if (risk.status === "closed" && !confirm("This risk is closed. Are you sure you want to edit it?")) return; openEdit(risk); }} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                               <Pencil className="w-4 h-4" />
                             </button>
@@ -706,6 +741,7 @@ export default function Risks() {
           <FormActions loading={isSaving} label={editId ? "Update Risk" : "Log Risk"} onCancel={() => setRiskModal(false)} />
         </form>
       </Modal>
+      </>}
     </div>
   );
 }

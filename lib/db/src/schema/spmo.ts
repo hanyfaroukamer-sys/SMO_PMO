@@ -882,3 +882,33 @@ export const spmoKpiEvidenceTable = pgTable("spmo_kpi_evidence", {
   aiScore: real("ai_score"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ─────────────────────────────────────────────
+// ISSUES (materialised risks)
+// ─────────────────────────────────────────────
+export const spmoIssuesTable = pgTable("spmo_issues", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => spmoProjectsTable.id, { onDelete: "set null" }),
+  originRiskId: integer("origin_risk_id").references(() => spmoRisksTable.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  severity: text("severity", { enum: ["low", "medium", "high", "critical"] }).notNull().default("medium"),
+  impact: text("impact_description"),
+  owner: text("owner"),
+  status: text("status", { enum: ["open", "in_progress", "resolved", "closed"] }).notNull().default("open"),
+  resolution: text("resolution"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  index("idx_issues_project_id").on(t.projectId),
+  index("idx_issues_origin_risk_id").on(t.originRiskId),
+]);
+
+export const insertSpmoIssueSchema = createInsertSchema(spmoIssuesTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSpmoIssue = z.infer<typeof insertSpmoIssueSchema>;
+export type SpmoIssue = typeof spmoIssuesTable.$inferSelect;

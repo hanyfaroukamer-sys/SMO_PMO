@@ -43,7 +43,7 @@ const pmNavItems = [
   { title: "My Projects",      href: "/my-projects",  icon: FolderKanban,    badge: false },
   { title: "Projects",         href: "/projects",     icon: Briefcase,       badge: false },
   { title: "KPIs",             href: "/kpis",         icon: LineChart,       badge: false },
-  { title: "Risks",            href: "/risks",        icon: ShieldAlert,     badge: false },
+  { title: "Risks & Issues",    href: "/risks",        icon: ShieldAlert,     badge: false },
   { title: "Documents",        href: "/documents",    icon: FolderOpen,      badge: false },
   { title: "Strategy Map",        href: "/strategy-map", icon: Network,      badge: false },
 ];

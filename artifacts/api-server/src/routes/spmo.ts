@@ -29,6 +29,7 @@ import {
   spmoCommentsTable,
   spmoNotificationsTable,
   spmoKpiEvidenceTable,
+  spmoIssuesTable,
   type InsertSpmoInitiative,
   type InsertSpmoProject,
   type InsertSpmoMilestone,
@@ -2244,6 +2245,214 @@ router.put("/spmo/mitigations/:id", async (req, res): Promise<void> => {
   }
 
   res.json(mitigation);
+});
+
+// ─────────────────────────────────────────────────────────────
+// ISSUES (materialised risks)
+// ─────────────────────────────────────────────────────────────
+
+router.get("/spmo/issues", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const projectIdParam = req.query.projectId;
+  const conditions = projectIdParam
+    ? [eq(spmoIssuesTable.projectId, Number(projectIdParam))]
+    : [];
+
+  const issues = await db
+    .select({
+      issue: spmoIssuesTable,
+      projectName: spmoProjectsTable.name,
+    })
+    .from(spmoIssuesTable)
+    .leftJoin(spmoProjectsTable, eq(spmoIssuesTable.projectId, spmoProjectsTable.id))
+    .where(conditions.length ? conditions[0] : undefined)
+    .orderBy(desc(spmoIssuesTable.createdAt));
+
+  res.json({
+    issues: issues.map((row) => ({
+      ...row.issue,
+      projectName: row.projectName,
+    })),
+  });
+});
+
+router.post("/spmo/issues", async (req, res): Promise<void> => {
+  const userId = requireRole(req, res, "admin", "project-manager");
+  if (!userId) return;
+
+  const bodySchema = z.object({
+    title: z.string().min(1),
+    description: z.string().optional(),
+    severity: z.enum(["low", "medium", "high", "critical"]).optional(),
+    impact: z.string().optional(),
+    owner: z.string().optional(),
+    status: z.enum(["open", "in_progress", "resolved", "closed"]).optional(),
+    projectId: z.number().optional(),
+    originRiskId: z.number().optional(),
+    resolution: z.string().optional(),
+  });
+
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const user = getAuthUser(req);
+
+  const [issue] = await db
+    .insert(spmoIssuesTable)
+    .values({
+      title: parsed.data.title,
+      description: parsed.data.description ?? null,
+      severity: parsed.data.severity ?? "medium",
+      impact: parsed.data.impact ?? null,
+      owner: parsed.data.owner ?? null,
+      status: parsed.data.status ?? "open",
+      projectId: parsed.data.projectId ?? null,
+      originRiskId: parsed.data.originRiskId ?? null,
+      resolution: parsed.data.resolution ?? null,
+    })
+    .returning();
+
+  await logSpmoActivity(userId, getUserDisplayName(user), "created", "issue", issue.id, issue.title);
+  res.status(201).json(issue);
+});
+
+router.put("/spmo/issues/:id", async (req, res): Promise<void> => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid issue ID" });
+    return;
+  }
+
+  const bodySchema = z.object({
+    title: z.string().min(1).optional(),
+    description: z.string().optional(),
+    severity: z.enum(["low", "medium", "high", "critical"]).optional(),
+    impact: z.string().optional(),
+    owner: z.string().optional(),
+    status: z.enum(["open", "in_progress", "resolved", "closed"]).optional(),
+    resolution: z.string().optional(),
+  });
+
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [existing] = await db.select().from(spmoIssuesTable).where(eq(spmoIssuesTable.id, id)).limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Issue not found" });
+    return;
+  }
+
+  const updateData: Record<string, unknown> = { ...parsed.data };
+
+  // If status changed to "resolved", set resolvedAt
+  if (parsed.data.status === "resolved" && existing.status !== "resolved") {
+    updateData.resolvedAt = new Date();
+  }
+
+  const user = getAuthUser(req);
+
+  const [issue] = await db
+    .update(spmoIssuesTable)
+    .set(updateData)
+    .where(eq(spmoIssuesTable.id, id))
+    .returning();
+
+  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "issue", issue.id, issue.title);
+  res.json(issue);
+});
+
+router.delete("/spmo/issues/:id", async (req, res): Promise<void> => {
+  if (!requireAdmin(req, res)) return;
+
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid issue ID" });
+    return;
+  }
+
+  const [existing] = await db.select({ id: spmoIssuesTable.id }).from(spmoIssuesTable).where(eq(spmoIssuesTable.id, id)).limit(1);
+  if (!existing) {
+    res.status(404).json({ error: "Issue not found" });
+    return;
+  }
+
+  await db.delete(spmoIssuesTable).where(eq(spmoIssuesTable.id, id));
+  res.json({ success: true });
+});
+
+// Convert Risk to Issue
+router.post("/spmo/risks/:id/convert-to-issue", async (req, res): Promise<void> => {
+  const userId = requireRole(req, res, "admin", "project-manager");
+  if (!userId) return;
+
+  const riskId = Number(req.params.id);
+  if (isNaN(riskId)) {
+    res.status(400).json({ error: "Invalid risk ID" });
+    return;
+  }
+
+  const [risk] = await db.select().from(spmoRisksTable).where(eq(spmoRisksTable.id, riskId)).limit(1);
+  if (!risk) {
+    res.status(404).json({ error: "Risk not found" });
+    return;
+  }
+
+  const user = getAuthUser(req);
+
+  // Create an issue from the risk
+  const [issue] = await db
+    .insert(spmoIssuesTable)
+    .values({
+      title: risk.title,
+      description: risk.description ?? null,
+      severity: risk.impact,
+      projectId: risk.projectId ?? null,
+      originRiskId: risk.id,
+      owner: risk.owner ?? null,
+      status: "open",
+    })
+    .returning();
+
+  // Close the risk (it has materialised)
+  await db
+    .update(spmoRisksTable)
+    .set({ status: "closed" })
+    .where(eq(spmoRisksTable.id, riskId));
+
+  // Notify project owner if the risk is tied to a project
+  if (risk.projectId) {
+    const [project] = await db
+      .select({ ownerId: spmoProjectsTable.ownerId, name: spmoProjectsTable.name })
+      .from(spmoProjectsTable)
+      .where(eq(spmoProjectsTable.id, risk.projectId))
+      .limit(1);
+
+    if (project) {
+      await db.insert(spmoNotificationsTable).values({
+        userId: project.ownerId,
+        type: "alert",
+        title: `Risk materialised into issue`,
+        body: `Risk "${risk.title}" has materialised into an issue on project "${project.name}".`,
+        link: `/spmo/issues`,
+        entityType: "issue",
+        entityId: issue.id,
+      });
+    }
+  }
+
+  await logSpmoActivity(userId, getUserDisplayName(user), "converted_risk", "issue", issue.id, risk.title);
+  res.status(201).json(issue);
 });
 
 // ─────────────────────────────────────────────────────────────
