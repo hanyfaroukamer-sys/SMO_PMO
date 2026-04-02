@@ -1099,16 +1099,22 @@ export default function ProjectDetail({ params }: Props) {
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground font-medium">Start Date</span>
+                <span className="text-xs text-muted-foreground font-medium">Planned Start</span>
               </div>
-              <div className="font-semibold text-sm">{fmt(project.startDate)}</div>
+              <div className="font-semibold text-sm">{fmt((project as any).plannedStartDate ?? project.startDate)}</div>
+              {project.startDate && (project as any).plannedStartDate && project.startDate !== (project as any).plannedStartDate && (
+                <div className="text-[10px] text-muted-foreground mt-1">Actual: {fmt(project.startDate)}</div>
+              )}
             </Card>
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Calendar className="w-4 h-4 text-destructive/60" />
-                <span className="text-xs text-muted-foreground font-medium">Target Date</span>
+                <span className="text-xs text-muted-foreground font-medium">Planned End</span>
               </div>
-              <div className="font-semibold text-sm">{fmt(project.targetDate)}</div>
+              <div className="font-semibold text-sm">{fmt((project as any).plannedEndDate ?? project.targetDate)}</div>
+              {project.targetDate && (project as any).plannedEndDate && project.targetDate !== (project as any).plannedEndDate && (
+                <div className="text-[10px] text-muted-foreground mt-1">Actual: {fmt(project.targetDate)}</div>
+              )}
             </Card>
             <Card className="p-4 col-span-1 lg:col-span-2">
               <div className="flex items-center gap-2 mb-3">

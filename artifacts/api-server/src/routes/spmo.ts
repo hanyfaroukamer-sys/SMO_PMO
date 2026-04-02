@@ -921,6 +921,8 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
     budget: parsed.data.budget ?? 0,
     startDate: dateToStr(parsed.data.startDate) as string,
     targetDate: dateToStr(parsed.data.targetDate) as string,
+    plannedStartDate: parsed.data.plannedStartDate ? dateToStr(parsed.data.plannedStartDate) as string : dateToStr(parsed.data.startDate) as string,
+    plannedEndDate: parsed.data.plannedEndDate ? dateToStr(parsed.data.plannedEndDate) as string : dateToStr(parsed.data.targetDate) as string,
   };
 
   if (parsed.data.projectCode) {
@@ -1039,11 +1041,13 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
   // Fetch old record for audit diff
   const [oldProject] = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.id, params.data.id)).limit(1);
 
-  const { startDate: psd, targetDate: ptd, ...restProjectUpdate } = parsed.data;
+  const { startDate: psd, targetDate: ptd, plannedStartDate: ppsd, plannedEndDate: pped, ...restProjectUpdate } = parsed.data;
   const updateProject = {
     ...restProjectUpdate,
     ...(psd !== undefined && { startDate: dateToStr(psd) as string }),
     ...(ptd !== undefined && { targetDate: dateToStr(ptd) as string }),
+    ...(ppsd !== undefined && { plannedStartDate: ppsd ? dateToStr(ppsd) as string : null }),
+    ...(pped !== undefined && { plannedEndDate: pped ? dateToStr(pped) as string : null }),
   };
 
   if (parsed.data.projectCode) {

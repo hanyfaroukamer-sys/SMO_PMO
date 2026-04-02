@@ -310,11 +310,13 @@ type ProjectForm = {
   budget: string;
   startDate: string;
   targetDate: string;
+  plannedStartDate: string;
+  plannedEndDate: string;
 };
 
 const emptyProject = (): ProjectForm => ({
   name: "", projectCode: "", description: "", initiativeId: "", departmentId: "", ownerId: "", ownerName: "",
-  weight: "50", status: "active", budget: "", startDate: "", targetDate: "",
+  weight: "50", status: "active", budget: "", startDate: "", targetDate: "", plannedStartDate: "", plannedEndDate: "",
 });
 
 function classifyProjectStatus(p: SpmoProjectWithProgress): "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold" {
@@ -411,6 +413,8 @@ export default function Projects() {
       budget: String(project.budget ?? ""),
       startDate: project.startDate ?? "",
       targetDate: project.targetDate ?? "",
+      plannedStartDate: (project as any).plannedStartDate ?? "",
+      plannedEndDate: (project as any).plannedEndDate ?? "",
     });
     // Pre-populate sibling weights with effectiveWeight
     const siblings = (data?.projects ?? []).filter(p => p.initiativeId === project.initiativeId && p.id !== project.id);
@@ -478,7 +482,9 @@ export default function Projects() {
         ...commonFields,
         startDate: form.startDate || undefined,
         targetDate: form.targetDate || undefined,
-      };
+        plannedStartDate: form.plannedStartDate || undefined,
+        plannedEndDate: form.plannedEndDate || undefined,
+      } as any;
       updateMutation.mutate({ id: editId, data: updatePayload }, {
         onSuccess: () => {
           toast({ title: "Updated" });
@@ -492,7 +498,9 @@ export default function Projects() {
         ...commonFields,
         startDate: form.startDate,
         targetDate: form.targetDate,
-      };
+        plannedStartDate: form.plannedStartDate || form.startDate,
+        plannedEndDate: form.plannedEndDate || form.targetDate,
+      } as any;
       createMutation.mutate({ data: createPayload }, {
         onSuccess: () => {
           toast({ title: "Created", description: `"${form.name}" created.` });
@@ -930,10 +938,18 @@ export default function Projects() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Start Date">
+            <FormField label="Planned Start Date">
+              <input type="date" className={inputClass} value={form.plannedStartDate} onChange={(e) => setForm({ ...form, plannedStartDate: e.target.value })} />
+            </FormField>
+            <FormField label="Planned End Date">
+              <input type="date" className={inputClass} value={form.plannedEndDate} onChange={(e) => setForm({ ...form, plannedEndDate: e.target.value })} />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Actual Start Date">
               <input type="date" className={inputClass} value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
             </FormField>
-            <FormField label="Target Date">
+            <FormField label="Actual End Date">
               <input type="date" className={inputClass} value={form.targetDate} onChange={(e) => setForm({ ...form, targetDate: e.target.value })} />
             </FormField>
           </div>

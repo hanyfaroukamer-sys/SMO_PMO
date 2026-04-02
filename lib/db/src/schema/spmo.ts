@@ -137,6 +137,8 @@ export const spmoProjectsTable = pgTable("spmo_projects", {
   ownerName: text("owner_name"),
   startDate: date("start_date").notNull(),
   targetDate: date("target_date").notNull(),
+  plannedStartDate: date("planned_start_date"),
+  plannedEndDate: date("planned_end_date"),
   weight: real("weight").notNull().default(0),
   budget: real("budget").notNull().default(0),
   budgetCapex: real("budget_capex").notNull().default(0),

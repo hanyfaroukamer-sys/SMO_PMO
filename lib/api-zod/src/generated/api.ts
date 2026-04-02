@@ -1084,6 +1084,8 @@ export const CreateSpmoProjectBody = zod.object({
   ownerId: zod.string(),
   startDate: zod.coerce.date(),
   targetDate: zod.coerce.date(),
+  plannedStartDate: zod.coerce.date().optional().nullable(),
+  plannedEndDate: zod.coerce.date().optional().nullable(),
   weight: zod
     .number()
     .min(createSpmoProjectBodyWeightMin)
@@ -1201,6 +1203,8 @@ export const UpdateSpmoProjectBody = zod.object({
   departmentId: zod.number().optional().nullable(),
   startDate: zod.coerce.date().optional(),
   targetDate: zod.coerce.date().optional(),
+  plannedStartDate: zod.coerce.date().optional().nullable(),
+  plannedEndDate: zod.coerce.date().optional().nullable(),
   weight: zod.number().optional(),
   budget: zod.number().optional(),
   budgetSpent: zod.number().optional(),
