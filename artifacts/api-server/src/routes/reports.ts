@@ -725,16 +725,17 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     pdfAccentBar(doc);
     doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Budget Health & Strategic KPIs", M, 20);
 
-    const leftW4 = (W - M * 2) * 0.52;
+    const leftW4 = (W - M * 2) * 0.42;
     const rightX4 = M + leftW4 + 16;
     const rightW4 = W - rightX4 - M;
     const panelTop4 = 50;
 
-    // Budget panel
-    doc.save().roundedRect(M, panelTop4, leftW4, 200, 6).fill(C.bg).stroke(C.border).restore();
+    // Budget panel — constrained height for overflow protection
+    const budgetPanelH = Math.min(280, 30 + data.programme.pillarSummaries.length * 28);
+    doc.save().roundedRect(M, panelTop4, leftW4, budgetPanelH, 6).fill(C.bg).stroke(C.border).restore();
     doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Budget by Pillar", M + 12, panelTop4 + 10);
 
-    const barAreaW = leftW4 - 100;
+    const barAreaW = leftW4 - 120;
     const pillarBudgets = data.programme.pillarSummaries.map((ps) => {
       const inits = data.initiatives.filter((i) => i.pillarName === ps.pillar.name);
       const allocated = inits.reduce((s, i) => s + i.budget, 0);
@@ -744,28 +745,29 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     });
     const maxPillarBudget = Math.max(...pillarBudgets.map((p) => p.allocated), 1);
 
-    pillarBudgets.forEach((pb, idx) => {
-      const by = panelTop4 + 32 + idx * 32;
-      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(pb.name.slice(0, 18), M + 12, by, { width: 90, ellipsis: true });
-      const bw = barAreaW - 20;
+    pillarBudgets.slice(0, 8).forEach((pb, idx) => {
+      const by = panelTop4 + 28 + idx * 26;
+      doc.font("Helvetica").fontSize(9).fillColor(C.dark).text(pb.name.slice(0, 15), M + 8, by, { width: 80, ellipsis: true });
+      const bw = barAreaW - 10;
       const allocW = (pb.allocated / maxPillarBudget) * bw;
       const spentW = pb.allocated > 0 ? (pb.spent / pb.allocated) * allocW : 0;
-      doc.save().roundedRect(M + 105, by + 12, bw, 10, 3).fill("#BFDBFE").restore();
-      doc.save().roundedRect(M + 105, by + 12, Math.max(spentW, 2), 10, 3).fill(pb.color).restore();
+      const barStartX = M + 92;
+      doc.save().roundedRect(barStartX, by + 10, bw, 10, 3).fill("#BFDBFE").restore();
+      doc.save().roundedRect(barStartX, by + 10, Math.max(spentW, 2), 10, 3).fill(pb.color).restore();
       const allocM = (pb.allocated / 1_000_000).toFixed(0);
       const spentM = (pb.spent / 1_000_000).toFixed(0);
-      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text(`${spentM}M / ${allocM}M`, M + 105 + bw + 4, by + 11, { width: 65 });
+      doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(`${spentM}M / ${allocM}M`, barStartX + bw + 3, by + 9, { width: 55 });
     });
 
     // Budget totals
-    const totalY4 = panelTop4 + 32 + pillarBudgets.length * 32 + 8;
+    const totalY4 = panelTop4 + 28 + Math.min(pillarBudgets.length, 8) * 26 + 6;
     doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(
       `Total Allocated: ${(data.budget.totalAllocated / 1_000_000).toFixed(1)}M   |   Spent: ${(data.budget.totalSpent / 1_000_000).toFixed(1)}M   |   Utilisation: ${Math.round((data.budget.totalSpent / Math.max(data.budget.totalAllocated, 1)) * 100)}%`,
       M + 12, Math.min(totalY4, panelTop4 + 185), { width: leftW4 - 24 }
     );
 
-    // KPI panel
-    doc.save().roundedRect(rightX4, panelTop4, rightW4, 200, 6).fill(C.bg).stroke(C.border).restore();
+    // KPI panel — matches budget panel height
+    doc.save().roundedRect(rightX4, panelTop4, rightW4, budgetPanelH, 6).fill(C.bg).stroke(C.border).restore();
     doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Strategic KPIs", rightX4 + 12, panelTop4 + 10);
 
     const kpiCols = [rightX4 + 12, rightX4 + 140, rightX4 + 190, rightX4 + 235];
