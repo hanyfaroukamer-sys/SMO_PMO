@@ -655,7 +655,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(String(kpi.target ?? "—"), kpiCols[2] + 2, kpiY4 + 5, { width: 45 });
       const sc = kpiStatusColor(kpi.status ?? "");
       doc.save().roundedRect(kpiCols[3] + 2, kpiY4 + 3, 45, 12, 3).fill(sc).restore();
-      doc.font("Helvetica-Bold").fontSize(6.5).fillColor(C.white).text((kpi.status ?? "").replace("_", " ").slice(0, 9), kpiCols[3] + 5, kpiY4 + 6, { width: 42 });
+      doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white).text((kpi.status ?? "").replace("_", " ").slice(0, 9), kpiCols[3] + 5, kpiY4 + 6, { width: 42 });
       kpiY4 += 18;
     });
 
@@ -1020,7 +1020,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
 
     doc.end();
   } catch (err) {
-    console.error("PDF generation error:", err);
+    req.log?.error?.({ err }, "PDF generation error");
     if (!res.headersSent) {
       res.status(500).json({ error: "Failed to generate PDF report" });
     }
@@ -1452,7 +1452,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     );
     res.send(pptxBuffer);
   } catch (err) {
-    console.error("PPTX generation error:", err);
+    req.log?.error?.({ err }, "PPTX generation error");
     if (!res.headersSent) {
       res.status(500).json({ error: "Failed to generate PPTX report" });
     }
