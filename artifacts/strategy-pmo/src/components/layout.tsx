@@ -45,11 +45,11 @@ const pmNavItems = [
   { title: "KPIs",             href: "/kpis",         icon: LineChart,       badge: false },
   { title: "Risks",            href: "/risks",        icon: ShieldAlert,     badge: false },
   { title: "Documents",        href: "/documents",    icon: FolderOpen,      badge: false },
+  { title: "Strategy Map",        href: "/strategy-map", icon: Network,      badge: false },
 ];
 
 // ── PMO Administration items (admin only) ──
 const adminNavItems = [
-  { title: "Strategy Map",        href: "/strategy-map", icon: Network,      badge: false },
   { title: "Pillars & Initiatives", href: "/pillars",    icon: Layers,       badge: false },
   { title: "Financials",          href: "/budget",       icon: Wallet,       badge: false },
   { title: "Departments",         href: "/departments",  icon: Building2,    badge: false },
