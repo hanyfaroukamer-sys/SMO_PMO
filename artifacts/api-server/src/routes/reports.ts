@@ -406,10 +406,6 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     const cardY = 52;
     const totalInitiatives = data.programme.pillarSummaries.reduce((s, p) => s + p.initiativeCount, 0);
     const onTrackInitiatives = data.initiatives.filter((i) => i.status === "on_track").length;
-    const budgetPct =
-      data.budget.totalAllocated > 0
-        ? Math.round((data.budget.totalSpent / data.budget.totalAllocated) * 100)
-        : 0;
 
     const cards = [
       { label: "Strategy Progress", value: `${Math.round(data.programme.programmeProgress)}%`, color: C.primary },
