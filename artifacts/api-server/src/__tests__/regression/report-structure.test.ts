@@ -119,7 +119,7 @@ describe("Risk matrix", () => {
 // ════════════════════════════════════════════════════════════════════════════
 describe("Department health bar", () => {
   it("has a Department Risk Distribution section", () => {
-    expect(pdfBody).toContain("Department Risk Distribution");
+    expect(pdfBody).toContain("Department Risk Criticality");
   });
 
   it("renders stacked risk bars for departments (red/amber/green segments)", () => {

@@ -913,14 +913,109 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       matrixY += 8;
     }
 
-    // ── Department Health Bar (risk distribution per department) ──
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Department Risk Distribution", M + 12, matrixY);
-    matrixY += 16;
+    // ── Department Risk Criticality (matches web Risks page stacked bar chart) ──
+    // Start on new page for clean layout
+    doc.addPage();
+    pdfAccentBar(doc);
+    doc.font("Helvetica-Bold").fontSize(18).fillColor(C.dark).text("Department Risk Criticality", M, 20);
+    doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text("Open risks by department, grouped by severity score", M, 42);
 
-    const deptHealthBarW = 300;
-    const deptHealthBarH = 12;
-    const deptHealthGap = 20;
+    // Legend
+    const riskLegItems = [
+      { label: "Critical (≥12)", color: C.red },
+      { label: "High (6-11)", color: C.amber },
+      { label: "Medium (3-5)", color: "#3B82F6" },
+      { label: "Low (<3)", color: C.secondary },
+    ];
+    let riskLegX = M;
+    riskLegItems.forEach((l) => {
+      doc.save().roundedRect(riskLegX, 58, 12, 12, 2).fill(l.color).restore();
+      doc.font("Helvetica").fontSize(9).fillColor(C.dark).text(l.label, riskLegX + 16, 59, { width: 80 });
+      riskLegX += 110;
+    });
 
+    let deptRiskY = 82;
+    const deptBarMaxW = 400;
+    const deptBarH = 22;
+
+    // Find max risk count across departments for scaling
+    const deptRiskData = data.departments.map((dept) => {
+      const deptRisks = data.risks.filter((r) => {
+        const proj = data.projects.find((p) => p.id === r.projectId);
+        return proj && proj.departmentId === dept.id && r.status === "open";
+      });
+      const critical = deptRisks.filter((r) => sevNum(r.impact) * sevNum(r.probability) >= 12).length;
+      const high = deptRisks.filter((r) => { const s = sevNum(r.impact) * sevNum(r.probability); return s >= 6 && s < 12; }).length;
+      const medium = deptRisks.filter((r) => { const s = sevNum(r.impact) * sevNum(r.probability); return s >= 3 && s < 6; }).length;
+      const low = deptRisks.filter((r) => sevNum(r.impact) * sevNum(r.probability) < 3).length;
+      return { name: dept.name, total: deptRisks.length, critical, high, medium, low };
+    }).filter((d) => d.total > 0).sort((a, b) => b.total - a.total);
+
+    const maxRiskCount = Math.max(...deptRiskData.map((d) => d.total), 1);
+
+    for (const dept of deptRiskData.slice(0, 12)) {
+      if (deptRiskY + 32 > H - 40) break;
+
+      // Department name (right-aligned, truncated)
+      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(
+        dept.name.slice(0, 25), M, deptRiskY + 4, { width: 160, ellipsis: true }
+      );
+
+      // Stacked bar (scaled to max)
+      const barX = M + 170;
+      const barTotalW = (dept.total / maxRiskCount) * deptBarMaxW;
+      doc.save().roundedRect(barX, deptRiskY, barTotalW || 2, deptBarH, 3).fill(C.border).restore();
+
+      let segOff = 0;
+      const segs = [
+        { count: dept.critical, color: C.red },
+        { count: dept.high, color: C.amber },
+        { count: dept.medium, color: "#3B82F6" },
+        { count: dept.low, color: C.secondary },
+      ];
+      segs.forEach((seg) => {
+        if (seg.count > 0) {
+          const segW = (seg.count / dept.total) * barTotalW;
+          doc.save().rect(barX + segOff, deptRiskY, Math.max(segW, 4), deptBarH).fill(seg.color).restore();
+          // Number inside segment if wide enough
+          if (segW > 18) {
+            doc.font("Helvetica-Bold").fontSize(9).fillColor(C.white).text(
+              String(seg.count), barX + segOff, deptRiskY + 5, { width: segW, align: "center" }
+            );
+          }
+          segOff += segW;
+        }
+      });
+
+      // Total count after bar
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(
+        String(dept.total), barX + barTotalW + 8, deptRiskY + 4, { width: 30 }
+      );
+
+      deptRiskY += deptBarH + 8;
+    }
+
+    // Risk summary counts below the chart
+    deptRiskY += 10;
+    const openRisks = data.risks.filter((r) => r.status === "open").length;
+    const mitigatedRisks = data.risks.filter((r) => r.status === "mitigated").length;
+    const closedRisks = data.risks.filter((r) => r.status === "closed").length;
+
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text("Risk Summary:", M, deptRiskY);
+    deptRiskY += 16;
+    doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(
+      `${openRisks} Open  ·  ${mitigatedRisks} Mitigated  ·  ${closedRisks} Closed  ·  ${data.risks.length} Total`,
+      M, deptRiskY
+    );
+
+    // Keep the old matrixY-based variables working for code below
+    matrixY = deptRiskY + 30;
+    // Skip old department bar loop since we replaced it
+    if (false) {
+      // dead code placeholder to keep variable references valid
+      const deptHealthBarW = 300;
+      const deptHealthBarH = 12;
+      const deptHealthGap = 20;
     for (const dept of data.departments.slice(0, 8)) {
       if (matrixY + deptHealthGap > H - 40) break;
 
@@ -962,6 +1057,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
 
       matrixY += deptHealthGap;
     }
+    } // end if(false) dead code block
 
     // ── PAGE: Escalations & Critical Issues ──
     doc.addPage();
