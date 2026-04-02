@@ -661,7 +661,7 @@ function MilestoneRow({
             <button
               onClick={saveDetails}
               disabled={updateMilestone.isPending || !draft.name.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Save className="w-3 h-3" />
               {updateMilestone.isPending ? "Saving…" : "Save Changes"}
@@ -791,7 +791,7 @@ function MilestoneRow({
                     <button
                       onClick={handleDelete}
                       disabled={deleteMilestone.isPending}
-                      className="px-2 py-1 rounded text-[10px] font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="px-2 py-2.5 min-h-[44px] rounded text-[10px] font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       {deleteMilestone.isPending ? "…" : "Confirm delete"}
                     </button>
@@ -807,7 +807,7 @@ function MilestoneRow({
                     onClick={canDelete ? () => setConfirmDelete(true) : undefined}
                     disabled={!canDelete}
                     title={!canDelete ? "Only admins can delete milestones" : undefined}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-destructive/30 text-destructive bg-destructive/5 transition-colors ${canDelete ? "hover:bg-destructive/15" : "opacity-40 cursor-not-allowed"}`}
+                    className={`flex items-center gap-1 px-2.5 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold border border-destructive/30 text-destructive bg-destructive/5 transition-colors ${canDelete ? "hover:bg-destructive/15" : "opacity-40 cursor-not-allowed"}`}
                   >
                     <Trash2 className="w-3 h-3" /> Delete
                   </button>
