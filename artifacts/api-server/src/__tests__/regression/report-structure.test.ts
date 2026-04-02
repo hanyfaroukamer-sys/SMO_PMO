@@ -57,12 +57,12 @@ describe("PDF page order", () => {
 
   it("Risk Summary appears after Budget & KPIs", () => {
     const budgetIdx = pdfBody.indexOf('"Budget Health & Strategic KPIs"');
-    const riskIdx = pdfBody.indexOf('"Risk Summary & AI Assessment"');
+    const riskIdx = pdfBody.indexOf('"Risk Summary"');
     expect(riskIdx).toBeGreaterThan(budgetIdx);
   });
 
   it("Detail pages appear near the end (after Risk Summary)", () => {
-    const riskIdx = pdfBody.indexOf('"Risk Summary & AI Assessment"');
+    const riskIdx = pdfBody.indexOf('"Risk Summary"');
     const detailIdx = pdfBody.indexOf("At-Risk and Delayed Projects");
     expect(detailIdx).toBeGreaterThan(riskIdx);
   });

@@ -790,14 +790,14 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     // ── PAGE 5: Risks & AI Assessment ────────────────────────────────────────
     doc.addPage();
     pdfAccentBar(doc);
-    doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Risk Summary & AI Assessment", M, 20);
+    doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Risk Summary", M, 20);
 
-    const leftW5 = (W - M * 2) * 0.48;
+    const leftW5 = (W - M * 2) * 0.55;
     const rightX5 = M + leftW5 + 16;
     const rightW5 = W - rightX5 - M;
     const panelTop5 = 50;
 
-    // Risks panel
+    // Risks panel (now uses more width since AI assessment removed)
     doc.save().roundedRect(M, panelTop5, leftW5, 200, 6).fill(C.bg).stroke(C.border).restore();
     doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Top Risks by Score", M + 12, panelTop5 + 10);
 
@@ -963,55 +963,6 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       matrixY += deptHealthGap;
     }
 
-    // AI Assessment panel — dark background for contrast
-    doc.save().roundedRect(rightX5, panelTop5, rightW5, 200, 6).fill(C.navy).stroke(C.border).restore();
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.white).text("AI Programme Assessment", rightX5 + 12, panelTop5 + 10);
-
-    if (data.aiAssessment) {
-      const healthColor = data.aiAssessment.overallHealth === "excellent" || data.aiAssessment.overallHealth === "good"
-        ? C.green : data.aiAssessment.overallHealth === "at_risk" || data.aiAssessment.overallHealth === "critical"
-          ? C.red : C.amber;
-
-      doc.save().roundedRect(rightX5 + 12, panelTop5 + 30, rightW5 - 24, 18, 4).fill(healthColor).restore();
-      doc.font("Helvetica-Bold").fontSize(10).fillColor(C.white).text(
-        `Overall: ${data.aiAssessment.overallHealth.replace("_", " ").toUpperCase()}`,
-        rightX5 + 16, panelTop5 + 35, { width: rightW5 - 32 }
-      );
-
-      doc.font("Helvetica").fontSize(8.5).fillColor(C.white).text(
-        data.aiAssessment.summary, rightX5 + 12, panelTop5 + 56, { width: rightW5 - 24 }
-      );
-
-      let aiY = panelTop5 + 56 + 40;
-      if (data.aiAssessment.recommendations?.length > 0) {
-        doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.lightGreen).text("Key Recommendations:", rightX5 + 12, aiY);
-        aiY += 14;
-        data.aiAssessment.recommendations.slice(0, 3).forEach((r) => {
-          doc.font("Helvetica").fontSize(10).fillColor(C.white).text(`• ${r}`, rightX5 + 12, aiY, { width: rightW5 - 24, ellipsis: true });
-          aiY += 13;
-        });
-      }
-
-      if (data.aiAssessment.riskFlags?.length > 0) {
-        aiY += 4;
-        doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.lightRed).text("Risk Flags:", rightX5 + 12, aiY);
-        aiY += 14;
-        data.aiAssessment.riskFlags.slice(0, 3).forEach((r) => {
-          doc.font("Helvetica").fontSize(10).fillColor(C.white).text(`• ${r}`, rightX5 + 12, aiY, { width: rightW5 - 24, ellipsis: true });
-          aiY += 13;
-        });
-      }
-    } else {
-      doc
-        .font("Helvetica")
-        .fontSize(9)
-        .fillColor(C.light)
-        .text(
-          "Run AI Assessment from the dashboard to include AI-powered analysis in this report.",
-          rightX5 + 12, panelTop5 + 40, { width: rightW5 - 24 }
-        );
-    }
-
     // ── PAGE: Escalations & Critical Issues ──
     doc.addPage();
     pdfAccentBar(doc);
@@ -1033,7 +984,10 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc.font("Helvetica").fontSize(11).fillColor(C.green).text("No critical escalations this week.", 40, 100);
     }
 
-    // ── APPENDIX: Per-department project details ──
+    // ── DETAIL PAGES start below (appendix per-dept removed) ──
+
+    /* REMOVED: Per-department project details appendix — redundant with
+       the per-project detail pages for at-risk/delayed projects below.
     for (const dept of data.departments) {
       doc.addPage();
       pdfAccentBar(doc);
@@ -1092,6 +1046,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         if (projY > doc.page.height - 80) { doc.addPage(); pdfAccentBar(doc); projY = 50; }
       }
     }
+    END OF REMOVED APPENDIX */
 
     // ── DETAIL PAGES: At-Risk and Delayed Projects (full page each) ──
     {
