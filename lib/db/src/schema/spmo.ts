@@ -308,6 +308,11 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
   actual2028: real("actual_2028"),
   actual2029: real("actual_2029"),
   actual2030: real("actual_2030"),
+  evidenceStatus: text("evidence_status", { enum: ["pending", "submitted", "approved", "rejected"] }).default("pending"),
+  evidenceSubmittedAt: timestamp("evidence_submitted_at", { withTimezone: true }),
+  evidenceReviewedAt: timestamp("evidence_reviewed_at", { withTimezone: true }),
+  evidenceReviewedBy: text("evidence_reviewed_by"),
+  evidenceRejectionReason: text("evidence_rejection_reason"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -859,3 +864,19 @@ export const spmoProjectAccessTable = pgTable(
 );
 
 export type SpmoProjectAccess = typeof spmoProjectAccessTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// KPI EVIDENCE
+// ─────────────────────────────────────────────
+export const spmoKpiEvidenceTable = pgTable("spmo_kpi_evidence", {
+  id: serial("id").primaryKey(),
+  kpiId: integer("kpi_id").notNull().references(() => spmoKpisTable.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  contentType: text("content_type"),
+  objectPath: text("object_path").notNull(),
+  description: text("description"),
+  uploadedById: text("uploaded_by_id").notNull(),
+  uploadedByName: text("uploaded_by_name"),
+  aiScore: real("ai_score"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

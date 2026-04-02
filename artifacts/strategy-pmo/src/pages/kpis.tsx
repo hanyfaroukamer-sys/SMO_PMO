@@ -23,6 +23,7 @@ import {
   type KpiEngineInput,
 } from "@/lib/kpi-engine";
 import { KpiDetailModal, type KpiDetail } from "@/components/kpi-detail-modal";
+import { UserMentionInput } from "@/components/user-mention-input";
 
 type KpiForm = {
   name: string;
@@ -53,6 +54,8 @@ type KpiForm = {
   actual2027: string;
   actual2028: string;
   actual2029: string;
+  ownerName: string;
+  ownerId: string;
 };
 
 const emptyForm = (): KpiForm => ({
@@ -64,7 +67,22 @@ const emptyForm = (): KpiForm => ({
   formula: "", targetRationale: "", category: "", measurementFrequency: "annual",
   target2026: "", target2027: "", target2028: "", target2029: "",
   actual2026: "", actual2027: "", actual2028: "", actual2029: "",
+  ownerName: "", ownerId: "",
 });
+
+const EVIDENCE_STATUS_COLORS: Record<string, string> = {
+  pending: "bg-gray-100 text-gray-600 border-gray-200",
+  submitted: "bg-blue-50 text-blue-700 border-blue-200",
+  approved: "bg-green-50 text-green-700 border-green-200",
+  rejected: "bg-red-50 text-red-700 border-red-200",
+};
+
+const EVIDENCE_STATUS_LABEL: Record<string, string> = {
+  pending: "Evidence: Pending",
+  submitted: "Evidence: Submitted",
+  approved: "Evidence: Approved",
+  rejected: "Evidence: Rejected",
+};
 
 type Kpi = KpiDetail & { pillarId: number | null };
 
@@ -151,6 +169,8 @@ export default function KPIs() {
       actual2027: kpi.actual2027 != null ? String(kpi.actual2027) : "",
       actual2028: kpi.actual2028 != null ? String(kpi.actual2028) : "",
       actual2029: kpi.actual2029 != null ? String(kpi.actual2029) : "",
+      ownerName: (kpi as any).ownerName ?? "",
+      ownerId: (kpi as any).ownerId ?? "",
     });
     setModalOpen(true);
   }
@@ -196,9 +216,24 @@ export default function KPIs() {
       actual2028: form.actual2028 ? parseFloat(form.actual2028) : undefined,
       actual2029: form.actual2029 ? parseFloat(form.actual2029) : undefined,
     };
+    const saveOwner = async (kpiId: number) => {
+      if (form.ownerId) {
+        try {
+          await fetch(`/api/spmo/kpis/${kpiId}/owner`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ownerId: form.ownerId, ownerName: form.ownerName }),
+          });
+        } catch { /* best effort */ }
+      }
+    };
+
     if (editId !== null) {
       updateMutation.mutate({ id: editId, data: shared }, {
-        onSuccess: () => { toast({ title: "KPI Updated" }); setModalOpen(false); invalidate(); },
+        onSuccess: async () => {
+          await saveOwner(editId);
+          toast({ title: "KPI Updated" }); setModalOpen(false); invalidate();
+        },
         onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to update KPI." }),
       });
     } else {
@@ -208,7 +243,11 @@ export default function KPIs() {
         pillarId: form.pillarId ? parseInt(form.pillarId) : undefined,
       };
       createMutation.mutate({ data: createPayload }, {
-        onSuccess: () => { toast({ title: "KPI Created" }); setModalOpen(false); invalidate(); },
+        onSuccess: async (result: any) => {
+          const newId = result?.kpi?.id ?? result?.id;
+          if (newId) await saveOwner(newId);
+          toast({ title: "KPI Created" }); setModalOpen(false); invalidate();
+        },
         onError: () => toast({ variant: "destructive", title: "Error", description: "Failed to create KPI." }),
       });
     }

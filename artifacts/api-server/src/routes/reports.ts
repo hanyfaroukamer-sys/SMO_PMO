@@ -33,9 +33,12 @@ function requireAuth(req: Request, res: Response): string | null {
 // ─── McKinsey/BCG Colour Palette ─────────────────────────────────────────────
 const C = {
   primary: "#1E3A5F",
+  navy: "#1E3A5F",
   accent: "#2563EB",
   dark: "#0F172A",
+  mid: "#475569",
   secondary: "#475569",
+  light: "#94A3B8",
   bg: "#F8FAFC",
   border: "#E2E8F0",
   green: "#16A34A",
@@ -313,7 +316,7 @@ function pdfKpiBox(
   doc.save().rect(x, y, w, 3).fill(color).restore();
   doc.save().rect(x, y, w, h).lineWidth(0.5).strokeColor(C.border).stroke().restore();
   doc.font("Helvetica-Bold").fontSize(26).fillColor(C.dark).text(value, x + 10, y + 14, { width: w - 20, align: "center" });
-  doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(label.toUpperCase(), x + 10, y + 48, { width: w - 20, align: "center" });
+  doc.font("Helvetica").fontSize(10).fillColor(C.mid).text(label.toUpperCase(), x + 10, y + 48, { width: w - 20, align: "center" });
 }
 
 // ─── PDF REPORT (McKinsey/BCG Executive Style) ─────────────────────────────
@@ -424,10 +427,10 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       const x = M + i * (cardW + 12);
       doc.save().roundedRect(x, cardY, cardW, cardH, 6).fill(C.bg).stroke(C.border).restore();
       doc.save().rect(x, cardY, 4, cardH).fill(c.color).restore();
-      doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(c.label, x + 12, cardY + 10, { width: cardW - 18 });
+      doc.font("Helvetica").fontSize(10).fillColor(C.mid).text(c.label, x + 12, cardY + 10, { width: cardW - 18 });
       doc.font("Helvetica-Bold").fontSize(24).fillColor(C.dark).text(c.value, x + 12, cardY + 24, { width: cardW - 18 });
       if (c.sub) {
-        doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(c.sub, x + 12, cardY + 52, { width: cardW - 18 });
+        doc.font("Helvetica").fontSize(10).fillColor(C.mid).text(c.sub, x + 12, cardY + 52, { width: cardW - 18 });
       }
     });
 
@@ -583,11 +586,11 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       pdfAccentBar(doc);
       doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Project Portfolio", M, 20);
 
-      // Column widths for A4 landscape (762pt content area)
-      const ptColWidths = [20, 40, 120, 55, 40, 52, 52, 50, 35, 65, 130, 123];
+      // Column widths for A4 landscape (762pt content area) — 9 columns
+      const ptColWidths = [24, 50, 180, 65, 50, 65, 65, 80, 183];
       const ptColX: number[] = [];
       { let cx = M; for (const w of ptColWidths) { ptColX.push(cx); cx += w; } }
-      const ptHeaders = ["#", "Code", "Project Name", "Status", "Progress", "Start", "End", "Budget", "Spent%", "Owner", "Achievements", "Next Steps"];
+      const ptHeaders = ["#", "Code", "Project Name", "Status", "Progress", "Start", "End", "Budget", "Owner"];
       const ptRowH = 28;
       const ptHeaderH = 22;
       const ptDeptHeaderH = 22;
@@ -683,7 +686,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
           const sColor = statusColor(p.computedStatus);
           const sLabel = statusLabelUpper(p.computedStatus);
           doc.save().roundedRect(ptColX[3] + 3, ptY + 6, ptColWidths[3] - 6, 16, 3).fill(sColor).restore();
-          doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white).text(sLabel, ptColX[3] + 5, ptY + 10, { width: ptColWidths[3] - 10, align: "center" });
+          doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white).text(sLabel, ptColX[3] + 5, ptY + 10, { width: ptColWidths[3] - 10, align: "center" });
 
           // Progress — colored box with percentage
           const pColor = statusColor(p.computedStatus);
@@ -691,33 +694,18 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
           doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white).text(`${p.progress}%`, ptColX[4] + 3, ptY + 10, { width: ptColWidths[4] - 6, align: "center" });
 
           // Start Date (DD MMM YY)
-          doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(fmtDateShort(p.startDate), ptColX[5] + 3, textY, { width: ptColWidths[5] - 6 });
+          doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(fmtDateShort(p.startDate), ptColX[5] + 3, textY, { width: ptColWidths[5] - 6 });
 
           // End Date (DD MMM YY)
-          doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(fmtDateShort(p.targetDate), ptColX[6] + 3, textY, { width: ptColWidths[6] - 6 });
+          doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(fmtDateShort(p.targetDate), ptColX[6] + 3, textY, { width: ptColWidths[6] - 6 });
 
           // Budget (SAR XM format)
           const budgetVal = p.budget ?? 0;
           const budgetStr = budgetVal >= 1_000_000 ? `SAR ${(budgetVal / 1_000_000).toFixed(1)}M` : budgetVal >= 1_000 ? `SAR ${(budgetVal / 1_000).toFixed(0)}K` : `SAR ${budgetVal}`;
-          doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(budgetStr, ptColX[7] + 3, textY, { width: ptColWidths[7] - 6 });
+          doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(budgetStr, ptColX[7] + 3, textY, { width: ptColWidths[7] - 6 });
 
-          // Spent %
-          const spentPctVal = budgetVal > 0 ? Math.round(((p.budgetSpent ?? 0) / budgetVal) * 100) : 0;
-          doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(`${spentPctVal}%`, ptColX[8] + 3, textY, { width: ptColWidths[8] - 6, align: "center" });
-
-          // Owner (truncated 15 chars)
-          doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text((p.ownerName ?? "—").slice(0, 15), ptColX[9] + 3, textY, { width: ptColWidths[9] - 6 });
-
-          // Achievements & Next Steps from weekly report
-          const report = data.weeklyReports.get(p.id);
-          let achieveText = "—";
-          let nextText = "—";
-          if (report) {
-            achieveText = ((report as any).keyAchievements || (report as any).statusReason || (report as any).notes || "—").slice(0, 50);
-            nextText = ((report as any).nextSteps || (report as any).completionReason || "—").slice(0, 50);
-          }
-          doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(achieveText, ptColX[10] + 3, textY, { width: ptColWidths[10] - 6 });
-          doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(nextText, ptColX[11] + 3, textY, { width: ptColWidths[11] - 6 });
+          // Owner (truncated 20 chars)
+          doc.font("Helvetica").fontSize(8).fillColor(C.dark).text((p.ownerName ?? "—").slice(0, 20), ptColX[8] + 3, textY, { width: ptColWidths[8] - 6 });
 
           ptY += ptRowH;
         });
@@ -785,12 +773,12 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     data.kpis.slice(0, 7).forEach((kpi, idx) => {
       const bg = idx % 2 === 0 ? C.white : C.bg;
       doc.save().rect(rightX4, kpiY4, rightW4, 18).fill(bg).restore();
-      doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text((kpi.name ?? "").slice(0, 22), kpiCols[0] + 2, kpiY4 + 5, { width: 110, ellipsis: true });
-      doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(String(kpi.actual ?? "—"), kpiCols[1] + 2, kpiY4 + 5, { width: 45 });
-      doc.font("Helvetica").fontSize(7.5).fillColor(C.dark).text(String(kpi.target ?? "—"), kpiCols[2] + 2, kpiY4 + 5, { width: 45 });
+      doc.font("Helvetica").fontSize(8).fillColor(C.dark).text((kpi.name ?? "").slice(0, 22), kpiCols[0] + 2, kpiY4 + 5, { width: 110, ellipsis: true });
+      doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(String(kpi.actual ?? "—"), kpiCols[1] + 2, kpiY4 + 5, { width: 45 });
+      doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(String(kpi.target ?? "—"), kpiCols[2] + 2, kpiY4 + 5, { width: 45 });
       const sc = kpiStatusColor(kpi.status ?? "");
       doc.save().roundedRect(kpiCols[3] + 2, kpiY4 + 3, 45, 12, 3).fill(sc).restore();
-      doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white).text((kpi.status ?? "").replace("_", " ").slice(0, 9), kpiCols[3] + 5, kpiY4 + 6, { width: 42 });
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white).text((kpi.status ?? "").replace("_", " ").slice(0, 9), kpiCols[3] + 5, kpiY4 + 6, { width: 42 });
       kpiY4 += 18;
     });
 

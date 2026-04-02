@@ -133,7 +133,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 {(isMobile || !collapsed) ? (
                   <div className="flex items-center gap-2">
                     <div className="h-px flex-1 bg-sidebar-border/40" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/30">Administration</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/30">Admin</span>
                     <div className="h-px flex-1 bg-sidebar-border/40" />
                   </div>
                 ) : (

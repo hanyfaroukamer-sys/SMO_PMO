@@ -28,6 +28,7 @@ import {
   spmoProjectAccessTable,
   spmoCommentsTable,
   spmoNotificationsTable,
+  spmoKpiEvidenceTable,
   type InsertSpmoInitiative,
   type InsertSpmoProject,
   type InsertSpmoMilestone,
