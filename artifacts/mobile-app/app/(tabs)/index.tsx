@@ -43,7 +43,7 @@ function ProgressRing({ progress, size = 110, strokeWidth = 9, color = "#3B82F6"
         position: "absolute", transform: [{ rotate: "-90deg" }],
       }} />
       <Text style={{ fontSize: size * 0.28, fontWeight: "900", color: "#FFFFFF" }}>{Math.round(pct)}%</Text>
-      <Text style={{ fontSize: size * 0.09, color: "#94A3B8", fontWeight: "600" }}>PROGRESS</Text>
+      <Text style={{ fontSize: size * 0.11, color: "#94A3B8", fontWeight: "600" }}>PROGRESS</Text>
     </View>
   );
 }
@@ -54,7 +54,7 @@ function Section({ title, icon, children, onPress }: { title: string; icon: keyo
     <View style={{ backgroundColor: "#FFF", borderRadius: 16, padding: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
       <Pressable onPress={onPress} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <Ionicons name={icon} size={16} color="#2563EB" />
-        <Text style={{ flex: 1, fontSize: 13, fontWeight: "800", color: "#0F172A", letterSpacing: 0.3 }}>{title}</Text>
+        <Text style={{ flex: 1, fontSize: 15, fontWeight: "800", color: "#0F172A", letterSpacing: 0.3 }}>{title}</Text>
         {onPress && <Ionicons name="chevron-forward" size={16} color="#94A3B8" />}
       </Pressable>
       {children}
@@ -71,8 +71,8 @@ function MetricCard({ label, value, sub, color, icon, onPress }: { label: string
           <Ionicons name={icon} size={14} color={color} />
         </View>
       </View>
-      <Text style={{ fontSize: 22, fontWeight: "900", color: "#0F172A" }}>{value}</Text>
-      <Text style={{ fontSize: 10, color: "#94A3B8", fontWeight: "600", marginTop: 2 }}>{label}</Text>
+      <Text style={{ fontSize: 26, fontWeight: "900", color: "#0F172A" }}>{value}</Text>
+      <Text style={{ fontSize: 12, color: "#94A3B8", fontWeight: "600", marginTop: 2 }}>{label}</Text>
       {sub && <Text style={{ fontSize: 10, color: "#64748B", marginTop: 1 }}>{sub}</Text>}
     </Pressable>
   );
@@ -233,7 +233,7 @@ export default function DashboardScreen() {
                   return (
                     <View key={st} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color, opacity: count === 0 ? 0.3 : 1 }} />
-                      <Text style={{ flex: 1, fontSize: 12, color: count === 0 ? "#CBD5E1" : "#475569" }}>{label}</Text>
+                      <Text style={{ flex: 1, fontSize: 13, color: count === 0 ? "#CBD5E1" : "#475569" }}>{label}</Text>
                       <Text style={{ fontSize: 13, fontWeight: "800", color: count === 0 ? "#CBD5E1" : "#0F172A", width: 24, textAlign: "right" }}>{count}</Text>
                       <Text style={{ fontSize: 10, color: "#94A3B8", width: 32, textAlign: "right" }}>{pct}%</Text>
                     </View>
@@ -317,7 +317,7 @@ export default function DashboardScreen() {
               {departments.map((dept) => (
                 <View key={dept.departmentId}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#0F172A", flex: 1 }} numberOfLines={1}>{dept.departmentName}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#0F172A", flex: 1 }} numberOfLines={1}>{dept.departmentName}</Text>
                     <Text style={{ fontSize: 10, color: "#94A3B8" }}>{dept.totalProjects} project{dept.totalProjects !== 1 ? "s" : ""}</Text>
                   </View>
                   <SegmentedBar height={16} segments={[
@@ -341,7 +341,7 @@ export default function DashboardScreen() {
               return (
                 <View key={p.id} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: i < pillars.length - 1 ? 1 : 0, borderBottomColor: "#F1F5F9" }}>
                   <View style={{ width: 4, height: 28, borderRadius: 2, backgroundColor: color }} />
-                  <Text style={{ flex: 1, fontSize: 13, fontWeight: "600", color: "#1E293B" }} numberOfLines={1}>{p.name}</Text>
+                  <Text style={{ flex: 1, fontSize: 14, fontWeight: "600", color: "#1E293B" }} numberOfLines={1}>{p.name}</Text>
                   <View style={{ width: 80, height: 6, backgroundColor: "#F1F5F9", borderRadius: 3, overflow: "hidden" }}>
                     <View style={{ height: "100%", width: `${Math.min(100, p.progress)}%`, backgroundColor: color, borderRadius: 3 }} />
                   </View>
@@ -360,7 +360,7 @@ export default function DashboardScreen() {
               return (
                 <View key={p.id} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: i < enablers.length - 1 ? 1 : 0, borderBottomColor: "#F1F5F9" }}>
                   <View style={{ width: 4, height: 28, borderRadius: 2, backgroundColor: color }} />
-                  <Text style={{ flex: 1, fontSize: 13, fontWeight: "600", color: "#1E293B" }} numberOfLines={1}>{p.name}</Text>
+                  <Text style={{ flex: 1, fontSize: 14, fontWeight: "600", color: "#1E293B" }} numberOfLines={1}>{p.name}</Text>
                   <View style={{ width: 80, height: 6, backgroundColor: "#F1F5F9", borderRadius: 3, overflow: "hidden" }}>
                     <View style={{ height: "100%", width: `${Math.min(100, p.progress)}%`, backgroundColor: color, borderRadius: 3 }} />
                   </View>
@@ -380,7 +380,7 @@ export default function DashboardScreen() {
           ]).map((a) => (
             <Pressable key={a.label} onPress={() => router.push(a.route as never)} style={{ flex: 1, backgroundColor: "#FFF", borderRadius: 14, padding: 14, alignItems: "center", gap: 6, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 }}>
               <Ionicons name={a.icon} size={22} color="#475569" />
-              <Text style={{ fontSize: 11, fontWeight: "700", color: "#475569" }}>{a.label}</Text>
+              <Text style={{ fontSize: 13, fontWeight: "700", color: "#475569" }}>{a.label}</Text>
             </Pressable>
           ))}
         </View>

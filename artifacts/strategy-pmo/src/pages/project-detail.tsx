@@ -70,10 +70,10 @@ function fileIcon(contentType: string | null | undefined) {
 }
 
 const HEALTH_CONFIG: Record<SpmoHealthStatus, { label: string; color: string; bg: string; border: string }> = {
-  on_track:    { label: "On Track",    color: "text-success",          bg: "bg-success/10",     border: "border-success/20" },
-  at_risk:     { label: "At Risk",     color: "text-warning",          bg: "bg-warning/10",     border: "border-warning/20" },
-  delayed:     { label: "Delayed",     color: "text-destructive",      bg: "bg-destructive/10", border: "border-destructive/20" },
-  completed:   { label: "Completed",   color: "text-success",          bg: "bg-success/10",     border: "border-success/20" },
+  on_track:    { label: "On Track",    color: "text-success",          bg: "bg-success/10",     border: "border-success/40" },
+  at_risk:     { label: "At Risk",     color: "text-warning",          bg: "bg-warning/10",     border: "border-warning/40" },
+  delayed:     { label: "Delayed",     color: "text-destructive",      bg: "bg-destructive/10", border: "border-destructive/40" },
+  completed:   { label: "Completed",   color: "text-success",          bg: "bg-success/10",     border: "border-success/40" },
   not_started: { label: "Not Started", color: "text-muted-foreground", bg: "bg-muted",          border: "border-border" },
 };
 
@@ -142,6 +142,7 @@ function EvidenceSection({
   };
 
   const handleApprove = async () => {
+    if (!window.confirm(`Approve milestone '${milestone.name}'? This action cannot be undone.`)) return;
     await approveMutation.mutateAsync({ id: milestone.id, data: {} });
     toast({ title: "Milestone approved" });
     onInvalidate();
@@ -199,7 +200,7 @@ function EvidenceSection({
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading || isApproved}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border hover:bg-secondary/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
           Upload Evidence
@@ -209,7 +210,7 @@ function EvidenceSection({
           <button
             onClick={() => aiMutation.mutate({ data: { milestoneId: milestone.id } })}
             disabled={aiMutation.isPending || isApproved}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border hover:bg-secondary/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {aiMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-primary" />}
             AI Validate
@@ -222,14 +223,14 @@ function EvidenceSection({
             <button
               onClick={handleApprove}
               disabled={approveMutation.isPending || evidenceList.length === 0}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-success text-white hover:-translate-y-0.5 transition-transform shadow-sm disabled:opacity-50"
+              className="flex items-center gap-1.5 px-2.5 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-success text-white hover:-translate-y-0.5 transition-transform shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <CheckCircle2 className="w-3.5 h-3.5" /> Approve
             </button>
             <button
               onClick={() => setRejecting(true)}
               disabled={rejectMutation.isPending}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive hover:text-white transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-2.5 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-destructive/10 text-destructive border border-destructive/40 hover:bg-destructive hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <XCircle className="w-3.5 h-3.5" /> Reject
             </button>
@@ -244,7 +245,7 @@ function EvidenceSection({
               onInvalidate();
             }}
             disabled={submitMutation.isPending}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {submitMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Target className="w-3.5 h-3.5" />}
             Submit for Approval
@@ -257,6 +258,14 @@ function EvidenceSection({
           </div>
         )}
       </div>
+
+      {/* Help text when Submit for Approval is not available */}
+      {!isApproved && !isSubmitted && !canSubmitForApproval && (
+        <div className="text-xs text-muted-foreground">
+          {(milestone.progress ?? 0) < 100 && <div>Requires 100% progress</div>}
+          {evidenceList.length === 0 && <div>Requires at least 1 evidence file</div>}
+        </div>
+      )}
 
       {/* Rejection reason input */}
       {rejecting && (
@@ -413,7 +422,7 @@ function MilestonesTab({
             <button
               onClick={handleCreate}
               disabled={createMilestone.isPending || !form.name.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Save className="w-3 h-3" />
               {createMilestone.isPending ? "Creating…" : "Create Milestone"}
@@ -544,6 +553,7 @@ function MilestoneRow({
   };
 
   const handleDelete = async () => {
+    if (!window.confirm(`Delete milestone '${milestone.name}'? This cannot be undone.`)) return;
     await deleteMilestone.mutateAsync({ id: milestone.id });
     toast({ title: "Milestone deleted" });
     onInvalidate();
@@ -651,7 +661,7 @@ function MilestoneRow({
             <button
               onClick={saveDetails}
               disabled={updateMilestone.isPending || !draft.name.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Save className="w-3 h-3" />
               {updateMilestone.isPending ? "Saving…" : "Save Changes"}
@@ -717,7 +727,7 @@ function MilestoneRow({
                     <button
                       onClick={() => saveInlineProgress(inlineProgress)}
                       disabled={savingProgress}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {savingProgress ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Save className="w-2.5 h-2.5" />}
                       Save
@@ -781,7 +791,7 @@ function MilestoneRow({
                     <button
                       onClick={handleDelete}
                       disabled={deleteMilestone.isPending}
-                      className="px-2 py-1 rounded text-[10px] font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                      className="px-2 py-1 rounded text-[10px] font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       {deleteMilestone.isPending ? "…" : "Confirm delete"}
                     </button>
@@ -1308,7 +1318,7 @@ export default function ProjectDetail({ params }: Props) {
                   <button
                     onClick={saveReport}
                     disabled={upsertReport.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-primary to-primary/80 text-white shadow-sm hover:-translate-y-0.5 transition-transform disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-primary to-primary/80 text-white shadow-sm hover:-translate-y-0.5 transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {upsertReport.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     Save Report
@@ -1621,7 +1631,7 @@ function CRInlineForm({
         <textarea value={form.description} onChange={f("description")} rows={2} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" placeholder="What is changing and why?" />
       </div>
       <div className="col-span-2 flex gap-2">
-        <button onClick={() => onSave(form)} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-50 hover:-translate-y-0.5 transition-transform">
+        <button onClick={() => onSave(form)} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:-translate-y-0.5 transition-transform">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
         </button>
         <button onClick={onCancel} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
@@ -2084,7 +2094,7 @@ function ActionRow({
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-50 hover:-translate-y-0.5 transition-transform">
+          <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:-translate-y-0.5 transition-transform">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
           </button>
           <button onClick={() => setEditing(false)} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
@@ -2356,7 +2366,7 @@ function DocumentsTab({
             </div>
           </div>
           <div className="flex gap-2 pt-1">
-            <button onClick={handleUpload} disabled={uploading} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:-translate-y-0.5 transition-transform disabled:opacity-50">
+            <button onClick={handleUpload} disabled={uploading} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:-translate-y-0.5 transition-transform disabled:opacity-40 disabled:cursor-not-allowed">
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Save
             </button>
             <button onClick={() => setShowForm(false)} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground">Cancel</button>

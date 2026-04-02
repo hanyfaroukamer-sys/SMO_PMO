@@ -134,7 +134,7 @@ export default function AnalyticsPage() {
       </div>
 
       {isLoading && (
-        <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       )}
 
       {/* ─── Overview Tab ──────────────────────────────────────── */}
@@ -272,7 +272,7 @@ function DelaysPanel() {
     <Card className="p-5">
       <SectionHeader title="Predictive Delay Analysis" icon={Clock} count={items.length} />
       {items.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground"><CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500" /><p>No projects predicted to be delayed.</p></div>
+        <div className="p-8 text-center bg-secondary/20 rounded-lg"><CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500" /><p className="text-sm text-muted-foreground">No projects predicted to be delayed.</p></div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -327,7 +327,7 @@ function BudgetPanel() {
     <Card className="p-5">
       <SectionHeader title="Budget Forecast" icon={DollarSign} count={items.length} />
       {items.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground"><CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500" /><p>All projects on track with budget.</p></div>
+        <div className="p-8 text-center bg-secondary/20 rounded-lg"><CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500" /><p className="text-sm text-muted-foreground">All projects on track with budget.</p></div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -417,7 +417,7 @@ function StakeholdersPanel() {
         );
       })}
       {items.length === 0 && (
-        <Card className="p-10 text-center"><CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500" /><p className="text-muted-foreground">No stakeholder issues detected.</p></Card>
+        <Card className="p-8 text-center"><CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500" /><p className="text-sm text-muted-foreground">No stakeholder issues detected.</p></Card>
       )}
     </div>
   );
@@ -439,7 +439,7 @@ function EvmPanel() {
     <Card className="p-5">
       <SectionHeader title="Earned Value Management" icon={TrendingUp} count={items.length} />
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[900px] text-sm">
           <thead><tr className="bg-secondary/50 text-xs uppercase text-muted-foreground">
             <th className="px-3 py-2 text-left">Project</th>
             <th className="px-3 py-2 text-right">PV</th>
@@ -1219,7 +1219,7 @@ function DependencyFinderPanel() {
       </Card>
 
       {newSuggestions.length === 0 && (
-        <Card className="p-10 text-center">
+        <Card className="p-8 text-center">
           <CheckCircle2 className="w-10 h-10 mx-auto text-green-500 mb-3" />
           <h3 className="text-lg font-bold">No Missing Dependencies Found</h3>
           <p className="text-sm text-muted-foreground mt-1">All detected dependencies are already registered.</p>

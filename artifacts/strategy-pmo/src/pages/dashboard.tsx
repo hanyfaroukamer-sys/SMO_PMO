@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2,
   ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert,
-  Upload, FileText, BarChart2, Layers, Zap,
+  Upload, FileText, BarChart2, Layers, Zap, X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -93,10 +93,10 @@ function classifyProject(project: SpmoProjectWithProgress): ProjectStatusCategor
 }
 
 const STATUS_CHIPS: Record<ProjectStatusCategory, { label: string; bg: string; text: string }> = {
-  on_track:    { label: "On Track",       bg: "bg-primary/10 border border-primary/20",         text: "text-primary" },
-  at_risk:     { label: "Risk of Delay",  bg: "bg-warning/10 border border-warning/20",         text: "text-warning" },
-  delayed:     { label: "Delayed",        bg: "bg-destructive/10 border border-destructive/20", text: "text-destructive" },
-  completed:   { label: "Completed",      bg: "bg-success/10 border border-success/20",         text: "text-success" },
+  on_track:    { label: "On Track",       bg: "bg-primary/10 border border-primary/40",         text: "text-primary" },
+  at_risk:     { label: "Risk of Delay",  bg: "bg-warning/10 border border-warning/40",         text: "text-warning" },
+  delayed:     { label: "Delayed",        bg: "bg-destructive/10 border border-destructive/40", text: "text-destructive" },
+  completed:   { label: "Completed",      bg: "bg-success/10 border border-success/40",         text: "text-success" },
   not_started: { label: "Not Started",    bg: "bg-secondary border border-border",              text: "text-muted-foreground" },
   on_hold:     { label: "On Hold",        bg: "bg-orange-100 border border-orange-200",         text: "text-orange-600" },
 };
@@ -426,8 +426,21 @@ export default function Dashboard() {
     if (!aiMutation.data) aiMutation.mutate();
   };
 
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
   if (isLoading)
-    return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+    return (
+      <div className="p-8 space-y-6">
+        <div className="h-10 animate-pulse bg-secondary/50 rounded-xl w-2/3" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="animate-pulse bg-secondary/50 rounded-xl h-[120px]" />
+          ))}
+        </div>
+        <div className="animate-pulse bg-secondary/50 rounded-xl h-8 w-1/2" />
+        <div className="animate-pulse bg-secondary/50 rounded-xl h-[200px]" />
+      </div>
+    );
   if (error || !data)
     return <div className="p-8 text-destructive">Failed to load dashboard data.</div>;
 
@@ -677,6 +690,51 @@ export default function Dashboard() {
             </Link>
           </div>
         )}
+
+        {/* Status at a Glance banner */}
+        {!bannerDismissed && (() => {
+          const delayedCount = projects.filter((p) => {
+            if (p.status === "completed" || p.status === "on_hold") return false;
+            return (p.computedStatus as SpmoStatusResult | undefined)?.status === "delayed";
+          }).length;
+          const atRiskCount = projects.filter((p) => {
+            if (p.status === "completed" || p.status === "on_hold") return false;
+            return (p.computedStatus as SpmoStatusResult | undefined)?.status === "at_risk";
+          }).length;
+          const onTrackCount = projects.filter((p) => {
+            if (p.status === "completed" || p.status === "on_hold") return false;
+            const cs = (p.computedStatus as SpmoStatusResult | undefined)?.status;
+            return cs === "on_track" || (!cs && p.status !== "completed");
+          }).length;
+          const criticalCount = delayedCount + (data.activeRisks ?? 0);
+          if (criticalCount === 0 && atRiskCount === 0) return null;
+          return (
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+              <div className="flex flex-1 items-center gap-4 flex-wrap">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Status at a Glance</span>
+                {criticalCount > 0 && (
+                  <div className="flex items-center gap-2 bg-destructive/10 rounded-lg px-3 py-2">
+                    <span className="text-2xl font-bold text-destructive">{criticalCount}</span>
+                    <span className="text-xs font-semibold text-destructive">Critical</span>
+                  </div>
+                )}
+                {atRiskCount > 0 && (
+                  <div className="flex items-center gap-2 bg-warning/10 rounded-lg px-3 py-2">
+                    <span className="text-2xl font-bold text-warning">{atRiskCount}</span>
+                    <span className="text-xs font-semibold text-warning">At Risk</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 bg-success/10 rounded-lg px-3 py-2">
+                  <span className="text-2xl font-bold text-success">{onTrackCount}</span>
+                  <span className="text-xs font-semibold text-success">On Track</span>
+                </div>
+              </div>
+              <button onClick={() => setBannerDismissed(true)} className="text-muted-foreground hover:text-foreground transition-colors p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        })()}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">

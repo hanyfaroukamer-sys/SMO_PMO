@@ -111,6 +111,11 @@ export function Layout({ children }: { children: ReactNode }) {
       {/* Search trigger */}
       <div className="px-1.5 pt-3 pb-1">
         <SearchTrigger collapsed={collapsed && !isMobile} />
+        {!isMobile && collapsed && (
+          <div className="text-center mt-0.5">
+            <span className="text-[10px] text-muted-foreground/50 font-mono">⌘K</span>
+          </div>
+        )}
       </div>
 
       {/* Nav items */}
@@ -139,8 +144,9 @@ export function Layout({ children }: { children: ReactNode }) {
             <Link
               href={item.href}
               onClick={() => isMobile && setMobileOpen(false)}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-lg transition-all duration-200 group text-[13px] font-medium",
+                "flex items-center gap-2.5 rounded-lg transition-all duration-200 group text-[13px] font-medium focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
                 !isMobile && collapsed ? "justify-center p-2.5" : isActive ? "py-2 pr-2.5 pl-2 border-l-2 border-primary" : "px-2.5 py-2",
                 isActive
                   ? "bg-gradient-to-r from-sidebar-accent to-sidebar-accent/60 text-white"
@@ -148,7 +154,7 @@ export function Layout({ children }: { children: ReactNode }) {
               )}
               title={!isMobile && collapsed ? item.title : undefined}
             >
-              <div className="relative shrink-0">
+              <div className="relative shrink-0 overflow-hidden">
                 <item.icon
                   className={cn(
                     "w-4 h-4 transition-colors",
@@ -158,7 +164,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   )}
                 />
                 {badge > 0 && !isMobile && collapsed && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center leading-none">
                     {badge > 99 ? "99+" : badge}
                   </span>
                 )}
@@ -179,8 +185,9 @@ export function Layout({ children }: { children: ReactNode }) {
             <Link
               href="/admin"
               onClick={() => isMobile && setMobileOpen(false)}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-lg transition-all duration-200 group text-[13px] font-medium",
+                "flex items-center gap-2.5 rounded-lg transition-all duration-200 group text-[13px] font-medium focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
                 !isMobile && collapsed ? "justify-center p-2.5" : isActive ? "py-2 pr-2.5 pl-2 border-l-2 border-primary" : "px-2.5 py-2",
                 isActive
                   ? "bg-gradient-to-r from-sidebar-accent to-sidebar-accent/60 text-white"
