@@ -390,9 +390,20 @@ export default function KPIs() {
                                 {kpi.name}
                                 <BarChart2 className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
                               </div>
+                              {(kpi as any).ownerName && (
+                                <div className="text-xs text-muted-foreground mt-0.5">Owner: {(kpi as any).ownerName}</div>
+                              )}
                               <div className="flex items-center gap-2 mt-0.5">
                                 <span className="text-xs text-muted-foreground capitalize bg-secondary/60 px-1.5 py-0.5 rounded">{kpi.kpiType ?? "rate"}</span>
                                 {kpi.category && <span className="text-xs text-muted-foreground border border-border/60 px-1.5 py-0.5 rounded">{kpi.category}</span>}
+                                {(() => {
+                                  const evStatus = (kpi as any).evidenceStatus ?? "pending";
+                                  return (
+                                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${EVIDENCE_STATUS_COLORS[evStatus] ?? EVIDENCE_STATUS_COLORS.pending}`}>
+                                      {EVIDENCE_STATUS_LABEL[evStatus] ?? "Evidence: Pending"}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                               {kpi.description && (
                                 <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{kpi.description}</div>
@@ -469,6 +480,15 @@ export default function KPIs() {
 
           <FormField label="Description">
             <textarea className={inputClass} rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What does this KPI measure?" />
+          </FormField>
+
+          <FormField label="Owner">
+            <UserMentionInput
+              value={form.ownerName}
+              onChange={(name, userId) => setForm({ ...form, ownerName: name, ownerId: userId ?? form.ownerId })}
+              placeholder="Search for owner..."
+              className={inputClass}
+            />
           </FormField>
 
           <FormField label="Pillar">

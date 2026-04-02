@@ -803,13 +803,13 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc.save().roundedRect(M + 12, riskY, 8, 8, 2).fill(sc5).restore();
       doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.dark).text(`${idx + 1}. ${risk.title}`, M + 26, riskY, { width: leftW5 - 40 });
       riskY += 14;
-      doc.font("Helvetica").fontSize(7.5).fillColor(C.secondary).text(
+      doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(
         `Score: ${score} | ${(risk.impact ?? "—").toUpperCase()} | ${risk.status ?? "open"}`,
         M + 26, riskY, { width: leftW5 - 40 }
       );
       riskY += 13;
       if (risk.description) {
-        doc.font("Helvetica").fontSize(7.5).fillColor(C.secondary).text(risk.description, M + 26, riskY, { width: leftW5 - 40, ellipsis: true });
+        doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(risk.description, M + 26, riskY, { width: leftW5 - 40, ellipsis: true });
         riskY += 13;
       }
       riskY += 4;
@@ -893,6 +893,21 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     );
     matrixY += 20;
 
+    // Critical Risks listing below matrix
+    if (data.topRisks.length > 0) {
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text("Critical Risks:", matrixStartX, matrixY);
+      matrixY += 14;
+      data.topRisks.slice(0, 3).forEach((risk, idx) => {
+        const score = sevNum(risk.impact) * sevNum(risk.probability);
+        doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(
+          `${idx + 1}. ${risk.title} — Score: ${score}`,
+          matrixStartX + 8, matrixY, { width: 4 * cellW + matrixLabelW - 8 }
+        );
+        matrixY += 16;
+      });
+      matrixY += 8;
+    }
+
     // ── Department Health Bar (risk distribution per department) ──
     doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Department Risk Distribution", M + 12, matrixY);
     matrixY += 16;
@@ -943,9 +958,9 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       matrixY += deptHealthGap;
     }
 
-    // AI Assessment panel
-    doc.save().roundedRect(rightX5, panelTop5, rightW5, 200, 6).fill(C.bg).stroke(C.border).restore();
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("AI Programme Assessment", rightX5 + 12, panelTop5 + 10);
+    // AI Assessment panel — dark background for contrast
+    doc.save().roundedRect(rightX5, panelTop5, rightW5, 200, 6).fill(C.navy).stroke(C.border).restore();
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.white).text("AI Programme Assessment", rightX5 + 12, panelTop5 + 10);
 
     if (data.aiAssessment) {
       const healthColor = data.aiAssessment.overallHealth === "excellent" || data.aiAssessment.overallHealth === "good"
@@ -958,26 +973,26 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         rightX5 + 16, panelTop5 + 35, { width: rightW5 - 32 }
       );
 
-      doc.font("Helvetica").fontSize(8.5).fillColor(C.dark).text(
+      doc.font("Helvetica").fontSize(8.5).fillColor(C.white).text(
         data.aiAssessment.summary, rightX5 + 12, panelTop5 + 56, { width: rightW5 - 24 }
       );
 
       let aiY = panelTop5 + 56 + 40;
       if (data.aiAssessment.recommendations?.length > 0) {
-        doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.primary).text("Key Recommendations:", rightX5 + 12, aiY);
+        doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.lightGreen).text("Key Recommendations:", rightX5 + 12, aiY);
         aiY += 14;
         data.aiAssessment.recommendations.slice(0, 3).forEach((r) => {
-          doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`• ${r}`, rightX5 + 12, aiY, { width: rightW5 - 24, ellipsis: true });
+          doc.font("Helvetica").fontSize(10).fillColor(C.white).text(`• ${r}`, rightX5 + 12, aiY, { width: rightW5 - 24, ellipsis: true });
           aiY += 13;
         });
       }
 
       if (data.aiAssessment.riskFlags?.length > 0) {
         aiY += 4;
-        doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.red).text("Risk Flags:", rightX5 + 12, aiY);
+        doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.lightRed).text("Risk Flags:", rightX5 + 12, aiY);
         aiY += 14;
         data.aiAssessment.riskFlags.slice(0, 3).forEach((r) => {
-          doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`• ${r}`, rightX5 + 12, aiY, { width: rightW5 - 24, ellipsis: true });
+          doc.font("Helvetica").fontSize(10).fillColor(C.white).text(`• ${r}`, rightX5 + 12, aiY, { width: rightW5 - 24, ellipsis: true });
           aiY += 13;
         });
       }
@@ -985,17 +1000,17 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc
         .font("Helvetica")
         .fontSize(9)
-        .fillColor(C.secondary)
+        .fillColor(C.light)
         .text(
           "Run AI Assessment from the dashboard to include AI-powered analysis in this report.",
           rightX5 + 12, panelTop5 + 40, { width: rightW5 - 24 }
         );
     }
 
-    // ── PAGE: Support Required ──
+    // ── PAGE: Escalations & Critical Issues ──
     doc.addPage();
     pdfAccentBar(doc);
-    doc.font("Helvetica-Bold").fontSize(18).fillColor(C.dark).text("Support Required & Escalations", 40, 50);
+    doc.font("Helvetica-Bold").fontSize(18).fillColor(C.dark).text("Escalations & Critical Issues", 40, 50);
 
     const critRisks = data.risks.filter((r) => r.status === "open" && r.riskScore >= 12);
     if (critRisks.length > 0) {
@@ -1165,7 +1180,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
             if (isOverdue) {
               doc.font("Helvetica-Bold").fontSize(9).fillColor(C.red).text(dueDateStr, msColX[1] + 4, detY + 3, { width: msColW[1] - 8 });
               if (daysOverdue > 0) {
-                doc.font("Helvetica").fontSize(7).fillColor(C.red).text(`${daysOverdue}d overdue`, msColX[1] + 4, detY + 13, { width: msColW[1] - 8 });
+                doc.font("Helvetica").fontSize(8).fillColor(C.red).text(`${daysOverdue}d overdue`, msColX[1] + 4, detY + 13, { width: msColW[1] - 8 });
               }
             } else {
               doc.font("Helvetica").fontSize(9).fillColor(C.dark).text(dueDateStr, msColX[1] + 4, detY + 5, { width: msColW[1] - 8 });
@@ -1177,7 +1192,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
             // Status
             const mStatusColor = statusColor(m.status);
             doc.save().roundedRect(msColX[3] + 4, detY + 4, msColW[3] - 8, 14, 3).fill(mStatusColor).restore();
-            doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white).text(statusLabel(m.status), msColX[3] + 6, detY + 7, { width: msColW[3] - 12, align: "center" });
+            doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white).text(statusLabel(m.status), msColX[3] + 6, detY + 7, { width: msColW[3] - 12, align: "center" });
 
             // Weight
             doc.font("Helvetica").fontSize(9).fillColor(detMid).text(m.weight != null ? `${m.weight}%` : "—", msColX[4] + 4, detY + 5, { width: msColW[4] - 8 });

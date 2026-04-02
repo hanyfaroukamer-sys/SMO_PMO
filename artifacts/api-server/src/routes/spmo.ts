@@ -4337,6 +4337,217 @@ router.delete("/spmo/kpis/:kpiId/measurements/:id", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// KPI EVIDENCE
+// ─────────────────────────────────────────────────────────────
+
+// Upload KPI evidence
+router.post("/spmo/kpis/:id/evidence", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const kpiId = parseId(req, res);
+  if (!kpiId) return;
+  const user = getAuthUser(req);
+
+  // Validate KPI exists
+  const [kpi] = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.id, kpiId)).limit(1);
+  if (!kpi) { res.status(404).json({ error: "KPI not found" }); return; }
+
+  // Check: user must be KPI owner or admin
+  if (kpi.ownerId !== userId && user?.role !== "admin") {
+    res.status(403).json({ error: "Only the KPI owner or an admin can upload evidence" });
+    return;
+  }
+
+  const body = z.object({
+    fileName: z.string().min(1),
+    contentType: z.string().optional(),
+    objectPath: z.string().min(1),
+    description: z.string().optional(),
+    aiScore: z.number().optional(),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+
+  const [row] = await db.insert(spmoKpiEvidenceTable).values({
+    kpiId,
+    fileName: body.data.fileName,
+    contentType: body.data.contentType,
+    objectPath: body.data.objectPath,
+    description: body.data.description,
+    uploadedById: userId,
+    uploadedByName: getUserDisplayName(user) ?? undefined,
+    aiScore: body.data.aiScore,
+  }).returning();
+
+  // Update KPI evidenceStatus to submitted
+  await db.update(spmoKpisTable).set({
+    evidenceStatus: "submitted",
+    evidenceSubmittedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(spmoKpisTable.id, kpiId));
+
+  // Create notification for all admins
+  const admins = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.role, "admin"));
+  for (const admin of admins) {
+    await db.insert(spmoNotificationsTable).values({
+      userId: admin.id,
+      type: "alert",
+      title: `KPI evidence submitted for "${kpi.name}"`,
+      body: `${getUserDisplayName(user) ?? "A user"} uploaded evidence for KPI "${kpi.name}".`,
+      link: `/kpis`,
+      entityType: "kpi",
+      entityId: kpiId,
+    });
+  }
+
+  await logSpmoActivity(userId, getUserDisplayName(user), "uploaded_evidence", "kpi", kpiId, kpi.name, { fileName: body.data.fileName });
+
+  res.status(201).json(row);
+});
+
+// List KPI evidence
+router.get("/spmo/kpis/:id/evidence", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const kpiId = parseId(req, res);
+  if (!kpiId) return;
+
+  const rows = await db.select().from(spmoKpiEvidenceTable).where(eq(spmoKpiEvidenceTable.kpiId, kpiId)).orderBy(desc(spmoKpiEvidenceTable.createdAt));
+  res.json({ evidence: rows });
+});
+
+// Approve KPI evidence
+router.post("/spmo/kpis/:id/evidence/approve", async (req, res) => {
+  const userId = requireRole(req, res, "admin", "approver");
+  if (!userId) return;
+  const kpiId = parseId(req, res);
+  if (!kpiId) return;
+  const user = getAuthUser(req);
+
+  const [kpi] = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.id, kpiId)).limit(1);
+  if (!kpi) { res.status(404).json({ error: "KPI not found" }); return; }
+
+  await db.update(spmoKpisTable).set({
+    evidenceStatus: "approved",
+    evidenceReviewedAt: new Date(),
+    evidenceReviewedBy: getUserDisplayName(user),
+    updatedAt: new Date(),
+  }).where(eq(spmoKpisTable.id, kpiId));
+
+  // Notify KPI owner
+  if (kpi.ownerId) {
+    await db.insert(spmoNotificationsTable).values({
+      userId: kpi.ownerId,
+      type: "approval",
+      title: "Your KPI evidence was approved",
+      body: `Evidence for KPI "${kpi.name}" has been approved by ${getUserDisplayName(user) ?? "an admin"}.`,
+      link: `/kpis`,
+      entityType: "kpi",
+      entityId: kpiId,
+    });
+  }
+
+  await logSpmoActivity(userId, getUserDisplayName(user), "approved", "kpi", kpiId, kpi.name);
+
+  res.json({ success: true });
+});
+
+// Reject KPI evidence
+router.post("/spmo/kpis/:id/evidence/reject", async (req, res) => {
+  const userId = requireRole(req, res, "admin", "approver");
+  if (!userId) return;
+  const kpiId = parseId(req, res);
+  if (!kpiId) return;
+  const user = getAuthUser(req);
+
+  const body = z.object({
+    reason: z.string().min(1, "Rejection reason is required"),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+
+  const [kpi] = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.id, kpiId)).limit(1);
+  if (!kpi) { res.status(404).json({ error: "KPI not found" }); return; }
+
+  await db.update(spmoKpisTable).set({
+    evidenceStatus: "rejected",
+    evidenceReviewedAt: new Date(),
+    evidenceReviewedBy: getUserDisplayName(user),
+    evidenceRejectionReason: body.data.reason,
+    updatedAt: new Date(),
+  }).where(eq(spmoKpisTable.id, kpiId));
+
+  // Notify KPI owner
+  if (kpi.ownerId) {
+    await db.insert(spmoNotificationsTable).values({
+      userId: kpi.ownerId,
+      type: "alert",
+      title: "Your KPI evidence was rejected",
+      body: `Evidence for KPI "${kpi.name}" was rejected: ${body.data.reason}`,
+      link: `/kpis`,
+      entityType: "kpi",
+      entityId: kpiId,
+    });
+
+    // Send email to KPI owner
+    try {
+      const [ownerUser] = await db.select({ email: usersTable.email, firstName: usersTable.firstName }).from(usersTable).where(eq(usersTable.id, kpi.ownerId)).limit(1);
+      if (ownerUser?.email) {
+        const { sendMentionEmail } = await import("../lib/mention-email.js");
+        await sendMentionEmail({
+          to: ownerUser.email,
+          subject: `KPI Evidence Rejected: ${kpi.name}`,
+          text: `Your evidence for KPI "${kpi.name}" was rejected by ${getUserDisplayName(user) ?? "an admin"}.\n\nReason: ${body.data.reason}\n\nPlease review and resubmit.`,
+          html: `<p>Your evidence for KPI "<strong>${kpi.name}</strong>" was rejected by ${getUserDisplayName(user) ?? "an admin"}.</p><p><strong>Reason:</strong> ${body.data.reason}</p><p>Please review and resubmit.</p>`,
+        });
+      }
+    } catch (emailErr) {
+      req.log?.warn?.({ err: emailErr }, "Failed to send KPI evidence rejection email");
+    }
+  }
+
+  await logSpmoActivity(userId, getUserDisplayName(user), "rejected", "kpi", kpiId, kpi.name, { reason: body.data.reason });
+
+  res.json({ success: true });
+});
+
+// Assign KPI owner
+router.put("/spmo/kpis/:id/owner", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const kpiId = parseId(req, res);
+  if (!kpiId) return;
+  const user = getAuthUser(req);
+
+  const body = z.object({
+    ownerId: z.string().min(1),
+    ownerName: z.string().optional(),
+  }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: body.error }); return; }
+
+  const [kpi] = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.id, kpiId)).limit(1);
+  if (!kpi) { res.status(404).json({ error: "KPI not found" }); return; }
+
+  await db.update(spmoKpisTable).set({
+    ownerId: body.data.ownerId,
+    ownerName: body.data.ownerName,
+    updatedAt: new Date(),
+  }).where(eq(spmoKpisTable.id, kpiId));
+
+  // Notify new owner
+  await db.insert(spmoNotificationsTable).values({
+    userId: body.data.ownerId,
+    type: "assignment",
+    title: `You've been assigned as owner of KPI "${kpi.name}"`,
+    body: `${getUserDisplayName(user) ?? "An admin"} assigned you as the owner of KPI "${kpi.name}".`,
+    link: `/kpis`,
+    entityType: "kpi",
+    entityId: kpiId,
+  });
+
+  await logSpmoActivity(user?.id ?? "system", getUserDisplayName(user), "updated", "kpi", kpiId, kpi.name, { action: "owner_assigned", newOwnerId: body.data.ownerId, newOwnerName: body.data.ownerName });
+
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────
 // MY TASKS
 // ─────────────────────────────────────────────────────────────
 
@@ -4420,10 +4631,17 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
     weeklyDue = myProjectIds.length - existing.length;
   }
 
-  const total = pendingApprovals + overdueCount + dueSoonCount + weeklyDue + overdueActions + pendingActions + projectAlerts + ownerOverdueMilestones + ownerDueSoonMilestones + delayedProjects + atRiskProjects;
+  // KPI evidence pending review (admins only)
+  let kpiEvidencePending = 0;
+  if (isApprover) {
+    const kpiRows = await db.select({ id: spmoKpisTable.id }).from(spmoKpisTable).where(eq(spmoKpisTable.evidenceStatus, "submitted"));
+    kpiEvidencePending = kpiRows.length;
+  }
+
+  const total = pendingApprovals + overdueCount + dueSoonCount + weeklyDue + overdueActions + pendingActions + projectAlerts + ownerOverdueMilestones + ownerDueSoonMilestones + delayedProjects + atRiskProjects + kpiEvidencePending;
   const critical = overdueCount + overdueActions + delayedProjects;
   const high = pendingApprovals + projectAlerts + ownerOverdueMilestones + atRiskProjects;
-  res.json({ total, critical, high, medium: dueSoonCount + weeklyDue + pendingActions + ownerDueSoonMilestones, low: 0 });
+  res.json({ total, critical, high, medium: dueSoonCount + weeklyDue + pendingActions + ownerDueSoonMilestones + kpiEvidencePending, low: 0 });
 });
 
 router.get("/spmo/my-tasks", async (req, res) => {
@@ -4631,6 +4849,28 @@ router.get("/spmo/my-tasks", async (req, res) => {
           link: `/projects/${p.id}`,
         });
       }
+    }
+  }
+
+  // ── KPI evidence pending review (admins/approvers only) ──
+  if (isApprover) {
+    const pendingKpis = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.evidenceStatus, "submitted"));
+    for (const kpi of pendingKpis) {
+      const submittedAgo = kpi.evidenceSubmittedAt ? Math.ceil((now.getTime() - new Date(kpi.evidenceSubmittedAt).getTime()) / 86400000) : 0;
+      tasks.push({
+        id: `kpi-evidence-${kpi.id}`,
+        type: "kpi_evidence_review",
+        priority: "medium" as const,
+        title: `KPI evidence pending review: ${kpi.name}`,
+        subtitle: `${kpi.ownerName ?? "Unknown owner"} · Submitted${submittedAgo > 0 ? ` ${submittedAgo}d ago` : ""}`,
+        entityType: "kpi",
+        entityId: kpi.id,
+        projectId: kpi.projectId,
+        dueDate: null,
+        daysLeft: null,
+        action: "Review submitted KPI evidence and approve or reject",
+        link: `/kpis`,
+      });
     }
   }
 
