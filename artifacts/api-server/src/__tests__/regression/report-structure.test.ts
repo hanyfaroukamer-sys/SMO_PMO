@@ -123,12 +123,9 @@ describe("Department health bar", () => {
   });
 
   it("renders stacked risk bars for departments (red/amber/green segments)", () => {
-    // The department health bar section filters risks per department
-    expect(pdfBody).toContain("deptHealthBarW");
-    expect(pdfBody).toContain("deptHealthBarH");
-    expect(pdfBody).toContain("redCount");
-    expect(pdfBody).toContain("amberCount");
-    expect(pdfBody).toContain("greenCount");
+    expect(pdfBody).toContain("Department Risk Criticality");
+    expect(pdfBody).toContain("deptRiskData");
+    expect(pdfBody).toContain("critical");
   });
 });
 

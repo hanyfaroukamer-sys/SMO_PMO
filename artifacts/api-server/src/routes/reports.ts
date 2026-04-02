@@ -787,40 +787,64 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       kpiY4 += 18;
     });
 
-    // ── PAGE 5: Risks & AI Assessment ────────────────────────────────────────
+    // ── PAGE 5: Risk Summary (single landscape page, left/right layout) ────
     doc.addPage();
     pdfAccentBar(doc);
     doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Risk Summary", M, 20);
+    doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text("Open risks by score and department distribution", M, 44);
 
-    const leftW5 = (W - M * 2) * 0.55;
-    const rightX5 = M + leftW5 + 16;
-    const rightW5 = W - rightX5 - M;
-    const panelTop5 = 50;
+    const halfW = (W - M * 2) / 2;
+    const leftX = M;
+    const rightX5 = M + halfW + 8;
+    const rightW5 = halfW - 8;
+    const panelTop5 = 62;
 
-    // Risks panel (now uses more width since AI assessment removed)
-    doc.save().roundedRect(M, panelTop5, leftW5, 200, 6).fill(C.bg).stroke(C.border).restore();
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Top Risks by Score", M + 12, panelTop5 + 10);
+    // ── LEFT HALF: Top Risks Table + Heat Map ──
 
-    let riskY = panelTop5 + 30;
-    data.topRisks.forEach((risk, idx) => {
-      const score = sevNum(risk.impact) * sevNum(risk.probability);
-      const sc5 = sevColor(risk.impact);
-      doc.save().roundedRect(M + 12, riskY, 8, 8, 2).fill(sc5).restore();
-      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.dark).text(`${idx + 1}. ${risk.title}`, M + 26, riskY, { width: leftW5 - 40 });
-      riskY += 14;
-      doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(
-        `Score: ${score} | ${(risk.impact ?? "—").toUpperCase()} | ${risk.status ?? "open"}`,
-        M + 26, riskY, { width: leftW5 - 40 }
-      );
-      riskY += 13;
-      if (risk.description) {
-        doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(risk.description, M + 26, riskY, { width: leftW5 - 40, ellipsis: true });
-        riskY += 13;
-      }
-      riskY += 4;
+    // -- Top Risks by Score table --
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.primary).text("Top Risks by Score", leftX, panelTop5);
+    const openRisksSorted = [...data.risks]
+      .filter((r) => r.status === "open")
+      .sort((a, b) => (sevNum(b.impact) * sevNum(b.probability)) - (sevNum(a.impact) * sevNum(a.probability)))
+      .slice(0, 8);
+
+    const tblY = panelTop5 + 14;
+    const tblColX = [leftX, leftX + 16, leftX + 130, leftX + 210, leftX + 260, leftX + 310, leftX + 340];
+    const tblColW = [16, 114, 80, 50, 50, 30, halfW - 340];
+    const tblHeaders = ["#", "Risk Title", "Project", "Prob", "Impact", "Score", "Owner"];
+    const tblRowH = 16;
+
+    // Header row
+    doc.save().rect(leftX, tblY, halfW, tblRowH).fill(C.primary).restore();
+    tblHeaders.forEach((h, i) => {
+      doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white).text(h, tblColX[i] + 2, tblY + 4, { width: tblColW[i] - 4 });
     });
 
-    // ── Risk Heat Map (4x4 matrix) ──
+    let tblCurY = tblY + tblRowH;
+    openRisksSorted.forEach((risk, idx) => {
+      const score = sevNum(risk.impact) * sevNum(risk.probability);
+      const rowBg = idx % 2 === 0 ? C.white : C.bg;
+      doc.save().rect(leftX, tblCurY, halfW, tblRowH).fill(rowBg).restore();
+
+      const proj = data.projects.find((p) => p.id === risk.projectId);
+      const projName = proj ? (proj.name ?? "").slice(0, 12) : "—";
+      const scoreColor = score >= 12 ? C.red : score >= 6 ? C.amber : C.green;
+
+      doc.font("Helvetica").fontSize(7).fillColor(C.dark).text(String(idx + 1), tblColX[0] + 2, tblCurY + 4, { width: tblColW[0] - 4 });
+      doc.font("Helvetica").fontSize(7).fillColor(C.dark).text((risk.title ?? "").slice(0, 20), tblColX[1] + 2, tblCurY + 4, { width: tblColW[1] - 4 });
+      doc.font("Helvetica").fontSize(7).fillColor(C.dark).text(projName, tblColX[2] + 2, tblCurY + 4, { width: tblColW[2] - 4 });
+      doc.font("Helvetica").fontSize(7).fillColor(C.dark).text((risk.probability ?? "—").slice(0, 8), tblColX[3] + 2, tblCurY + 4, { width: tblColW[3] - 4 });
+      doc.font("Helvetica").fontSize(7).fillColor(C.dark).text((risk.impact ?? "—").slice(0, 8), tblColX[4] + 2, tblCurY + 4, { width: tblColW[4] - 4 });
+      doc.font("Helvetica-Bold").fontSize(7).fillColor(scoreColor).text(String(score), tblColX[5] + 2, tblCurY + 4, { width: tblColW[5] - 4 });
+      doc.font("Helvetica").fontSize(7).fillColor(C.dark).text((risk.owner ?? "—").slice(0, 14), tblColX[6] + 2, tblCurY + 4, { width: tblColW[6] - 4 });
+
+      tblCurY += tblRowH;
+    });
+
+    // -- Risk Heat Map (Probability x Impact) below the table --
+    const hmY = tblCurY + 14;
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.primary).text("Risk Heat Map (Probability \u00D7 Impact)", leftX, hmY);
+
     const probLevels = ["low", "medium", "high", "critical"];
     const impactLevels = ["low", "medium", "high", "critical"];
     const riskMatrix: number[][] = probLevels.map((prob) =>
@@ -829,116 +853,79 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       )
     );
 
-    const matrixStartX = M + 12;
-    const matrixStartY = Math.max(riskY + 8, panelTop5 + 210);
     const cellW = 50;
-    const cellH = 40;
-    const matrixLabelW = 60;
+    const cellH = 35;
+    const hmLabelW = 55;
+    const hmGridX = leftX + hmLabelW;
+    let hmCurY = hmY + 16;
 
-    // Check if we need a new page for the matrix
-    let matrixY = matrixStartY;
-    if (matrixY + 4 * cellH + 50 > H - 40) {
-      doc.addPage();
-      pdfAccentBar(doc);
-      matrixY = 50;
-    }
-
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Risk Heat Map (Probability x Impact)", matrixLabelW + matrixStartX - 10, matrixY);
-    matrixY += 18;
-
-    // X-axis header labels
-    impactLevels.forEach((imp, ci) => {
-      doc.font("Helvetica-Bold").fontSize(8).fillColor(C.secondary).text(
-        imp.charAt(0).toUpperCase() + imp.slice(1),
-        matrixLabelW + matrixStartX + ci * cellW, matrixY, { width: cellW, align: "center" }
-      );
-    });
-    matrixY += 14;
-
-    // Draw grid rows (top = critical probability, bottom = low)
+    // X-axis header labels (bottom labels drawn after grid, but also top for clarity)
+    // Draw grid rows: top = critical (index 3), bottom = low (index 0)
     for (let ri = probLevels.length - 1; ri >= 0; ri--) {
       const probLabel = probLevels[ri].charAt(0).toUpperCase() + probLevels[ri].slice(1);
-      // Y-axis label
-      doc.font("Helvetica-Bold").fontSize(8).fillColor(C.secondary).text(
-        probLabel, matrixStartX, matrixY + cellH / 2 - 5, { width: matrixLabelW - 4, align: "right" }
+      // Y-axis label (left side)
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(C.secondary).text(
+        probLabel, leftX, hmCurY + cellH / 2 - 5, { width: hmLabelW - 4, align: "right" }
       );
 
       for (let ci = 0; ci < impactLevels.length; ci++) {
         const count = riskMatrix[ri][ci];
-        const probScore = ri + 1; // 1=low, 2=medium, 3=high, 4=critical
+        const probScore = ri + 1;
         const impScore = ci + 1;
         const score = probScore * impScore;
 
         let cellBg: string;
         let cellTextColor: string;
         if (score >= 12) {
-          cellBg = C.lightRed;
-          cellTextColor = "#991B1B";
+          cellBg = C.red; cellTextColor = C.white;
         } else if (score >= 6) {
-          cellBg = C.lightAmber;
-          cellTextColor = "#92400E";
+          cellBg = C.amber; cellTextColor = C.white;
         } else {
-          cellBg = C.lightGreen;
-          cellTextColor = "#166534";
+          cellBg = C.green; cellTextColor = C.white;
         }
 
-        const cx = matrixLabelW + matrixStartX + ci * cellW;
-        doc.save().rect(cx, matrixY, cellW, cellH).fill(cellBg).restore();
-        doc.save().rect(cx, matrixY, cellW, cellH).lineWidth(0.5).strokeColor(C.border).stroke().restore();
+        const cx = hmGridX + ci * cellW;
+        doc.save().rect(cx, hmCurY, cellW, cellH).fill(cellBg).restore();
+        doc.save().rect(cx, hmCurY, cellW, cellH).lineWidth(0.5).strokeColor(C.border).stroke().restore();
         doc.font("Helvetica-Bold").fontSize(14).fillColor(cellTextColor).text(
-          String(count), cx, matrixY + cellH / 2 - 8, { width: cellW, align: "center" }
+          String(count), cx, hmCurY + cellH / 2 - 8, { width: cellW, align: "center" }
         );
       }
-      matrixY += cellH;
+      hmCurY += cellH;
     }
 
-    // X-axis title
+    // X-axis labels below grid
+    impactLevels.forEach((imp, ci) => {
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(C.secondary).text(
+        imp.charAt(0).toUpperCase() + imp.slice(1),
+        hmGridX + ci * cellW, hmCurY + 3, { width: cellW, align: "center" }
+      );
+    });
+    // Axis titles
     doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(
-      "Impact →", matrixLabelW + matrixStartX, matrixY + 4, { width: 4 * cellW, align: "center" }
+      "Impact \u2192", hmGridX, hmCurY + 14, { width: 4 * cellW, align: "center" }
     );
-    matrixY += 20;
 
-    // Critical Risks listing below matrix
-    if (data.topRisks.length > 0) {
-      doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text("Critical Risks:", matrixStartX, matrixY);
-      matrixY += 14;
-      data.topRisks.slice(0, 3).forEach((risk, idx) => {
-        const score = sevNum(risk.impact) * sevNum(risk.probability);
-        doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(
-          `${idx + 1}. ${risk.title} — Score: ${score}`,
-          matrixStartX + 8, matrixY, { width: 4 * cellW + matrixLabelW - 8 }
-        );
-        matrixY += 16;
-      });
-      matrixY += 8;
-    }
-
-    // ── Department Risk Criticality (matches web Risks page stacked bar chart) ──
-    // Start on new page for clean layout
-    doc.addPage();
-    pdfAccentBar(doc);
-    doc.font("Helvetica-Bold").fontSize(18).fillColor(C.dark).text("Department Risk Criticality", M, 20);
-    doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text("Open risks by department, grouped by severity score", M, 42);
+    // ── RIGHT HALF: Department Risk Criticality ──
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.primary).text("Department Risk Criticality", rightX5, panelTop5);
+    doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text("Open risks by department", rightX5, panelTop5 + 14);
 
     // Legend
     const riskLegItems = [
-      { label: "Critical (≥12)", color: C.red },
-      { label: "High (6-11)", color: C.amber },
-      { label: "Medium (3-5)", color: "#3B82F6" },
-      { label: "Low (<3)", color: C.secondary },
+      { label: "Critical", color: C.red },
+      { label: "High", color: C.amber },
+      { label: "Medium", color: "#3B82F6" },
+      { label: "Low", color: C.secondary },
     ];
-    let riskLegX = M;
+    let riskLegX = rightX5;
+    const legRowY = panelTop5 + 28;
     riskLegItems.forEach((l) => {
-      doc.save().roundedRect(riskLegX, 58, 12, 12, 2).fill(l.color).restore();
-      doc.font("Helvetica").fontSize(9).fillColor(C.dark).text(l.label, riskLegX + 16, 59, { width: 80 });
-      riskLegX += 110;
+      doc.save().roundedRect(riskLegX, legRowY, 10, 10, 2).fill(l.color).restore();
+      doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(l.label, riskLegX + 13, legRowY, { width: 50 });
+      riskLegX += 65;
     });
 
-    let deptRiskY = 82;
-    const deptBarMaxW = 400;
-    const deptBarH = 22;
-
-    // Find max risk count across departments for scaling
+    // Compute department risk data
     const deptRiskData = data.departments.map((dept) => {
       const deptRisks = data.risks.filter((r) => {
         const proj = data.projects.find((p) => p.id === r.projectId);
@@ -952,19 +939,23 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     }).filter((d) => d.total > 0).sort((a, b) => b.total - a.total);
 
     const maxRiskCount = Math.max(...deptRiskData.map((d) => d.total), 1);
+    const deptBarH = 20;
+    const deptBarMaxW = rightW5 - 130;
+    const deptNameW = 100;
+    let deptRiskY = legRowY + 18;
 
-    for (const dept of deptRiskData.slice(0, 12)) {
-      if (deptRiskY + 32 > H - 40) break;
+    for (const dept of deptRiskData.slice(0, 14)) {
+      if (deptRiskY + deptBarH + 6 > H - 40) break;
 
-      // Department name (right-aligned, truncated)
+      // Department name (left, truncated)
       doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(
-        dept.name.slice(0, 25), M, deptRiskY + 4, { width: 160, ellipsis: true }
+        dept.name.slice(0, 22), rightX5, deptRiskY + 3, { width: deptNameW, ellipsis: true }
       );
 
       // Stacked bar (scaled to max)
-      const barX = M + 170;
+      const barX = rightX5 + deptNameW + 4;
       const barTotalW = (dept.total / maxRiskCount) * deptBarMaxW;
-      doc.save().roundedRect(barX, deptRiskY, barTotalW || 2, deptBarH, 3).fill(C.border).restore();
+      doc.save().roundedRect(barX, deptRiskY, Math.max(barTotalW, 2), deptBarH, 3).fill(C.border).restore();
 
       let segOff = 0;
       const segs = [
@@ -977,10 +968,9 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         if (seg.count > 0) {
           const segW = (seg.count / dept.total) * barTotalW;
           doc.save().rect(barX + segOff, deptRiskY, Math.max(segW, 4), deptBarH).fill(seg.color).restore();
-          // Number inside segment if wide enough
           if (segW > 18) {
             doc.font("Helvetica-Bold").fontSize(9).fillColor(C.white).text(
-              String(seg.count), barX + segOff, deptRiskY + 5, { width: segW, align: "center" }
+              String(seg.count), barX + segOff, deptRiskY + 4, { width: segW, align: "center" }
             );
           }
           segOff += segW;
@@ -989,75 +979,11 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
 
       // Total count after bar
       doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(
-        String(dept.total), barX + barTotalW + 8, deptRiskY + 4, { width: 30 }
+        String(dept.total), barX + barTotalW + 6, deptRiskY + 3, { width: 30 }
       );
 
-      deptRiskY += deptBarH + 8;
+      deptRiskY += deptBarH + 6;
     }
-
-    // Risk summary counts below the chart
-    deptRiskY += 10;
-    const openRisks = data.risks.filter((r) => r.status === "open").length;
-    const mitigatedRisks = data.risks.filter((r) => r.status === "mitigated").length;
-    const closedRisks = data.risks.filter((r) => r.status === "closed").length;
-
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text("Risk Summary:", M, deptRiskY);
-    deptRiskY += 16;
-    doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(
-      `${openRisks} Open  ·  ${mitigatedRisks} Mitigated  ·  ${closedRisks} Closed  ·  ${data.risks.length} Total`,
-      M, deptRiskY
-    );
-
-    // Keep the old matrixY-based variables working for code below
-    matrixY = deptRiskY + 30;
-    // Skip old department bar loop since we replaced it
-    if (false) {
-      // dead code placeholder to keep variable references valid
-      const deptHealthBarW = 300;
-      const deptHealthBarH = 12;
-      const deptHealthGap = 20;
-    for (const dept of data.departments.slice(0, 8)) {
-      if (matrixY + deptHealthGap > H - 40) break;
-
-      const deptRisks = data.risks.filter((r) => {
-        const proj = data.projects.find((p) => p.id === r.projectId);
-        return proj && proj.departmentId === dept.id && r.status === "open";
-      });
-
-      const redCount = deptRisks.filter((r) => sevNum(r.impact) * sevNum(r.probability) >= 12).length;
-      const amberCount = deptRisks.filter((r) => { const s = sevNum(r.impact) * sevNum(r.probability); return s >= 6 && s < 12; }).length;
-      const greenCount = deptRisks.filter((r) => sevNum(r.impact) * sevNum(r.probability) < 6).length;
-      const totalDeptRisks = deptRisks.length || 1;
-
-      // Department name
-      doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(dept.name.slice(0, 20), M + 12, matrixY, { width: 120 });
-
-      // Stacked bar
-      const hBarX = M + 140;
-      doc.save().rect(hBarX, matrixY, deptHealthBarW, deptHealthBarH).fill(C.border).restore();
-      let hOffset = 0;
-      if (redCount > 0) {
-        const rw = (redCount / totalDeptRisks) * deptHealthBarW;
-        doc.save().rect(hBarX + hOffset, matrixY, rw, deptHealthBarH).fill(C.red).restore();
-        hOffset += rw;
-      }
-      if (amberCount > 0) {
-        const aw = (amberCount / totalDeptRisks) * deptHealthBarW;
-        doc.save().rect(hBarX + hOffset, matrixY, aw, deptHealthBarH).fill(C.amber).restore();
-        hOffset += aw;
-      }
-      if (greenCount > 0) {
-        const gw = (greenCount / totalDeptRisks) * deptHealthBarW;
-        doc.save().rect(hBarX + hOffset, matrixY, gw, deptHealthBarH).fill(C.green).restore();
-        hOffset += gw;
-      }
-
-      // Total count
-      doc.font("Helvetica-Bold").fontSize(8).fillColor(C.dark).text(String(deptRisks.length), hBarX + deptHealthBarW + 8, matrixY, { width: 30 });
-
-      matrixY += deptHealthGap;
-    }
-    } // end if(false) dead code block
 
     // ── PAGE: Escalations & Critical Issues ──
     doc.addPage();
