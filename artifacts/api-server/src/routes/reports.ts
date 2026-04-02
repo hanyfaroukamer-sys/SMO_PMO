@@ -254,7 +254,7 @@ function pdfFooter(doc: InstanceType<typeof PDFDocument>, pageNum: number, total
   doc
     .save()
     .font("Helvetica")
-    .fontSize(7)
+    .fontSize(9)
     .fillColor(C.secondary)
     .text(
       `CONFIDENTIAL  ·  StrategyPMO  ·  ${formatDate(new Date())}`,
@@ -264,7 +264,7 @@ function pdfFooter(doc: InstanceType<typeof PDFDocument>, pageNum: number, total
     );
   doc
     .font("Helvetica")
-    .fontSize(7)
+    .fontSize(9)
     .fillColor(C.secondary)
     .text(
       `Page ${pageNum} of ${total}`,
@@ -313,10 +313,10 @@ function pdfKpiBox(
   doc.save().rect(x, y, w, 3).fill(color).restore();
   doc.save().rect(x, y, w, h).lineWidth(0.5).strokeColor(C.border).stroke().restore();
   doc.font("Helvetica-Bold").fontSize(26).fillColor(C.dark).text(value, x + 10, y + 14, { width: w - 20, align: "center" });
-  doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(label.toUpperCase(), x + 10, y + 48, { width: w - 20, align: "center" });
+  doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(label.toUpperCase(), x + 10, y + 48, { width: w - 20, align: "center" });
 }
 
-// ─── PDF REPORT ──────────────────────────────────────────────────────────────
+// ─── PDF REPORT (McKinsey/BCG Executive Style) ─────────────────────────────
 router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
   try {
     const requireAuthCheck = requireAuth(req, res);
@@ -333,59 +333,63 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     doc.pipe(res);
 
     const W = doc.page.width;
-    const MARGIN = 40;
+    const H = doc.page.height;
+    const M = 40;
+    const CW = W - M * 2; // content width
 
-    // ── PAGE 1: Cover ─────────────────────────────────────────────────────────
+    // Precompute key metrics
+    const progPct = Math.round(data.programme.programmeProgress);
+    const totalProjects = data.projects.length || 1;
+    const onTrackProjects = data.statusCounts.on_track + data.statusCounts.completed;
+    const budgetPct = data.budget.totalAllocated > 0
+      ? Math.round((data.budget.totalSpent / data.budget.totalAllocated) * 100) : 0;
+    const activeRisks = data.risks.filter((r) => r.status === "open").length;
+    const pillarsAhead = data.programme.pillarSummaries.filter((ps) => ps.progress > 50).length;
+    const pillarsLagging = data.programme.pillarSummaries.filter((ps) => ps.progress < 25).length;
+    const delayedProjects = data.statusCounts.delayed;
+    const atRiskProjects = data.statusCounts.at_risk;
+
+    // Enriched project list with computed status
+    const projectRows = data.projects.map((p) => {
+      const ms = data.milestones.filter((m) => m.projectId === p.id);
+      const prog = ms.length === 0 ? 0 : Math.round(ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length);
+      const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
+      const cpi = (p.budget ?? 0) > 0 && (p.budgetSpent ?? 0) > 0
+        ? ((prog / 100) * (p.budget ?? 0)) / (p.budgetSpent ?? 0) : 1;
+      return { ...p, progress: prog, computedStatus: s.status, cpi, spi: s.spi };
+    });
+    // Sort: delayed first, then at-risk, then on-track
+    const statusOrder: Record<string, number> = { delayed: 0, at_risk: 1, not_started: 2, on_track: 3, completed: 4 };
+    projectRows.sort((a, b) => (statusOrder[a.computedStatus] ?? 5) - (statusOrder[b.computedStatus] ?? 5));
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PAGE 1: COVER
+    // ══════════════════════════════════════════════════════════════════════════
     pdfAccentBar(doc);
-    doc
-      .rect(0, 5, W, 10)
-      .fill(C.primary);
+    // Clean white cover with minimal text
+    const programmeName = data.config?.programmeName ?? "National Transformation Programme";
     doc
       .font("Helvetica-Bold")
-      .fontSize(32)
+      .fontSize(36)
       .fillColor(C.dark)
-      .text("PROGRAMME EXECUTIVE SUMMARY", MARGIN, 110, { align: "center", width: W - MARGIN * 2 });
+      .text(programmeName, M, H * 0.30, { align: "center", width: CW });
     doc
       .font("Helvetica")
-      .fontSize(18)
+      .fontSize(16)
       .fillColor(C.secondary)
-      .text(data.config?.programmeName ?? "National Transformation Programme", MARGIN, 155, {
-        align: "center",
-        width: W - MARGIN * 2,
-      });
+      .text("Executive Report", M, H * 0.30 + 50, { align: "center", width: CW });
+    // Thin accent line
+    doc.save().moveTo(W * 0.35, H * 0.30 + 80).lineTo(W * 0.65, H * 0.30 + 80).lineWidth(1).strokeColor(C.primary).stroke().restore();
     doc
       .font("Helvetica")
-      .fontSize(12)
+      .fontSize(11)
       .fillColor(C.secondary)
-      .text(`Report Date: ${formatDate(new Date())}`, MARGIN, 210, { align: "center", width: W - MARGIN * 2 });
-    doc.text("CONFIDENTIAL", MARGIN, 230, { align: "center", width: W - MARGIN * 2 });
-
-    if (data.config?.vision) {
-      doc.moveDown(3);
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(9)
-        .fillColor(C.primary)
-        .text("VISION", MARGIN + 40, undefined, { align: "left", width: W - MARGIN * 2 - 80 });
-      doc
-        .font("Helvetica")
-        .fontSize(10)
-        .fillColor(C.dark)
-        .text(data.config.vision, MARGIN + 40, undefined, { align: "left", width: W - MARGIN * 2 - 80 });
-    }
-    if (data.config?.mission) {
-      doc.moveDown(0.5);
-      doc
-        .font("Helvetica-Bold")
-        .fontSize(9)
-        .fillColor(C.primary)
-        .text("MISSION", MARGIN + 40, undefined, { align: "left", width: W - MARGIN * 2 - 80 });
-      doc
-        .font("Helvetica")
-        .fontSize(10)
-        .fillColor(C.dark)
-        .text(data.config.mission, MARGIN + 40, undefined, { align: "left", width: W - MARGIN * 2 - 80 });
-    }
+      .text(`${formatDate(new Date())}`, M, H * 0.30 + 96, { align: "center", width: CW });
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(9)
+      .fillColor(C.secondary)
+      .text("CONFIDENTIAL", M, H * 0.30 + 120, { align: "center", width: CW });
 
     // ── PAGE 2: Programme Overview ────────────────────────────────────────────
     doc.addPage();
@@ -423,10 +427,10 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       const x = MARGIN + i * (cardW + 12);
       doc.save().roundedRect(x, cardY, cardW, cardH, 6).fill(C.bg).stroke(C.border).restore();
       doc.save().rect(x, cardY, 4, cardH).fill(c.color).restore();
-      doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(c.label, x + 12, cardY + 10, { width: cardW - 18 });
+      doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(c.label, x + 12, cardY + 10, { width: cardW - 18 });
       doc.font("Helvetica-Bold").fontSize(24).fillColor(C.dark).text(c.value, x + 12, cardY + 24, { width: cardW - 18 });
       if (c.sub) {
-        doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(c.sub, x + 12, cardY + 52, { width: cardW - 18 });
+        doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(c.sub, x + 12, cardY + 52, { width: cardW - 18 });
       }
     });
 
@@ -499,7 +503,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
 
     doc.save().rect(MARGIN, tableTop3, W - MARGIN * 2, 20).fill("#F1F5F9").restore();
     headers3.forEach((h, i) => {
-      doc.font("Helvetica-Bold").fontSize(8).fillColor(C.secondary).text(h, cols3[i] + 4, tableTop3 + 6, { width: 95 });
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(C.secondary).text(h, cols3[i] + 4, tableTop3 + 6, { width: 95 });
     });
 
     let rowY3 = tableTop3 + 22;
@@ -511,17 +515,17 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       }
       const bg = idx % 2 === 0 ? C.white : C.bg;
       doc.save().rect(MARGIN, rowY3, W - MARGIN * 2, 20).fill(bg).restore();
-      doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(init.name.slice(0, 28), cols3[0] + 4, rowY3 + 6, { width: 210, ellipsis: true });
-      doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(init.pillarName.slice(0, 20), cols3[1] + 4, rowY3 + 6, { width: 140 });
-      doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(`${init.progress}%`, cols3[2] + 4, rowY3 + 6, { width: 60 });
-      doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(String(init.spi.toFixed(2)), cols3[3] + 4, rowY3 + 6, { width: 50 });
+      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(init.name.slice(0, 28), cols3[0] + 4, rowY3 + 6, { width: 210, ellipsis: true });
+      doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(init.pillarName.slice(0, 20), cols3[1] + 4, rowY3 + 6, { width: 140 });
+      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`${init.progress}%`, cols3[2] + 4, rowY3 + 6, { width: 60 });
+      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(String(init.spi.toFixed(2)), cols3[3] + 4, rowY3 + 6, { width: 50 });
 
       const sc = statusColor(init.status);
       doc.save().roundedRect(cols3[4] + 4, rowY3 + 4, 52, 13, 3).fill(sc).restore();
-      doc.font("Helvetica-Bold").fontSize(7).fillColor(C.white).text(statusLabel(init.status).slice(0, 9), cols3[4] + 7, rowY3 + 7, { width: 48 });
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(C.white).text(statusLabel(init.status).slice(0, 9), cols3[4] + 7, rowY3 + 7, { width: 48 });
 
       const bm = (init.budget / 1_000_000).toFixed(1);
-      doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(bm, cols3[5] + 4, rowY3 + 6, { width: 60 });
+      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(bm, cols3[5] + 4, rowY3 + 6, { width: 60 });
       rowY3 += 20;
     });
 
@@ -532,7 +536,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc.font("Helvetica-Bold").fontSize(9).fillColor(C.red).text("Delayed Initiatives:", MARGIN, rowY3);
       rowY3 += 14;
       delayed.forEach((d) => {
-        doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(`• ${d.name} — SPI ${d.spi.toFixed(2)}: ${d.reason}`, MARGIN + 8, rowY3, { width: W - MARGIN * 2 - 8 });
+        doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`• ${d.name} — SPI ${d.spi.toFixed(2)}: ${d.reason}`, MARGIN + 8, rowY3, { width: W - MARGIN * 2 - 8 });
         rowY3 += 14;
       });
     }
@@ -563,7 +567,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
 
     pillarBudgets.forEach((pb, idx) => {
       const by = panelTop4 + 32 + idx * 32;
-      doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(pb.name.slice(0, 18), MARGIN + 12, by, { width: 90, ellipsis: true });
+      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(pb.name.slice(0, 18), MARGIN + 12, by, { width: 90, ellipsis: true });
       const bw = barAreaW - 20;
       const allocW = (pb.allocated / maxPillarBudget) * bw;
       const spentW = pb.allocated > 0 ? (pb.spent / pb.allocated) * allocW : 0;
@@ -571,7 +575,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc.save().roundedRect(MARGIN + 105, by + 12, Math.max(spentW, 2), 10, 3).fill(pb.color).restore();
       const allocM = (pb.allocated / 1_000_000).toFixed(0);
       const spentM = (pb.spent / 1_000_000).toFixed(0);
-      doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(`${spentM}M / ${allocM}M`, MARGIN + 105 + bw + 4, by + 11, { width: 65 });
+      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text(`${spentM}M / ${allocM}M`, MARGIN + 105 + bw + 4, by + 11, { width: 65 });
     });
 
     // Budget totals
@@ -588,7 +592,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     const kpiCols = [rightX4 + 12, rightX4 + 140, rightX4 + 190, rightX4 + 235];
     doc.save().rect(rightX4, panelTop4 + 28, rightW4, 16).fill("#F1F5F9").restore();
     ["KPI Name", "Actual", "Target", "Status"].forEach((h, i) => {
-      doc.font("Helvetica-Bold").fontSize(7).fillColor(C.secondary).text(h, kpiCols[i] + 2, panelTop4 + 33, { width: 80 });
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(C.secondary).text(h, kpiCols[i] + 2, panelTop4 + 33, { width: 80 });
     });
 
     let kpiY4 = panelTop4 + 46;
@@ -661,7 +665,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.primary).text("Key Recommendations:", rightX5 + 12, aiY);
         aiY += 14;
         data.aiAssessment.recommendations.slice(0, 3).forEach((r) => {
-          doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(`• ${r}`, rightX5 + 12, aiY, { width: rightW5 - 24, ellipsis: true });
+          doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`• ${r}`, rightX5 + 12, aiY, { width: rightW5 - 24, ellipsis: true });
           aiY += 13;
         });
       }
@@ -671,7 +675,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.red).text("Risk Flags:", rightX5 + 12, aiY);
         aiY += 14;
         data.aiAssessment.riskFlags.slice(0, 3).forEach((r) => {
-          doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(`• ${r}`, rightX5 + 12, aiY, { width: rightW5 - 24, ellipsis: true });
+          doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`• ${r}`, rightX5 + 12, aiY, { width: rightW5 - 24, ellipsis: true });
           aiY += 13;
         });
       }
@@ -698,7 +702,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         const deptStatus = dept.onTrack === dept.projectCount ? "on_track" : dept.onTrack >= dept.projectCount * 0.7 ? "at_risk" : "delayed";
         doc.rect(40, deptY, 5, 18).fill(statusColor(deptStatus));
         doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(dept.name, 52, deptY + 3, { width: 180 });
-        doc.font("Helvetica").fontSize(8).fillColor(C.secondary)
+        doc.font("Helvetica").fontSize(10).fillColor(C.secondary)
           .text(`${dept.projectCount} projects · Avg ${dept.avgProgress}% · ${dept.onTrack}/${dept.projectCount} on track`, 240, deptY + 4, { width: 280 });
         pdfHorizBar(doc, 530, deptY + 6, dept.avgProgress, 8);
         deptY += 24;
@@ -720,7 +724,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         doc.rect(40, supY, 530, 35).fill(i % 2 === 0 ? "#FFFFFF" : C.bg);
         doc.font("Helvetica-Bold").fontSize(9).fillColor(C.red).text(`${i + 1}.`, 45, supY + 4, { width: 20 });
         doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(r.title, 62, supY + 4, { width: 300 });
-        doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(`Score: ${r.riskScore} · ${r.probability}/${r.impact} · Owner: ${r.owner ?? "—"}`, 62, supY + 18, { width: 500 });
+        doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(`Score: ${r.riskScore} · ${r.probability}/${r.impact} · Owner: ${r.owner ?? "—"}`, 62, supY + 18, { width: 500 });
         supY += 38;
       });
     } else {
@@ -732,33 +736,152 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc.addPage();
       pdfAccentBar(doc);
       doc.font("Helvetica-Bold").fontSize(16).fillColor(C.dark).text(`${dept.name} — Project Details`, 40, 50);
-      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text(`${dept.projectCount} projects · Average progress ${dept.avgProgress}%`, 40, 70);
+      doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(`${dept.projectCount} projects · Average progress ${dept.avgProgress}%`, 40, 72);
 
-      let projY = 95;
-      for (const p of dept.projects.slice(0, 12)) {
+      let projY = 100;
+      for (const p of dept.projects.slice(0, 8)) {
         const ms = data.milestones.filter((m) => m.projectId === p.id);
         const prog = ms.length === 0 ? 0 : Math.round(ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length);
         const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
         const report = data.weeklyReports.get(p.id);
-        const topRisk = data.risks.filter((r) => r.projectId === p.id && r.status === "open").sort((a, b) => b.riskScore - a.riskScore)[0];
+        const topRisks = data.risks.filter((r) => r.projectId === p.id && r.status === "open").sort((a, b) => b.riskScore - a.riskScore).slice(0, 2);
+        const spentPct = (p.budget ?? 0) > 0 ? Math.round(((p.budgetSpent ?? 0) / (p.budget ?? 0)) * 100) : 0;
+        const fmtBudget = (n: number) => n >= 1_000_000 ? `SAR ${(n / 1_000_000).toFixed(1)}M` : `SAR ${n.toLocaleString()}`;
 
-        doc.rect(40, projY, 530, 55).fill(projY % 2 === 0 ? "#FFFFFF" : C.bg).stroke(C.border);
-        doc.rect(40, projY, 4, 55).fill(statusColor(s.status));
+        // Project header row
+        doc.rect(40, projY, W - 80, 28).fill(C.bg);
+        doc.rect(40, projY, 5, 28).fill(statusColor(s.status));
+        doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text(`${p.projectCode ?? ""} ${p.name}`.trim(), 52, projY + 7, { width: 320 });
+        doc.font("Helvetica-Bold").fontSize(10).fillColor(statusColor(s.status)).text(statusLabel(s.status).toUpperCase(), 380, projY + 8, { width: 70 });
+        doc.font("Helvetica-Bold").fontSize(12).fillColor(C.dark).text(`${prog}%`, 460, projY + 6, { width: 50, align: "right" });
+        pdfHorizBar(doc, 520, projY + 10, 180, 8, prog, statusColor(s.status));
+        doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text(`${fmtBudget(p.budget ?? 0)} · ${spentPct}% spent · Owner: ${p.ownerName ?? "—"}`, 52, projY + 22, { width: 400 });
+        projY += 32;
 
-        doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(`${p.projectCode ?? ""} ${p.name}`.trim(), 50, projY + 4, { width: 280 });
-        doc.font("Helvetica-Bold").fontSize(8).fillColor(statusColor(s.status)).text(statusLabel(s.status), 340, projY + 4, { width: 60 });
-        doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(`${prog}%`, 410, projY + 3, { width: 40, align: "right" });
-        pdfHorizBar(doc, 460, projY + 6, prog, 6);
-
-        doc.font("Helvetica").fontSize(7).fillColor(C.secondary);
-        doc.text(`Achievement: ${report?.keyAchievements?.slice(0, 100) ?? "—"}`, 50, projY + 18, { width: 500 });
-        doc.text(`Next steps: ${report?.nextSteps?.slice(0, 100) ?? "—"}`, 50, projY + 30, { width: 500 });
-        if (topRisk) {
-          doc.font("Helvetica").fontSize(7).fillColor(C.red).text(`Risk: ${topRisk.title} (score ${topRisk.riskScore})`, 50, projY + 42, { width: 500 });
+        // Achievements from weekly report
+        if (report) {
+          const achievements = (report as any).keyAchievements || (report as any).statusReason || (report as any).notes || "";
+          const nextSteps = (report as any).nextSteps || (report as any).completionReason || "";
+          if (achievements) {
+            doc.font("Helvetica-Bold").fontSize(9).fillColor(C.primary).text("ACHIEVEMENTS", 52, projY + 2);
+            doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(achievements.slice(0, 250), 52, projY + 14, { width: W - 130 });
+            projY += 14 + Math.ceil(Math.min(achievements.length, 250) / 80) * 14;
+          }
+          if (nextSteps) {
+            doc.font("Helvetica-Bold").fontSize(9).fillColor(C.primary).text("NEXT STEPS", 52, projY + 2);
+            doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(nextSteps.slice(0, 250), 52, projY + 14, { width: W - 130 });
+            projY += 14 + Math.ceil(Math.min(nextSteps.length, 250) / 80) * 14;
+          }
+        } else {
+          doc.font("Helvetica").fontSize(10).fillColor(C.light).text("No weekly report submitted this period.", 52, projY + 2);
+          projY += 16;
         }
 
-        projY += 60;
-        if (projY > 700) { doc.addPage(); pdfAccentBar(doc); projY = 50; }
+        // Risks for this project
+        if (topRisks.length > 0) {
+          doc.font("Helvetica-Bold").fontSize(9).fillColor(C.red).text("RISKS", 52, projY + 2);
+          topRisks.forEach((r, idx) => {
+            doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`${idx + 1}. ${r.title} (Score: ${r.riskScore}, Owner: ${r.owner ?? "—"})`, 52, projY + 14 + idx * 14, { width: W - 130 });
+          });
+          projY += 14 + topRisks.length * 14;
+        }
+
+        projY += 16; // gap between projects
+        if (projY > doc.page.height - 80) { doc.addPage(); pdfAccentBar(doc); projY = 50; }
+      }
+    }
+
+    // ── DETAIL PAGES: At-Risk and Delayed Projects (full page each) ──
+    const flaggedProjects = projectRows.filter((p: any) => p.computedStatus === "delayed" || p.computedStatus === "at_risk");
+    for (const p of flaggedProjects.slice(0, 10)) {
+      doc.addPage();
+      pdfAccentBar(doc);
+
+      const ms = data.milestones.filter((m) => m.projectId === p.id);
+      const report = data.weeklyReports.get(p.id);
+      const projRisks = data.risks.filter((r) => r.projectId === p.id && r.status === "open").sort((a, b) => b.riskScore - a.riskScore);
+      const fmtBudget = (n: number) => n >= 1_000_000 ? `SAR ${(n / 1_000_000).toFixed(1)}M` : `SAR ${n.toLocaleString()}`;
+      const spentPct = (p.budget ?? 0) > 0 ? Math.round(((p.budgetSpent ?? 0) / (p.budget ?? 0)) * 100) : 0;
+
+      // Title + status badge
+      doc.font("Helvetica-Bold").fontSize(18).fillColor(C.dark).text(`${p.projectCode ?? ""}: ${p.name}`.trim(), 40, 24, { width: W - 200 });
+      const badgeColor = (p as any).computedStatus === "delayed" ? C.red : C.amber;
+      const badgeLabel = (p as any).computedStatus === "delayed" ? "DELAYED" : "AT RISK";
+      doc.rect(W - 160, 24, 120, 24).fill(badgeColor);
+      doc.font("Helvetica-Bold").fontSize(11).fillColor(C.white).text(badgeLabel, W - 160, 30, { width: 120, align: "center" });
+
+      // Summary metrics row
+      const metY = 58;
+      doc.rect(40, metY, W - 80, 36).fill(C.bg);
+      doc.font("Helvetica-Bold").fontSize(12).fillColor(C.dark).text(`Progress: ${(p as any).progress}%`, 52, metY + 10);
+      doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`Budget: ${fmtBudget(p.budget ?? 0)} (${spentPct}% spent)`, 220, metY + 10);
+      doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`Owner: ${p.ownerName ?? "—"}`, 460, metY + 10);
+      doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`Target: ${p.targetDate ? formatDate(new Date(p.targetDate)) : "—"}`, 620, metY + 10);
+
+      let detY = metY + 48;
+
+      // Achievements
+      doc.font("Helvetica-Bold").fontSize(12).fillColor(C.navy).text("Key Achievements", 40, detY);
+      doc.save().moveTo(40, detY + 16).lineTo(W - 40, detY + 16).lineWidth(0.5).strokeColor(C.border).stroke().restore();
+      detY += 22;
+      if (report) {
+        const achievements = (report as any).keyAchievements || (report as any).statusReason || (report as any).notes || "No details provided.";
+        doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(achievements, 40, detY, { width: W - 80, lineGap: 4 });
+        detY += doc.heightOfString(achievements, { width: W - 80, lineGap: 4 }) + 16;
+      } else {
+        doc.font("Helvetica").fontSize(11).fillColor(C.light).text("No weekly report submitted this period. PM to provide update.", 40, detY, { width: W - 80 });
+        detY += 28;
+      }
+
+      // Next Steps
+      doc.font("Helvetica-Bold").fontSize(12).fillColor(C.navy).text("Next Steps", 40, detY);
+      doc.save().moveTo(40, detY + 16).lineTo(W - 40, detY + 16).lineWidth(0.5).strokeColor(C.border).stroke().restore();
+      detY += 22;
+      if (report) {
+        const nextSteps = (report as any).nextSteps || (report as any).completionReason || "No next steps provided.";
+        doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(nextSteps, 40, detY, { width: W - 80, lineGap: 4 });
+        detY += doc.heightOfString(nextSteps, { width: W - 80, lineGap: 4 }) + 16;
+      } else {
+        doc.font("Helvetica").fontSize(11).fillColor(C.light).text("Pending PM submission.", 40, detY);
+        detY += 28;
+      }
+
+      // Milestones table
+      if (ms.length > 0 && detY < doc.page.height - 160) {
+        doc.font("Helvetica-Bold").fontSize(12).fillColor(C.navy).text("Milestones", 40, detY);
+        doc.save().moveTo(40, detY + 16).lineTo(W - 40, detY + 16).lineWidth(0.5).strokeColor(C.border).stroke().restore();
+        detY += 22;
+        // Table header
+        doc.rect(40, detY, W - 80, 20).fill(C.navy);
+        doc.font("Helvetica-Bold").fontSize(9).fillColor(C.white);
+        doc.text("Milestone", 48, detY + 5, { width: 280 });
+        doc.text("Due Date", 340, detY + 5, { width: 80 });
+        doc.text("Progress", 430, detY + 5, { width: 60, align: "right" });
+        doc.text("Status", 510, detY + 5, { width: 80 });
+        detY += 22;
+        ms.slice(0, 8).forEach((m, idx) => {
+          if (detY > doc.page.height - 60) return;
+          doc.rect(40, detY, W - 80, 20).fill(idx % 2 === 0 ? C.white : C.bg);
+          doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(m.name.slice(0, 40), 48, detY + 4, { width: 280 });
+          doc.text(m.dueDate ? formatDate(new Date(m.dueDate)) : "—", 340, detY + 4, { width: 80 });
+          doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(`${m.progress ?? 0}%`, 430, detY + 4, { width: 60, align: "right" });
+          doc.font("Helvetica").fontSize(9).fillColor(statusColor(m.status)).text(statusLabel(m.status), 510, detY + 5, { width: 80 });
+          detY += 22;
+        });
+        detY += 8;
+      }
+
+      // Risks for this project
+      if (projRisks.length > 0 && detY < doc.page.height - 80) {
+        doc.font("Helvetica-Bold").fontSize(12).fillColor(C.navy).text("Active Risks", 40, detY);
+        doc.save().moveTo(40, detY + 16).lineTo(W - 40, detY + 16).lineWidth(0.5).strokeColor(C.border).stroke().restore();
+        detY += 22;
+        projRisks.slice(0, 5).forEach((r, idx) => {
+          doc.rect(40, detY, 5, 16).fill(r.riskScore >= 12 ? C.red : r.riskScore >= 6 ? C.amber : C.green);
+          doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(r.title, 52, detY + 2, { width: 350 });
+          doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(`Score: ${r.riskScore} · ${r.probability}/${r.impact} · Owner: ${r.owner ?? "—"}`, 410, detY + 2, { width: 300 });
+          detY += 20;
+        });
       }
     }
 
