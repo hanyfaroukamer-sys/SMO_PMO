@@ -691,51 +691,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Status at a Glance banner */}
-        {!bannerDismissed && (() => {
-          const delayedCount = projects.filter((p) => {
-            if (p.status === "completed" || p.status === "on_hold") return false;
-            return (p.computedStatus as SpmoStatusResult | undefined)?.status === "delayed";
-          }).length;
-          const atRiskCount = projects.filter((p) => {
-            if (p.status === "completed" || p.status === "on_hold") return false;
-            return (p.computedStatus as SpmoStatusResult | undefined)?.status === "at_risk";
-          }).length;
-          const onTrackCount = projects.filter((p) => {
-            if (p.status === "completed" || p.status === "on_hold") return false;
-            const cs = (p.computedStatus as SpmoStatusResult | undefined)?.status;
-            return cs === "on_track" || (!cs && p.status !== "completed");
-          }).length;
-          const criticalCount = delayedCount + (data.activeRisks ?? 0);
-          if (criticalCount === 0 && atRiskCount === 0) return null;
-          return (
-            <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm">
-              <div className="flex flex-1 items-center gap-4 flex-wrap">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Status at a Glance</span>
-                {criticalCount > 0 && (
-                  <div className="flex items-center gap-2 bg-destructive/10 rounded-lg px-3 py-2">
-                    <span className="text-2xl font-bold text-destructive">{criticalCount}</span>
-                    <span className="text-xs font-semibold text-destructive">Critical</span>
-                  </div>
-                )}
-                {atRiskCount > 0 && (
-                  <div className="flex items-center gap-2 bg-warning/10 rounded-lg px-3 py-2">
-                    <span className="text-2xl font-bold text-warning">{atRiskCount}</span>
-                    <span className="text-xs font-semibold text-warning">At Risk</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 bg-success/10 rounded-lg px-3 py-2">
-                  <span className="text-2xl font-bold text-success">{onTrackCount}</span>
-                  <span className="text-xs font-semibold text-success">On Track</span>
-                </div>
-              </div>
-              <button onClick={() => setBannerDismissed(true)} className="text-muted-foreground hover:text-foreground transition-colors p-1">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          );
-        })()}
-
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
           {[
