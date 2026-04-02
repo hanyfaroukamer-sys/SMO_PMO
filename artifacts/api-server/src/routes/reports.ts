@@ -398,7 +398,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       .font("Helvetica-Bold")
       .fontSize(20)
       .fillColor(C.dark)
-      .text("Programme Overview", MARGIN, 20);
+      .text("Programme Overview", M, 20);
 
     // Summary cards
     const cardW = 168;
@@ -420,7 +420,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     ];
 
     cards.forEach((c, i) => {
-      const x = MARGIN + i * (cardW + 12);
+      const x = M + i * (cardW + 12);
       doc.save().roundedRect(x, cardY, cardW, cardH, 6).fill(C.bg).stroke(C.border).restore();
       doc.save().rect(x, cardY, 4, cardH).fill(c.color).restore();
       doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(c.label, x + 12, cardY + 10, { width: cardW - 18 });
@@ -432,11 +432,11 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
 
     // Project status distribution (text-based legend)
     const statY = cardY + cardH + 16;
-    const leftW = (W - MARGIN * 2) * 0.45;
+    const leftW = (W - M * 2) * 0.45;
 
     doc
       .save()
-      .roundedRect(MARGIN, statY, leftW, 170, 6)
+      .roundedRect(M, statY, leftW, 170, 6)
       .fill(C.bg)
       .stroke(C.border)
       .restore();
@@ -444,7 +444,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       .font("Helvetica-Bold")
       .fontSize(11)
       .fillColor(C.dark)
-      .text("Project Status Distribution", MARGIN + 12, statY + 10);
+      .text("Project Status Distribution", M + 12, statY + 10);
 
     const total = data.projects.length || 1;
     const statusItems = [
@@ -459,15 +459,15 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       const cnt = data.statusCounts[si.key as keyof typeof data.statusCounts] ?? 0;
       const pct = Math.round((cnt / total) * 100);
       const ry = statY + 32 + idx * 24;
-      doc.save().roundedRect(MARGIN + 12, ry + 3, 10, 10, 2).fill(si.color).restore();
-      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`${si.label}`, MARGIN + 28, ry, { width: 90 });
-      doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(`${cnt}`, MARGIN + 125, ry, { width: 30, align: "right" });
-      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text(`(${pct}%)`, MARGIN + 162, ry, { width: 40 });
+      doc.save().roundedRect(M + 12, ry + 3, 10, 10, 2).fill(si.color).restore();
+      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`${si.label}`, M + 28, ry, { width: 90 });
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(C.dark).text(`${cnt}`, M + 125, ry, { width: 30, align: "right" });
+      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text(`(${pct}%)`, M + 162, ry, { width: 40 });
     });
 
     // Pillar progress bars
-    const pillarX = MARGIN + leftW + 16;
-    const pillarW = W - MARGIN - pillarX;
+    const pillarX = M + leftW + 16;
+    const pillarW = W - M - pillarX;
     doc
       .save()
       .roundedRect(pillarX, statY, pillarW, 170, 6)
@@ -491,13 +491,13 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     // ── PAGE 3: Initiative Performance ────────────────────────────────────────
     doc.addPage();
     pdfAccentBar(doc);
-    doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Initiative Performance", MARGIN, 20);
+    doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Initiative Performance", M, 20);
 
-    const cols3 = [MARGIN, MARGIN + 220, MARGIN + 370, MARGIN + 440, MARGIN + 510, MARGIN + 580];
+    const cols3 = [M, M + 220, M + 370, M + 440, M + 510, M + 580];
     const headers3 = ["Initiative", "Pillar", "Progress %", "SPI", "Status", "Budget (M)"];
     const tableTop3 = 52;
 
-    doc.save().rect(MARGIN, tableTop3, W - MARGIN * 2, 20).fill("#F1F5F9").restore();
+    doc.save().rect(M, tableTop3, W - M * 2, 20).fill("#F1F5F9").restore();
     headers3.forEach((h, i) => {
       doc.font("Helvetica-Bold").fontSize(10).fillColor(C.secondary).text(h, cols3[i] + 4, tableTop3 + 6, { width: 95 });
     });
@@ -510,7 +510,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         rowY3 = 30;
       }
       const bg = idx % 2 === 0 ? C.white : C.bg;
-      doc.save().rect(MARGIN, rowY3, W - MARGIN * 2, 20).fill(bg).restore();
+      doc.save().rect(M, rowY3, W - M * 2, 20).fill(bg).restore();
       doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(init.name.slice(0, 28), cols3[0] + 4, rowY3 + 6, { width: 210, ellipsis: true });
       doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(init.pillarName.slice(0, 20), cols3[1] + 4, rowY3 + 6, { width: 140 });
       doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`${init.progress}%`, cols3[2] + 4, rowY3 + 6, { width: 60 });
@@ -529,10 +529,10 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     const delayed = data.initiatives.filter((i) => i.status === "delayed");
     if (delayed.length > 0 && rowY3 < doc.page.height - 80) {
       rowY3 += 12;
-      doc.font("Helvetica-Bold").fontSize(9).fillColor(C.red).text("Delayed Initiatives:", MARGIN, rowY3);
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(C.red).text("Delayed Initiatives:", M, rowY3);
       rowY3 += 14;
       delayed.forEach((d) => {
-        doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`• ${d.name} — SPI ${d.spi.toFixed(2)}: ${d.reason}`, MARGIN + 8, rowY3, { width: W - MARGIN * 2 - 8 });
+        doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(`• ${d.name} — SPI ${d.spi.toFixed(2)}: ${d.reason}`, M + 8, rowY3, { width: W - M * 2 - 8 });
         rowY3 += 14;
       });
     }
@@ -540,16 +540,16 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     // ── PAGE 4: Budget & KPIs ─────────────────────────────────────────────────
     doc.addPage();
     pdfAccentBar(doc);
-    doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Budget Health & Strategic KPIs", MARGIN, 20);
+    doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Budget Health & Strategic KPIs", M, 20);
 
-    const leftW4 = (W - MARGIN * 2) * 0.52;
-    const rightX4 = MARGIN + leftW4 + 16;
-    const rightW4 = W - rightX4 - MARGIN;
+    const leftW4 = (W - M * 2) * 0.52;
+    const rightX4 = M + leftW4 + 16;
+    const rightW4 = W - rightX4 - M;
     const panelTop4 = 50;
 
     // Budget panel
-    doc.save().roundedRect(MARGIN, panelTop4, leftW4, 200, 6).fill(C.bg).stroke(C.border).restore();
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Budget by Pillar", MARGIN + 12, panelTop4 + 10);
+    doc.save().roundedRect(M, panelTop4, leftW4, 200, 6).fill(C.bg).stroke(C.border).restore();
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Budget by Pillar", M + 12, panelTop4 + 10);
 
     const barAreaW = leftW4 - 100;
     const pillarBudgets = data.programme.pillarSummaries.map((ps) => {
@@ -563,22 +563,22 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
 
     pillarBudgets.forEach((pb, idx) => {
       const by = panelTop4 + 32 + idx * 32;
-      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(pb.name.slice(0, 18), MARGIN + 12, by, { width: 90, ellipsis: true });
+      doc.font("Helvetica").fontSize(10).fillColor(C.dark).text(pb.name.slice(0, 18), M + 12, by, { width: 90, ellipsis: true });
       const bw = barAreaW - 20;
       const allocW = (pb.allocated / maxPillarBudget) * bw;
       const spentW = pb.allocated > 0 ? (pb.spent / pb.allocated) * allocW : 0;
-      doc.save().roundedRect(MARGIN + 105, by + 12, bw, 10, 3).fill("#BFDBFE").restore();
-      doc.save().roundedRect(MARGIN + 105, by + 12, Math.max(spentW, 2), 10, 3).fill(pb.color).restore();
+      doc.save().roundedRect(M + 105, by + 12, bw, 10, 3).fill("#BFDBFE").restore();
+      doc.save().roundedRect(M + 105, by + 12, Math.max(spentW, 2), 10, 3).fill(pb.color).restore();
       const allocM = (pb.allocated / 1_000_000).toFixed(0);
       const spentM = (pb.spent / 1_000_000).toFixed(0);
-      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text(`${spentM}M / ${allocM}M`, MARGIN + 105 + bw + 4, by + 11, { width: 65 });
+      doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text(`${spentM}M / ${allocM}M`, M + 105 + bw + 4, by + 11, { width: 65 });
     });
 
     // Budget totals
     const totalY4 = panelTop4 + 32 + pillarBudgets.length * 32 + 8;
     doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(
       `Total Allocated: ${(data.budget.totalAllocated / 1_000_000).toFixed(1)}M   |   Spent: ${(data.budget.totalSpent / 1_000_000).toFixed(1)}M   |   Utilisation: ${Math.round((data.budget.totalSpent / Math.max(data.budget.totalAllocated, 1)) * 100)}%`,
-      MARGIN + 12, Math.min(totalY4, panelTop4 + 185), { width: leftW4 - 24 }
+      M + 12, Math.min(totalY4, panelTop4 + 185), { width: leftW4 - 24 }
     );
 
     // KPI panel
@@ -607,31 +607,31 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     // ── PAGE 5: Risks & AI Assessment ────────────────────────────────────────
     doc.addPage();
     pdfAccentBar(doc);
-    doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Risk Summary & AI Assessment", MARGIN, 20);
+    doc.font("Helvetica-Bold").fontSize(20).fillColor(C.dark).text("Risk Summary & AI Assessment", M, 20);
 
-    const leftW5 = (W - MARGIN * 2) * 0.48;
-    const rightX5 = MARGIN + leftW5 + 16;
-    const rightW5 = W - rightX5 - MARGIN;
+    const leftW5 = (W - M * 2) * 0.48;
+    const rightX5 = M + leftW5 + 16;
+    const rightW5 = W - rightX5 - M;
     const panelTop5 = 50;
 
     // Risks panel
-    doc.save().roundedRect(MARGIN, panelTop5, leftW5, 200, 6).fill(C.bg).stroke(C.border).restore();
-    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Top Risks by Score", MARGIN + 12, panelTop5 + 10);
+    doc.save().roundedRect(M, panelTop5, leftW5, 200, 6).fill(C.bg).stroke(C.border).restore();
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(C.dark).text("Top Risks by Score", M + 12, panelTop5 + 10);
 
     let riskY = panelTop5 + 30;
     data.topRisks.forEach((risk, idx) => {
       const score = sevNum(risk.impact) * sevNum(risk.probability);
       const sc5 = sevColor(risk.impact);
-      doc.save().roundedRect(MARGIN + 12, riskY, 8, 8, 2).fill(sc5).restore();
-      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.dark).text(`${idx + 1}. ${risk.title}`, MARGIN + 26, riskY, { width: leftW5 - 40 });
+      doc.save().roundedRect(M + 12, riskY, 8, 8, 2).fill(sc5).restore();
+      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(C.dark).text(`${idx + 1}. ${risk.title}`, M + 26, riskY, { width: leftW5 - 40 });
       riskY += 14;
       doc.font("Helvetica").fontSize(7.5).fillColor(C.secondary).text(
         `Score: ${score} | ${(risk.impact ?? "—").toUpperCase()} | ${risk.status ?? "open"}`,
-        MARGIN + 26, riskY, { width: leftW5 - 40 }
+        M + 26, riskY, { width: leftW5 - 40 }
       );
       riskY += 13;
       if (risk.description) {
-        doc.font("Helvetica").fontSize(7.5).fillColor(C.secondary).text(risk.description, MARGIN + 26, riskY, { width: leftW5 - 40, ellipsis: true });
+        doc.font("Helvetica").fontSize(7.5).fillColor(C.secondary).text(risk.description, M + 26, riskY, { width: leftW5 - 40, ellipsis: true });
         riskY += 13;
       }
       riskY += 4;
