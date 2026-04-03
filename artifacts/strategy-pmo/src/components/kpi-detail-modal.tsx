@@ -603,7 +603,7 @@ export function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, onClose 
                         <tr key={ef.id} className="hover:bg-secondary/20 transition-colors">
                           <td className="px-4 py-2.5">
                             <a
-                              href={`/api/spmo/uploads/${encodeURIComponent(ef.objectPath)}`}
+                              href={`/api/storage/objects${ef.objectPath}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-primary hover:underline font-medium flex items-center gap-1.5"

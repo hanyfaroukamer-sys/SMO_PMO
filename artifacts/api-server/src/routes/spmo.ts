@@ -4271,6 +4271,106 @@ router.post("/spmo/admin/send-weekly-report-reminders", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// GLOBAL AUTO-WEIGHT (admin only — resets ALL weights across ALL levels)
+// ─────────────────────────────────────────────────────────────
+
+router.post("/spmo/admin/auto-weight-all", async (req, res) => {
+  // Admin only
+  if (!requireAdmin(req, res)) return;
+  const userId = getAuthUser(req)?.id ?? "";
+  const user = getAuthUser(req);
+
+  try {
+    // Step 1: Reset all milestone weights to 0 (triggers effortDays/duration-based auto-weight on next load)
+    await db.update(spmoMilestonesTable).set({ weight: 0, updatedAt: new Date() });
+
+    // Step 2: Reset all project weights to 0 (triggers budget/effort cascade)
+    await db.update(spmoProjectsTable).set({ weight: 0, updatedAt: new Date() });
+
+    // Step 3: Reset all initiative weights to 0 (triggers budget cascade)
+    await db.update(spmoInitiativesTable).set({ weight: 0, updatedAt: new Date() });
+
+    // Step 4: Reset all pillar weights to 0 (triggers equal/budget cascade)
+    await db.update(spmoPillarsTable).set({ weight: 0, updatedAt: new Date() });
+
+    // Step 5: Now auto-compute milestone weights per project using effortDays/duration
+    const allProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable);
+    let milestonesUpdated = 0;
+
+    for (const project of allProjects) {
+      const milestones = await db.select().from(spmoMilestonesTable)
+        .where(eq(spmoMilestonesTable.projectId, project.id));
+
+      if (milestones.length === 0) continue;
+
+      // Weight cascade: effortDays → duration (dueDate - startDate) → equal
+      let weights: Map<number, number>;
+
+      const totalEffort = milestones.reduce((s, m) => s + (m.effortDays ?? 0), 0);
+
+      if (totalEffort > 0) {
+        // Use effortDays
+        const total = totalEffort;
+        weights = new Map();
+        let remaining = 100;
+        milestones.forEach((m, i) => {
+          const w = i === milestones.length - 1 ? remaining : Math.round(((m.effortDays ?? 0) / total) * 100);
+          weights.set(m.id, w);
+          remaining -= w;
+        });
+      } else {
+        // Try duration from dates
+        const durations = milestones.map(m => {
+          if (m.startDate && m.dueDate) {
+            return { id: m.id, days: Math.max(1, Math.round((new Date(m.dueDate).getTime() - new Date(m.startDate).getTime()) / 86400000)) };
+          }
+          return { id: m.id, days: 0 };
+        });
+        const totalDuration = durations.reduce((s, d) => s + d.days, 0);
+
+        if (totalDuration > 0) {
+          weights = new Map();
+          let remaining = 100;
+          durations.forEach((d, i) => {
+            const w = i === durations.length - 1 ? remaining : Math.round((d.days / totalDuration) * 100);
+            weights.set(d.id, w);
+            remaining -= w;
+          });
+        } else {
+          // Equal weight
+          const eqW = Math.floor(100 / milestones.length);
+          const rem = 100 - eqW * milestones.length;
+          weights = new Map();
+          milestones.forEach((m, i) => weights.set(m.id, i < rem ? eqW + 1 : eqW));
+        }
+      }
+
+      // Apply weights
+      for (const [msId, weight] of weights) {
+        await db.update(spmoMilestonesTable).set({ weight, updatedAt: new Date() }).where(eq(spmoMilestonesTable.id, msId));
+        milestonesUpdated++;
+      }
+    }
+
+    // Invalidate overview cache
+    invalidateOverviewCache();
+
+    // Log activity
+    await logSpmoActivity(userId, getUserDisplayName(user), "updated", "programme", 0, "Global Auto-Weight",
+      { action: "auto_weight_all", milestonesUpdated, projectsReset: allProjects.length });
+
+    res.json({
+      success: true,
+      message: `Auto-weight complete. ${milestonesUpdated} milestones weighted across ${allProjects.length} projects. All project, initiative, and pillar weights reset to auto-calculate.`,
+      stats: { milestonesUpdated, projectsReset: allProjects.length }
+    });
+  } catch (err: any) {
+    req.log?.error?.({ err }, "Global auto-weight failed");
+    res.status(500).json({ error: err.message ?? "Auto-weight failed" });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
 // GLOBAL SEARCH (Cmd+K — searches projects, milestones, KPIs, risks, documents)
 // ─────────────────────────────────────────────────────────────
 

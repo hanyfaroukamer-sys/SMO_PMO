@@ -351,7 +351,27 @@ export default function Projects() {
   const [expandedInitiatives, setExpandedInitiatives] = useState<Set<number>>(new Set());
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [globalAutoWeightLoading, setGlobalAutoWeightLoading] = useState(false);
   const didDeepLink = useRef(false);
+
+  async function handleGlobalAutoWeight() {
+    if (!confirm("Reset ALL weights across the entire programme to auto-calculated values?")) return;
+    setGlobalAutoWeightLoading(true);
+    try {
+      const res = await fetch("/api/spmo/admin/auto-weight-all", { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Auto-weight complete", description: data.message });
+        qc.invalidateQueries();
+      } else {
+        toast({ variant: "destructive", title: "Failed", description: data.error });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Network error" });
+    } finally {
+      setGlobalAutoWeightLoading(false);
+    }
+  }
   const deepLinkMilestoneId = useRef<number | null>(null);
 
   useEffect(() => {
@@ -565,6 +585,17 @@ export default function Projects() {
               <GanttChartSquare className="w-3.5 h-3.5" /> Gantt
             </button>
           </div>
+          {isAdmin && (
+            <button
+              onClick={handleGlobalAutoWeight}
+              disabled={globalAutoWeightLoading}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-40"
+              title="Reset all weights across entire programme"
+            >
+              {globalAutoWeightLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+              Global Auto-Weight
+            </button>
+          )}
           <button
             onClick={async () => {
               const projectRows = projects.map((p) => ({
