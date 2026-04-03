@@ -175,23 +175,33 @@ function getUserDisplayName(user: ReturnType<typeof getAuthUser>): string | null
   return parts.length > 0 ? parts.join(" ") : user.email ?? null;
 }
 
-function requireAuth(
+async function requireAuth(
   req: Parameters<Parameters<typeof router.get>[1]>[0],
   res: Parameters<Parameters<typeof router.get>[1]>[1]
-): string | null {
+): Promise<string | null> {
   const user = getAuthUser(req);
   if (!user?.id) {
     res.status(401).json({ error: "Authentication required" });
     return null;
   }
+  // Check if user is blocked
+  try {
+    const [userRecord] = await db.select({ blocked: usersTable.blocked }).from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
+    if (userRecord?.blocked) {
+      res.status(403).json({ error: "Your account has been blocked. Contact an administrator." });
+      return null;
+    }
+  } catch {
+    // If check fails, allow through (don't block on DB errors)
+  }
   return user.id;
 }
 
-function requireRole(
+async function requireRole(
   req: Parameters<Parameters<typeof router.get>[1]>[0],
   res: Parameters<Parameters<typeof router.get>[1]>[1],
   ...allowedRoles: string[]
-): string | null {
+): Promise<string | null> {
   const user = getAuthUser(req);
   if (!user?.id) {
     res.status(401).json({ error: "Authentication required" });
@@ -200,6 +210,16 @@ function requireRole(
   if (!user.role || !allowedRoles.includes(user.role)) {
     res.status(403).json({ error: "Insufficient permissions" });
     return null;
+  }
+  // Check if user is blocked
+  try {
+    const [userRecord] = await db.select({ blocked: usersTable.blocked }).from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
+    if (userRecord?.blocked) {
+      res.status(403).json({ error: "Your account has been blocked. Contact an administrator." });
+      return null;
+    }
+  } catch {
+    // If check fails, allow through (don't block on DB errors)
   }
   return user.id;
 }
@@ -341,7 +361,7 @@ let _overviewCache: { data: unknown; ts: number } | null = null;
 const OVERVIEW_CACHE_TTL = 60_000; // 60 seconds
 
 router.get("/spmo/programme", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   // Return cached overview if fresh (avoids heavy calcProgrammeProgress on every dashboard load)
@@ -410,7 +430,7 @@ function invalidateOverviewCache() { _overviewCache = null; }
 // Pillars
 // ─────────────────────────────────────────────────────────────
 router.get("/spmo/pillars", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const pillars = await db
@@ -433,7 +453,7 @@ router.get("/spmo/pillars", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/pillars", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -463,7 +483,7 @@ router.post("/spmo/pillars", async (req, res): Promise<void> => {
 });
 
 router.get("/spmo/pillars/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = GetSpmoPillarParams.safeParse(req.params);
@@ -500,7 +520,7 @@ router.get("/spmo/pillars/:id", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/pillars/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -558,7 +578,7 @@ router.put("/spmo/pillars/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/spmo/pillars/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -591,7 +611,7 @@ router.delete("/spmo/pillars/:id", async (req, res): Promise<void> => {
 // Initiatives
 // ─────────────────────────────────────────────────────────────
 router.get("/spmo/initiatives", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const qp = ListSpmoInitiativesQueryParams.safeParse(req.query);
@@ -639,7 +659,7 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/initiatives", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -690,7 +710,7 @@ router.post("/spmo/initiatives", async (req, res): Promise<void> => {
 });
 
 router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = GetSpmoInitiativeParams.safeParse(req.params);
@@ -747,7 +767,7 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -826,7 +846,7 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/spmo/initiatives/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -859,7 +879,7 @@ router.delete("/spmo/initiatives/:id", async (req, res): Promise<void> => {
 // Projects
 // ─────────────────────────────────────────────────────────────
 router.get("/spmo/projects", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const qp = ListSpmoProjectsQueryParams.safeParse(req.query);
@@ -904,7 +924,7 @@ router.get("/spmo/projects", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/projects", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -965,7 +985,7 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
 });
 
 router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = GetSpmoProjectParams.safeParse(req.params);
@@ -1021,7 +1041,7 @@ router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = UpdateSpmoProjectParams.safeParse(req.params);
@@ -1144,7 +1164,7 @@ router.delete("/spmo/projects/:id", async (req, res): Promise<void> => {
 // Milestones
 // ─────────────────────────────────────────────────────────────
 router.get("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = ListSpmoMilestonesParams.safeParse(req.params);
@@ -1190,7 +1210,7 @@ router.get("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = CreateSpmoMilestoneParams.safeParse(req.params);
@@ -1238,7 +1258,7 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
 
 // Flat milestone create — accepts projectId in body (used by mobile/permission tests)
 router.post("/spmo/milestones", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const projectIdParsed = z.object({ projectId: z.number() }).safeParse(req.body);
@@ -1287,7 +1307,7 @@ router.post("/spmo/milestones", async (req, res): Promise<void> => {
 
 // Lightweight milestone list for Gantt chart (single query, no N+1)
 router.get("/spmo/milestones/list", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const milestones = await db.select({
     id: spmoMilestonesTable.id,
@@ -1302,7 +1322,7 @@ router.get("/spmo/milestones/list", async (req, res): Promise<void> => {
 });
 
 router.get("/spmo/milestones/all", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   // Batch load all data in 4 parallel queries (was: 4 queries PER milestone)
@@ -1338,7 +1358,7 @@ router.get("/spmo/milestones/all", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = UpdateSpmoMilestoneParams.safeParse(req.params);
@@ -1432,7 +1452,7 @@ router.put("/spmo/milestones/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/spmo/milestones/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = DeleteSpmoMilestoneParams.safeParse(req.params);
@@ -1473,7 +1493,7 @@ router.delete("/spmo/milestones/:id", async (req, res): Promise<void> => {
 // BULK MILESTONE WEIGHT UPDATE (atomic — bypasses per-row validation)
 // ─────────────────────────────────────────────────────────────
 router.put("/spmo/projects/:id/milestones/weights", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = GetSpmoProjectParams.safeParse(req.params);
@@ -1594,7 +1614,7 @@ router.post("/spmo/pillars/:id/initiatives/weights/reset", async (req, res): Pro
 // Approval Workflow
 // ─────────────────────────────────────────────────────────────
 router.post("/spmo/milestones/:id/submit", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = SubmitSpmoMilestoneParams.safeParse(req.params);
@@ -1658,7 +1678,7 @@ router.post("/spmo/milestones/:id/submit", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/milestones/:id/approve", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "approver");
+  const userId = await requireRole(req, res, "admin", "approver");
   if (!userId) return;
 
   const params = ApproveSpmoMilestoneParams.safeParse(req.params);
@@ -1700,7 +1720,7 @@ router.post("/spmo/milestones/:id/approve", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/milestones/:id/reject", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "approver");
+  const userId = await requireRole(req, res, "admin", "approver");
   if (!userId) return;
 
   const params = RejectSpmoMilestoneParams.safeParse(req.params);
@@ -1749,7 +1769,7 @@ router.post("/spmo/milestones/:id/reject", async (req, res): Promise<void> => {
 // Evidence uploads
 // ─────────────────────────────────────────────────────────────
 router.post("/spmo/uploads/request-url", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const parsed = z.object({ milestoneId: z.number().int() }).safeParse(req.body);
@@ -1779,7 +1799,7 @@ router.post("/spmo/uploads/request-url", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/milestones/:id/evidence", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -1835,7 +1855,7 @@ router.post("/spmo/milestones/:id/evidence", async (req, res): Promise<void> => 
 });
 
 router.delete("/spmo/evidence/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = DeleteSpmoEvidenceParams.safeParse(req.params);
@@ -1865,7 +1885,7 @@ router.delete("/spmo/evidence/:id", async (req, res): Promise<void> => {
 // Pending Approvals
 // ─────────────────────────────────────────────────────────────
 router.get("/spmo/pending-approvals", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const submittedMilestones = await db
@@ -1909,7 +1929,7 @@ router.get("/spmo/pending-approvals", async (req, res): Promise<void> => {
 // KPIs
 // ─────────────────────────────────────────────────────────────
 router.get("/spmo/kpis", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const qp = ListSpmoKpisQueryParams.safeParse(req.query);
@@ -1931,7 +1951,7 @@ router.get("/spmo/kpis", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/kpis", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const parsed = CreateSpmoKpiBody.safeParse(req.body);
@@ -1959,7 +1979,7 @@ router.post("/spmo/kpis", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/kpis/:id", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const params = UpdateSpmoKpiParams.safeParse(req.params);
@@ -2027,7 +2047,7 @@ router.put("/spmo/kpis/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/spmo/kpis/:id", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const params = DeleteSpmoKpiParams.safeParse(req.params);
@@ -2049,7 +2069,7 @@ router.delete("/spmo/kpis/:id", async (req, res): Promise<void> => {
 // Risks
 // ─────────────────────────────────────────────────────────────
 router.get("/spmo/risks", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const risks = await db
@@ -2071,7 +2091,7 @@ router.get("/spmo/risks", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/risks", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   // Check permission before full body validation so we return 403 not 400
@@ -2108,7 +2128,7 @@ router.post("/spmo/risks", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/risks/:id", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const params = UpdateSpmoRiskParams.safeParse(req.params);
@@ -2150,7 +2170,7 @@ router.put("/spmo/risks/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/spmo/risks/:id", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const params = DeleteSpmoRiskParams.safeParse(req.params);
@@ -2173,7 +2193,7 @@ router.delete("/spmo/risks/:id", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/risks/:id/mitigations", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const params = CreateSpmoMitigationParams.safeParse(req.params);
@@ -2212,7 +2232,7 @@ router.post("/spmo/risks/:id/mitigations", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/mitigations/:id", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const params = UpdateSpmoMitigationParams.safeParse(req.params);
@@ -2261,7 +2281,7 @@ router.put("/spmo/mitigations/:id", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/issues", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const projectIdParam = req.query.projectId;
@@ -2288,7 +2308,7 @@ router.get("/spmo/issues", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/issues", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const bodySchema = z.object({
@@ -2331,7 +2351,7 @@ router.post("/spmo/issues", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/issues/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const id = Number(req.params.id);
@@ -2402,7 +2422,7 @@ router.delete("/spmo/issues/:id", async (req, res): Promise<void> => {
 
 // Convert Risk to Issue
 router.post("/spmo/risks/:id/convert-to-issue", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const riskId = Number(req.params.id);
@@ -2468,7 +2488,7 @@ router.post("/spmo/risks/:id/convert-to-issue", async (req, res): Promise<void> 
 // Budget
 // ─────────────────────────────────────────────────────────────
 router.get("/spmo/budget", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const qp = ListSpmoBudgetQueryParams.safeParse(req.query);
@@ -2529,7 +2549,7 @@ router.get("/spmo/budget", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/budget", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   // Check permission before full body validation so we return 403 not 400
@@ -2559,7 +2579,7 @@ router.post("/spmo/budget", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/budget/:id", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const params = UpdateSpmoBudgetEntryParams.safeParse(req.params);
@@ -2591,7 +2611,7 @@ router.put("/spmo/budget/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/spmo/budget/:id", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const params = DeleteSpmoBudgetEntryParams.safeParse(req.params);
@@ -2638,7 +2658,7 @@ async function computeAlertCount(): Promise<number> {
 }
 
 router.get("/spmo/alerts", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const alerts: Array<{
@@ -2813,7 +2833,7 @@ router.get("/spmo/alerts", async (req, res): Promise<void> => {
 // Activity Log
 // ─────────────────────────────────────────────────────────────
 router.get("/spmo/activity-log", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const qp = ListSpmoActivityLogQueryParams.safeParse(req.query);
@@ -2862,7 +2882,7 @@ router.get("/spmo/activity-log", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────
 
 router.post("/spmo/ai/assessment", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   // Use cache if fresh
@@ -2958,7 +2978,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
 // AI: Evidence Validation
 // ─────────────────────────────────────────────────────────────
 router.post("/spmo/ai/validate-evidence", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const parsed = RunSpmoAiValidateEvidenceBody.safeParse(req.body);
@@ -3078,7 +3098,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
 // Procurement
 // ─────────────────────────────────────────────────────────────
 router.get("/spmo/procurement", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const qp = ListSpmoProcurementQueryParams.safeParse(req.query);
@@ -3096,7 +3116,7 @@ router.get("/spmo/procurement", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/procurement", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const parsed = CreateSpmoProcurementBody.safeParse(req.body);
@@ -3116,7 +3136,7 @@ router.post("/spmo/procurement", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/procurement/:id", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const params = UpdateSpmoProcurementParams.safeParse(req.params);
@@ -3151,7 +3171,7 @@ router.put("/spmo/procurement/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/spmo/procurement/:id", async (req, res): Promise<void> => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
 
   const params = DeleteSpmoProcurementParams.safeParse(req.params);
@@ -3181,7 +3201,7 @@ router.delete("/spmo/procurement/:id", async (req, res): Promise<void> => {
 // Programme Config
 // ─────────────────────────────────────────────────────────────
 router.get("/spmo/programme-config", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const [config] = await db.select().from(spmoProgrammeConfigTable).limit(1);
@@ -3203,7 +3223,7 @@ router.get("/spmo/programme-config", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/programme-config", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -3233,7 +3253,7 @@ router.put("/spmo/programme-config", async (req, res): Promise<void> => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/departments", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const departments = await db
@@ -3281,7 +3301,7 @@ router.get("/spmo/departments", async (req, res): Promise<void> => {
 });
 
 router.post("/spmo/departments", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -3309,7 +3329,7 @@ router.post("/spmo/departments", async (req, res): Promise<void> => {
 });
 
 router.put("/spmo/departments/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -3346,7 +3366,7 @@ router.put("/spmo/departments/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/spmo/departments/:id", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const user = getAuthUser(req);
@@ -3377,7 +3397,7 @@ router.delete("/spmo/departments/:id", async (req, res): Promise<void> => {
 });
 
 router.get("/spmo/pillars/:id/portfolio", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = GetSpmoPillarParams.safeParse(req.params);
@@ -3432,7 +3452,7 @@ router.get("/spmo/pillars/:id/portfolio", async (req, res): Promise<void> => {
 });
 
 router.get("/spmo/departments/:id/portfolio", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const params = GetSpmoDepartmentPortfolioParams.safeParse(req.params);
@@ -3494,7 +3514,7 @@ router.get("/spmo/departments/:id/portfolio", async (req, res): Promise<void> =>
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/projects/:id/weekly-report", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const parsed = GetSpmoProjectWeeklyReportParams.safeParse(req.params);
@@ -3521,7 +3541,7 @@ router.get("/spmo/projects/:id/weekly-report", async (req, res) => {
 });
 
 router.put("/spmo/projects/:id/weekly-report", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const parsedParams = UpsertSpmoProjectWeeklyReportParams.safeParse(req.params);
@@ -3590,7 +3610,7 @@ router.put("/spmo/projects/:id/weekly-report", async (req, res) => {
 });
 
 router.get("/spmo/projects/:id/weekly-report/history", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const parsed = GetSpmoProjectWeeklyReportParams.safeParse(req.params);
@@ -3611,7 +3631,7 @@ router.get("/spmo/projects/:id/weekly-report/history", async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/change-requests", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const projectId = req.query.projectId ? Number(req.query.projectId) : null;
@@ -3624,7 +3644,7 @@ router.get("/spmo/change-requests", async (req, res) => {
 });
 
 router.get("/spmo/change-requests/:id", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const id = parseId(req, res);
@@ -3635,7 +3655,7 @@ router.get("/spmo/change-requests/:id", async (req, res) => {
 });
 
 router.post("/spmo/change-requests", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const user = getAuthUser(req)!;
   const body = z.object({
@@ -3671,7 +3691,7 @@ router.post("/spmo/change-requests", async (req, res) => {
 });
 
 router.patch("/spmo/change-requests/:id", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const user = getAuthUser(req)!;
   const id = parseId(req, res);
@@ -3714,7 +3734,7 @@ router.patch("/spmo/change-requests/:id", async (req, res) => {
 });
 
 router.delete("/spmo/change-requests/:id", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const user = getAuthUser(req);
   const id = parseId(req, res);
@@ -3733,7 +3753,7 @@ router.delete("/spmo/change-requests/:id", async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/raci", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const projectId = req.query.projectId ? Number(req.query.projectId) : null;
@@ -3747,7 +3767,7 @@ router.get("/spmo/raci", async (req, res) => {
 });
 
 router.post("/spmo/raci", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const user = getAuthUser(req)!;
   const body = z.object({
@@ -3783,7 +3803,7 @@ router.post("/spmo/raci", async (req, res) => {
 });
 
 router.patch("/spmo/raci/:id", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const user = getAuthUser(req);
   const id = parseId(req, res);
@@ -3801,7 +3821,7 @@ router.patch("/spmo/raci/:id", async (req, res) => {
 });
 
 router.delete("/spmo/raci/:id", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const user = getAuthUser(req);
   const id = parseId(req, res);
@@ -3821,7 +3841,7 @@ router.delete("/spmo/raci/:id", async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/documents", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const projectId = req.query.projectId ? Number(req.query.projectId) : null;
@@ -3834,7 +3854,7 @@ router.get("/spmo/documents", async (req, res) => {
 });
 
 router.get("/spmo/documents/:id", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const id = parseId(req, res);
@@ -3845,7 +3865,7 @@ router.get("/spmo/documents/:id", async (req, res) => {
 });
 
 router.post("/spmo/documents", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const user = getAuthUser(req)!;
   const body = z.object({
@@ -3883,7 +3903,7 @@ router.post("/spmo/documents", async (req, res) => {
 });
 
 router.patch("/spmo/documents/:id", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
@@ -3913,7 +3933,7 @@ router.patch("/spmo/documents/:id", async (req, res) => {
 });
 
 router.delete("/spmo/documents/:id", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
@@ -3934,7 +3954,7 @@ router.delete("/spmo/documents/:id", async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/actions", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const projectId = req.query.projectId ? Number(req.query.projectId) : null;
@@ -3947,7 +3967,7 @@ router.get("/spmo/actions", async (req, res) => {
 });
 
 router.post("/spmo/actions", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const user = getAuthUser(req)!;
   const body = z.object({
@@ -3975,7 +3995,7 @@ router.post("/spmo/actions", async (req, res) => {
 });
 
 router.patch("/spmo/actions/:id", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
@@ -4003,7 +4023,7 @@ router.patch("/spmo/actions/:id", async (req, res) => {
 });
 
 router.delete("/spmo/actions/:id", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
@@ -4024,7 +4044,7 @@ router.delete("/spmo/actions/:id", async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/comments", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const entityType = req.query.entityType as string;
   const entityId = req.query.entityId ? Number(req.query.entityId) : null;
@@ -4034,7 +4054,7 @@ router.get("/spmo/comments", async (req, res) => {
 });
 
 router.post("/spmo/comments", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const user = getAuthUser(req);
   const body = z.object({
@@ -4187,7 +4207,7 @@ router.post("/spmo/comments", async (req, res) => {
 });
 
 router.delete("/spmo/comments/:id", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
@@ -4203,7 +4223,7 @@ router.delete("/spmo/comments/:id", async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/notifications", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const rows = await db.select().from(spmoNotificationsTable).where(eq(spmoNotificationsTable.userId, userId)).orderBy(desc(spmoNotificationsTable.createdAt)).limit(50);
   const unread = rows.filter((r) => !r.read).length;
@@ -4211,14 +4231,14 @@ router.get("/spmo/notifications", async (req, res) => {
 });
 
 router.post("/spmo/notifications/read-all", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   await db.update(spmoNotificationsTable).set({ read: true }).where(and(eq(spmoNotificationsTable.userId, userId), eq(spmoNotificationsTable.read, false)));
   res.json({ ok: true });
 });
 
 router.post("/spmo/notifications/:id/read", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
@@ -4391,7 +4411,7 @@ router.post("/spmo/admin/auto-weight-all", async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/search", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const q = ((req.query.q as string) || "").trim();
@@ -4420,7 +4440,7 @@ router.get("/spmo/search", async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/users/search", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const q = ((req.query.q as string) || "").trim().toLowerCase();
@@ -4540,6 +4560,10 @@ router.get("/spmo/admin/users", async (req, res) => {
       firstName: usersTable.firstName,
       lastName: usersTable.lastName,
       role: usersTable.role,
+      blocked: usersTable.blocked,
+      blockedAt: usersTable.blockedAt,
+      blockedBy: usersTable.blockedBy,
+      blockedReason: usersTable.blockedReason,
       createdAt: usersTable.createdAt,
     })
     .from(usersTable)
@@ -4621,12 +4645,68 @@ router.put("/spmo/admin/users/:userId/role", async (req, res) => {
   res.json({ id: updated.id, email: updated.email, firstName: updated.firstName, lastName: updated.lastName, role: updated.role });
 });
 
+// Block user (admin only)
+router.post("/spmo/admin/users/:userId/block", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const userId = req.params.userId;
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const currentAdmin = getAuthUser(req);
+  if (currentAdmin?.id === userId) {
+    res.status(400).json({ error: "You cannot block yourself" });
+    return;
+  }
+
+  const reason = typeof req.body?.reason === "string" ? req.body.reason : null;
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({
+      blocked: true,
+      blockedAt: new Date(),
+      blockedBy: currentAdmin?.id ?? null,
+      blockedReason: reason,
+      updatedAt: new Date(),
+    })
+    .where(eq(usersTable.id, userId))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
+
+  res.json({ success: true, id: updated.id, blocked: true });
+});
+
+// Unblock user (admin only)
+router.post("/spmo/admin/users/:userId/unblock", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const userId = req.params.userId;
+  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({
+      blocked: false,
+      blockedAt: null,
+      blockedBy: null,
+      blockedReason: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(usersTable.id, userId))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
+
+  res.json({ success: true, id: updated.id, blocked: false });
+});
+
 // ─────────────────────────────────────────────────────────────
 // KPI MEASUREMENTS
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/kpis/:id/measurements", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const kpiId = parseId(req, res);
   if (!kpiId) return;
@@ -4635,7 +4715,7 @@ router.get("/spmo/kpis/:id/measurements", async (req, res) => {
 });
 
 router.post("/spmo/kpis/:id/measurements", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const kpiId = parseId(req, res);
   if (!kpiId) return;
@@ -4665,7 +4745,7 @@ router.post("/spmo/kpis/:id/measurements", async (req, res) => {
 });
 
 router.delete("/spmo/kpis/:kpiId/measurements/:id", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "project-manager");
+  const userId = await requireRole(req, res, "admin", "project-manager");
   if (!userId) return;
   const id = parseId(req, res);
   if (!id) return;
@@ -4680,7 +4760,7 @@ router.delete("/spmo/kpis/:kpiId/measurements/:id", async (req, res) => {
 
 // Upload KPI evidence
 router.post("/spmo/kpis/:id/evidence", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const kpiId = parseId(req, res);
   if (!kpiId) return;
@@ -4744,7 +4824,7 @@ router.post("/spmo/kpis/:id/evidence", async (req, res) => {
 
 // List KPI evidence
 router.get("/spmo/kpis/:id/evidence", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const kpiId = parseId(req, res);
   if (!kpiId) return;
@@ -4755,7 +4835,7 @@ router.get("/spmo/kpis/:id/evidence", async (req, res) => {
 
 // Approve KPI evidence
 router.post("/spmo/kpis/:id/evidence/approve", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "approver");
+  const userId = await requireRole(req, res, "admin", "approver");
   if (!userId) return;
   const kpiId = parseId(req, res);
   if (!kpiId) return;
@@ -4791,7 +4871,7 @@ router.post("/spmo/kpis/:id/evidence/approve", async (req, res) => {
 
 // Reject KPI evidence
 router.post("/spmo/kpis/:id/evidence/reject", async (req, res) => {
-  const userId = requireRole(req, res, "admin", "approver");
+  const userId = await requireRole(req, res, "admin", "approver");
   if (!userId) return;
   const kpiId = parseId(req, res);
   if (!kpiId) return;
@@ -4890,7 +4970,7 @@ router.put("/spmo/kpis/:id/owner", async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/my-tasks/count", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
@@ -4983,7 +5063,7 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
 });
 
 router.get("/spmo/my-tasks", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
@@ -5223,7 +5303,7 @@ router.get("/spmo/my-tasks", async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 
 router.get("/spmo/dashboard/department-status", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const departments = await db.select().from(spmoDepartmentsTable);
@@ -5267,7 +5347,7 @@ const PermissionsSchema = z.object({
 
 /** GET /spmo/my-project-access — list all projects + per-project permissions for the current user */
 router.get("/spmo/my-project-access", async (req, res) => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
   const user = getAuthUser(req);
   if (user?.role === "admin") {
