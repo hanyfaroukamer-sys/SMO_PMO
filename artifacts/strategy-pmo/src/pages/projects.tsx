@@ -346,6 +346,7 @@ export default function Projects() {
   const [pillarFilter, setPillarFilter] = useState<number | "all">("all");
   const [departmentFilter, setDepartmentFilter] = useState<number | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold">("all");
+  const [phaseFilter, setPhaseFilter] = useState<string>("");
   const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
   const [expandedInitiatives, setExpandedInitiatives] = useState<Set<number>>(new Set());
   const { toast } = useToast();
@@ -667,6 +668,22 @@ export default function Projects() {
             <option value="on_hold">On Hold</option>
           </select>
         </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Phase</label>
+          <select
+            className={`${selectClass} py-1.5 text-xs w-44`}
+            value={phaseFilter}
+            onChange={(e) => setPhaseFilter(e.target.value)}
+          >
+            <option value="">All Phases</option>
+            <option value="planning">Planning</option>
+            <option value="tendering">Tendering</option>
+            <option value="execution">Execution</option>
+            <option value="closure">Closure</option>
+            <option value="completed">Completed</option>
+            <option value="not_started">Not Started</option>
+          </select>
+        </div>
         {viewMode === "gantt" && (
           <span className="ml-auto text-xs text-muted-foreground">
             Showing projects with milestone markers · hover bars/diamonds for details
@@ -694,11 +711,12 @@ export default function Projects() {
               return (
                 init?.pillarId === pillar.id &&
                 (departmentFilter === "all" || p.departmentId === departmentFilter) &&
-                (statusFilter === "all" || classifyProjectStatus(p) === statusFilter)
+                (statusFilter === "all" || classifyProjectStatus(p) === statusFilter) &&
+                (!phaseFilter || (p as any).currentPhase === phaseFilter)
               );
             }).length;
 
-            if (pillarProjectCount === 0 && (departmentFilter !== "all" || statusFilter !== "all")) return null;
+            if (pillarProjectCount === 0 && (departmentFilter !== "all" || statusFilter !== "all" || phaseFilter)) return null;
 
             return (
               <div key={pillar.id} className="rounded-2xl border border-border overflow-hidden shadow-sm">
@@ -731,9 +749,10 @@ export default function Projects() {
                       const initProjects = projects.filter((p) =>
                         p.initiativeId === initiative.id &&
                         (departmentFilter === "all" || p.departmentId === departmentFilter) &&
-                        (statusFilter === "all" || classifyProjectStatus(p) === statusFilter)
+                        (statusFilter === "all" || classifyProjectStatus(p) === statusFilter) &&
+                        (!phaseFilter || (p as any).currentPhase === phaseFilter)
                       );
-                      if (initProjects.length === 0 && (departmentFilter !== "all" || statusFilter !== "all")) return null;
+                      if (initProjects.length === 0 && (departmentFilter !== "all" || statusFilter !== "all" || phaseFilter)) return null;
 
                       const initProgress = initiative.progress ?? 0;
                       const initPlanned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
@@ -831,7 +850,8 @@ export default function Projects() {
           const orphans = projects.filter((p) =>
             !initiatives.some((i) => i.id === p.initiativeId) &&
             (departmentFilter === "all" || p.departmentId === departmentFilter) &&
-            (statusFilter === "all" || classifyProjectStatus(p) === statusFilter)
+            (statusFilter === "all" || classifyProjectStatus(p) === statusFilter) &&
+            (!phaseFilter || (p as any).currentPhase === phaseFilter)
           );
           return orphans.map((proj) => (
             <Card key={proj.id} noPadding className="overflow-hidden">
@@ -1041,6 +1061,18 @@ function ProjectRow({
                 </span>
               ) : (
                 <ComputedStatusBadge cs={project.computedStatus} />
+              )}
+              {(project as any).currentPhase && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
+                  (project as any).currentPhase === "execution" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                  (project as any).currentPhase === "planning" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                  (project as any).currentPhase === "tendering" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                  (project as any).currentPhase === "closure" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                  (project as any).currentPhase === "completed" ? "bg-green-50 text-green-700 border-green-200" :
+                  "bg-gray-50 text-gray-600 border-gray-200"
+                }`}>
+                  {((project as any).currentPhase ?? "").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                </span>
               )}
               {(project as any).effectiveWeight > 0 && (
                 <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded text-muted-foreground" title={`Weight source: ${(project as any).weightSource ?? "auto"}`}>
