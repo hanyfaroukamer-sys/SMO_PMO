@@ -4351,6 +4351,16 @@ router.post("/spmo/admin/auto-weight-all", async (req, res) => {
         }
       }
 
+      // Verify weights sum to 100 — if not, force equal distribution
+      const weightSum = [...weights.values()].reduce((s, w) => s + w, 0);
+      if (Math.abs(weightSum - 100) > 1) {
+        // Force equal distribution as safety net
+        const eqW = Math.floor(100 / milestones.length);
+        const rem = 100 - eqW * milestones.length;
+        weights = new Map();
+        milestones.forEach((m, i) => weights.set(m.id, i < rem ? eqW + 1 : eqW));
+      }
+
       // Apply weights
       for (const [msId, weight] of weights) {
         await db.update(spmoMilestonesTable).set({ weight, updatedAt: new Date() }).where(eq(spmoMilestonesTable.id, msId));
