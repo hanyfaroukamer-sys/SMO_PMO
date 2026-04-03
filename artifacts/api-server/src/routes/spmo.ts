@@ -1036,7 +1036,13 @@ router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const parsed = UpdateSpmoProjectBody.safeParse(req.body);
+  // Strip computed status values that aren't valid for storage before validation
+  const bodyToValidate = { ...req.body };
+  if (bodyToValidate.status && !["active", "on_hold", "completed", "cancelled"].includes(bodyToValidate.status)) {
+    delete bodyToValidate.status; // Ignore computed statuses like "at_risk", "delayed"
+  }
+
+  const parsed = UpdateSpmoProjectBody.safeParse(bodyToValidate);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
