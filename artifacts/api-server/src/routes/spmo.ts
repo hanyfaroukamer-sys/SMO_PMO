@@ -4304,44 +4304,50 @@ router.post("/spmo/admin/auto-weight-all", async (req, res) => {
       if (milestones.length === 0) continue;
 
       // Weight cascade: effortDays → duration (dueDate - startDate) → equal
+      // Uses largest-remainder method to ensure weights sum to exactly 100
+
+      const computeWeights = (items: { id: number; value: number }[]): Map<number, number> => {
+        const total = items.reduce((s, i) => s + i.value, 0);
+        if (total === 0) {
+          // Equal weight
+          const eqW = Math.floor(100 / items.length);
+          const rem = 100 - eqW * items.length;
+          const result = new Map<number, number>();
+          items.forEach((item, i) => result.set(item.id, i < rem ? eqW + 1 : eqW));
+          return result;
+        }
+        // Largest-remainder method (Hare quota) — guarantees sum = 100
+        const exact = items.map(i => ({ id: i.id, exact: (i.value / total) * 100 }));
+        const floored = exact.map(e => ({ id: e.id, floor: Math.floor(e.exact), rem: e.exact - Math.floor(e.exact) }));
+        let remainder = 100 - floored.reduce((s, e) => s + e.floor, 0);
+        floored.sort((a, b) => b.rem - a.rem);
+        const result = new Map<number, number>();
+        floored.forEach((e, i) => result.set(e.id, e.floor + (i < remainder ? 1 : 0)));
+        return result;
+      };
+
       let weights: Map<number, number>;
-
       const totalEffort = milestones.reduce((s, m) => s + (m.effortDays ?? 0), 0);
+      const allHaveEffort = milestones.every(m => (m.effortDays ?? 0) > 0);
 
-      if (totalEffort > 0) {
-        // Use effortDays
-        const total = totalEffort;
-        weights = new Map();
-        let remaining = 100;
-        milestones.forEach((m, i) => {
-          const w = i === milestones.length - 1 ? remaining : Math.round(((m.effortDays ?? 0) / total) * 100);
-          weights.set(m.id, w);
-          remaining -= w;
-        });
+      if (allHaveEffort && totalEffort > 0) {
+        weights = computeWeights(milestones.map(m => ({ id: m.id, value: m.effortDays ?? 0 })));
       } else {
         // Try duration from dates
         const durations = milestones.map(m => {
           if (m.startDate && m.dueDate) {
-            return { id: m.id, days: Math.max(1, Math.round((new Date(m.dueDate).getTime() - new Date(m.startDate).getTime()) / 86400000)) };
+            return { id: m.id, value: Math.max(1, Math.round((new Date(m.dueDate).getTime() - new Date(m.startDate).getTime()) / 86400000)) };
           }
-          return { id: m.id, days: 0 };
+          return { id: m.id, value: 0 };
         });
-        const totalDuration = durations.reduce((s, d) => s + d.days, 0);
+        const allHaveDates = durations.every(d => d.value > 0);
+        const totalDuration = durations.reduce((s, d) => s + d.value, 0);
 
-        if (totalDuration > 0) {
-          weights = new Map();
-          let remaining = 100;
-          durations.forEach((d, i) => {
-            const w = i === durations.length - 1 ? remaining : Math.round((d.days / totalDuration) * 100);
-            weights.set(d.id, w);
-            remaining -= w;
-          });
+        if (allHaveDates && totalDuration > 0) {
+          weights = computeWeights(durations);
         } else {
-          // Equal weight
-          const eqW = Math.floor(100 / milestones.length);
-          const rem = 100 - eqW * milestones.length;
-          weights = new Map();
-          milestones.forEach((m, i) => weights.set(m.id, i < rem ? eqW + 1 : eqW));
+          // Equal weight — all milestones get same share
+          weights = computeWeights(milestones.map(m => ({ id: m.id, value: 1 })));
         }
       }
 
