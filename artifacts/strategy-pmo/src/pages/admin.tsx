@@ -12,7 +12,7 @@ import { PageHeader, Card } from "@/components/ui-elements";
 import {
   Loader2, ShieldCheck, Settings, Users, RefreshCw, Lock,
   KeyRound, Plus, Trash2, ChevronDown, ChevronUp, Check, X, Search, Eye,
-  Bell, Send, Mail,
+  Bell, Send, Mail, RotateCcw,
 } from "lucide-react";
 import { inputClass } from "@/components/modal";
 import { useToast } from "@/hooks/use-toast";
@@ -913,6 +913,26 @@ export default function Admin() {
   const [savingPhase, setSavingPhase] = useState(false);
 
   const [phaseEffort, setPhaseEffort] = useState<{ planning: number; tendering: number; execution: number; closure: number } | null>(null);
+  const [autoWeightLoading, setAutoWeightLoading] = useState(false);
+
+  async function handleAutoWeightAll() {
+    if (!confirm("This will reset ALL weights across the programme to auto-calculated values. Continue?")) return;
+    setAutoWeightLoading(true);
+    try {
+      const res = await fetch("/api/spmo/admin/auto-weight-all", { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Auto-weight complete", description: data.message });
+        qc.invalidateQueries();
+      } else {
+        toast({ variant: "destructive", title: "Failed", description: data.error ?? "Auto-weight failed" });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Network error" });
+    } finally {
+      setAutoWeightLoading(false);
+    }
+  }
 
   const effectiveResetDay = weeklyResetDay ?? configData?.weeklyResetDay ?? 3;
   const pw = phaseWeights ?? {
@@ -1081,6 +1101,32 @@ export default function Admin() {
             </div>
           </div>
         )}
+      </SectionCard>
+
+      {/* Weight Management */}
+      <SectionCard title="Weight Management" icon={RotateCcw}>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Reset all weights across the programme to auto-calculated values. This will:
+          </p>
+          <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
+            <li>Recalculate all milestone weights based on effort days or duration</li>
+            <li>Reset project weights to auto-calculate from budget</li>
+            <li>Reset initiative weights to auto-calculate from child project budgets</li>
+            <li>Reset pillar weights to auto-calculate from child initiative budgets</li>
+          </ul>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleAutoWeightAll}
+              disabled={autoWeightLoading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-50 hover:-translate-y-0.5 transition-transform"
+            >
+              {autoWeightLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+              Auto-Weight Entire Programme
+            </button>
+            <span className="text-xs text-muted-foreground">This action affects all projects and milestones</span>
+          </div>
+        </div>
       </SectionCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
