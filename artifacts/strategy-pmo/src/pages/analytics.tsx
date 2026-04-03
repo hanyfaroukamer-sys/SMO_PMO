@@ -316,6 +316,8 @@ function DelaysPanel() {
 // ─── Budget Forecast Panel ──────────────────────────────────────
 
 function BudgetPanel() {
+  const { data: cfgB } = useGetSpmoConfig();
+  const currency = (cfgB as any)?.reportingCurrency ?? "SAR";
   const { data, isLoading } = useQuery<{ forecasts: BudgetForecast[] }>({
     queryKey: ["/api/spmo/analytics/budget-forecasts"],
     queryFn: () => customFetch("/api/spmo/analytics/budget-forecasts"),
@@ -631,6 +633,8 @@ interface ScenarioResultData {
 
 function ScenarioPanel() {
   const { toast } = useToast();
+  const { data: cfgS } = useGetSpmoConfig();
+  const currency = (cfgS as any)?.reportingCurrency ?? "SAR";
   const [scenarioType, setScenarioType] = useState<"delay" | "cancel" | "budget_cut">("delay");
   const [projectId, setProjectId] = useState("");
   const [delayDays, setDelayDays] = useState("90");
