@@ -292,12 +292,13 @@ function DepartmentHealthSegmentedChart({ depts }: { depts: SpmoDepartmentStatus
 
 function BudgetStackedBarChart({
   totalAllocated, totalCapex, totalOpex, totalSpent,
-  budgetUsed, budgetView, setBudgetView,
+  budgetUsed, budgetView, setBudgetView, currency,
 }: {
   totalAllocated: number; totalCapex: number; totalOpex: number; totalSpent: number;
   budgetUsed: number;
   budgetView: "total" | "capex" | "opex";
   setBudgetView: (v: "total" | "capex" | "opex") => void;
+  currency: string;
 }) {
   const M = 1_000_000;
   const capexRatio = totalAllocated > 0 ? totalCapex / totalAllocated : 0.5;
@@ -836,6 +837,7 @@ export default function Dashboard() {
                     budgetUsed={budgetUsed}
                     budgetView={budgetView}
                     setBudgetView={setBudgetView}
+                    currency={currency}
                   />
                 )}
 
