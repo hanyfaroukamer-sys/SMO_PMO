@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import {
   useGetSpmaPillarPortfolio,
+  useGetSpmoConfig,
   type SpmaPillarPortfolioProject,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
@@ -12,10 +13,10 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
-const fmtCurrency = (n: number) => {
-  if (n >= 1_000_000) return `SAR ${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `SAR ${(n / 1_000).toFixed(0)}K`;
-  return `SAR ${n.toLocaleString()}`;
+const fmtCurrencyWithCode = (n: number, currency: string = "SAR") => {
+  if (n >= 1_000_000) return `${currency} ${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${currency} ${(n / 1_000).toFixed(0)}K`;
+  return `${currency} ${n.toLocaleString()}`;
 };
 
 type StatusCategory = "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold";
@@ -171,6 +172,9 @@ export default function PillarPortfolio({ params }: Props) {
   const [expandedInitiatives, setExpandedInitiatives] = useState<Set<number>>(new Set());
 
   const { data, isLoading, isError } = useGetSpmaPillarPortfolio(pillarId);
+  const { data: configData } = useGetSpmoConfig();
+  const currency = (configData as any)?.reportingCurrency ?? "SAR";
+  const fmtCurrency = (n: number) => fmtCurrencyWithCode(n, currency);
 
   function toggleInitiative(id: number) {
     setExpandedInitiatives((prev) => {

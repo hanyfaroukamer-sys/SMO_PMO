@@ -173,6 +173,7 @@ export default function DashboardScreen() {
   };
   const totalBudget = budget.totalAllocated || 1;
   const budgetUsedPct = budget.totalAllocated > 0 ? Math.round((budget.totalSpent / budget.totalAllocated) * 100) : 0;
+  const mobileCurrency = (overview as any)?.reportingCurrency ?? "SAR";
   const fmtM = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}K` : String(n);
 
   // ── Department data ────────────────────────────────────────
@@ -258,7 +259,7 @@ export default function DashboardScreen() {
         <Section title="Budget Overview" icon="wallet-outline">
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
             <View>
-              <Text style={{ fontSize: 22, fontWeight: "900", color: "#0F172A" }}>SAR {fmtM(budget.totalAllocated)}</Text>
+              <Text style={{ fontSize: 22, fontWeight: "900", color: "#0F172A" }}>{mobileCurrency} {fmtM(budget.totalAllocated)}</Text>
               <Text style={{ fontSize: 10, color: "#64748B" }}>total allocated</Text>
             </View>
             <View style={{ alignItems: "flex-end" }}>
@@ -272,7 +273,7 @@ export default function DashboardScreen() {
             <View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
                 <Text style={{ fontSize: 10, color: "#64748B", fontWeight: "600" }}>Spent</Text>
-                <Text style={{ fontSize: 10, color: "#0F172A", fontWeight: "700" }}>SAR {fmtM(budget.totalSpent)}</Text>
+                <Text style={{ fontSize: 10, color: "#0F172A", fontWeight: "700" }}>{mobileCurrency} {fmtM(budget.totalSpent)}</Text>
               </View>
               <View style={{ height: 10, backgroundColor: "#F1F5F9", borderRadius: 5, overflow: "hidden" }}>
                 <View style={{ height: "100%", width: `${Math.min(100, budgetUsedPct)}%`, backgroundColor: budgetUsedPct > 90 ? "#DC2626" : "#2563EB", borderRadius: 5 }} />
@@ -284,11 +285,11 @@ export default function DashboardScreen() {
               <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
                 <View style={{ flex: 1, backgroundColor: "#EFF6FF", borderRadius: 10, padding: 10 }}>
                   <Text style={{ fontSize: 9, fontWeight: "700", color: "#2563EB", letterSpacing: 0.5 }}>CAPEX</Text>
-                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#0F172A", marginTop: 2 }}>SAR {fmtM(budget.totalCapex)}</Text>
+                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#0F172A", marginTop: 2 }}>{mobileCurrency} {fmtM(budget.totalCapex)}</Text>
                 </View>
                 <View style={{ flex: 1, backgroundColor: "#FFFBEB", borderRadius: 10, padding: 10 }}>
                   <Text style={{ fontSize: 9, fontWeight: "700", color: "#D97706", letterSpacing: 0.5 }}>OPEX</Text>
-                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#0F172A", marginTop: 2 }}>SAR {fmtM(budget.totalOpex)}</Text>
+                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#0F172A", marginTop: 2 }}>{mobileCurrency} {fmtM(budget.totalOpex)}</Text>
                 </View>
               </View>
             )}

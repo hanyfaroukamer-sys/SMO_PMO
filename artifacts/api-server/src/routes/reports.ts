@@ -105,11 +105,11 @@ function formatDate(d: Date): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function fmtSAR(v: number): string {
-  if (v >= 1_000_000_000) return `SAR ${(v / 1_000_000_000).toFixed(1)}B`;
-  if (v >= 1_000_000) return `SAR ${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `SAR ${(v / 1_000).toFixed(0)}K`;
-  return `SAR ${v.toFixed(0)}`;
+function fmtSAR(v: number, cur: string = "SAR"): string {
+  if (v >= 1_000_000_000) return `${cur} ${(v / 1_000_000_000).toFixed(1)}B`;
+  if (v >= 1_000_000) return `${cur} ${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${cur} ${(v / 1_000).toFixed(0)}K`;
+  return `${cur} ${v.toFixed(0)}`;
 }
 
 function statusLabelUpper(status: string): string {
@@ -326,6 +326,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     if (!requireAuthCheck) return;
 
     const data = await gatherReportData();
+    const currency = data.config?.reportingCurrency ?? "SAR";
 
     const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 0, bufferPages: true });
     res.setHeader("Content-Type", "application/pdf");
@@ -704,9 +705,9 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
           // End Date (DD MMM YY)
           doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(fmtDateShort(p.targetDate), ptColX[6] + 3, textY, { width: ptColWidths[6] - 6 });
 
-          // Budget (SAR XM format)
+          // Budget (currency XM format)
           const budgetVal = p.budget ?? 0;
-          const budgetStr = budgetVal >= 1_000_000 ? `SAR ${(budgetVal / 1_000_000).toFixed(1)}M` : budgetVal >= 1_000 ? `SAR ${(budgetVal / 1_000).toFixed(0)}K` : `SAR ${budgetVal}`;
+          const budgetStr = fmtSAR(budgetVal, currency);
           doc.font("Helvetica").fontSize(8).fillColor(C.dark).text(budgetStr, ptColX[7] + 3, textY, { width: ptColWidths[7] - 6 });
 
           // Owner (truncated 20 chars)
@@ -1026,7 +1027,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         const report = data.weeklyReports.get(p.id);
         const topRisks = data.risks.filter((r) => r.projectId === p.id && r.status === "open").sort((a, b) => b.riskScore - a.riskScore).slice(0, 2);
         const spentPct = (p.budget ?? 0) > 0 ? Math.round(((p.budgetSpent ?? 0) / (p.budget ?? 0)) * 100) : 0;
-        const fmtBudget = (n: number) => n >= 1_000_000 ? `SAR ${(n / 1_000_000).toFixed(1)}M` : `SAR ${n.toLocaleString()}`;
+        const fmtBudget = (n: number) => fmtSAR(n, currency);
 
         // Project header row
         doc.rect(40, projY, W - 80, 28).fill(C.bg);
@@ -1091,7 +1092,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         const projRisks = data.risks.filter((r: any) => r.projectId === p.id && r.status === "open").sort((a: any, b: any) => b.riskScore - a.riskScore);
         const spentPct = (p.budget ?? 0) > 0 ? Math.round(((p.budgetSpent ?? 0) / (p.budget ?? 0)) * 100) : 0;
         const budgetVal = p.budget ?? 0;
-        const budgetStr = budgetVal >= 1_000_000 ? `SAR ${(budgetVal / 1_000_000).toFixed(1)}M` : budgetVal >= 1_000 ? `SAR ${(budgetVal / 1_000).toFixed(0)}K` : `SAR ${budgetVal}`;
+        const budgetStr = fmtSAR(budgetVal, currency);
 
         // ── Header area (top 90pt) ──
         // Left: project code + name
@@ -1264,6 +1265,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     if (!requireAuthCheck) return;
 
     const data = await gatherReportData();
+    const pptxCurrency = data.config?.reportingCurrency ?? "SAR";
     const PptxGen = (PptxGenJS as any).default ?? PptxGenJS;
     const pptx = new PptxGen();
     pptx.layout = "LAYOUT_WIDE";
@@ -1273,7 +1275,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     const P = { navy: "1E3A5F", dark: "0F172A", mid: "475569", light: "94A3B8", bg: "F8FAFC", border: "E2E8F0", green: "16A34A", amber: "D97706", red: "DC2626", white: "FFFFFF", blue: "3B82F6", teal: "059669" };
     const stColor = (s: string) => s === "on_track" || s === "completed" ? P.green : s === "at_risk" ? P.amber : s === "delayed" ? P.red : P.light;
     const stLabel = (s: string) => statusLabel(s).toUpperCase();
-    const fmtM = (n: number) => n >= 1e6 ? `SAR ${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `SAR ${(n / 1e3).toFixed(0)}K` : `SAR ${n}`;
+    const fmtM = (n: number) => fmtSAR(n, pptxCurrency);
     const fmtD = (d: string | Date | null) => d ? formatDate(typeof d === "string" ? new Date(d) : d) : "—";
     const bar = (s: PptxGenJS.Slide) => s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: "100%", h: 0.06, fill: { color: P.navy } });
     let slideNum = 0;

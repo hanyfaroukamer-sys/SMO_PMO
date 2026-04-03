@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import {
   useGetSpmaDepartmentPortfolio,
+  useGetSpmoConfig,
   type SpmaDepartmentPortfolioProject,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
@@ -9,10 +10,10 @@ import { selectClass } from "@/components/modal";
 import { Loader2, ArrowLeft, Building2, FolderOpen, TrendingUp, Target, ExternalLink, SlidersHorizontal } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
-const fmtCurrency = (n: number) => {
-  if (n >= 1_000_000) return `SAR ${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `SAR ${(n / 1_000).toFixed(0)}K`;
-  return `SAR ${n.toLocaleString()}`;
+const fmtCurrencyWithCode = (n: number, currency: string = "SAR") => {
+  if (n >= 1_000_000) return `${currency} ${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${currency} ${(n / 1_000).toFixed(0)}K`;
+  return `${currency} ${n.toLocaleString()}`;
 };
 
 type StatusCategory = "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold";
@@ -276,6 +277,9 @@ export default function DepartmentPortfolio({ params }: Props) {
   const [statusFilter, setStatusFilter] = useState<"all" | StatusCategory>("all");
 
   const { data, isLoading, isError } = useGetSpmaDepartmentPortfolio(deptId);
+  const { data: configData } = useGetSpmoConfig();
+  const currency = (configData as any)?.reportingCurrency ?? "SAR";
+  const fmtCurrency = (n: number) => fmtCurrencyWithCode(n, currency);
 
   if (isLoading) {
     return (

@@ -6,6 +6,7 @@ import {
   useListSpmoProjects,
   useRunSpmoAiAssessment,
   useGetSpmoDepartmentStatus,
+  useGetSpmoConfig,
   type SpmoHealthStatus,
   type SpmoStatusResult,
   type SpmoProjectWithProgress,
@@ -319,7 +320,7 @@ function BudgetStackedBarChart({
   })();
 
   const maxVal = Math.max(totalAllocated / M, totalSpent / M);
-  const fmt = (v: number) => `${v.toFixed(0)}M SAR`;
+  const fmt = (v: number) => `${v.toFixed(0)}M ${currency}`;
 
   return (
     <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -331,7 +332,7 @@ function BudgetStackedBarChart({
           <div>
             <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight">Budget Overview</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {(totalAllocated / M).toFixed(0)}M SAR allocated · {budgetUsed.toFixed(1)}% utilized
+              {(totalAllocated / M).toFixed(0)}M {currency} allocated · {budgetUsed.toFixed(1)}% utilized
             </p>
           </div>
         </div>
@@ -409,6 +410,8 @@ export default function Dashboard() {
   const { data: budgetData } = useListSpmoBudget();
   const { data: projectsData } = useListSpmoProjects();
   const { data: deptStatus } = useGetSpmoDepartmentStatus();
+  const { data: configData } = useGetSpmoConfig();
+  const currency = (configData as any)?.reportingCurrency ?? "SAR";
   const isAdmin = useIsAdmin();
   const [activeTab, setActiveTab] = useState<DashTab>("overview");
   const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
@@ -725,7 +728,7 @@ export default function Dashboard() {
               icon: Wallet,
               label: "Budget Utilized",
               value: `${budgetUsed.toFixed(1)}%`,
-              sub: `${((totalAllocated) / 1_000_000).toFixed(0)}M SAR allocated`,
+              sub: `${((totalAllocated) / 1_000_000).toFixed(0)}M ${currency} allocated`,
               color: "text-warning",
               bg: "bg-warning/10",
               accent: "linear-gradient(90deg, #d97706, #f59e0b)",

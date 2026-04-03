@@ -504,22 +504,21 @@ describe("Delayed milestone highlighting", () => {
 // ════════════════════════════════════════════════════════════════════════════
 // 23. Budget formatted as SAR XM
 // ════════════════════════════════════════════════════════════════════════════
-describe("Budget SAR formatting", () => {
-  it("fmtSAR function returns SAR prefix", () => {
+describe("Budget currency formatting", () => {
+  it("fmtSAR function exists and uses configurable currency", () => {
     expect(src).toContain("function fmtSAR");
-    expect(src).toContain('`SAR ${');
+    // Currency is now configurable — uses ${cur} or ${currency} variable, not hardcoded SAR
+    expect(src).toContain("reportingCurrency");
   });
 
-  it("inline SAR formatting in portfolio table uses SAR prefix", () => {
-    expect(pdfBody).toContain("SAR ${");
+  it("portfolio table uses currency format function", () => {
+    expect(pdfBody).toContain("fmtSAR");
   });
 
   it("handles millions (M) and thousands (K)", () => {
-    const fmtFn = src.slice(src.indexOf("function fmtSAR"), src.indexOf("function fmtSAR") + 300);
+    const fmtFn = src.slice(src.indexOf("function fmtSAR"), src.indexOf("function fmtSAR") + 400);
     expect(fmtFn).toContain("1_000_000");
     expect(fmtFn).toContain("1_000");
-    expect(fmtFn).toMatch(/SAR.*M/);
-    expect(fmtFn).toMatch(/SAR.*K/);
   });
 });
 

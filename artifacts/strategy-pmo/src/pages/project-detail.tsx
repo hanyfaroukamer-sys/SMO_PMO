@@ -40,6 +40,7 @@ import {
   type SpmoAction,
   type SpmoDocument,
   customFetch,
+  useGetSpmoConfig,
 } from "@workspace/api-client-react";
 import { Card, ProgressBar, StatusBadge, PageHeader } from "@/components/ui-elements";
 import { formatCurrency } from "@/lib/utils";
@@ -867,6 +868,8 @@ export default function ProjectDetail({ params }: Props) {
   const isAdmin = userRole === "admin";
 
   const { data: project, isLoading } = useGetSpmoProject(projectId);
+  const { data: spmoConfigData } = useGetSpmoConfig();
+  const currency = (spmoConfigData as any)?.reportingCurrency ?? "SAR";
   const projectOwnerId = (project as Record<string, unknown> | undefined)?.ownerId as string | undefined;
   const perms = useProjectPermissions(projectId, projectOwnerId);
   // PMs who own the project get full edit rights (details + progress + delete)
@@ -1121,17 +1124,17 @@ export default function ProjectDetail({ params }: Props) {
                 <DollarSign className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground font-medium">Budget Allocation</span>
               </div>
-              <div className="font-bold text-base font-mono mb-2">{formatCurrency(project.budget)} SAR total</div>
+              <div className="font-bold text-base font-mono mb-2">{formatCurrency(project.budget, currency)} total</div>
               {((project as { budgetCapex?: number }).budgetCapex ?? 0) > 0 || ((project as { budgetOpex?: number }).budgetOpex ?? 0) > 0 ? (
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50">
                   <div>
                     <div className="text-[10px] font-semibold text-muted-foreground uppercase">CAPEX</div>
-                    <div className="font-bold text-sm font-mono">{formatCurrency((project as { budgetCapex?: number }).budgetCapex ?? 0)}</div>
+                    <div className="font-bold text-sm font-mono">{formatCurrency((project as { budgetCapex?: number }).budgetCapex ?? 0, currency)}</div>
                     <div className="text-[10px] text-muted-foreground">{project.budget > 0 ? Math.round(((project as { budgetCapex?: number }).budgetCapex ?? 0) / project.budget * 100) : 0}% of total</div>
                   </div>
                   <div>
                     <div className="text-[10px] font-semibold text-muted-foreground uppercase">OPEX</div>
-                    <div className="font-bold text-sm font-mono">{formatCurrency((project as { budgetOpex?: number }).budgetOpex ?? 0)}</div>
+                    <div className="font-bold text-sm font-mono">{formatCurrency((project as { budgetOpex?: number }).budgetOpex ?? 0, currency)}</div>
                     <div className="text-[10px] text-muted-foreground">{project.budget > 0 ? Math.round(((project as { budgetOpex?: number }).budgetOpex ?? 0) / project.budget * 100) : 0}% of total</div>
                   </div>
                 </div>
@@ -1142,7 +1145,7 @@ export default function ProjectDetail({ params }: Props) {
                 <DollarSign className="w-4 h-4 text-warning/70" />
                 <span className="text-xs text-muted-foreground font-medium">Budget Spent</span>
               </div>
-              <div className="font-bold text-sm font-mono">{formatCurrency(project.budgetSpent)}</div>
+              <div className="font-bold text-sm font-mono">{formatCurrency(project.budgetSpent, currency)}</div>
               <div className="text-[10px] text-muted-foreground mt-0.5">{budgetPct}% of allocation</div>
             </Card>
           </div>
@@ -1625,7 +1628,7 @@ function CRInlineForm({
         </select>
       </div>
       <div>
-        <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Budget Impact (SAR)</label>
+        <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Budget Impact ({currency})</label>
         <input type="number" value={form.budgetImpact} onChange={f("budgetImpact")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="e.g. 500000" />
       </div>
       <div>
@@ -1754,7 +1757,7 @@ function ChangeControlTab({
                 </div>
                 {cr.description && <p className="text-xs text-muted-foreground">{cr.description}</p>}
                 <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-muted-foreground">
-                  {cr.budgetImpact != null && <span>Budget: <span className={`font-semibold ${cr.budgetImpact > 0 ? "text-destructive" : "text-success"}`}>{cr.budgetImpact > 0 ? "+" : ""}{formatCurrency(cr.budgetImpact)}</span></span>}
+                  {cr.budgetImpact != null && <span>Budget: <span className={`font-semibold ${cr.budgetImpact > 0 ? "text-destructive" : "text-success"}`}>{cr.budgetImpact > 0 ? "+" : ""}{formatCurrency(cr.budgetImpact, currency)}</span></span>}
                   {cr.timelineImpact != null && <span>Timeline: <span className={`font-semibold ${cr.timelineImpact > 0 ? "text-warning" : "text-success"}`}>{cr.timelineImpact > 0 ? "+" : ""}{cr.timelineImpact}d</span></span>}
                   <span>By: {cr.requestedByName}</span>
                   <span>{new Date(cr.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>

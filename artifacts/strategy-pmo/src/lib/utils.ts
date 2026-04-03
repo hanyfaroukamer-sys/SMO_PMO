@@ -14,6 +14,13 @@ export function formatCurrency(amount: number, currency: string = 'SAR') {
   }).format(amount)
 }
 
+export function fmtCurrency(n: number, currency: string = "SAR"): string {
+  if (n >= 1_000_000_000) return `${currency} ${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `${currency} ${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${currency} ${(n / 1_000).toFixed(0)}K`;
+  return `${currency} ${n.toLocaleString()}`;
+}
+
 export function calcEffectiveProgress(progress: number, status: string): number {
   if (progress >= 100 && status !== 'approved') {
     return 99;

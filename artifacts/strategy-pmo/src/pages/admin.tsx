@@ -31,6 +31,29 @@ import {
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+const CURRENCIES = [
+  { code: "SAR", label: "SAR — Saudi Riyal" },
+  { code: "USD", label: "USD — US Dollar" },
+  { code: "EUR", label: "EUR — Euro" },
+  { code: "GBP", label: "GBP — British Pound" },
+  { code: "AED", label: "AED — UAE Dirham" },
+  { code: "QAR", label: "QAR — Qatari Riyal" },
+  { code: "KWD", label: "KWD — Kuwaiti Dinar" },
+  { code: "BHD", label: "BHD — Bahraini Dinar" },
+  { code: "OMR", label: "OMR — Omani Rial" },
+  { code: "EGP", label: "EGP — Egyptian Pound" },
+  { code: "JOD", label: "JOD — Jordanian Dinar" },
+  { code: "INR", label: "INR — Indian Rupee" },
+  { code: "CNY", label: "CNY — Chinese Yuan" },
+  { code: "JPY", label: "JPY — Japanese Yen" },
+  { code: "SGD", label: "SGD — Singapore Dollar" },
+  { code: "MYR", label: "MYR — Malaysian Ringgit" },
+  { code: "CHF", label: "CHF — Swiss Franc" },
+  { code: "CAD", label: "CAD — Canadian Dollar" },
+  { code: "AUD", label: "AUD — Australian Dollar" },
+  { code: "ZAR", label: "ZAR — South African Rand" },
+];
+
 type UserRole = "admin" | "project-manager" | "approver";
 
 const ROLES: { value: UserRole; label: string; description: string; color: string }[] = [
@@ -1092,6 +1115,31 @@ export default function Admin() {
                 <p className="text-xs text-muted-foreground mt-2">
                   Current: <span className="font-semibold text-foreground">{DAY_NAMES[effectiveResetDay]}</span>
                 </p>
+              </div>
+
+              <div className="pt-3 border-t border-border/50 space-y-2">
+                <label className="block text-sm font-medium mb-2">Reporting Currency</label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Currency code used across dashboards, reports, and exports.
+                </p>
+                <select
+                  className={inputClass}
+                  value={(configData as any)?.reportingCurrency ?? "SAR"}
+                  onChange={async (e) => {
+                    try {
+                      await updateConfig.mutateAsync({ data: { reportingCurrency: e.target.value } as any });
+                      qc.invalidateQueries({ queryKey: ["/api/spmo/config"] });
+                      toast({ title: "Currency updated", description: `Reporting currency set to ${e.target.value}.` });
+                    } catch {
+                      toast({ variant: "destructive", title: "Save failed", description: "Could not update reporting currency." });
+                    }
+                  }}
+                  disabled={updateConfig.isPending}
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>{c.label}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="pt-3 border-t border-border/50 space-y-2">

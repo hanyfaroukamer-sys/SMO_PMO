@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { customFetch } from "@workspace/api-client-react";
+import { customFetch, useGetSpmoConfig } from "@workspace/api-client-react";
 import { Card, PageHeader } from "@/components/ui-elements";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -94,6 +94,8 @@ export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { data: spmoConfigData } = useGetSpmoConfig();
+  const currency = (spmoConfigData as any)?.reportingCurrency ?? "SAR";
 
   const { data: summary, isLoading } = useQuery<AnalyticsSummary>({
     queryKey: ["/api/spmo/analytics/summary"],
@@ -188,7 +190,7 @@ export default function AnalyticsPage() {
                     </div>
                     <div className="text-right shrink-0">
                       <div className={`text-sm font-bold ${f.alert === "overrun" ? "text-destructive" : "text-warning"}`}>
-                        {f.alert === "overrun" ? `+SAR ${fmtM(f.projectedOverrun)}` : `-SAR ${fmtM(f.projectedUnderspend)}`}
+                        {f.alert === "overrun" ? `+${currency} ${fmtM(f.projectedOverrun)}` : `-${currency} ${fmtM(f.projectedUnderspend)}`}
                       </div>
                       <div className="text-[10px] text-muted-foreground">CPI: {f.costPerformanceIndex.toFixed(2)}</div>
                     </div>
@@ -345,7 +347,7 @@ function BudgetPanel() {
               {items.map((f) => (
                 <tr key={f.projectId} className="hover:bg-secondary/20">
                   <td className="px-4 py-3 font-semibold">{f.projectName}</td>
-                  <td className="px-4 py-3 text-right">SAR {fmtM(f.totalBudget)}</td>
+                  <td className="px-4 py-3 text-right">{currency} {fmtM(f.totalBudget)}</td>
                   <td className="px-4 py-3 text-right">{Math.round(f.spentPct)}%</td>
                   <td className="px-4 py-3 text-right">{Math.round(f.progress)}%</td>
                   <td className="px-4 py-3 text-right font-mono">
@@ -353,9 +355,9 @@ function BudgetPanel() {
                       {f.costPerformanceIndex.toFixed(2)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">SAR {fmtM(f.projectedTotalSpend)}</td>
+                  <td className="px-4 py-3 text-right">{currency} {fmtM(f.projectedTotalSpend)}</td>
                   <td className="px-4 py-3 text-right font-bold">
-                    {f.alert === "overrun" ? <span className="text-destructive">+SAR {fmtM(f.projectedOverrun)}</span> : <span className="text-warning">−SAR {fmtM(f.projectedUnderspend)}</span>}
+                    {f.alert === "overrun" ? <span className="text-destructive">+{currency} {fmtM(f.projectedOverrun)}</span> : <span className="text-warning">−{currency} {fmtM(f.projectedUnderspend)}</span>}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${f.alert === "overrun" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
@@ -823,20 +825,20 @@ function ScenarioPanel() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
                 <div className="bg-secondary/50 rounded-lg px-3 py-2.5">
                   <div className="text-[10px] text-muted-foreground uppercase font-semibold">Original Budget</div>
-                  <div className="text-sm font-bold">SAR {fmtM(result.financialImpact.originalBudget)}</div>
+                  <div className="text-sm font-bold">{currency} {fmtM(result.financialImpact.originalBudget)}</div>
                 </div>
                 <div className="bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2.5">
                   <div className="text-[10px] text-muted-foreground uppercase font-semibold">New Budget</div>
-                  <div className="text-sm font-bold text-destructive">SAR {fmtM(result.financialImpact.newBudget)}</div>
+                  <div className="text-sm font-bold text-destructive">{currency} {fmtM(result.financialImpact.newBudget)}</div>
                 </div>
                 <div className={`rounded-lg px-3 py-2.5 ${result.financialImpact.overSpent ? "bg-destructive/10 border border-destructive/30" : "bg-secondary/50"}`}>
                   <div className="text-[10px] text-muted-foreground uppercase font-semibold">Actual Spent</div>
-                  <div className={`text-sm font-bold ${result.financialImpact.overSpent ? "text-destructive" : ""}`}>SAR {fmtM(result.financialImpact.actualSpent)}</div>
+                  <div className={`text-sm font-bold ${result.financialImpact.overSpent ? "text-destructive" : ""}`}>{currency} {fmtM(result.financialImpact.actualSpent)}</div>
                   {result.financialImpact.overSpent && <div className="text-[10px] text-destructive font-bold mt-0.5">⚠ EXCEEDS NEW BUDGET</div>}
                 </div>
                 <div className="bg-secondary/50 rounded-lg px-3 py-2.5">
                   <div className="text-[10px] text-muted-foreground uppercase font-semibold">EAC Change</div>
-                  <div className="text-sm font-bold">SAR {fmtM(result.financialImpact.originalEac)} → {fmtM(result.financialImpact.newEac)}</div>
+                  <div className="text-sm font-bold">{currency} {fmtM(result.financialImpact.originalEac)} → {fmtM(result.financialImpact.newEac)}</div>
                 </div>
               </div>
               <div className="flex gap-6">

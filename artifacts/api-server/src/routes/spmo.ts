@@ -369,10 +369,13 @@ router.get("/spmo/programme", async (req, res): Promise<void> => {
   const vision = config?.vision ?? null;
   const mission = config?.mission ?? null;
 
+  const reportingCurrency = config?.reportingCurrency ?? "SAR";
+
   const responseData = {
     programmeName,
     vision,
     mission,
+    reportingCurrency,
     programmeProgress,
     lastUpdated: new Date(),
     pillarSummaries: pillarSummaries.map(({ pillar, progress, ...stats }) => ({
