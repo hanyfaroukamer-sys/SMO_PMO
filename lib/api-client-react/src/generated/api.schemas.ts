@@ -931,11 +931,20 @@ export interface SpmoProgrammeConfig {
   projectAtRiskThreshold: number;
   projectDelayedThreshold: number;
   milestoneAtRiskThreshold: number;
+  riskAlertThreshold?: number;
+  reminderDaysAhead?: number;
+  weeklyReportDeadlineHour?: number;
+  weeklyReportCcEmails?: string | null;
   weeklyResetDay: number;
   defaultPlanningWeight?: number;
   defaultTenderingWeight?: number;
   defaultExecutionWeight?: number;
   defaultClosureWeight?: number;
+  defaultPlanningEffortDays?: number;
+  defaultTenderingEffortDays?: number;
+  defaultExecutionEffortDays?: number;
+  defaultClosureEffortDays?: number;
+  reportingCurrency?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -947,11 +956,20 @@ export interface UpdateSpmoProgrammeConfigRequest {
   projectAtRiskThreshold?: number;
   projectDelayedThreshold?: number;
   milestoneAtRiskThreshold?: number;
+  riskAlertThreshold?: number;
+  reminderDaysAhead?: number;
+  weeklyReportDeadlineHour?: number;
+  weeklyReportCcEmails?: string | null;
   weeklyResetDay?: number;
   defaultPlanningWeight?: number;
   defaultTenderingWeight?: number;
   defaultExecutionWeight?: number;
   defaultClosureWeight?: number;
+  defaultPlanningEffortDays?: number;
+  defaultTenderingEffortDays?: number;
+  defaultExecutionEffortDays?: number;
+  defaultClosureEffortDays?: number;
+  reportingCurrency?: string;
 }
 
 export interface SpmoPendingApprovalItem {
@@ -1608,6 +1626,12 @@ export interface SpmoDepartment {
   description: string | null;
   color: string;
   sortOrder: number;
+  headName?: string | null;
+  headEmail?: string | null;
+  taskReminderCcUserId?: string | null;
+  taskReminderCcName?: string | null;
+  weeklyOverdueCcUserId?: string | null;
+  weeklyOverdueCcName?: string | null;
   createdAt: string;
   updatedAt: string;
 }

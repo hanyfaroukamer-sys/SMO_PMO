@@ -71,12 +71,12 @@ export default function Departments() {
       name: dept.name,
       description: dept.description ?? "",
       color: dept.color ?? COLORS[0],
-      headName: (dept as Record<string, unknown>).headName as string ?? "",
-      headEmail: (dept as Record<string, unknown>).headEmail as string ?? "",
-      taskReminderCcUserId: (dept as Record<string, unknown>).taskReminderCcUserId as string ?? "",
-      taskReminderCcName: (dept as Record<string, unknown>).taskReminderCcName as string ?? "",
-      weeklyOverdueCcUserId: (dept as Record<string, unknown>).weeklyOverdueCcUserId as string ?? "",
-      weeklyOverdueCcName: (dept as Record<string, unknown>).weeklyOverdueCcName as string ?? "",
+      headName: dept.headName ?? "",
+      headEmail: dept.headEmail ?? "",
+      taskReminderCcUserId: dept.taskReminderCcUserId ?? "",
+      taskReminderCcName: dept.taskReminderCcName ?? "",
+      weeklyOverdueCcUserId: dept.weeklyOverdueCcUserId ?? "",
+      weeklyOverdueCcName: dept.weeklyOverdueCcName ?? "",
       sortOrder: String(dept.sortOrder ?? 0),
     });
     setModalOpen(true);
@@ -180,14 +180,14 @@ export default function Departments() {
                     {dept.description && (
                       <p className="text-sm text-slate-500 truncate">{dept.description}</p>
                     )}
-                    {(dept as Record<string, unknown>).headName && (
-                      <p className="text-xs text-muted-foreground">Head: {(dept as Record<string, unknown>).headName as string}</p>
+                    {dept.headName && (
+                      <p className="text-xs text-muted-foreground">Head: {dept.headName}</p>
                     )}
-                    {((dept as Record<string, unknown>).taskReminderCcName || (dept as Record<string, unknown>).weeklyOverdueCcName) && (
+                    {(dept.taskReminderCcName || dept.weeklyOverdueCcName) && (
                       <p className="text-[10px] text-muted-foreground">
-                        {(dept as Record<string, unknown>).taskReminderCcName && <span>Task CC: {(dept as Record<string, unknown>).taskReminderCcName as string}</span>}
-                        {(dept as Record<string, unknown>).taskReminderCcName && (dept as Record<string, unknown>).weeklyOverdueCcName && <span> · </span>}
-                        {(dept as Record<string, unknown>).weeklyOverdueCcName && <span>Weekly CC: {(dept as Record<string, unknown>).weeklyOverdueCcName as string}</span>}
+                        {dept.taskReminderCcName && <span>Task CC: {dept.taskReminderCcName}</span>}
+                        {dept.taskReminderCcName && dept.weeklyOverdueCcName && <span> · </span>}
+                        {dept.weeklyOverdueCcName && <span>Weekly CC: {dept.weeklyOverdueCcName}</span>}
                       </p>
                     )}
                   </div>

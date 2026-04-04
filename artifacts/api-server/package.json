@@ -10,9 +10,9 @@
     "start": "node dist/index.cjs",
     "test": "vitest run",
     "test:unit": "vitest run --exclude 'src/__tests__/engines/**' --exclude 'src/__tests__/api/**' --exclude 'src/__tests__/workflows/**' --exclude 'src/__tests__/security/injection.test.ts'",
-    "test:integration": "vitest run --include 'src/__tests__/engines/**' --include 'src/__tests__/api/**' --include 'src/__tests__/workflows/**' --include 'src/__tests__/security/injection.test.ts'",
-    "test:e2e": "vitest run src/__tests__/e2e/ --reporter=verbose",
-    "test:e2e:wiring": "vitest run src/__tests__/e2e/frontend-wiring.test.ts --reporter=verbose",
+    "test:integration": "vitest run src/__tests__/engines src/__tests__/api src/__tests__/workflows src/__tests__/security/injection.test.ts",
+    "test:e2e": "vitest run --config vitest.config.e2e.ts --reporter=verbose",
+    "test:e2e:wiring": "vitest run --config vitest.config.e2e.ts src/__tests__/e2e/frontend-wiring.test.ts --reporter=verbose",
     "test:all": "vitest run --reporter=verbose",
     "test:watch": "vitest"
   },

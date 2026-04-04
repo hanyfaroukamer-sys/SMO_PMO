@@ -24,7 +24,7 @@ export function UserMentionInput({ value, onChange, placeholder = "Type @ to sea
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Search users when query changes
   useEffect(() => {
