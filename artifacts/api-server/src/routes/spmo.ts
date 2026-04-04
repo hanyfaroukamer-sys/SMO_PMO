@@ -4388,17 +4388,38 @@ router.post("/spmo/admin/auto-weight-all", async (req, res) => {
       }
     }
 
+    // Verify all projects have weights summing to 100
+    let projectsFixed = 0;
+    const problemProjects: string[] = [];
+    for (const project of allProjects) {
+      const ms = await db.select({ id: spmoMilestonesTable.id, weight: spmoMilestonesTable.weight, name: spmoMilestonesTable.name })
+        .from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, project.id));
+      if (ms.length === 0) continue;
+      const sum = ms.reduce((s, m) => s + (m.weight ?? 0), 0);
+      if (Math.abs(sum - 100) > 1) {
+        // Force equal distribution
+        const eqW = Math.floor(100 / ms.length);
+        const rem = 100 - eqW * ms.length;
+        for (let i = 0; i < ms.length; i++) {
+          const w = i < rem ? eqW + 1 : eqW;
+          await db.update(spmoMilestonesTable).set({ weight: w, updatedAt: new Date() }).where(eq(spmoMilestonesTable.id, ms[i].id));
+        }
+        projectsFixed++;
+        problemProjects.push(`P${project.id}: was ${sum}%, fixed to 100%`);
+      }
+    }
+
     // Invalidate overview cache
     invalidateOverviewCache();
 
     // Log activity
     await logSpmoActivity(userId, getUserDisplayName(user), "updated", "programme", 0, "Global Auto-Weight",
-      { action: "auto_weight_all", milestonesUpdated, projectsReset: allProjects.length });
+      { action: "auto_weight_all", milestonesUpdated, projectsReset: allProjects.length, projectsFixed });
 
     res.json({
       success: true,
-      message: `Auto-weight complete. ${milestonesUpdated} milestones weighted across ${allProjects.length} projects. All project, initiative, and pillar weights reset to auto-calculate.`,
-      stats: { milestonesUpdated, projectsReset: allProjects.length }
+      message: `Auto-weight complete. ${milestonesUpdated} milestones weighted across ${allProjects.length} projects.${projectsFixed > 0 ? ` Fixed ${projectsFixed} projects with incorrect totals.` : " All projects verified at 100%."}`,
+      stats: { milestonesUpdated, projectsReset: allProjects.length, projectsFixed, problemProjects: problemProjects.slice(0, 10) }
     });
   } catch (err: any) {
     req.log?.error?.({ err }, "Global auto-weight failed");
