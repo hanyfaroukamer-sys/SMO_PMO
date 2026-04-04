@@ -70,6 +70,9 @@ app.get("/api/health", async (_req, res) => {
 
 app.use("/api", router);
 
+// Start automated email scheduler (checks every 5 min, sends based on DB config)
+import("./lib/email-scheduler").then(({ startEmailScheduler }) => startEmailScheduler()).catch(() => {});
+
 // Serve frontend static files in production
 import path from "path";
 const frontendDir = path.resolve(process.cwd(), "artifacts/strategy-pmo/dist/public");

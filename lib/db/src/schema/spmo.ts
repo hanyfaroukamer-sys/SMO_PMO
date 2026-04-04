@@ -543,6 +543,12 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   defaultTenderingEffortDays: real("default_tendering_effort_days").notNull().default(45),
   defaultExecutionEffortDays: real("default_execution_effort_days").notNull().default(120),
   defaultClosureEffortDays: real("default_closure_effort_days").notNull().default(20),
+  // Automated email scheduler settings
+  taskReminderEnabled: boolean("task_reminder_enabled").notNull().default(false),
+  taskReminderHour: integer("task_reminder_hour").notNull().default(8), // 0-23, hour of day (UTC)
+  weeklyReminderEnabled: boolean("weekly_reminder_enabled").notNull().default(false),
+  lastTaskReminderSentAt: timestamp("last_task_reminder_sent_at", { withTimezone: true }),
+  lastWeeklyReminderSentAt: timestamp("last_weekly_reminder_sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
