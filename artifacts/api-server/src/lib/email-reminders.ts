@@ -81,6 +81,12 @@ export async function generateWeeklyReportReminders(baseUrl: string): Promise<Re
     return [];
   }
 
+  // Determine if we're before or after the deadline
+  const deadlineDate = new Date(weekStart);
+  deadlineDate.setDate(deadlineDate.getDate() + 6); // end of the reporting week
+  deadlineDate.setUTCHours(deadlineHour, 0, 0, 0);
+  const isOverdue = now > deadlineDate;
+
   // Group by owner
   const users = await db.select().from(usersTable);
   const userMap = new Map(users.map((u) => [u.id, u]));
@@ -100,7 +106,6 @@ export async function generateWeeklyReportReminders(baseUrl: string): Promise<Re
     if (!user?.email) continue;
 
     const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
-    const projectList = projects.map((p) => `${p.projectCode ?? ""} ${p.name}`.trim());
 
     // Build CC list: global CC + department-specific weekly overdue CC + department head
     const ccSet = new Set<string>(globalCc);
@@ -108,7 +113,6 @@ export async function generateWeeklyReportReminders(baseUrl: string): Promise<Re
       if (p.departmentId) {
         const dept = deptMap.get(p.departmentId);
         if (dept?.headEmail) ccSet.add(dept.headEmail);
-        // Per-department weekly overdue CC person
         const weeklyUserId = (dept as Record<string, unknown> | undefined)?.weeklyOverdueCcUserId as string | undefined;
         if (weeklyUserId) {
           const ccUser = userMap.get(weeklyUserId);
@@ -118,25 +122,33 @@ export async function generateWeeklyReportReminders(baseUrl: string): Promise<Re
     }
     const ccList = [...ccSet].filter(Boolean);
 
+    const subject = isOverdue
+      ? `⚠ Weekly Report OVERDUE — ${projects.length} project${projects.length > 1 ? "s" : ""} missing updates`
+      : `📋 Weekly Report Due Soon — ${projects.length} project${projects.length > 1 ? "s" : ""} pending`;
+
+    const sectionTitle = isOverdue
+      ? `Weekly report deadline passed (${deadlineTime}) — updates not received`
+      : `Weekly report deadline approaching (${deadlineTime}) — please submit`;
+
     reminders.push({
       to: user.email,
       toName: displayName,
       cc: ccList.length > 0 ? ccList : undefined,
-      subject: `⚠ Weekly Report Overdue — ${projects.length} project${projects.length > 1 ? "s" : ""} missing updates`,
+      subject,
       sections: [
         {
-          title: `Weekly report deadline passed (${deadlineTime}) — updates not received`,
+          title: sectionTitle,
           items: projects.map((p) => ({
-            text: `${p.projectCode ?? ""} ${p.name}`.trim() + ` — Week of ${weekStart} · No report submitted`,
+            text: `${p.projectCode ?? ""} ${p.name}`.trim() + ` — Week of ${weekStart} · ${isOverdue ? "No report submitted" : "Report not yet submitted"}`,
             link: `${baseUrl}/projects/${p.id}?tab=reports`,
-            priority: "critical" as const,
+            priority: isOverdue ? "critical" as const : "high" as const,
           })),
         },
       ],
     });
   }
 
-  logger.info(`[email-reminders] Generated ${reminders.length} weekly report deadline reminders (${missingProjects.length} projects overdue)`);
+  logger.info(`[email-reminders] Generated ${reminders.length} weekly report ${isOverdue ? "overdue" : "upcoming"} reminders (${missingProjects.length} projects)`);
   return reminders;
 }
 

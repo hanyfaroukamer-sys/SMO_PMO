@@ -751,6 +751,7 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
   const [taskReminderHour, setTaskReminderHour] = useState(config?.taskReminderHour ?? 8);
   const [taskReminderFrequency, setTaskReminderFrequency] = useState(config?.taskReminderFrequencyDays ?? 1);
   const [weeklyReminderEnabled, setWeeklyReminderEnabled] = useState(config?.weeklyReminderEnabled ?? false);
+  const [weeklyReportDaysAhead, setWeeklyReportDaysAhead] = useState(config?.weeklyReportReminderDaysAhead ?? 3);
   const [savingConfig, setSavingConfig] = useState(false);
   const [sendingTask, setSendingTask] = useState(false);
   const [sendingWeekly, setSendingWeekly] = useState(false);
@@ -775,6 +776,7 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
           taskReminderHour,
           taskReminderFrequencyDays: taskReminderFrequency,
           weeklyReminderEnabled,
+          weeklyReportReminderDaysAhead: weeklyReportDaysAhead,
         },
       });
       qc.invalidateQueries({ queryKey: ["/api/spmo/config"] });
@@ -940,7 +942,6 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-semibold hover:bg-muted/50 disabled:opacity-50 transition-colors">
           {sendingTask ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-primary" />}
           Send Now
-          <span className="text-[10px] text-muted-foreground">({reminderDaysAhead}d ahead of deadlines)</span>
         </button>
 
         {/* Task reminder results */}
@@ -964,9 +965,6 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
         <div className="flex items-center gap-2 mb-3">
           <Mail className="w-4 h-4 text-amber-600" />
           <div className="text-sm font-bold text-foreground">Weekly Report Submission Reminders</div>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">
-            Overdue Reports
-          </span>
         </div>
 
         {/* Automated schedule */}
@@ -977,12 +975,26 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
                 className="w-4 h-4 rounded border-border text-primary focus:ring-primary" />
               <span className="text-sm font-semibold text-amber-900">Enable Automated Sending</span>
             </label>
-            <span className="text-xs text-amber-700 ml-auto">
-              Sends on {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][config?.weeklyResetDay ?? 3]} at {String(config?.weeklyReportDeadlineHour ?? 15).padStart(2, "0")}:00 UTC
+          </div>
+          <div className="flex items-center gap-4 flex-wrap text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-amber-800 font-medium">Upcoming reminder</span>
+              <select value={weeklyReportDaysAhead} onChange={(e) => setWeeklyReportDaysAhead(Number(e.target.value))}
+                className="text-sm border border-amber-300 rounded px-2 py-1 bg-white">
+                <option value={1}>1 day</option>
+                <option value={2}>2 days</option>
+                <option value={3}>3 days</option>
+                <option value={5}>5 days</option>
+              </select>
+              <span className="text-amber-700">before deadline</span>
+            </div>
+            <span className="text-amber-400">|</span>
+            <span className="text-amber-800 font-medium">
+              Overdue reminder on {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][config?.weeklyResetDay ?? 3]} after {String(config?.weeklyReportDeadlineHour ?? 15).padStart(2, "0")}:00 UTC
             </span>
           </div>
           <p className="text-[10px] text-amber-700">
-            Only PMs with overdue weekly reports receive this email. Configure the deadline day and hour in the thresholds section above.
+            Only PMs with pending weekly reports receive the upcoming reminder. Only PMs with overdue reports receive the overdue email.
           </p>
           {config?.lastWeeklyReminderSentAt && (
             <div className="text-[10px] text-muted-foreground">Last automated send: {new Date(config.lastWeeklyReminderSentAt).toLocaleString()}</div>
@@ -994,7 +1006,6 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm font-semibold hover:bg-amber-100 disabled:opacity-50 transition-colors">
           {sendingWeekly ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
           Send Now
-          <span className="text-[10px] text-amber-600">(deadline {String(weeklyDeadlineHour).padStart(2, "0")}:00)</span>
         </button>
 
         {/* Weekly report results */}

@@ -85,15 +85,26 @@ async function checkAndSend(): Promise<void> {
       }
     }
 
-    // ── Weekly Report Reminders (on configured day at configured hour) ──
-    if (config.weeklyReminderEnabled
-      && currentDay === (config.weeklyResetDay ?? 3)
-      && currentHour >= (config.weeklyReportDeadlineHour ?? 15)
-    ) {
-      const lastSent = config.lastWeeklyReminderSentAt;
-      const alreadySentThisWeek = lastSent && isSameWeek(new Date(lastSent), now, config.weeklyResetDay ?? 3);
+    // ── Weekly Report Reminders ──
+    // Fires twice per cycle:
+    //   1. Upcoming reminder: X days before deadline day (configurable)
+    //   2. Overdue reminder: on deadline day after deadline hour
+    if (config.weeklyReminderEnabled) {
+      const resetDay = config.weeklyResetDay ?? 3;
+      const deadlineHour = config.weeklyReportDeadlineHour ?? 15;
+      const daysAhead = config.weeklyReportReminderDaysAhead ?? 3;
 
-      if (!alreadySentThisWeek) {
+      // Calculate the upcoming reminder day (e.g. deadline=Wed, daysAhead=3 → send on Sun)
+      const upcomingReminderDay = (resetDay - daysAhead + 7) % 7;
+      const isDeadlineDay = currentDay === resetDay && currentHour >= deadlineHour;
+      const isUpcomingDay = currentDay === upcomingReminderDay && currentHour >= (config.taskReminderHour ?? 8);
+      const shouldFire = isDeadlineDay || isUpcomingDay;
+
+      const lastSent = config.lastWeeklyReminderSentAt;
+      // Only send once per trigger day (not twice on the same day)
+      const alreadySentToday = lastSent && isSameDay(new Date(lastSent), now);
+
+      if (shouldFire && !alreadySentToday) {
         const [locked] = await db
           .update(spmoProgrammeConfigTable)
           .set({ lastWeeklyReminderSentAt: now })
