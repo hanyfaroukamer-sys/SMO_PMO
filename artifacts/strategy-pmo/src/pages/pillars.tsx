@@ -65,15 +65,16 @@ export default function Pillars() {
       name: pillar.name,
       description: pillar.description ?? "",
       pillarType: (pt === "enabler" ? "enabler" : "pillar"),
-      weight: String(pillar.weight ?? 0),
+      weight: String(Math.round((pillar.weight ?? 0) > 0 ? pillar.weight! : ((pillar as any).effectiveWeight ?? 0))),
       color: pillar.color ?? COLORS[0],
       sortOrder: String(pillar.sortOrder ?? 0),
     });
-    // Pre-populate sibling weights with stored weight
+    // Pre-populate sibling weights — show effectiveWeight when stored is 0
     const siblings = (data?.pillars ?? []).filter(p => p.id !== pillar.id);
     const edits: Record<number, string> = {};
     for (const s of siblings) {
-      edits[s.id] = String(s.weight ?? 0);
+      const w = (s.weight ?? 0) > 0 ? s.weight! : ((s as any).effectiveWeight ?? 0);
+      edits[s.id] = String(Math.round(w));
     }
     setSiblingWeightEdits(edits);
     setModalOpen(true);
@@ -156,7 +157,8 @@ export default function Pillars() {
   const siblingPillarWeight = siblingPillars.reduce((s, p) => {
     const editVal = siblingWeightEdits[p.id];
     if (editVal !== undefined) return s + (parseFloat(editVal) || 0);
-    return s + (p.weight ?? 0);
+    const w = (p.weight ?? 0) > 0 ? p.weight! : ((p as any).effectiveWeight ?? 0);
+    return s + w;
   }, 0);
   const pillarWeightTotal = siblingPillarWeight + (parseFloat(form.weight) || 0);
   const pillarWeightError = pillarWeightTotal > 100;
@@ -398,7 +400,7 @@ export default function Pillars() {
               <p className="text-muted-foreground">Adjust another pillar below to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(pillarWeightTotal)}%</span>:</p>
               <ul className="divide-y divide-border/40">
                 {siblingPillars.map(p => {
-                  const localVal = siblingWeightEdits[p.id] ?? String(p.weight ?? 0);
+                  const localVal = siblingWeightEdits[p.id] ?? String(Math.round((p.weight ?? 0) > 0 ? p.weight! : ((p as any).effectiveWeight ?? 0)));
                   const isSavingThis = savingSiblingId === p.id;
                   return (
                     <li key={p.id} className="flex items-center justify-between gap-2 py-1.5">

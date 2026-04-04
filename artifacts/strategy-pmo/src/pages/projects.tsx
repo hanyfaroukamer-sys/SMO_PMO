@@ -429,7 +429,7 @@ export default function Projects() {
       departmentId: project.departmentId != null ? String(project.departmentId) : "",
       ownerId: project.ownerId ?? "",
       ownerName: project.ownerName ?? "",
-      weight: String(Math.round(project.weight ?? 0)),
+      weight: String(Math.round((project.weight ?? 0) > 0 ? project.weight! : ((project as any).effectiveWeight ?? 0))),
       status: project.status,
       budget: String(project.budget ?? ""),
       startDate: project.startDate ?? "",
@@ -437,11 +437,12 @@ export default function Projects() {
       plannedStartDate: (project as any).plannedStartDate ?? "",
       plannedEndDate: (project as any).plannedEndDate ?? "",
     });
-    // Pre-populate sibling weights with stored weight (not effectiveWeight)
+    // Pre-populate sibling weights — show effectiveWeight when stored is 0
     const siblings = (data?.projects ?? []).filter(p => p.initiativeId === project.initiativeId && p.id !== project.id);
     const edits: Record<number, string> = {};
     for (const s of siblings) {
-      edits[s.id] = String(s.weight ?? 0);
+      const w = (s.weight ?? 0) > 0 ? s.weight! : ((s as any).effectiveWeight ?? 0);
+      edits[s.id] = String(Math.round(w));
     }
     setSiblingWeightEdits(edits);
     setModalOpen(true);
@@ -540,7 +541,8 @@ export default function Projects() {
   const siblingProjectWeight = siblingProjects.reduce((s, p) => {
     const editVal = siblingWeightEdits[p.id];
     if (editVal !== undefined) return s + (parseFloat(editVal) || 0);
-    return s + (p.weight ?? 0);
+    const w = (p.weight ?? 0) > 0 ? p.weight! : ((p as any).effectiveWeight ?? 0);
+    return s + w;
   }, 0);
   const projectWeightTotal = siblingProjectWeight + (parseFloat(form.weight) || 0);
   const projectWeightError = !!form.initiativeId && projectWeightTotal > 100;
@@ -1016,7 +1018,7 @@ export default function Projects() {
               <p className="text-muted-foreground">Adjust another project below to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(projectWeightTotal)}%</span>:</p>
               <ul className="divide-y divide-border/40">
                 {siblingProjects.map(p => {
-                  const localVal = siblingWeightEdits[p.id] ?? String(p.weight ?? 0);
+                  const localVal = siblingWeightEdits[p.id] ?? String(Math.round((p.weight ?? 0) > 0 ? p.weight! : ((p as any).effectiveWeight ?? 0)));
                   const isSavingThis = savingSiblingId === p.id;
                   return (
                     <li key={p.id} className="flex items-center justify-between gap-2 py-1.5">
@@ -1715,7 +1717,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
                           max="100"
                           step="1"
                           className="w-14 text-xs border border-border rounded px-1.5 py-0.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary tabular-nums text-right"
-                          value={siblingWeightEdits[sib.id] ?? String(Math.round(sib.weight ?? 0))}
+                          value={siblingWeightEdits[sib.id] ?? String(Math.round((sib.weight ?? 0) > 0 ? sib.weight! : ((sib as any).effectiveWeight ?? 0)))}
                           onChange={(e) => setSiblingWeightEdits((prev) => ({ ...prev, [sib.id]: e.target.value }))}
                           onBlur={() => saveSiblingWeight(sib.id)}
                           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
