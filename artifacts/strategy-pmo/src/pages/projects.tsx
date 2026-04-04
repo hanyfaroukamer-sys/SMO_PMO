@@ -1131,6 +1131,12 @@ function ProjectRow({
         </div>
 
         <div className="flex items-center gap-4 shrink-0">
+          {project.ownerName && (
+            <div className="hidden lg:block text-right">
+              <div className="text-xs text-muted-foreground">Owner</div>
+              <div className="text-xs font-semibold text-foreground truncate max-w-[120px]">{project.ownerName}</div>
+            </div>
+          )}
           {(project.startDate || project.targetDate) && (
             <div className="hidden lg:block text-right">
               <div className="text-xs text-muted-foreground">Dates</div>

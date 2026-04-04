@@ -4352,8 +4352,10 @@ router.get("/spmo/dashboard/department-status", async (req, res) => {
 
   const result = await Promise.all(departments.map(async (dept) => {
     const deptProjects = projects.filter((p) => p.departmentId === dept.id);
-    const stats = { departmentId: dept.id, departmentName: dept.name, departmentColor: dept.color ?? "#2563EB", totalProjects: deptProjects.length, onTrack: 0, atRisk: 0, delayed: 0, completed: 0, notStarted: 0 };
+    const stats = { departmentId: dept.id, departmentName: dept.name, departmentColor: dept.color ?? "#2563EB", totalProjects: deptProjects.length, onTrack: 0, atRisk: 0, delayed: 0, completed: 0, notStarted: 0, onHold: 0 };
     for (const p of deptProjects) {
+      if (p.status === "on_hold") { stats.onHold++; continue; }
+      if (p.status === "cancelled") { stats.completed++; continue; }
       const milestones = await db.select({ phaseGate: spmoMilestonesTable.phaseGate, status: spmoMilestonesTable.status, progress: spmoMilestonesTable.progress }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
       const pStats = await projectProgress(p.id);
       const health = computeStatus(pStats.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, pStats.rawProgress);

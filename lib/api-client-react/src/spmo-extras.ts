@@ -289,6 +289,7 @@ export type SpmoDepartmentStatus = {
   delayed: number;
   completed: number;
   notStarted: number;
+  onHold: number;
 };
 
 export const useGetSpmoDepartmentStatus = (options?: UseQueryOptions<SpmoDepartmentStatus[]>) => {
