@@ -785,7 +785,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     const totalY4 = panelTop4 + 28 + Math.min(pillarBudgets.length, 8) * 26 + 6;
     doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(
       `Total Allocated: ${(data.budget.totalAllocated / 1_000_000).toFixed(1)}M   |   Spent: ${(data.budget.totalSpent / 1_000_000).toFixed(1)}M   |   Utilisation: ${Math.round((data.budget.totalSpent / Math.max(data.budget.totalAllocated, 1)) * 100)}%`,
-      M + 12, Math.min(totalY4, panelTop4 + 185), { width: leftW4 - 24 }
+      M + 12, totalY4, { width: leftW4 - 24 }
     );
 
     // KPI panel — matches budget panel height
@@ -851,7 +851,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc.save().rect(leftX, tblCurY, halfW, tblRowH).fill(rowBg).restore();
 
       const proj = data.projects.find((p) => p.id === risk.projectId);
-      const projName = proj ? (proj.name ?? "").slice(0, 12) : "—";
+      const projName = proj ? `${proj.projectCode ? proj.projectCode + ": " : ""}${(proj.name ?? "").slice(0, 12)}` : "—";
       const scoreColor = score >= 12 ? C.red : score >= 6 ? C.amber : C.green;
 
       doc.font("Helvetica").fontSize(7).fillColor(C.dark).text(String(idx + 1), tblColX[0] + 2, tblCurY + 4, { width: tblColW[0] - 4 });
@@ -927,7 +927,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     });
     // Axis titles
     doc.font("Helvetica").fontSize(8).fillColor(C.secondary).text(
-      "Impact \u2192", hmGridX, hmCurY + 14, { width: 4 * cellW, align: "center" }
+      "Impact -->", hmGridX, hmCurY + 14, { width: 4 * cellW, align: "center" }
     );
 
     // ── RIGHT HALF: Department Risk Criticality ──
@@ -1020,10 +1020,12 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       doc.font("Helvetica").fontSize(9).fillColor(C.secondary).text("Items requiring executive decision or intervention:", 40, supY);
       supY += 20;
       critRisks.slice(0, 8).forEach((r, i) => {
+        const rProj = data.projects.find((p) => p.id === r.projectId);
+        const rProjLabel = rProj ? `${rProj.projectCode ? rProj.projectCode + ": " : ""}${rProj.name}` : "";
         doc.rect(40, supY, 530, 35).fill(i % 2 === 0 ? "#FFFFFF" : C.bg);
         doc.font("Helvetica-Bold").fontSize(9).fillColor(C.red).text(`${i + 1}.`, 45, supY + 4, { width: 20 });
         doc.font("Helvetica-Bold").fontSize(9).fillColor(C.dark).text(r.title, 62, supY + 4, { width: 300 });
-        doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(`Score: ${r.riskScore} · ${r.probability}/${r.impact} · Owner: ${r.owner ?? "—"}`, 62, supY + 18, { width: 500 });
+        doc.font("Helvetica").fontSize(10).fillColor(C.secondary).text(`${rProjLabel ? rProjLabel + " · " : ""}Score: ${r.riskScore} · ${r.probability}/${r.impact} · Owner: ${r.owner ?? "—"}`, 62, supY + 18, { width: 500 });
         supY += 38;
       });
     } else {
@@ -1137,7 +1139,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
         // Timeline
         const startStr = p.startDate ? formatDate(new Date(p.startDate)) : "—";
         const endStr = p.targetDate ? formatDate(new Date(p.targetDate)) : "—";
-        doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`Start: ${startStr}  →  End: ${endStr}`, M + metBoxW + 58, metY + 6, { width: metBoxW * 1.5 });
+        doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`Start: ${startStr}  --  End: ${endStr}`, M + metBoxW + 58, metY + 6, { width: metBoxW * 1.5 });
         // Owner
         doc.font("Helvetica").fontSize(11).fillColor(C.dark).text(`Owner: ${p.ownerName ?? "—"}`, W - M - 180, metY + 6, { width: 180 });
 
@@ -1570,7 +1572,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
       riskRows.push([
         { text: String(i + 1), options: { fontSize: 8, fill: { color: rf } } },
         { text: (r.title ?? "").slice(0, 30), options: { fontSize: 8, fill: { color: rf } } },
-        { text: (proj?.name ?? "—").slice(0, 18), options: { fontSize: 8, fill: { color: rf } } },
+        { text: `${proj?.projectCode ? proj.projectCode + ": " : ""}${(proj?.name ?? "—").slice(0, 18)}`, options: { fontSize: 8, fill: { color: rf } } },
         { text: r.probability ?? "—", options: { fontSize: 8, fill: { color: rf }, align: "center" } },
         { text: r.impact ?? "—", options: { fontSize: 8, fill: { color: rf }, align: "center" } },
         { text: String(r.riskScore), options: { fontSize: 9, bold: true, color: sc, fill: { color: rf }, align: "center" } },
@@ -1602,7 +1604,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
       s6.addText(label, { x: hmGridX + ci * hmCellW, y: hmGridY + hmProbLevels.length * hmCellH + 0.05, w: hmCellW, h: 0.3, fontSize: 8, bold: true, color: P.mid, align: "center" });
     });
     // X-axis label: "IMPACT"
-    s6.addText("IMPACT \u2192", { x: hmGridX, y: hmGridY + hmProbLevels.length * hmCellH + 0.3, w: hmCellW * 4, h: 0.25, fontSize: 8, color: P.mid, align: "center" });
+    s6.addText("IMPACT -->", { x: hmGridX, y: hmGridY + hmProbLevels.length * hmCellH + 0.3, w: hmCellW * 4, h: 0.25, fontSize: 8, color: P.mid, align: "center" });
 
     // Grid cells
     const probScoreMap: Record<string, number> = { low: 1, medium: 2, high: 3, critical: 4 };
@@ -1671,7 +1673,8 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
       critRisksP.slice(0, 8).forEach((r, i) => {
         const proj = data.projects.find((p) => p.id === r.projectId);
         s8.addText(`${i + 1}. ${r.title}`, { x: 0.5, y: 0.8 + i * 0.7, w: 12, h: 0.3, fontSize: 11, bold: true, color: P.red });
-        s8.addText(`Score: ${r.riskScore} · ${r.probability}/${r.impact} · Project: ${proj?.name ?? "—"} · Owner: ${r.owner ?? "—"}`, { x: 0.7, y: 1.1 + i * 0.7, w: 11.5, h: 0.25, fontSize: 9, color: P.mid });
+        const pLabel = proj ? `${proj.projectCode ? proj.projectCode + ": " : ""}${proj.name}` : "—";
+        s8.addText(`Score: ${r.riskScore} · ${r.probability}/${r.impact} · Project: ${pLabel} · Owner: ${r.owner ?? "—"}`, { x: 0.7, y: 1.1 + i * 0.7, w: 11.5, h: 0.25, fontSize: 9, color: P.mid });
       });
     } else {
       s8.addText("No critical escalations. All risks within acceptable thresholds.", { x: 0.5, y: 2.5, w: 12, h: 1, fontSize: 14, color: P.green, align: "center" });
