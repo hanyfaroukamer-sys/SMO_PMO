@@ -5,7 +5,7 @@ import * as SecureStore from "expo-secure-store";
 export const API_URL = Constants.expoConfig?.extra?.apiUrl ?? process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
 async function getToken(): Promise<string | null> {
-  try { return await SecureStore.getItemAsync("access_token"); } catch { return null; }
+  try { return await SecureStore.getItemAsync("spmo_auth_session_token"); } catch { return null; }
 }
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {

@@ -72,10 +72,12 @@ app.use("/api", router);
 
 // Serve frontend static files in production
 import path from "path";
+import { fileURLToPath } from "url";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(__dirname, "../../strategy-pmo/dist/public");
 app.use("/strategy-pmo", express.static(frontendDir, { maxAge: "1d", etag: true }));
 // SPA fallback — serve index.html for all non-API, non-asset routes under /strategy-pmo
-app.get("/strategy-pmo/*", (_req, res) => {
+app.get("/strategy-pmo/*path", (_req, res) => {
   res.sendFile(path.join(frontendDir, "index.html"));
 });
 // Redirect root to frontend
