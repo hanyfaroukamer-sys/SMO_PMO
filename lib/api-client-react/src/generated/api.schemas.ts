@@ -949,6 +949,7 @@ export interface SpmoProgrammeConfig {
   taskReminderHour?: number;
   taskReminderFrequencyDays?: number;
   weeklyReminderEnabled?: boolean;
+  weeklyReportReminderDaysAhead?: number;
   lastTaskReminderSentAt?: string | null;
   lastWeeklyReminderSentAt?: string | null;
   createdAt: string;
@@ -980,6 +981,7 @@ export interface UpdateSpmoProgrammeConfigRequest {
   taskReminderHour?: number;
   taskReminderFrequencyDays?: number;
   weeklyReminderEnabled?: boolean;
+  weeklyReportReminderDaysAhead?: number;
 }
 
 export interface SpmoPendingApprovalItem {
