@@ -289,6 +289,19 @@ export default function Initiatives() {
                         {isAdmin && (
                           <div className="flex justify-end gap-2">
                             <button
+                              onClick={async () => {
+                                try {
+                                  await fetch(`/api/spmo/initiatives/${init.id}/projects/weights/reset`, { method: "POST", credentials: "include" });
+                                  toast({ title: "Auto-weight applied", description: `Project weights reset for ${init.name}` });
+                                  invalidate();
+                                } catch { toast({ variant: "destructive", title: "Failed" }); }
+                              }}
+                              className="text-[10px] px-2 py-1 rounded border border-primary/30 text-primary hover:bg-primary/10 font-semibold"
+                              title="Reset project weights under this initiative to auto-calculate"
+                            >
+                              ↻ Wt
+                            </button>
+                            <button
                               onClick={() => openEdit(init)}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
                               title="Edit initiative"
