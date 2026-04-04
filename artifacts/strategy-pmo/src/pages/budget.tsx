@@ -112,7 +112,7 @@ export default function Budget() {
   const { data: projectsData } = useListSpmoProjects();
   const { data: procurementData } = useListSpmoProcurement();
   const { data: spmoConfigData } = useGetSpmoConfig();
-  const currency = (spmoConfigData as any)?.reportingCurrency ?? "SAR";
+  const currency = spmoConfigData?.reportingCurrency ?? "SAR";
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<EntryForm>(emptyForm());
