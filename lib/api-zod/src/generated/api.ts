@@ -2377,6 +2377,8 @@ export const UpdateSpmoConfigBody = zod.object({
   taskReminderFrequencyDays: zod.number().int().min(1).max(14).optional(),
   weeklyReminderEnabled: zod.boolean().optional(),
   weeklyReportReminderDaysAhead: zod.number().int().min(1).max(7).optional(),
+  weeklyOverdueReminderDay: zod.number().int().min(0).max(6).optional(),
+  weeklyOverdueReminderHour: zod.number().int().min(0).max(23).optional(),
 });
 
 export const UpdateSpmoConfigResponse = zod.object({
