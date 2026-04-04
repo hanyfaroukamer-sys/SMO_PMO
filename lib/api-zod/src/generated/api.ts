@@ -2374,6 +2374,7 @@ export const UpdateSpmoConfigBody = zod.object({
   reportingCurrency: zod.string().min(2).max(5).optional(),
   taskReminderEnabled: zod.boolean().optional(),
   taskReminderHour: zod.number().int().min(0).max(23).optional(),
+  taskReminderFrequencyDays: zod.number().int().min(1).max(14).optional(),
   weeklyReminderEnabled: zod.boolean().optional(),
 });
 

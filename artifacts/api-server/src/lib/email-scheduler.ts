@@ -47,12 +47,14 @@ async function checkAndSend(): Promise<void> {
     const currentDay = now.getUTCDay(); // 0=Sun, 6=Sat
     const baseUrl = process.env.APP_URL || "http://localhost:3000/strategy-pmo";
 
-    // ── Task Reminders (daily at configured hour) ──
+    // ── Task Reminders (configurable frequency: every N days at configured hour) ──
     if (config.taskReminderEnabled && currentHour >= config.taskReminderHour) {
       const lastSent = config.lastTaskReminderSentAt;
-      const alreadySentToday = lastSent && isSameDay(new Date(lastSent), now);
+      const frequencyDays = config.taskReminderFrequencyDays ?? 1;
+      const minIntervalMs = frequencyDays * 24 * 60 * 60 * 1000 - 60 * 60 * 1000; // N days minus 1hr tolerance
+      const dueToSend = !lastSent || (now.getTime() - new Date(lastSent).getTime() >= minIntervalMs);
 
-      if (!alreadySentToday) {
+      if (dueToSend) {
         // Acquire lock: update the timestamp atomically
         const [locked] = await db
           .update(spmoProgrammeConfigTable)

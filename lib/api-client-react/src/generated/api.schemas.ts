@@ -947,6 +947,7 @@ export interface SpmoProgrammeConfig {
   reportingCurrency?: string;
   taskReminderEnabled?: boolean;
   taskReminderHour?: number;
+  taskReminderFrequencyDays?: number;
   weeklyReminderEnabled?: boolean;
   lastTaskReminderSentAt?: string | null;
   lastWeeklyReminderSentAt?: string | null;
@@ -977,6 +978,7 @@ export interface UpdateSpmoProgrammeConfigRequest {
   reportingCurrency?: string;
   taskReminderEnabled?: boolean;
   taskReminderHour?: number;
+  taskReminderFrequencyDays?: number;
   weeklyReminderEnabled?: boolean;
 }
 

@@ -546,6 +546,7 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   // Automated email scheduler settings
   taskReminderEnabled: boolean("task_reminder_enabled").notNull().default(false),
   taskReminderHour: integer("task_reminder_hour").notNull().default(8), // 0-23, hour of day (UTC)
+  taskReminderFrequencyDays: integer("task_reminder_frequency_days").notNull().default(1), // 1=daily, 2=every 2 days, etc.
   weeklyReminderEnabled: boolean("weekly_reminder_enabled").notNull().default(false),
   lastTaskReminderSentAt: timestamp("last_task_reminder_sent_at", { withTimezone: true }),
   lastWeeklyReminderSentAt: timestamp("last_weekly_reminder_sent_at", { withTimezone: true }),
