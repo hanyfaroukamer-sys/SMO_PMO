@@ -52,9 +52,8 @@ const pmNavItems = [
 const adminNavItems = [
   { title: "Pillars & Initiatives", href: "/pillars",    icon: Layers,       badge: false },
   { title: "Financials",          href: "/budget",       icon: Wallet,       badge: false },
-  { title: "Departments",         href: "/departments",  icon: Building2,    badge: false },
+  { title: "Departments Portfolios", href: "/departments",  icon: Building2,    badge: false },
   { title: "Dependencies",        href: "/dependencies", icon: GitMerge,     badge: false },
-  { title: "Progress Proof",      href: "/progress",     icon: CheckSquare,  badge: false },
   { title: "Monitoring",          href: "/alerts",       icon: BellRing,     badge: false },
   { title: "Import Data",         href: "/import",       icon: Upload,       badge: false },
   { title: "Analytics",            href: "/admin/analytics",   icon: BarChart3,    badge: false },
@@ -133,7 +132,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 {(isMobile || !collapsed) ? (
                   <div className="flex items-center gap-2">
                     <div className="h-px flex-1 bg-sidebar-border/40" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/30">Admin</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/30">Configuration</span>
                     <div className="h-px flex-1 bg-sidebar-border/40" />
                   </div>
                 ) : (
@@ -193,7 +192,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   ? "bg-gradient-to-r from-sidebar-accent to-sidebar-accent/60 text-white"
                   : "text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
               )}
-              title={!isMobile && collapsed ? "Admin" : undefined}
+              title={!isMobile && collapsed ? "Configuration" : undefined}
             >
               <ShieldCheck
                 className={cn(
@@ -203,7 +202,7 @@ export function Layout({ children }: { children: ReactNode }) {
                     : "text-sidebar-foreground/40 group-hover:text-sidebar-foreground"
                 )}
               />
-              {(isMobile || !collapsed) && <span className="truncate leading-none">Admin</span>}
+              {(isMobile || !collapsed) && <span className="truncate leading-none">Configuration</span>}
             </Link>
           );
         })()}
