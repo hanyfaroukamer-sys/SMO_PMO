@@ -429,7 +429,7 @@ export default function Projects() {
       departmentId: project.departmentId != null ? String(project.departmentId) : "",
       ownerId: project.ownerId ?? "",
       ownerName: project.ownerName ?? "",
-      weight: String(Math.round((project as any).effectiveWeight ?? project.weight ?? 0)),
+      weight: String(Math.round(project.weight ?? 0)),
       status: project.status,
       budget: String(project.budget ?? ""),
       startDate: project.startDate ?? "",
@@ -437,11 +437,11 @@ export default function Projects() {
       plannedStartDate: (project as any).plannedStartDate ?? "",
       plannedEndDate: (project as any).plannedEndDate ?? "",
     });
-    // Pre-populate sibling weights with effectiveWeight
+    // Pre-populate sibling weights with stored weight (not effectiveWeight)
     const siblings = (data?.projects ?? []).filter(p => p.initiativeId === project.initiativeId && p.id !== project.id);
     const edits: Record<number, string> = {};
     for (const s of siblings) {
-      edits[s.id] = String(Math.round((s as any).effectiveWeight ?? s.weight ?? 0));
+      edits[s.id] = String(s.weight ?? 0);
     }
     setSiblingWeightEdits(edits);
     setModalOpen(true);
@@ -540,13 +540,11 @@ export default function Projects() {
   const siblingProjectWeight = siblingProjects.reduce((s, p) => {
     const editVal = siblingWeightEdits[p.id];
     if (editVal !== undefined) return s + (parseFloat(editVal) || 0);
-    return s + ((p as any).effectiveWeight ?? p.weight ?? 0);
+    return s + (p.weight ?? 0);
   }, 0);
   const projectWeightTotal = siblingProjectWeight + (parseFloat(form.weight) || 0);
-  // Allow submission when weights are auto-calculated (all stored weights = 0)
-  const allWeightsAuto = parseFloat(form.weight) === 0 || !form.weight;
-  const projectWeightError = !allWeightsAuto && !!form.initiativeId && projectWeightTotal > 100;
-  const projectWeightUnder = !allWeightsAuto && !!form.initiativeId && !projectWeightError && projectWeightTotal > 0 && projectWeightTotal < 100;
+  const projectWeightError = !!form.initiativeId && projectWeightTotal > 100;
+  const projectWeightUnder = !!form.initiativeId && !projectWeightError && projectWeightTotal > 0 && projectWeightTotal < 100;
 
   if (isLoading)
     return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -1018,7 +1016,7 @@ export default function Projects() {
               <p className="text-muted-foreground">Adjust another project below to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(projectWeightTotal)}%</span>:</p>
               <ul className="divide-y divide-border/40">
                 {siblingProjects.map(p => {
-                  const localVal = siblingWeightEdits[p.id] ?? String(Math.round((p as any).effectiveWeight ?? p.weight ?? 0));
+                  const localVal = siblingWeightEdits[p.id] ?? String(p.weight ?? 0);
                   const isSavingThis = savingSiblingId === p.id;
                   return (
                     <li key={p.id} className="flex items-center justify-between gap-2 py-1.5">

@@ -51,21 +51,20 @@ describe("1. Evidence upload URL", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. Projects page uses effectiveWeight
 // ─────────────────────────────────────────────────────────────────────────────
-describe("2. Projects page uses effectiveWeight", () => {
-  it("displays effectiveWeight instead of raw weight", () => {
+describe("2. Projects page uses effectiveWeight for badge display", () => {
+  it("displays effectiveWeight in project badge", () => {
     expect(projectsSrc).toContain("effectiveWeight");
-    // Should use effectiveWeight for display, falling back to weight
-    expect(projectsSrc).toMatch(/effectiveWeight\s*\?\?.*weight/);
+    // effectiveWeight used in badge display, stored weight used in form
+    expect(projectsSrc).toContain("effectiveWeight > 0");
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. Initiatives page uses effectiveWeight
+// 3. Initiatives page uses effectiveWeight for badge display
 // ─────────────────────────────────────────────────────────────────────────────
 describe("3. Initiatives page uses effectiveWeight", () => {
-  it("displays effectiveWeight instead of raw weight", () => {
+  it("displays effectiveWeight in initiative table", () => {
     expect(initiativesSrc).toContain("effectiveWeight");
-    expect(initiativesSrc).toMatch(/effectiveWeight\s*\?\?.*weight/);
   });
 });
 

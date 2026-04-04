@@ -72,23 +72,22 @@ export default function Initiatives() {
 
   function openEdit(initiative: NonNullable<typeof data>["initiatives"][number]) {
     setEditId(initiative.id);
-    const ew = (initiative as any).effectiveWeight ?? initiative.weight ?? 0;
     setForm({
       initiativeCode: initiative.initiativeCode ?? "",
       name: initiative.name,
       description: initiative.description ?? "",
       pillarId: String(initiative.pillarId),
       ownerName: initiative.ownerName ?? "",
-      weight: String(Math.round(ew)),
+      weight: String(initiative.weight ?? 0),
       status: initiative.status,
       startDate: initiative.startDate ?? "",
       targetDate: initiative.targetDate ?? "",
     });
-    // Pre-populate sibling weights with their effectiveWeight
+    // Pre-populate sibling weights with stored weight
     const siblings = (data?.initiatives ?? []).filter(i => i.pillarId === initiative.pillarId && i.id !== initiative.id);
     const edits: Record<number, string> = {};
     for (const s of siblings) {
-      edits[s.id] = String(Math.round((s as any).effectiveWeight ?? s.weight ?? 0));
+      edits[s.id] = String(s.weight ?? 0);
     }
     setSiblingWeightEdits(edits);
     setModalOpen(true);
@@ -195,7 +194,7 @@ export default function Initiatives() {
   const siblingInitiativeWeight = siblingInitiatives.reduce((s, i) => {
     const editVal = siblingWeightEdits[i.id];
     if (editVal !== undefined) return s + (parseFloat(editVal) || 0);
-    return s + ((i as any).effectiveWeight ?? i.weight ?? 0);
+    return s + (i.weight ?? 0);
   }, 0);
   const initiativeWeightTotal = siblingInitiativeWeight + (parseFloat(form.weight) || 0);
   const initiativeWeightError = !!form.pillarId && initiativeWeightTotal > 100;
@@ -454,7 +453,7 @@ export default function Initiatives() {
               <p className="text-muted-foreground">Adjust another initiative below to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(initiativeWeightTotal)}%</span>:</p>
               <ul className="divide-y divide-border/40">
                 {siblingInitiatives.map(i => {
-                  const localVal = siblingWeightEdits[i.id] ?? String(Math.round((i as any).effectiveWeight ?? i.weight ?? 0));
+                  const localVal = siblingWeightEdits[i.id] ?? String(i.weight ?? 0);
                   const isSavingThis = savingSiblingId === i.id;
                   return (
                     <li key={i.id} className="flex items-center justify-between gap-2 py-1.5">
