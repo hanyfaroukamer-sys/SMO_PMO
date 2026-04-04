@@ -429,7 +429,7 @@ export default function Projects() {
       departmentId: project.departmentId != null ? String(project.departmentId) : "",
       ownerId: project.ownerId ?? "",
       ownerName: project.ownerName ?? "",
-      weight: String(project.weight ?? 0),
+      weight: String(Math.round(project.weight ?? 0)),
       status: project.status,
       budget: String(project.budget ?? ""),
       startDate: project.startDate ?? "",
@@ -543,10 +543,8 @@ export default function Projects() {
     return s + (p.weight ?? 0);
   }, 0);
   const projectWeightTotal = siblingProjectWeight + (parseFloat(form.weight) || 0);
-  // Allow submission when weights are auto-calculated (all stored weights = 0)
-  const allWeightsAuto = parseFloat(form.weight) === 0 || !form.weight;
-  const projectWeightError = !allWeightsAuto && !!form.initiativeId && projectWeightTotal > 100;
-  const projectWeightUnder = !allWeightsAuto && !!form.initiativeId && !projectWeightError && projectWeightTotal > 0 && projectWeightTotal < 100;
+  const projectWeightError = !!form.initiativeId && projectWeightTotal > 100;
+  const projectWeightUnder = !!form.initiativeId && !projectWeightError && projectWeightTotal > 0 && projectWeightTotal < 100;
 
   if (isLoading)
     return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
