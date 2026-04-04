@@ -202,6 +202,19 @@ export default function Pillars() {
             {isAdmin && (
               <>
                 <button
+                  onClick={async () => {
+                    try {
+                      await fetch(`/api/spmo/pillars/${pillar.id}/initiatives/weights/reset`, { method: "POST", credentials: "include" });
+                      toast({ title: "Auto-weight applied", description: `Initiative weights reset for ${pillar.name}` });
+                      invalidate();
+                    } catch { toast({ variant: "destructive", title: "Failed" }); }
+                  }}
+                  className="text-[10px] px-2 py-1 rounded border border-primary/30 text-primary hover:bg-primary/10 font-semibold"
+                  title="Reset initiative weights under this pillar to auto-calculate"
+                >
+                  ↻ Init Wt
+                </button>
+                <button
                   onClick={() => openEdit(pillar)}
                   className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
                   title="Edit"
