@@ -2372,6 +2372,9 @@ export const UpdateSpmoConfigBody = zod.object({
   defaultExecutionEffortDays: zod.number().min(1).max(999).optional(),
   defaultClosureEffortDays: zod.number().min(1).max(999).optional(),
   reportingCurrency: zod.string().min(2).max(5).optional(),
+  taskReminderEnabled: zod.boolean().optional(),
+  taskReminderHour: zod.number().int().min(0).max(23).optional(),
+  weeklyReminderEnabled: zod.boolean().optional(),
 });
 
 export const UpdateSpmoConfigResponse = zod.object({

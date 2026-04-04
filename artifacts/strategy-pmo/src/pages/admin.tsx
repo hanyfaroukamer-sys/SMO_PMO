@@ -747,6 +747,9 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
   const [projectDelayedThreshold, setProjectDelayedThreshold] = useState(config?.projectDelayedThreshold ?? 10);
   const [milestoneAtRiskThreshold, setMilestoneAtRiskThreshold] = useState(config?.milestoneAtRiskThreshold ?? 5);
   const [weeklyReportCc, setWeeklyReportCc] = useState(config?.weeklyReportCcEmails ?? "");
+  const [taskReminderEnabled, setTaskReminderEnabled] = useState(config?.taskReminderEnabled ?? false);
+  const [taskReminderHour, setTaskReminderHour] = useState(config?.taskReminderHour ?? 8);
+  const [weeklyReminderEnabled, setWeeklyReminderEnabled] = useState(config?.weeklyReminderEnabled ?? false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [sendingTask, setSendingTask] = useState(false);
   const [sendingWeekly, setSendingWeekly] = useState(false);
@@ -767,6 +770,9 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
           projectAtRiskThreshold,
           projectDelayedThreshold,
           milestoneAtRiskThreshold,
+          taskReminderEnabled,
+          taskReminderHour,
+          weeklyReminderEnabled,
         },
       });
       qc.invalidateQueries({ queryKey: ["/api/spmo/config"] });
@@ -883,11 +889,53 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
         Save All Settings
       </button>
 
-      {/* ── Send Buttons ── */}
+      {/* ── Automated Scheduling ── */}
       <div className="pt-4 border-t border-border">
-        <div className="text-sm font-semibold mb-1">Send Reminders Now</div>
+        <div className="text-sm font-semibold mb-1">Automated Email Schedule</div>
         <p className="text-xs text-muted-foreground mb-3">
-          Preview and trigger email reminders. Each PM only receives items specific to their projects.
+          When enabled, emails are sent automatically at the configured time. No manual action required.
+        </p>
+        <div className="space-y-3">
+          <div className="flex items-center gap-4 p-3 rounded-lg border border-border bg-muted/20">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={taskReminderEnabled} onChange={(e) => setTaskReminderEnabled(e.target.checked)}
+                className="w-4 h-4 rounded border-border text-primary focus:ring-primary" />
+              <span className="text-sm font-semibold">Daily Task Reminders</span>
+            </label>
+            <div className="flex items-center gap-1.5 ml-auto">
+              <span className="text-xs text-muted-foreground">Send at</span>
+              <select value={taskReminderHour} onChange={(e) => setTaskReminderHour(Number(e.target.value))}
+                className="text-sm border border-border rounded px-2 py-1 bg-background">
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>{String(h).padStart(2, "0")}:00 UTC</option>
+                ))}
+              </select>
+            </div>
+            {config?.lastTaskReminderSentAt && (
+              <span className="text-[10px] text-muted-foreground">Last sent: {new Date(config.lastTaskReminderSentAt).toLocaleString()}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-4 p-3 rounded-lg border border-amber-200 bg-amber-50/30">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={weeklyReminderEnabled} onChange={(e) => setWeeklyReminderEnabled(e.target.checked)}
+                className="w-4 h-4 rounded border-border text-primary focus:ring-primary" />
+              <span className="text-sm font-semibold text-amber-900">Weekly Report Reminders</span>
+            </label>
+            <span className="text-xs text-amber-700 ml-auto">
+              Sends on {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][config?.weeklyResetDay ?? 3]} at {String(config?.weeklyReportDeadlineHour ?? 15).padStart(2, "0")}:00 UTC
+            </span>
+            {config?.lastWeeklyReminderSentAt && (
+              <span className="text-[10px] text-muted-foreground">Last sent: {new Date(config.lastWeeklyReminderSentAt).toLocaleString()}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Manual Send Buttons ── */}
+      <div className="pt-4 border-t border-border">
+        <div className="text-sm font-semibold mb-1">Send Reminders Now (Manual)</div>
+        <p className="text-xs text-muted-foreground mb-3">
+          Preview and trigger email reminders immediately. Each PM only receives items specific to their projects.
         </p>
         <div className="flex flex-wrap gap-3">
           <button onClick={sendTaskReminders} disabled={sendingTask}

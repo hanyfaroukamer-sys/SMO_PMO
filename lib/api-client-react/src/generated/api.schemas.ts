@@ -945,6 +945,11 @@ export interface SpmoProgrammeConfig {
   defaultExecutionEffortDays?: number;
   defaultClosureEffortDays?: number;
   reportingCurrency?: string;
+  taskReminderEnabled?: boolean;
+  taskReminderHour?: number;
+  weeklyReminderEnabled?: boolean;
+  lastTaskReminderSentAt?: string | null;
+  lastWeeklyReminderSentAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -970,6 +975,9 @@ export interface UpdateSpmoProgrammeConfigRequest {
   defaultExecutionEffortDays?: number;
   defaultClosureEffortDays?: number;
   reportingCurrency?: string;
+  taskReminderEnabled?: boolean;
+  taskReminderHour?: number;
+  weeklyReminderEnabled?: boolean;
 }
 
 export interface SpmoPendingApprovalItem {
