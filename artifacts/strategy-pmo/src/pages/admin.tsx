@@ -752,6 +752,8 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
   const [taskReminderFrequency, setTaskReminderFrequency] = useState(config?.taskReminderFrequencyDays ?? 1);
   const [weeklyReminderEnabled, setWeeklyReminderEnabled] = useState(config?.weeklyReminderEnabled ?? false);
   const [weeklyReportDaysAhead, setWeeklyReportDaysAhead] = useState(config?.weeklyReportReminderDaysAhead ?? 3);
+  const [weeklyOverdueDay, setWeeklyOverdueDay] = useState(config?.weeklyOverdueReminderDay ?? (((config?.weeklyResetDay ?? 3) + 1) % 7));
+  const [weeklyOverdueHour, setWeeklyOverdueHour] = useState(config?.weeklyOverdueReminderHour ?? 9);
   const [savingConfig, setSavingConfig] = useState(false);
   const [sendingTask, setSendingTask] = useState(false);
   const [sendingWeekly, setSendingWeekly] = useState(false);
@@ -777,6 +779,8 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
           taskReminderFrequencyDays: taskReminderFrequency,
           weeklyReminderEnabled,
           weeklyReportReminderDaysAhead: weeklyReportDaysAhead,
+          weeklyOverdueReminderDay: weeklyOverdueDay,
+          weeklyOverdueReminderHour: weeklyOverdueHour,
         },
       });
       qc.invalidateQueries({ queryKey: ["/api/spmo/config"] });
@@ -989,9 +993,22 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
               <span className="text-amber-700">before deadline</span>
             </div>
             <span className="text-amber-400">|</span>
-            <span className="text-amber-800 font-medium">
-              Overdue reminder on {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][config?.weeklyResetDay ?? 3]} after {String(config?.weeklyReportDeadlineHour ?? 15).padStart(2, "0")}:00 UTC
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-amber-800 font-medium">Overdue reminder on</span>
+              <select value={weeklyOverdueDay} onChange={(e) => setWeeklyOverdueDay(Number(e.target.value))}
+                className="text-sm border border-amber-300 rounded px-2 py-1 bg-white">
+                {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d, i) => (
+                  <option key={i} value={i}>{d}</option>
+                ))}
+              </select>
+              <span className="text-amber-700">at</span>
+              <select value={weeklyOverdueHour} onChange={(e) => setWeeklyOverdueHour(Number(e.target.value))}
+                className="text-sm border border-amber-300 rounded px-2 py-1 bg-white">
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>{String(h).padStart(2, "0")}:00 UTC</option>
+                ))}
+              </select>
+            </div>
           </div>
           <p className="text-[10px] text-amber-700">
             Only PMs with pending weekly reports receive the upcoming reminder. Only PMs with overdue reports receive the overdue email.

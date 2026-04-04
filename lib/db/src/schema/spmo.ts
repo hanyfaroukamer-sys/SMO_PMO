@@ -549,6 +549,8 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   taskReminderFrequencyDays: integer("task_reminder_frequency_days").notNull().default(1), // 1=daily, 2=every 2 days, etc.
   weeklyReminderEnabled: boolean("weekly_reminder_enabled").notNull().default(false),
   weeklyReportReminderDaysAhead: integer("weekly_report_reminder_days_ahead").notNull().default(3), // days before deadline to send upcoming reminder
+  weeklyOverdueReminderDay: integer("weekly_overdue_reminder_day").notNull().default(4), // 0=Sun..6=Sat — day to send overdue reminder
+  weeklyOverdueReminderHour: integer("weekly_overdue_reminder_hour").notNull().default(9), // 0-23 UTC
   lastTaskReminderSentAt: timestamp("last_task_reminder_sent_at", { withTimezone: true }),
   lastWeeklyReminderSentAt: timestamp("last_weekly_reminder_sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })

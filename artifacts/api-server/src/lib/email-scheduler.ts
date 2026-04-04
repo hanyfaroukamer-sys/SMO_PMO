@@ -87,21 +87,22 @@ async function checkAndSend(): Promise<void> {
 
     // ── Weekly Report Reminders ──
     // Fires twice per cycle:
-    //   1. Upcoming reminder: X days before deadline day (configurable)
-    //   2. Overdue reminder: on deadline day after deadline hour
+    //   1. Upcoming reminder: X days before deadline (configurable day offset)
+    //   2. Overdue reminder: on a separately configurable day + hour
     if (config.weeklyReminderEnabled) {
       const resetDay = config.weeklyResetDay ?? 3;
-      const deadlineHour = config.weeklyReportDeadlineHour ?? 15;
       const daysAhead = config.weeklyReportReminderDaysAhead ?? 3;
+      const overdueDay = config.weeklyOverdueReminderDay ?? ((resetDay + 1) % 7);
+      const overdueHour = config.weeklyOverdueReminderHour ?? 9;
 
-      // Calculate the upcoming reminder day (e.g. deadline=Wed, daysAhead=3 → send on Sun)
+      // Upcoming reminder fires X days before the deadline day
       const upcomingReminderDay = (resetDay - daysAhead + 7) % 7;
-      const isDeadlineDay = currentDay === resetDay && currentHour >= deadlineHour;
       const isUpcomingDay = currentDay === upcomingReminderDay && currentHour >= (config.taskReminderHour ?? 8);
-      const shouldFire = isDeadlineDay || isUpcomingDay;
+      // Overdue reminder fires on its own configured day + hour
+      const isOverdueDay = currentDay === overdueDay && currentHour >= overdueHour;
+      const shouldFire = isUpcomingDay || isOverdueDay;
 
       const lastSent = config.lastWeeklyReminderSentAt;
-      // Only send once per trigger day (not twice on the same day)
       const alreadySentToday = lastSent && isSameDay(new Date(lastSent), now);
 
       if (shouldFire && !alreadySentToday) {
