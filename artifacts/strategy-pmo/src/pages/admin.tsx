@@ -12,7 +12,7 @@ import { PageHeader, Card } from "@/components/ui-elements";
 import {
   Loader2, ShieldCheck, Settings, Users, RefreshCw, Lock,
   KeyRound, Plus, Trash2, ChevronDown, ChevronUp, Check, X, Search, Eye,
-  Bell, Send, Mail, RotateCcw,
+  Bell, Send, Mail, RotateCcw, Ban, ShieldOff,
 } from "lucide-react";
 import { inputClass } from "@/components/modal";
 import { useToast } from "@/hooks/use-toast";
@@ -76,28 +76,69 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
   );
 }
 
-function UserRoleRow({ user, saving, onRoleChange, currentUserId }: {
+function UserRoleRow({ user, saving, onRoleChange, onBlock, onUnblock, currentUserId }: {
   user: SpmaAdminUser;
   saving: boolean;
   onRoleChange: (userId: string, role: UserRole) => void;
+  onBlock: (userId: string) => void;
+  onUnblock: (userId: string) => void;
   currentUserId?: string;
 }) {
   const isSelf = user.id === currentUserId;
   const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || user.id;
   const initials = ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() || "?";
   const currentRole = (user.role ?? "project-manager") as UserRole;
+  const isBlocked = !!user.blocked;
 
   return (
-    <div className="py-4 border-b border-border/40 last:border-b-0">
+    <div className={["py-4 border-b border-border/40 last:border-b-0", isBlocked ? "opacity-70" : ""].join(" ")}>
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+        <div className={["w-9 h-9 rounded-full border flex items-center justify-center text-sm font-bold shrink-0",
+          isBlocked ? "bg-destructive/10 border-destructive/20 text-destructive" : "bg-primary/10 border-primary/20 text-primary"
+        ].join(" ")}>
           {initials}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold truncate">{displayName}</div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold truncate">{displayName}</span>
+            {isBlocked && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-destructive/10 text-destructive border border-destructive/20">
+                <Ban className="w-3 h-3" />
+                Blocked
+              </span>
+            )}
+          </div>
           {user.email && <div className="text-xs text-muted-foreground truncate">{user.email}</div>}
+          {isBlocked && user.blockedReason && (
+            <div className="text-[10px] text-destructive/80 mt-0.5">Reason: {user.blockedReason}</div>
+          )}
         </div>
-        {saving && <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />}
+        <div className="flex items-center gap-2 shrink-0">
+          {saving && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+          {!isSelf && (
+            isBlocked ? (
+              <button
+                onClick={() => onUnblock(user.id)}
+                disabled={saving}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-40"
+                title="Unblock this user"
+              >
+                <ShieldOff className="w-3.5 h-3.5" />
+                Unblock
+              </button>
+            ) : (
+              <button
+                onClick={() => onBlock(user.id)}
+                disabled={saving}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/20 transition-colors disabled:opacity-40"
+                title="Block this user"
+              >
+                <Ban className="w-3.5 h-3.5" />
+                Block
+              </button>
+            )
+          )}
+        </div>
       </div>
       <div className="flex gap-2 flex-wrap">
         {ROLES.map((role) => {
@@ -106,13 +147,14 @@ function UserRoleRow({ user, saving, onRoleChange, currentUserId }: {
             <button
               key={role.value}
               onClick={() => !isActive && !isSelf && onRoleChange(user.id, role.value)}
-              disabled={saving || (isSelf && role.value !== currentRole)}
-              title={isSelf && role.value !== currentRole ? "You cannot change your own role" : undefined}
+              disabled={saving || (isSelf && role.value !== currentRole) || isBlocked}
+              title={isSelf && role.value !== currentRole ? "You cannot change your own role" : isBlocked ? "Unblock this user first" : undefined}
               className={[
                 "flex flex-col items-start px-3 py-2 rounded-lg border text-left transition-all min-w-[100px]",
                 isActive
                   ? role.color + " shadow-sm"
                   : "bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
+                isBlocked ? "opacity-50 cursor-not-allowed" : "",
               ].join(" ")}
             >
               <span className="text-xs font-bold">{role.label}</span>
@@ -960,6 +1002,42 @@ export default function Admin() {
     );
   }
 
+  async function handleBlockUser(userId: string) {
+    const reason = window.prompt("Reason for blocking this user (optional):");
+    if (reason === null) return; // user cancelled
+    setSavingUsers((s) => new Set(s).add(userId));
+    try {
+      await customFetch(`/api/spmo/admin/users/${userId}/block`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason || undefined }),
+      });
+      qc.invalidateQueries({ queryKey: ["/api/spmo/admin/users"] });
+      toast({ title: "User blocked", description: "The user has been blocked and can no longer access the system." });
+    } catch {
+      toast({ variant: "destructive", title: "Failed", description: "Could not block user." });
+    } finally {
+      setSavingUsers((s) => { const n = new Set(s); n.delete(userId); return n; });
+    }
+  }
+
+  async function handleUnblockUser(userId: string) {
+    if (!confirm("Are you sure you want to unblock this user?")) return;
+    setSavingUsers((s) => new Set(s).add(userId));
+    try {
+      await customFetch(`/api/spmo/admin/users/${userId}/unblock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      qc.invalidateQueries({ queryKey: ["/api/spmo/admin/users"] });
+      toast({ title: "User unblocked", description: "The user can now access the system again." });
+    } catch {
+      toast({ variant: "destructive", title: "Failed", description: "Could not unblock user." });
+    } finally {
+      setSavingUsers((s) => { const n = new Set(s); n.delete(userId); return n; });
+    }
+  }
+
   async function handleResetDayChange(day: number) {
     setWeeklyResetDay(day);
     try {
@@ -1225,6 +1303,8 @@ export default function Admin() {
                     user={user}
                     saving={savingUsers.has(user.id)}
                     onRoleChange={handleRoleChange}
+                    onBlock={handleBlockUser}
+                    onUnblock={handleUnblockUser}
                     currentUserId={authData?.user?.id}
                   />
                 ))
