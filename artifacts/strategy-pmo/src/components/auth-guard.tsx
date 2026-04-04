@@ -8,7 +8,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoading && (!data?.user || error)) {
       const returnTo = window.location.pathname + window.location.search;
-      window.location.href = `/strategy-pmo/login?returnTo=${encodeURIComponent(returnTo)}`;
+      window.location.href = `/strategy-pmo/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`;
     }
   }, [isLoading, data, error]);
 
