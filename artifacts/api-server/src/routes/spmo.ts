@@ -1015,7 +1015,7 @@ router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
 
   // Hide execution placeholder when custom milestones exist (same logic as list endpoint)
   const isExecPlaceholderSingle = (m: typeof milestonesRaw[0]) =>
-    m.phaseGate === "execution_placeholder" ||
+    (m.phaseGate as string) === "execution_placeholder" ||
     (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
   const nonPlaceholderCustomSingle = milestonesRaw.filter((m) => !m.phaseGate && !isExecPlaceholderSingle(m));
   const hasCustomSingle = nonPlaceholderCustomSingle.length > 0;
@@ -1200,7 +1200,7 @@ router.get("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
   // Hide execution placeholder when custom (non-phase-gate) milestones exist
   // Also detect old-format placeholders: phaseGate=null + name starts with "Execution"
   const isExecutionPlaceholder = (m: typeof milestones[0]) =>
-    m.phaseGate === "execution_placeholder" ||
+    (m.phaseGate as string) === "execution_placeholder" ||
     (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
   const nonPlaceholderCustom = milestones.filter((m) => !m.phaseGate && !isExecutionPlaceholder(m));
   const hasCustomMilestones = nonPlaceholderCustom.length > 0;
@@ -4359,7 +4359,7 @@ router.post("/spmo/admin/auto-weight-all", async (req, res) => {
 
       // Filter out execution_placeholder when custom milestones exist (same logic as GET endpoints)
       const isExecPlaceholder = (m: typeof allMilestones[0]) =>
-        m.phaseGate === "execution_placeholder" ||
+        (m.phaseGate as string) === "execution_placeholder" ||
         (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
       const customMilestones = allMilestones.filter((m) => !m.phaseGate && !isExecPlaceholder(m));
       const hasCustom = customMilestones.length > 0;
@@ -4449,7 +4449,7 @@ router.post("/spmo/admin/auto-weight-all", async (req, res) => {
       if (allMs.length === 0) continue;
       // Apply same execution placeholder filter
       const isEP = (m: typeof allMs[0]) =>
-        m.phaseGate === "execution_placeholder" ||
+        (m.phaseGate as string) === "execution_placeholder" ||
         (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
       const hasCustomMs = allMs.some((m) => !m.phaseGate && !isEP(m));
       const ms = hasCustomMs ? allMs.filter((m) => !isEP(m)) : allMs;

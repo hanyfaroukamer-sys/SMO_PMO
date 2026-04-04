@@ -256,7 +256,7 @@ export type SpmoMyTaskCount = {
   low: number;
 };
 
-export const useGetSpmoMyTaskCount = (options?: UseQueryOptions<SpmoMyTaskCount>) => {
+export const useGetSpmoMyTaskCount = (options?: Omit<UseQueryOptions<SpmoMyTaskCount>, "queryKey" | "queryFn">) => {
   const queryKey: QueryKey = ["/api/spmo/my-tasks/count"];
   const query = useQuery<SpmoMyTaskCount>({
     queryKey,

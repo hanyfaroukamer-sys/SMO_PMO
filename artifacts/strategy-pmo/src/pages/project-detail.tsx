@@ -869,7 +869,7 @@ export default function ProjectDetail({ params }: Props) {
 
   const { data: project, isLoading } = useGetSpmoProject(projectId);
   const { data: spmoConfigData } = useGetSpmoConfig();
-  const currency = (spmoConfigData as any)?.reportingCurrency ?? "SAR";
+  const currency = spmoConfigData?.reportingCurrency ?? "SAR";
   const projectOwnerId = (project as Record<string, unknown> | undefined)?.ownerId as string | undefined;
   const perms = useProjectPermissions(projectId, projectOwnerId);
   // PMs who own the project get full edit rights (details + progress + delete)
@@ -1515,6 +1515,7 @@ export default function ProjectDetail({ params }: Props) {
           isAdmin={isAdmin}
           canEdit={canEditReport}
           currentUser={authData?.user}
+          currency={currency}
           onCreate={(data) => createCR.mutateAsync({ ...data, projectId } as SpmoChangeRequest, {
             onSuccess: () => { qc.invalidateQueries({ queryKey: crQK }); },
           })}
@@ -1600,12 +1601,13 @@ type CRFormData = { title: string; changeType: string; description: string; impa
 const emptyCRForm = (): CRFormData => ({ title: "", changeType: "other", description: "", impact: "", budgetImpact: "", timelineImpact: "", status: "draft" });
 
 function CRInlineForm({
-  initial, onSave, onCancel, saving,
+  initial, onSave, onCancel, saving, currency = "SAR",
 }: {
   initial: CRFormData;
   onSave: (data: CRFormData) => void;
   onCancel: () => void;
   saving: boolean;
+  currency?: string;
 }) {
   const [form, setForm] = useState<CRFormData>(initial);
   const f = <K extends keyof CRFormData>(k: K) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm((v) => ({ ...v, [k]: e.target.value }));
@@ -1650,7 +1652,7 @@ function CRInlineForm({
 }
 
 function ChangeControlTab({
-  projectId, changeRequests, isAdmin, canEdit, currentUser, onCreate, onUpdate, onDelete,
+  projectId, changeRequests, isAdmin, canEdit, currentUser, onCreate, onUpdate, onDelete, currency = "SAR",
 }: {
   projectId: number;
   changeRequests: SpmoChangeRequest[];
@@ -1660,6 +1662,7 @@ function ChangeControlTab({
   onCreate: (data: Partial<SpmoChangeRequest>) => Promise<unknown>;
   onUpdate: (id: number, data: Partial<SpmoChangeRequest>) => Promise<unknown>;
   onDelete: (id: number) => Promise<unknown>;
+  currency?: string;
 }) {
   const { toast } = useToast();
   const [editingId, setEditingId] = useState<number | "new" | null>(null);
@@ -1745,6 +1748,7 @@ function ChangeControlTab({
                 onSave={(form) => handleUpdate(cr, form)}
                 onCancel={() => setEditingId(null)}
                 saving={saving}
+                currency={currency}
               />
             </>
           ) : (
@@ -1792,7 +1796,7 @@ function ChangeControlTab({
             <span className="text-xs font-semibold text-primary">New Change Request</span>
             <button onClick={() => setEditingId(null)} className="p-1 rounded text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
           </div>
-          <CRInlineForm initial={emptyCRForm()} onSave={handleCreate} onCancel={() => setEditingId(null)} saving={saving} />
+          <CRInlineForm initial={emptyCRForm()} onSave={handleCreate} onCancel={() => setEditingId(null)} saving={saving} currency={currency} />
         </Card>
       )}
     </div>
@@ -2549,7 +2553,7 @@ function DiscussionTab({ projectId, currentUser }: { projectId: number; currentU
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionIdx, setMentionIdx] = useState(0);
   const [mentionStartPos, setMentionStartPos] = useState(-1);
-  const mentionDebounce = useRef<ReturnType<typeof setTimeout>>();
+  const mentionDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Search users when mentionQuery changes

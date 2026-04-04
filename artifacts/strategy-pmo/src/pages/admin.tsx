@@ -6,6 +6,7 @@ import {
   useGetCurrentAuthUser,
   useUpdateSpmaUserRole,
   type SpmaAdminUser,
+  type SpmoProgrammeConfig,
   customFetch,
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
@@ -689,8 +690,8 @@ function UserAccessOverview() {
                             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Explicit access grants ({user.accessGrants.length})</div>
                             <div className="space-y-2">
                               {user.accessGrants.map((g) => {
-                                const activePerms = Object.entries(PERM_SHORT_LABELS).filter(([key]) => (g as Record<string, boolean>)[key]);
-                                const deniedPerms = Object.entries(PERM_SHORT_LABELS).filter(([key]) => !(g as Record<string, boolean>)[key]);
+                                const activePerms = Object.entries(PERM_SHORT_LABELS).filter(([key]) => (g as unknown as Record<string, boolean>)[key]);
+                                const deniedPerms = Object.entries(PERM_SHORT_LABELS).filter(([key]) => !(g as unknown as Record<string, boolean>)[key]);
                                 return (
                                   <div key={g.projectId} className="rounded-lg border border-border bg-background p-2.5">
                                     <div className="flex items-center gap-2 mb-1.5">
@@ -734,18 +735,18 @@ function UserAccessOverview() {
 
 // ─── Email & Notifications Panel ─────────────────────────────────────────────
 
-function EmailNotificationsPanel({ config, users }: { config: Record<string, unknown> | undefined; users: SpmaAdminUser[] }) {
+function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfig | undefined; users: SpmaAdminUser[] }) {
   const { toast } = useToast();
   const updateConfig = useUpdateSpmoConfig();
   const qc = useQueryClient();
 
-  const [riskAlertThreshold, setRiskAlertThreshold] = useState(config?.riskAlertThreshold as number ?? 9);
-  const [reminderDaysAhead, setReminderDaysAhead] = useState(config?.reminderDaysAhead as number ?? 3);
-  const [weeklyDeadlineHour, setWeeklyDeadlineHour] = useState(config?.weeklyReportDeadlineHour as number ?? 15);
-  const [projectAtRiskThreshold, setProjectAtRiskThreshold] = useState(config?.projectAtRiskThreshold as number ?? 5);
-  const [projectDelayedThreshold, setProjectDelayedThreshold] = useState(config?.projectDelayedThreshold as number ?? 10);
-  const [milestoneAtRiskThreshold, setMilestoneAtRiskThreshold] = useState(config?.milestoneAtRiskThreshold as number ?? 5);
-  const [weeklyReportCc, setWeeklyReportCc] = useState(config?.weeklyReportCcEmails as string ?? "");
+  const [riskAlertThreshold, setRiskAlertThreshold] = useState(config?.riskAlertThreshold ?? 9);
+  const [reminderDaysAhead, setReminderDaysAhead] = useState(config?.reminderDaysAhead ?? 3);
+  const [weeklyDeadlineHour, setWeeklyDeadlineHour] = useState(config?.weeklyReportDeadlineHour ?? 15);
+  const [projectAtRiskThreshold, setProjectAtRiskThreshold] = useState(config?.projectAtRiskThreshold ?? 5);
+  const [projectDelayedThreshold, setProjectDelayedThreshold] = useState(config?.projectDelayedThreshold ?? 10);
+  const [milestoneAtRiskThreshold, setMilestoneAtRiskThreshold] = useState(config?.milestoneAtRiskThreshold ?? 5);
+  const [weeklyReportCc, setWeeklyReportCc] = useState(config?.weeklyReportCcEmails ?? "");
   const [savingConfig, setSavingConfig] = useState(false);
   const [sendingTask, setSendingTask] = useState(false);
   const [sendingWeekly, setSendingWeekly] = useState(false);
@@ -984,10 +985,10 @@ export default function Admin() {
     closure: configData?.defaultClosureWeight ?? 5,
   };
   const pe = phaseEffort ?? {
-    planning: (configData as any)?.defaultPlanningEffortDays ?? 30,
-    tendering: (configData as any)?.defaultTenderingEffortDays ?? 45,
-    execution: (configData as any)?.defaultExecutionEffortDays ?? 120,
-    closure: (configData as any)?.defaultClosureEffortDays ?? 20,
+    planning: configData?.defaultPlanningEffortDays ?? 30,
+    tendering: configData?.defaultTenderingEffortDays ?? 45,
+    execution: configData?.defaultExecutionEffortDays ?? 120,
+    closure: configData?.defaultClosureEffortDays ?? 20,
   };
   const pwTotal = pw.planning + pw.tendering + pw.execution + pw.closure;
   const pwValid = Math.abs(pwTotal - 100) < 0.01;
@@ -1067,7 +1068,7 @@ export default function Admin() {
           defaultTenderingEffortDays: pe.tendering,
           defaultExecutionEffortDays: pe.execution,
           defaultClosureEffortDays: pe.closure,
-        } as any,
+        },
       });
       qc.invalidateQueries({ queryKey: ["/api/spmo/programme-config"] });
       setPhaseWeights(null);
@@ -1248,10 +1249,10 @@ export default function Admin() {
                 </p>
                 <select
                   className={inputClass}
-                  value={(configData as any)?.reportingCurrency ?? "SAR"}
+                  value={configData?.reportingCurrency ?? "SAR"}
                   onChange={async (e) => {
                     try {
-                      await updateConfig.mutateAsync({ data: { reportingCurrency: e.target.value } as any });
+                      await updateConfig.mutateAsync({ data: { reportingCurrency: e.target.value } });
                       qc.invalidateQueries({ queryKey: ["/api/spmo/config"] });
                       toast({ title: "Currency updated", description: `Reporting currency set to ${e.target.value}.` });
                     } catch {
@@ -1327,7 +1328,7 @@ export default function Admin() {
 
       {/* Email & Notifications */}
       <SectionCard title="Email & Notifications" icon={Bell}>
-        <EmailNotificationsPanel config={configData as Record<string, unknown> | undefined} users={usersData?.users ?? []} />
+        <EmailNotificationsPanel config={configData} users={usersData?.users ?? []} />
       </SectionCard>
 
       {/* User Access Overview */}
