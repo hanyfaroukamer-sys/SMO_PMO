@@ -579,6 +579,7 @@ export const spmoActivityLogTable = pgTable("spmo_activity_log", {
       "uploaded_evidence",
       "ran_ai_assessment",
       "weekly_report_submitted",
+      "converted_risk",
     ],
   }).notNull(),
   entityType: text("entity_type").notNull(),

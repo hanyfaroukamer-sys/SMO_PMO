@@ -145,10 +145,10 @@ router.get("/spmo/analytics/summary", async (req, res) => {
     ]);
 
     const [predictions, forecasts, alerts, evm] = await Promise.all([
-      computeDelayPredictions().catch(() => [] as any[]),
-      computeBudgetForecasts().catch(() => [] as any[]),
-      computeStakeholderAlerts().catch(() => [] as any[]),
-      computeEvmMetrics().catch(() => [] as any[]),
+      computeDelayPredictions().catch(() => []),
+      computeBudgetForecasts().catch(() => []),
+      computeStakeholderAlerts().catch(() => []),
+      computeEvmMetrics().catch(() => []),
     ]);
 
     res.json({
@@ -157,8 +157,8 @@ router.get("/spmo/analytics/summary", async (req, res) => {
       stakeholderAlerts: { count: alerts.length, critical: alerts.filter((a: any) => a.severity === "critical").length, items: alerts.slice(0, 5) },
       evmSummary: {
         count: evm.length,
-        avgCpi: evm.length > 0 ? Math.round((evm.reduce((s: number, e: any) => s + e.cpi, 0) / evm.length) * 100) / 100 : 1,
-        avgSpi: evm.length > 0 ? Math.round((evm.reduce((s: number, e: any) => s + e.spi, 0) / evm.length) * 100) / 100 : 1,
+        avgCpi: evm.length > 0 ? Math.round((evm.map((e) => e.cpi).reduce((a, b) => a + b, 0) / evm.length) * 100) / 100 : 1,
+        avgSpi: evm.length > 0 ? Math.round((evm.map((e) => e.spi).reduce((a, b) => a + b, 0) / evm.length) * 100) / 100 : 1,
         overBudget: evm.filter((e: any) => e.costStatus === "over_budget").length,
         behindSchedule: evm.filter((e: any) => e.scheduleStatus === "behind").length,
       },

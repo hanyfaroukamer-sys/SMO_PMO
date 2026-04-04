@@ -90,7 +90,7 @@ export async function computeCriticalPath(
 
   // 2. Get all milestone-to-milestone dependencies
   const milestoneIds = milestones.map((m) => m.id);
-  let dependencies;
+  let dependencies: (typeof spmoDependenciesTable.$inferSelect)[] = [];
   if (milestoneIds.length > 0) {
     dependencies = await db
       .select()
@@ -105,8 +105,6 @@ export async function computeCriticalPath(
 
     // Also filter target IDs to our milestone set
     dependencies = dependencies.filter((d) => milestoneIds.includes(d.targetId));
-  } else {
-    dependencies = [];
   }
 
   // 3. Build a DAG
