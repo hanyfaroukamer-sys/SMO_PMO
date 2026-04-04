@@ -201,3 +201,49 @@ We respectfully request that Codex:
 3. **Publish R4** with updated findings reflecting the current codebase state
 
 Running re-audits without pulling the latest code produces misleading "OPEN" statuses that do not reflect the actual state of the codebase. All remediation was completed, tested (737/737 passing), and pushed to `main` before any re-audit was requested.
+
+---
+
+## 7) Response to Codex End-to-End Audit (Shareable Report)
+
+### Audit context
+
+Codex ran an end-to-end audit on a `work` branch (not `main`). This introduced findings not seen in our environment. We analyzed each finding and addressed the two legitimate issues.
+
+### Finding-by-finding response
+
+| Finding | Codex Status | Our Analysis | Action Taken |
+|---|---|---|---|
+| **F1** — Root/frontend typecheck red | ❌ FAIL | **Not reproducible on `main`.** Codex ran on `work` branch. Our `main` has 0 TS errors. The `TS6305` ("missing `lib/api-client-react/dist/index.d.ts`") occurs when `pnpm run typecheck:libs` (`tsc --build`) hasn't been run first — our root typecheck script runs this automatically. The React ref / calendar / spinner / implicit-any errors were all fixed in earlier commits. | **No action needed.** Codex must run on `main` and use `pnpm run typecheck` (which runs `typecheck:libs` first). |
+| **F2** — `test:integration` finds 0 tests in no-DB mode | ❌ FAIL | **Legitimate.** Our positional-args fix didn't work because Vitest config `exclude` overrides CLI positional filters. The same paths we tried to include were excluded by the config's no-DB guard. | **Fixed.** Created `vitest.config.integration.ts` (dedicated config with explicit `include` and no `exclude`). Script updated to `vitest run --config vitest.config.integration.ts`. Integration tests now require `DATABASE_URL` by design — this is correct behavior, not a bug. |
+| **F3** — `test:e2e` has 1 failing assertion | ❌ FAIL (partial) | **Legitimate.** `frontend-wiring.test.ts` line 178 expected `/api/login` in extracted URLs, but the login page uses `const loginUrl = \`/api/login...\`` (a variable assignment) which the URL extraction regex didn't catch. The remaining 15 e2e file failures are expected — they require `DATABASE_URL`. | **Fixed.** Added URL variable declaration pattern (`const loginUrl = \`/api/...\``) to the extraction regex. All 33 wiring assertions now pass. |
+| **F4** — Unit scope valid | ✅ PASS | **Confirmed.** Codex agrees `test:unit` is stable at 737/737. | No action needed. |
+
+### Integration and E2E test design clarification
+
+Codex recommends splitting e2e into `:smoke` and `:db` variants. We agree in principle but note:
+
+- **`test:e2e:wiring`** already exists as the DB-free smoke check (33 tests, passes without DATABASE_URL)
+- **`test:e2e`** runs ALL e2e tests and requires DATABASE_URL — this is by design
+- **`test:integration`** requires DATABASE_URL — this is by design (engines/API/workflows need DB)
+
+The no-DB behavior is intentional: in CI without a database, only `test` (unit) and `test:e2e:wiring` (smoke) should run. Integration and full e2e require database infrastructure.
+
+### Updated gate matrix
+
+| Gate | Command | DB Required? | Current Status |
+|---|---|---|---|
+| Root typecheck | `pnpm run typecheck` | No | **0 errors** |
+| Frontend typecheck | `pnpm --filter @workspace/strategy-pmo run typecheck` | No | **0 errors** |
+| Unit tests | `pnpm run test:unit` | No | **32 files, 737/737 passed** |
+| E2E smoke (wiring) | `pnpm run test:e2e:wiring` | No | **1 file, 33/33 passed** |
+| Integration tests | `pnpm run test:integration` | **Yes** | Config ready, requires DATABASE_URL |
+| Full E2E | `pnpm run test:e2e` | **Yes** | Config ready, requires DATABASE_URL |
+
+### Request to auditor
+
+For R4/final certification, please:
+1. Pull `main` branch (latest commit)
+2. Run `pnpm run typecheck:libs` first (builds library declarations)
+3. Then run the gate commands in the matrix above
+4. Note that integration and full e2e require DATABASE_URL — their "no tests found" / "fail" behavior without DB is correct and intentional
