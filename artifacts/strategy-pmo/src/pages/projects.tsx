@@ -1371,7 +1371,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
   const bulkWeightMutation = useSetBulkSpmoMilestoneWeights();
 
   const milestones = data?.milestones ?? [];
-  const totalWeight = milestones.reduce((s: number, m) => s + (m.weight ?? 0), 0);
+  const totalWeight = milestones.reduce((s: number, m) => s + ((m as any).effectiveWeight ?? m.weight ?? 0), 0);
   const milestoneWeightError = totalWeight > 100;
   const milestoneWeightWarning = !milestoneWeightError && Math.round(totalWeight) !== 100 && milestones.length > 0;
   const autoWeightMap = computeProportionalWeights(milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0, startDate: m.startDate, dueDate: m.dueDate })));
