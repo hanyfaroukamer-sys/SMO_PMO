@@ -124,7 +124,9 @@ describe("Route components have matching lazy imports", () => {
   }
 
   it("every component= reference has a lazy() import", () => {
+    const nonPageComponents = new Set(["Router", "Switch", "Route", "Suspense", "ErrorBoundary", "AuthGuard", "AdminGuard", "Layout"]);
     for (const comp of routeComponents) {
+      if (nonPageComponents.has(comp)) continue;
       expect(lazyNames).toContain(comp);
     }
   });

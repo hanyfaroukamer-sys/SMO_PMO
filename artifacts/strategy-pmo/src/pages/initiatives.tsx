@@ -391,12 +391,13 @@ export default function Initiatives() {
             </FormField>
           </div>
 
-          <FormField label={`Weight: ${form.weight}%`}>
+          <FormField label="Weight (%)">
             <input
-              type="range"
+              type="number"
               min="0"
               max="100"
-              className="w-full accent-primary"
+              step="1"
+              className={inputClass}
               value={form.weight}
               onChange={(e) => setForm({ ...form, weight: e.target.value })}
             />

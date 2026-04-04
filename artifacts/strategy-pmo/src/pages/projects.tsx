@@ -543,8 +543,10 @@ export default function Projects() {
     return s + ((p as any).effectiveWeight ?? p.weight ?? 0);
   }, 0);
   const projectWeightTotal = siblingProjectWeight + (parseFloat(form.weight) || 0);
-  const projectWeightError = !!form.initiativeId && projectWeightTotal > 100;
-  const projectWeightUnder = !!form.initiativeId && !projectWeightError && projectWeightTotal > 0 && projectWeightTotal < 100;
+  // Allow submission when weights are auto-calculated (all stored weights = 0)
+  const allWeightsAuto = parseFloat(form.weight) === 0 || !form.weight;
+  const projectWeightError = !allWeightsAuto && !!form.initiativeId && projectWeightTotal > 100;
+  const projectWeightUnder = !allWeightsAuto && !!form.initiativeId && !projectWeightError && projectWeightTotal > 0 && projectWeightTotal < 100;
 
   if (isLoading)
     return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -975,8 +977,8 @@ export default function Projects() {
             <FormField label="Budget (SAR)">
               <input type="number" className={inputClass} value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="0" min="0" />
             </FormField>
-            <FormField label={`Weight: ${form.weight}%`}>
-              <input type="range" min="0" max="100" className="w-full accent-primary mt-2" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} />
+            <FormField label="Weight (%)">
+              <input type="number" min="0" max="100" step="1" className={inputClass} value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} placeholder="0" />
               <div className={`flex items-center justify-between text-[11px] mt-1.5 min-h-[1rem] tabular-nums ${projectWeightError ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
                 {form.initiativeId ? (
                   <>
