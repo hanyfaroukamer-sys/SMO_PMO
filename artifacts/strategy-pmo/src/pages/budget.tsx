@@ -477,7 +477,7 @@ export default function Budget() {
                         {project.projectCode && <span className="font-mono text-muted-foreground mr-1">{project.projectCode}:</span>}{project.name}
                       </td>
                       <td className="px-5 py-3 text-muted-foreground text-xs">{vendor}</td>
-                      <td className="px-5 py-3 text-right font-mono text-sm">{project.weight}%</td>
+                      <td className="px-5 py-3 text-right font-mono text-sm">{Math.round((project as any).effectiveWeight ?? project.weight ?? 0)}%</td>
                       <td className="px-5 py-3 text-right">
                         <InlineNumberEdit
                           value={budget}

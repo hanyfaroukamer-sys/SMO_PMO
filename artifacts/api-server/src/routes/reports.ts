@@ -231,7 +231,28 @@ async function gatherReportData() {
     pillars: allPillars,
     departments: departmentStats,
     weeklyReports: latestReports,
-    milestones: allMilestones,
+    milestones: (() => {
+      // Compute effective weights per project group
+      const byProject = new Map<number, typeof allMilestones>();
+      for (const m of allMilestones) {
+        if (!byProject.has(m.projectId)) byProject.set(m.projectId, []);
+        byProject.get(m.projectId)!.push(m);
+      }
+      const result: Array<typeof allMilestones[0] & { effectiveWeight: number }> = [];
+      for (const [, ms] of byProject) {
+        const totStored = ms.reduce((s, m) => s + (m.weight ?? 0), 0);
+        const validAdmin = ms.every((m) => (m.weight ?? 0) > 0) && Math.abs(totStored - 100) <= 5;
+        const totEffort = ms.reduce((s, m) => s + (m.effortDays ?? 0), 0);
+        for (const m of ms) {
+          let ew: number;
+          if (validAdmin) ew = Math.round(((m.weight ?? 0) / totStored) * 1000) / 10;
+          else if (totEffort > 0) ew = Math.round(((m.effortDays ?? 0) / totEffort) * 1000) / 10;
+          else ew = Math.round((100 / ms.length) * 10) / 10;
+          result.push({ ...m, effectiveWeight: ew });
+        }
+      }
+      return result;
+    })(),
     budget: { totalAllocated, totalSpent },
     statusCounts,
     aiAssessment: aiAssessment?.result ?? null,
@@ -1180,7 +1201,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
             doc.font("Helvetica-Bold").fontSize(8).fillColor(C.white).text(statusLabel(m.status), msColX[3] + 6, detY + 7, { width: msColW[3] - 12, align: "center" });
 
             // Weight
-            doc.font("Helvetica").fontSize(9).fillColor(detMid).text(m.weight != null ? `${m.weight}%` : "—", msColX[4] + 4, detY + 5, { width: msColW[4] - 8 });
+            doc.font("Helvetica").fontSize(9).fillColor(detMid).text(((m as any).effectiveWeight ?? m.weight) != null ? `${Math.round((m as any).effectiveWeight ?? m.weight ?? 0)}%` : "—", msColX[4] + 4, detY + 5, { width: msColW[4] - 8 });
 
             detY += msRowH;
           });

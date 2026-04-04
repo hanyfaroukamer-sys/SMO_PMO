@@ -1030,10 +1030,27 @@ router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
     return a.id - b.id;
   });
 
+  // Compute effective weights for milestones (cascade: stored > effortDays > equal)
+  const totalStoredWeight = milestonesSorted.reduce((s, m) => s + (m.weight ?? 0), 0);
+  const allHaveStoredWeight = milestonesSorted.every((m) => (m.weight ?? 0) > 0) && Math.abs(totalStoredWeight - 100) <= 5;
+  const totalEffort = milestonesSorted.reduce((s, m) => s + (m.effortDays ?? 0), 0);
+
   const milestonesWithEvidence = await Promise.all(
     milestonesSorted.map(async (m) => {
       const evidence = await db.select().from(spmoEvidenceTable).where(eq(spmoEvidenceTable.milestoneId, m.id));
-      return { ...m, evidence };
+      let effectiveWeight: number;
+      let weightSource: string;
+      if (allHaveStoredWeight) {
+        effectiveWeight = Math.round(((m.weight ?? 0) / totalStoredWeight) * 1000) / 10;
+        weightSource = "admin";
+      } else if (totalEffort > 0 && (m.effortDays ?? 0) > 0) {
+        effectiveWeight = Math.round(((m.effortDays ?? 0) / totalEffort) * 1000) / 10;
+        weightSource = "effort";
+      } else {
+        effectiveWeight = Math.round((100 / milestonesSorted.length) * 10) / 10;
+        weightSource = "equal";
+      }
+      return { ...m, evidence, effectiveWeight, weightSource };
     })
   );
 
@@ -1198,11 +1215,28 @@ router.get("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
   });
 
+  // Compute effective weights for milestones (cascade: stored > effortDays > equal)
+  const mTotalStoredWeight = sorted.reduce((s, m) => s + (m.weight ?? 0), 0);
+  const mAllHaveStoredWeight = sorted.every((m) => (m.weight ?? 0) > 0) && Math.abs(mTotalStoredWeight - 100) <= 5;
+  const mTotalEffort = sorted.reduce((s, m) => s + (m.effortDays ?? 0), 0);
+
   const withEvidence = await Promise.all(
     sorted.map(async (m) => {
       const evidence = await db.select().from(spmoEvidenceTable).where(eq(spmoEvidenceTable.milestoneId, m.id));
       const healthStatus = computeMilestoneHealth(m.status, m.dueDate);
-      return { ...m, evidence, healthStatus };
+      let effectiveWeight: number;
+      let weightSource: string;
+      if (mAllHaveStoredWeight) {
+        effectiveWeight = Math.round(((m.weight ?? 0) / mTotalStoredWeight) * 1000) / 10;
+        weightSource = "admin";
+      } else if (mTotalEffort > 0 && (m.effortDays ?? 0) > 0) {
+        effectiveWeight = Math.round(((m.effortDays ?? 0) / mTotalEffort) * 1000) / 10;
+        weightSource = "effort";
+      } else {
+        effectiveWeight = Math.round((100 / sorted.length) * 10) / 10;
+        weightSource = "equal";
+      }
+      return { ...m, evidence, healthStatus, effectiveWeight, weightSource };
     })
   );
 
