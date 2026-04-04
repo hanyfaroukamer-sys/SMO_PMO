@@ -7,7 +7,7 @@ export default function Login() {
   const { data, isLoading } = useGetCurrentAuthUser();
 
   const params = new URLSearchParams(window.location.search);
-  const returnTo = params.get("returnTo") || "/";
+  const returnTo = params.get("returnTo") || "/strategy-pmo/";
 
   useEffect(() => {
     if (!isLoading && data?.user) {
