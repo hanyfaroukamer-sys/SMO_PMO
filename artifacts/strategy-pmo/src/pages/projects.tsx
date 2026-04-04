@@ -1896,16 +1896,16 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
                   {/* Weight — editable inline with auto-weight hint */}
                   <div className="w-16 text-center shrink-0">
                     {isApproved || !isAdmin ? (
-                      <span className="text-xs font-bold tabular-nums">{Math.round(m.weight ?? 0)}%</span>
+                      <span className="text-xs font-bold tabular-nums">{Math.round((m as any).effectiveWeight ?? m.weight ?? 0)}%</span>
                     ) : (
                       <div className="flex flex-col items-center gap-0.5">
                         <InlineNumberEdit
-                          value={Math.round(m.weight ?? 0)}
+                          value={Math.round((m as any).effectiveWeight ?? m.weight ?? 0)}
                           onSave={(v) => handleInlineWeightUpdate(m.id, v)}
                           suffix="%"
                           min={0}
                         />
-                        {Math.abs((m.weight ?? 0) - (autoWeightMap.get(m.id) ?? 0)) >= 2 && (
+                        {Math.abs(((m as any).effectiveWeight ?? m.weight ?? 0) - (autoWeightMap.get(m.id) ?? 0)) >= 2 && (
                           <span className="text-[9px] text-muted-foreground tabular-nums leading-none">
                             auto: {autoWeightMap.get(m.id)}%
                           </span>

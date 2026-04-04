@@ -416,8 +416,8 @@ function ApprovalCard({ item }: { item: SpmoPendingApprovalItem }) {
         {milestone.effortDays != null && (
           <span className="font-medium">Effort: <span className="font-bold text-foreground">{milestone.effortDays}d</span></span>
         )}
-        {milestone.weight != null && milestone.weight > 0 && (
-          <span className="font-medium">Weight: <span className="font-bold text-foreground">{milestone.weight}%</span></span>
+        {((milestone as any).effectiveWeight ?? milestone.weight ?? 0) > 0 && (
+          <span className="font-medium">Weight: <span className="font-bold text-foreground">{Math.round((milestone as any).effectiveWeight ?? milestone.weight ?? 0)}%</span></span>
         )}
         {milestone.status === "approved" && milestone.approvedByName && (
           <span className="flex items-center gap-1 text-success font-semibold">

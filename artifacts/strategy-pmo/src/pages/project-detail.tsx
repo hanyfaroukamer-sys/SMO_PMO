@@ -757,10 +757,10 @@ function MilestoneRow({
                     {milestone.effortDays}d effort
                   </div>
                 )}
-                {milestone.weight > 0 && (
+                {((milestone as any).effectiveWeight ?? milestone.weight ?? 0) > 0 && (
                   <div className="flex items-center gap-1">
                     <TrendingUp className="w-3 h-3" />
-                    {milestone.weight}% weight
+                    {Math.round((milestone as any).effectiveWeight ?? milestone.weight ?? 0)}% weight
                   </div>
                 )}
               </div>
@@ -1195,7 +1195,7 @@ export default function ProjectDetail({ params }: Props) {
                   <TrendingUp className="w-3 h-3 text-muted-foreground shrink-0" />
                   <div>
                     <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Weight</div>
-                    <div className="text-sm font-semibold">{project.weight}%</div>
+                    <div className="text-sm font-semibold">{Math.round((project as any).effectiveWeight ?? project.weight ?? 0)}%</div>
                   </div>
                 </div>
               </div>
