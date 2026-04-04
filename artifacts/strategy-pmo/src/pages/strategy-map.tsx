@@ -51,10 +51,10 @@ export default function StrategyMap() {
     setAtRiskThreshold(configData?.projectAtRiskThreshold ?? 5);
     setDelayedThreshold(configData?.projectDelayedThreshold ?? 10);
     setMsAtRiskThreshold(configData?.milestoneAtRiskThreshold ?? 5);
-    setRiskAlertThreshold((configData as Record<string, unknown>)?.riskAlertThreshold as number ?? 9);
-    setReminderDaysAhead((configData as Record<string, unknown>)?.reminderDaysAhead as number ?? 3);
-    setWeeklyDeadlineHour((configData as Record<string, unknown>)?.weeklyReportDeadlineHour as number ?? 15);
-    setWeeklyReportCc((configData as Record<string, unknown>)?.weeklyReportCcEmails as string ?? "");
+    setRiskAlertThreshold(configData?.riskAlertThreshold ?? 9);
+    setReminderDaysAhead(configData?.reminderDaysAhead ?? 3);
+    setWeeklyDeadlineHour(configData?.weeklyReportDeadlineHour ?? 15);
+    setWeeklyReportCc(configData?.weeklyReportCcEmails ?? "");
     setEditModalOpen(true);
   }
 

@@ -278,7 +278,7 @@ export default function DepartmentPortfolio({ params }: Props) {
 
   const { data, isLoading, isError } = useGetSpmaDepartmentPortfolio(deptId);
   const { data: configData } = useGetSpmoConfig();
-  const currency = (configData as any)?.reportingCurrency ?? "SAR";
+  const currency = configData?.reportingCurrency ?? "SAR";
   const fmtCurrency = (n: number) => fmtCurrencyWithCode(n, currency);
 
   if (isLoading) {

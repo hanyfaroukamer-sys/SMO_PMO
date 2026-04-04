@@ -23,7 +23,10 @@ function read(filePath: string): string {
 // ── Preload sources ──────────────────────────────────────────────────
 const routerIndex = read(path.resolve(API_SRC, "routes/index.ts"));
 const analyticsSrc = read(path.resolve(API_SRC, "routes/analytics.ts"));
-const spmoRouteSrc = read(path.resolve(API_SRC, "routes/spmo.ts"));
+const spmoRouteSrc = read(path.resolve(API_SRC, "routes/spmo.ts"))
+  + "\n" + (fs.existsSync(path.resolve(API_SRC, "routes/spmo-comments.ts")) ? read(path.resolve(API_SRC, "routes/spmo-comments.ts")) : "")
+  + "\n" + (fs.existsSync(path.resolve(API_SRC, "routes/spmo-kpis.ts")) ? read(path.resolve(API_SRC, "routes/spmo-kpis.ts")) : "")
+  + "\n" + (fs.existsSync(path.resolve(API_SRC, "routes/spmo-admin.ts")) ? read(path.resolve(API_SRC, "routes/spmo-admin.ts")) : "");
 const reportsSrc = read(path.resolve(API_SRC, "routes/reports.ts"));
 const spmoCalcSrc = read(path.resolve(API_SRC, "lib/spmo-calc.ts"));
 const appTsx = read(path.resolve(FE_SRC, "App.tsx"));

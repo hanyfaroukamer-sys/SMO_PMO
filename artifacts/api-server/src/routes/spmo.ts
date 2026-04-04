@@ -24,11 +24,8 @@ import {
   spmoRaciTable,
   spmoDocumentsTable,
   spmoActionsTable,
-  spmoKpiMeasurementsTable,
   spmoProjectAccessTable,
-  spmoCommentsTable,
   spmoNotificationsTable,
-  spmoKpiEvidenceTable,
   spmoIssuesTable,
   type InsertSpmoInitiative,
   type InsertSpmoProject,
@@ -70,11 +67,6 @@ import {
   AddSpmoEvidenceParams,
   AddSpmoEvidenceBody,
   DeleteSpmoEvidenceParams,
-  CreateSpmoKpiBody,
-  UpdateSpmoKpiParams,
-  UpdateSpmoKpiBody,
-  DeleteSpmoKpiParams,
-  ListSpmoKpisQueryParams,
   CreateSpmoRiskBody,
   UpdateSpmoRiskParams,
   UpdateSpmoRiskBody,
@@ -123,7 +115,10 @@ import {
   type StatusResult,
 } from "../lib/spmo-calc";
 import { logSpmoActivity } from "../lib/spmo-activity";
+import { registerCommentRoutes } from "./spmo-comments";
+import { registerKpiRoutes } from "./spmo-kpis";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { registerAdminRoutes } from "./spmo-admin";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -131,7 +126,7 @@ const objectStorageService = new ObjectStorageService();
 // ─────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────
-function getAuthUser(req: Parameters<Parameters<typeof router.get>[1]>[0]) {
+export function getAuthUser(req: Parameters<Parameters<typeof router.get>[1]>[0]) {
   return req.user as
     | {
         id: string;
@@ -143,7 +138,7 @@ function getAuthUser(req: Parameters<Parameters<typeof router.get>[1]>[0]) {
     | undefined;
 }
 
-function requireAdmin(
+export function requireAdmin(
   req: Parameters<Parameters<typeof router.get>[1]>[0],
   res: Parameters<Parameters<typeof router.get>[1]>[1],
 ): boolean {
@@ -169,13 +164,13 @@ function getCurrentWeekStart(resetDay: number): string {
   return weekStart.toISOString().split("T")[0];
 }
 
-function getUserDisplayName(user: ReturnType<typeof getAuthUser>): string | null {
+export function getUserDisplayName(user: ReturnType<typeof getAuthUser>): string | null {
   if (!user) return null;
   const parts = [user.firstName, user.lastName].filter(Boolean);
   return parts.length > 0 ? parts.join(" ") : user.email ?? null;
 }
 
-async function requireAuth(
+export async function requireAuth(
   req: Parameters<Parameters<typeof router.get>[1]>[0],
   res: Parameters<Parameters<typeof router.get>[1]>[1]
 ): Promise<string | null> {
@@ -284,7 +279,7 @@ async function checkProjectPerm(
 
 // canEditProject removed — use checkProjectPerm instead
 
-function parseId(req: { params: Record<string, string> }, res: any, paramName = "id"): number | null {
+export function parseId(req: { params: Record<string, string> }, res: any, paramName = "id"): number | null {
   const id = Number(req.params[paramName]);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: `Invalid ${paramName}` });
@@ -345,10 +340,8 @@ async function runPhaseGateMigration(): Promise<void> {
     }
     // Migration is idempotent (skips projects with existing phase gates)
   } catch (err) {
-    // Phase gate migration is best-effort; log but don't crash
-    if (typeof req !== "undefined") {
-      // This runs at module load, not in a request context
-    }
+    // Phase gate migration is best-effort; swallow error silently
+    void err;
   }
 }
 
@@ -424,7 +417,7 @@ router.get("/spmo/programme", async (req, res): Promise<void> => {
 });
 
 // Invalidate overview cache on any write operation
-function invalidateOverviewCache() { _overviewCache = null; }
+export function invalidateOverviewCache() { _overviewCache = null; }
 
 // ─────────────────────────────────────────────────────────────
 // Pillars
@@ -678,6 +671,7 @@ router.post("/spmo/initiatives", async (req, res): Promise<void> => {
   const { budget: _ignoredBudget, ...initData } = parsed.data;
   const insertInitiative: InsertSpmoInitiative = {
     ...initData,
+    ownerId: parsed.data.ownerId ?? userId,
     budget: 0, // Budget is computed from child projects, not manually set
     startDate: dateToStr(parsed.data.startDate) as string,
     targetDate: dateToStr(parsed.data.targetDate) as string,
@@ -973,10 +967,10 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
 
   const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   await db.insert(spmoMilestonesTable).values([
-    { projectId: project.id, name: "Planning & Requirements", description: "Define scope, requirements, stakeholders, project plan. Obtain charter approval.", weight: cfg?.defaultPlanningWeight ?? 5, effortDays: cfg?.defaultPlanningEffortDays ?? 30, progress: 0, status: "pending", depStatus: "ready", phaseGate: "planning" },
-    { projectId: project.id, name: "Tendering & Procurement", description: "Prepare RFP/RFQ, publish tender, evaluate proposals, award contract.", weight: cfg?.defaultTenderingWeight ?? 5, effortDays: cfg?.defaultTenderingEffortDays ?? 45, progress: 0, status: "pending", depStatus: "ready", phaseGate: "tendering" },
-    { projectId: project.id, name: "Execution & Delivery", description: "Implementation, development, testing, UAT, and go-live. Split into detailed milestones.", weight: cfg?.defaultExecutionWeight ?? 85, effortDays: cfg?.defaultExecutionEffortDays ?? 120, progress: 0, status: "pending", depStatus: "ready", phaseGate: "execution_placeholder" },
-    { projectId: project.id, name: "Closure & Handover", description: "Final acceptance, documentation, knowledge transfer, warranty activation, lessons learned.", weight: cfg?.defaultClosureWeight ?? 5, effortDays: cfg?.defaultClosureEffortDays ?? 20, progress: 0, status: "pending", depStatus: "ready", phaseGate: "closure" },
+    { projectId: project.id, name: "Planning & Requirements", description: "Define scope, requirements, stakeholders, project plan. Obtain charter approval.", weight: cfg?.defaultPlanningWeight ?? 5, effortDays: cfg?.defaultPlanningEffortDays ?? 30, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "planning" as const },
+    { projectId: project.id, name: "Tendering & Procurement", description: "Prepare RFP/RFQ, publish tender, evaluate proposals, award contract.", weight: cfg?.defaultTenderingWeight ?? 5, effortDays: cfg?.defaultTenderingEffortDays ?? 45, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "tendering" as const },
+    { projectId: project.id, name: "Execution & Delivery", description: "Implementation, development, testing, UAT, and go-live. Split into detailed milestones.", weight: cfg?.defaultExecutionWeight ?? 85, effortDays: cfg?.defaultExecutionEffortDays ?? 120, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "execution_placeholder" as any },
+    { projectId: project.id, name: "Closure & Handover", description: "Final acceptance, documentation, knowledge transfer, warranty activation, lessons learned.", weight: cfg?.defaultClosureWeight ?? 5, effortDays: cfg?.defaultClosureEffortDays ?? 20, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "closure" as const },
   ]);
 
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "project", project.id, project.name);
@@ -1015,7 +1009,7 @@ router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
 
   // Hide execution placeholder when custom milestones exist (same logic as list endpoint)
   const isExecPlaceholderSingle = (m: typeof milestonesRaw[0]) =>
-    m.phaseGate === "execution_placeholder" ||
+    (m.phaseGate as string) === "execution_placeholder" ||
     (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
   const nonPlaceholderCustomSingle = milestonesRaw.filter((m) => !m.phaseGate && !isExecPlaceholderSingle(m));
   const hasCustomSingle = nonPlaceholderCustomSingle.length > 0;
@@ -1200,7 +1194,7 @@ router.get("/spmo/projects/:id/milestones", async (req, res): Promise<void> => {
   // Hide execution placeholder when custom (non-phase-gate) milestones exist
   // Also detect old-format placeholders: phaseGate=null + name starts with "Execution"
   const isExecutionPlaceholder = (m: typeof milestones[0]) =>
-    m.phaseGate === "execution_placeholder" ||
+    (m.phaseGate as string) === "execution_placeholder" ||
     (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
   const nonPlaceholderCustom = milestones.filter((m) => !m.phaseGate && !isExecutionPlaceholder(m));
   const hasCustomMilestones = nonPlaceholderCustom.length > 0;
@@ -1278,8 +1272,9 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
   const insertMilestone: InsertSpmoMilestone = {
     ...parsed.data,
     projectId: params.data.id,
-    startDate: parsed.data.startDate ? dateToStr(parsed.data.startDate) : undefined,
-    dueDate: dateToStr(parsed.data.dueDate),
+    status: parsed.data.status as InsertSpmoMilestone["status"],
+    startDate: parsed.data.startDate ? dateToStr(parsed.data.startDate) as string : undefined,
+    dueDate: dateToStr(parsed.data.dueDate) as string | undefined,
   };
   const [milestone] = await db
     .insert(spmoMilestonesTable)
@@ -1327,8 +1322,9 @@ router.post("/spmo/milestones", async (req, res): Promise<void> => {
   const insertMilestone: InsertSpmoMilestone = {
     ...parsed.data,
     projectId,
-    startDate: parsed.data.startDate ? dateToStr(parsed.data.startDate) : undefined,
-    dueDate: dateToStr(parsed.data.dueDate),
+    status: parsed.data.status as InsertSpmoMilestone["status"],
+    startDate: parsed.data.startDate ? dateToStr(parsed.data.startDate) as string : undefined,
+    dueDate: dateToStr(parsed.data.dueDate) as string | undefined,
   };
   const [milestone] = await db
     .insert(spmoMilestonesTable)
@@ -1552,7 +1548,7 @@ router.put("/spmo/projects/:id/milestones/weights", async (req, res): Promise<vo
     return;
   }
 
-  await db.transaction(async (tx: typeof db) => {
+  await db.transaction(async (tx: any) => {
     for (const { id, weight } of weights) {
       await tx.update(spmoMilestonesTable)
         .set({ weight, updatedAt: new Date() })
@@ -1582,7 +1578,7 @@ router.put("/spmo/initiatives/:id/projects/weights", async (req, res): Promise<v
     return;
   }
 
-  await db.transaction(async (tx: typeof db) => {
+  await db.transaction(async (tx: any) => {
     for (const { id, weight } of weights) {
       await tx.update(spmoProjectsTable)
         .set({ weight, updatedAt: new Date() })
@@ -1613,7 +1609,7 @@ router.put("/spmo/pillars/:id/initiatives/weights", async (req, res): Promise<vo
     return;
   }
 
-  await db.transaction(async (tx: typeof db) => {
+  await db.transaction(async (tx: any) => {
     for (const { id, weight } of weights) {
       await tx.update(spmoInitiativesTable)
         .set({ weight, updatedAt: new Date() })
@@ -1959,145 +1955,8 @@ router.get("/spmo/pending-approvals", async (req, res): Promise<void> => {
   res.json({ items: items.filter(Boolean) });
 });
 
-// ─────────────────────────────────────────────────────────────
-// KPIs
-// ─────────────────────────────────────────────────────────────
-router.get("/spmo/kpis", async (req, res): Promise<void> => {
-  const userId = await requireAuth(req, res);
-  if (!userId) return;
-
-  const qp = ListSpmoKpisQueryParams.safeParse(req.query);
-  if (!qp.success) {
-    res.status(400).json({ error: qp.error.message });
-    return;
-  }
-
-  let rows = await db.select().from(spmoKpisTable).orderBy(asc(spmoKpisTable.createdAt));
-
-  if (qp.data.type) {
-    rows = rows.filter((k) => k.type === qp.data.type);
-  }
-  if (qp.data.projectId) {
-    rows = rows.filter((k) => k.projectId === qp.data.projectId);
-  }
-
-  res.json({ kpis: rows });
-});
-
-router.post("/spmo/kpis", async (req, res): Promise<void> => {
-  const userId = await requireRole(req, res, "admin", "project-manager");
-  if (!userId) return;
-
-  const parsed = CreateSpmoKpiBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const values = { ...parsed.data };
-  if (values.type === "operational" && values.initiativeId) {
-    const [initiative] = await db
-      .select()
-      .from(spmoInitiativesTable)
-      .where(eq(spmoInitiativesTable.id, values.initiativeId));
-    if (initiative) {
-      values.ownerId = initiative.ownerId;
-      values.ownerName = initiative.ownerName ?? undefined;
-    }
-  }
-
-  const [kpi] = await db.insert(spmoKpisTable).values(values).returning();
-  const user = getAuthUser(req);
-  await logSpmoActivity(userId, getUserDisplayName(user), "created", "kpi", kpi.id, kpi.name);
-  res.status(201).json(kpi);
-});
-
-router.put("/spmo/kpis/:id", async (req, res): Promise<void> => {
-  const userId = await requireRole(req, res, "admin", "project-manager");
-  if (!userId) return;
-
-  const params = UpdateSpmoKpiParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const parsed = UpdateSpmoKpiBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const updateValues = { ...parsed.data };
-  if (updateValues.initiativeId) {
-    const [initiative] = await db
-      .select()
-      .from(spmoInitiativesTable)
-      .where(eq(spmoInitiativesTable.id, updateValues.initiativeId));
-    if (initiative) {
-      updateValues.ownerId = initiative.ownerId;
-      updateValues.ownerName = initiative.ownerName ?? undefined;
-    }
-  }
-
-  const [oldKpi] = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.id, params.data.id)).limit(1);
-
-  // Auto-track velocity: when actual changes, snapshot old actual → prevActual
-  if (updateValues.actual !== undefined) {
-    const [existing] = await db
-      .select({ actual: spmoKpisTable.actual })
-      .from(spmoKpisTable)
-      .where(eq(spmoKpisTable.id, params.data.id));
-    if (existing && existing.actual !== updateValues.actual) {
-      updateValues.prevActual = existing.actual;
-      updateValues.prevActualDt = new Date().toISOString().split("T")[0];
-    }
-  }
-
-  const [kpi] = await db
-    .update(spmoKpisTable)
-    .set(updateValues)
-    .where(eq(spmoKpisTable.id, params.data.id))
-    .returning();
-
-  if (!kpi) {
-    res.status(404).json({ error: "KPI not found" });
-    return;
-  }
-
-  const user = getAuthUser(req);
-  const kpiChanges: Record<string, { from: unknown; to: unknown }> = {};
-  if (oldKpi) {
-    for (const f of ["name", "target", "actual", "baseline", "status", "unit", "description"] as const) {
-      const ov = (oldKpi as Record<string, unknown>)[f];
-      const nv = (kpi as Record<string, unknown>)[f];
-      if (ov !== nv && nv !== undefined) kpiChanges[f] = { from: ov, to: nv };
-    }
-  }
-  await logSpmoActivity(userId, getUserDisplayName(user), "updated", "kpi", kpi.id, kpi.name, {
-    link: "/kpis", changes: kpiChanges,
-  });
-  res.json(kpi);
-});
-
-router.delete("/spmo/kpis/:id", async (req, res): Promise<void> => {
-  const userId = await requireRole(req, res, "admin", "project-manager");
-  if (!userId) return;
-
-  const params = DeleteSpmoKpiParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const [kpi] = await db.delete(spmoKpisTable).where(eq(spmoKpisTable.id, params.data.id)).returning();
-  if (!kpi) {
-    res.status(404).json({ error: "KPI not found" });
-    return;
-  }
-
-  res.json({ success: true });
-});
+// KPIs, KPI Measurements, KPI Evidence — extracted to ./spmo-kpis.ts
+registerKpiRoutes(router);
 
 // ─────────────────────────────────────────────────────────────
 // Risks
@@ -4073,185 +3932,8 @@ router.delete("/spmo/actions/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
-// ─────────────────────────────────────────────────────────────
-// COMMENTS & DISCUSSION THREADS
-// ─────────────────────────────────────────────────────────────
-
-router.get("/spmo/comments", async (req, res) => {
-  const userId = await requireAuth(req, res);
-  if (!userId) return;
-  const entityType = req.query.entityType as string;
-  const entityId = req.query.entityId ? Number(req.query.entityId) : null;
-  if (!entityType || !entityId) { res.status(400).json({ error: "entityType and entityId required" }); return; }
-  const rows = await db.select().from(spmoCommentsTable).where(and(eq(spmoCommentsTable.entityType, entityType), eq(spmoCommentsTable.entityId, entityId))).orderBy(asc(spmoCommentsTable.createdAt));
-  res.json({ comments: rows });
-});
-
-router.post("/spmo/comments", async (req, res) => {
-  const userId = await requireAuth(req, res);
-  if (!userId) return;
-  const user = getAuthUser(req);
-  const body = z.object({
-    entityType: z.enum(["project", "milestone", "risk", "kpi", "initiative"]),
-    entityId: z.number(),
-    parentId: z.number().nullable().optional(),
-    body: z.string().min(1),
-  }).safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: body.error }); return; }
-
-  // Verify entity exists
-  const entityTable = { project: spmoProjectsTable, milestone: spmoMilestonesTable, risk: spmoRisksTable, kpi: spmoKpisTable, initiative: spmoInitiativesTable }[body.data.entityType];
-  if (entityTable) {
-    const [exists] = await db.select({ id: (entityTable as { id: typeof spmoProjectsTable.id }).id }).from(entityTable).where(eq((entityTable as { id: typeof spmoProjectsTable.id }).id, body.data.entityId)).limit(1);
-    if (!exists) { res.status(404).json({ error: `${body.data.entityType} with id ${body.data.entityId} not found` }); return; }
-  }
-
-  const [row] = await db.insert(spmoCommentsTable).values({
-    ...body.data,
-    authorId: userId,
-    authorName: getUserDisplayName(user),
-  }).returning();
-
-  // Create notification for relevant owner + resolve entity context
-  let notifyUserId: string | null = null;
-  let entityName = "";
-  let entityLink = "";
-  let projectIdForLink: number | null = null;
-  if (body.data.entityType === "project") {
-    const [proj] = await db.select({ ownerId: spmoProjectsTable.ownerId, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, body.data.entityId)).limit(1);
-    if (proj) { notifyUserId = proj.ownerId; entityName = proj.name; entityLink = `/projects/${body.data.entityId}?tab=discussion`; }
-  } else if (body.data.entityType === "milestone") {
-    const [ms] = await db.select({ projectId: spmoMilestonesTable.projectId, name: spmoMilestonesTable.name }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.id, body.data.entityId)).limit(1);
-    if (ms) {
-      const [proj] = await db.select({ ownerId: spmoProjectsTable.ownerId }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, ms.projectId)).limit(1);
-      notifyUserId = proj?.ownerId ?? null; entityName = ms.name; entityLink = `/projects/${ms.projectId}?tab=milestones`;
-    }
-  } else if (body.data.entityType === "risk") {
-    const [risk] = await db.select({ projectId: spmoRisksTable.projectId, title: spmoRisksTable.title }).from(spmoRisksTable).where(eq(spmoRisksTable.id, body.data.entityId)).limit(1);
-    if (risk?.projectId) {
-      const [proj] = await db.select({ ownerId: spmoProjectsTable.ownerId }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, risk.projectId)).limit(1);
-      notifyUserId = proj?.ownerId ?? null; entityName = risk.title; entityLink = `/projects/${risk.projectId}?tab=risks`;
-    }
-  }
-  if (notifyUserId && notifyUserId !== userId) {
-    await db.insert(spmoNotificationsTable).values({
-      userId: notifyUserId, type: "comment",
-      title: `New comment on ${entityName}`,
-      body: body.data.body.slice(0, 200),
-      link: entityLink,
-      entityType: body.data.entityType, entityId: body.data.entityId,
-    });
-  }
-
-  // Parse @mentions in comment body and create "mention" notifications
-  // Format 1: @[User Name](userId) — from dropdown selection
-  // Format 2: @FirstName LastName — plain text fallback (lookup by name)
-  const mentionedUserIds = new Set<string>();
-
-  // Format 1: structured mentions
-  const structuredRegex = /@\[([^\]]+)\]\(([^)]+)\)/g;
-  let sm;
-  while ((sm = structuredRegex.exec(body.data.body)) !== null) {
-    if (sm[2]) mentionedUserIds.add(sm[2]);
-  }
-
-  // Format 2: plain @Name mentions (e.g. "@John Smith" or "@john")
-  // Strip out structured mentions first to avoid double-matching
-  const strippedBody = body.data.body.replace(/@\[[^\]]+\]\([^)]+\)/g, "");
-  const plainMentionRegex = /@(\w[\w\s]{1,40}?)(?=\s{2}|[.,;!?\n]|$)/g;
-  let pm;
-  while ((pm = plainMentionRegex.exec(strippedBody)) !== null) {
-    const mentionName = pm[1].trim().toLowerCase();
-    if (mentionName.length < 2) continue;
-    // Look up user by name
-    const matchedUsers = await db.select({ id: usersTable.id, firstName: usersTable.firstName, lastName: usersTable.lastName })
-      .from(usersTable);
-    const found = matchedUsers.find(u => {
-      const fullName = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim().toLowerCase();
-      const first = (u.firstName ?? "").toLowerCase();
-      const last = (u.lastName ?? "").toLowerCase();
-      return fullName === mentionName || first === mentionName || last === mentionName;
-    });
-    if (found) mentionedUserIds.add(found.id);
-  }
-
-  // Create notifications + send emails for all mentioned users
-  for (const mentionedUserId of mentionedUserIds) {
-    if (mentionedUserId === userId) continue; // don't notify yourself
-
-    await db.insert(spmoNotificationsTable).values({
-      userId: mentionedUserId,
-      type: "mention",
-      title: `${getUserDisplayName(user) ?? "Someone"} mentioned you in a discussion`,
-      body: body.data.body.slice(0, 200),
-      link: entityLink || null,
-      entityType: body.data.entityType,
-      entityId: body.data.entityId,
-    });
-
-    // Send email notification to the mentioned user
-    try {
-      const [mentionedUser] = await db.select({ email: usersTable.email, firstName: usersTable.firstName, lastName: usersTable.lastName })
-        .from(usersTable).where(eq(usersTable.id, mentionedUserId)).limit(1);
-      if (mentionedUser?.email) {
-        const authorName = getUserDisplayName(user) ?? "A team member";
-        const entityLabel = entityName || body.data.entityType;
-        const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
-        const fullLink = entityLink ? `${baseUrl}/strategy-pmo${entityLink}` : baseUrl;
-        const subject = `${authorName} mentioned you in ${entityLabel}`;
-        // Render @[Name](id) as just "Name" in the email body
-        const cleanBody = body.data.body.replace(/@\[([^\]]+)\]\([^)]+\)/g, "@$1");
-        const htmlBody = `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto;">
-            <div style="background: #0F172A; color: #F8FAFC; padding: 20px 24px; border-radius: 12px 12px 0 0;">
-              <h2 style="margin: 0; font-size: 16px;">💬 You were mentioned in a discussion</h2>
-            </div>
-            <div style="border: 1px solid #E2E8F0; border-top: none; padding: 24px; border-radius: 0 0 12px 12px;">
-              <p style="margin: 0 0 12px;"><strong>${authorName}</strong> mentioned you in <strong>${entityLabel}</strong>:</p>
-              <blockquote style="margin: 12px 0; padding: 12px 16px; background: #F8FAFC; border-left: 3px solid #2563EB; border-radius: 4px; color: #334155; font-size: 14px;">
-                ${cleanBody.slice(0, 300).replace(/</g, "&lt;").replace(/>/g, "&gt;")}
-              </blockquote>
-              <a href="${fullLink}" style="display: inline-block; margin-top: 16px; padding: 10px 24px; background: #2563EB; color: #FFFFFF; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
-                View Discussion →
-              </a>
-              <p style="margin: 20px 0 0; font-size: 12px; color: #94A3B8;">
-                You received this because you were @mentioned. Reply on the platform.
-              </p>
-            </div>
-          </div>`;
-        const textBody = `${authorName} mentioned you in ${entityLabel}:\n\n"${cleanBody.slice(0, 300)}"\n\nView: ${fullLink}`;
-
-        // Send email — transport auto-detected (Resend > SendGrid > SMTP > console log)
-        const { sendMentionEmail } = await import("../lib/mention-email.js");
-        await sendMentionEmail({
-          to: mentionedUser.email,
-          subject,
-          html: htmlBody,
-          text: textBody,
-        }).catch((err: unknown) => {
-          req.log.warn({ err, to: mentionedUser.email }, "Failed to send mention email (non-fatal)");
-        });
-      }
-    } catch (emailErr) {
-      req.log.warn({ err: emailErr, mentionedUserId }, "Failed to send mention email (non-fatal)");
-    }
-  }
-
-  res.status(201).json(row);
-});
-
-router.delete("/spmo/comments/:id", async (req, res) => {
-  const userId = await requireAuth(req, res);
-  if (!userId) return;
-  const id = parseId(req, res);
-  if (!id) return;
-  const [comment] = await db.select({ authorId: spmoCommentsTable.authorId }).from(spmoCommentsTable).where(eq(spmoCommentsTable.id, id)).limit(1);
-  if (!comment) { res.status(404).json({ error: "Not found" }); return; }
-  const user = getAuthUser(req);
-  if (comment.authorId !== userId && user?.role !== "admin") { res.status(403).json({ error: "Can only delete your own comments" }); return; }
-  await db.delete(spmoCommentsTable).where(eq(spmoCommentsTable.id, id));
-  res.json({ ok: true });
-});
+// COMMENTS & DISCUSSION THREADS — extracted to ./spmo-comments.ts
+registerCommentRoutes(router);
 
 // NOTIFICATIONS (in-app bell icon)
 // ─────────────────────────────────────────────────────────────
@@ -4322,727 +4004,6 @@ router.post("/spmo/admin/send-weekly-report-reminders", async (req, res) => {
     req.log.error({ err }, "Failed to generate weekly report reminders");
     res.status(500).json({ error: "Failed to generate reminders" });
   }
-});
-
-// ─────────────────────────────────────────────────────────────
-// GLOBAL AUTO-WEIGHT (admin only — resets ALL weights across ALL levels)
-// ─────────────────────────────────────────────────────────────
-
-router.post("/spmo/admin/auto-weight-all", async (req, res) => {
-  // Admin only
-  if (!requireAdmin(req, res)) return;
-  const userId = getAuthUser(req)?.id ?? "";
-  const user = getAuthUser(req);
-
-  try {
-    // Step 1: Reset all milestone weights to 0 (triggers effortDays/duration-based auto-weight on next load)
-    await db.update(spmoMilestonesTable).set({ weight: 0, updatedAt: new Date() });
-
-    // Step 2: Reset all project weights to 0 (triggers budget/effort cascade)
-    await db.update(spmoProjectsTable).set({ weight: 0, updatedAt: new Date() });
-
-    // Step 3: Reset all initiative weights to 0 (triggers budget cascade)
-    await db.update(spmoInitiativesTable).set({ weight: 0, updatedAt: new Date() });
-
-    // Step 4: Reset all pillar weights to 0 (triggers equal/budget cascade)
-    await db.update(spmoPillarsTable).set({ weight: 0, updatedAt: new Date() });
-
-    // Step 5: Now auto-compute milestone weights per project using effortDays/duration
-    const allProjects = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable);
-    let milestonesUpdated = 0;
-
-    for (const project of allProjects) {
-      const allMilestones = await db.select().from(spmoMilestonesTable)
-        .where(eq(spmoMilestonesTable.projectId, project.id));
-
-      if (allMilestones.length === 0) continue;
-
-      // Filter out execution_placeholder when custom milestones exist (same logic as GET endpoints)
-      const isExecPlaceholder = (m: typeof allMilestones[0]) =>
-        m.phaseGate === "execution_placeholder" ||
-        (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
-      const customMilestones = allMilestones.filter((m) => !m.phaseGate && !isExecPlaceholder(m));
-      const hasCustom = customMilestones.length > 0;
-      const milestones = hasCustom ? allMilestones.filter((m) => !isExecPlaceholder(m)) : allMilestones;
-
-      // Set hidden placeholder weights to 0 so they don't interfere
-      if (hasCustom) {
-        const hiddenIds = allMilestones.filter((m) => isExecPlaceholder(m)).map((m) => m.id);
-        for (const hId of hiddenIds) {
-          await db.update(spmoMilestonesTable).set({ weight: 0, updatedAt: new Date() }).where(eq(spmoMilestonesTable.id, hId));
-        }
-      }
-
-      if (milestones.length === 0) continue;
-
-      // Weight cascade: effortDays → duration (dueDate - startDate) → equal
-      // Uses largest-remainder method to ensure weights sum to exactly 100
-
-      const computeWeights = (items: { id: number; value: number }[]): Map<number, number> => {
-        const total = items.reduce((s, i) => s + i.value, 0);
-        if (total === 0) {
-          // Equal weight
-          const eqW = Math.floor(100 / items.length);
-          const rem = 100 - eqW * items.length;
-          const result = new Map<number, number>();
-          items.forEach((item, i) => result.set(item.id, i < rem ? eqW + 1 : eqW));
-          return result;
-        }
-        // Largest-remainder method (Hare quota) — guarantees sum = 100
-        const exact = items.map(i => ({ id: i.id, exact: (i.value / total) * 100 }));
-        const floored = exact.map(e => ({ id: e.id, floor: Math.floor(e.exact), rem: e.exact - Math.floor(e.exact) }));
-        let remainder = 100 - floored.reduce((s, e) => s + e.floor, 0);
-        floored.sort((a, b) => b.rem - a.rem);
-        const result = new Map<number, number>();
-        floored.forEach((e, i) => result.set(e.id, e.floor + (i < remainder ? 1 : 0)));
-        return result;
-      };
-
-      let weights: Map<number, number>;
-      const totalEffort = milestones.reduce((s, m) => s + (m.effortDays ?? 0), 0);
-      const allHaveEffort = milestones.every(m => (m.effortDays ?? 0) > 0);
-
-      if (allHaveEffort && totalEffort > 0) {
-        weights = computeWeights(milestones.map(m => ({ id: m.id, value: m.effortDays ?? 0 })));
-      } else {
-        // Try duration from dates
-        const durations = milestones.map(m => {
-          if (m.startDate && m.dueDate) {
-            return { id: m.id, value: Math.max(1, Math.round((new Date(m.dueDate).getTime() - new Date(m.startDate).getTime()) / 86400000)) };
-          }
-          return { id: m.id, value: 0 };
-        });
-        const allHaveDates = durations.every(d => d.value > 0);
-        const totalDuration = durations.reduce((s, d) => s + d.value, 0);
-
-        if (allHaveDates && totalDuration > 0) {
-          weights = computeWeights(durations);
-        } else {
-          // Equal weight — all milestones get same share
-          weights = computeWeights(milestones.map(m => ({ id: m.id, value: 1 })));
-        }
-      }
-
-      // Verify weights sum to 100 — if not, force equal distribution
-      const weightSum = [...weights.values()].reduce((s, w) => s + w, 0);
-      if (Math.abs(weightSum - 100) > 1) {
-        // Force equal distribution as safety net
-        const eqW = Math.floor(100 / milestones.length);
-        const rem = 100 - eqW * milestones.length;
-        weights = new Map();
-        milestones.forEach((m, i) => weights.set(m.id, i < rem ? eqW + 1 : eqW));
-      }
-
-      // Apply weights
-      for (const [msId, weight] of weights) {
-        await db.update(spmoMilestonesTable).set({ weight, updatedAt: new Date() }).where(eq(spmoMilestonesTable.id, msId));
-        milestonesUpdated++;
-      }
-    }
-
-    // Verify all projects have visible milestone weights summing to 100
-    let projectsFixed = 0;
-    const problemProjects: string[] = [];
-    for (const project of allProjects) {
-      const allMs = await db.select({ id: spmoMilestonesTable.id, weight: spmoMilestonesTable.weight, name: spmoMilestonesTable.name, phaseGate: spmoMilestonesTable.phaseGate })
-        .from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, project.id));
-      if (allMs.length === 0) continue;
-      // Apply same execution placeholder filter
-      const isEP = (m: typeof allMs[0]) =>
-        m.phaseGate === "execution_placeholder" ||
-        (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
-      const hasCustomMs = allMs.some((m) => !m.phaseGate && !isEP(m));
-      const ms = hasCustomMs ? allMs.filter((m) => !isEP(m)) : allMs;
-      if (ms.length === 0) continue;
-      const sum = ms.reduce((s, m) => s + (m.weight ?? 0), 0);
-      if (Math.abs(sum - 100) > 1) {
-        // Force equal distribution on visible milestones only
-        const eqW = Math.floor(100 / ms.length);
-        const rem = 100 - eqW * ms.length;
-        for (let i = 0; i < ms.length; i++) {
-          const w = i < rem ? eqW + 1 : eqW;
-          await db.update(spmoMilestonesTable).set({ weight: w, updatedAt: new Date() }).where(eq(spmoMilestonesTable.id, ms[i].id));
-        }
-        projectsFixed++;
-        problemProjects.push(`P${project.id}: was ${sum}%, fixed to 100%`);
-      }
-    }
-
-    // Invalidate overview cache
-    invalidateOverviewCache();
-
-    // Log activity
-    await logSpmoActivity(userId, getUserDisplayName(user), "updated", "programme", 0, "Global Auto-Weight",
-      { action: "auto_weight_all", milestonesUpdated, projectsReset: allProjects.length, projectsFixed });
-
-    res.json({
-      success: true,
-      message: `Auto-weight complete. ${milestonesUpdated} milestones weighted across ${allProjects.length} projects.${projectsFixed > 0 ? ` Fixed ${projectsFixed} projects with incorrect totals.` : " All projects verified at 100%."}`,
-      stats: { milestonesUpdated, projectsReset: allProjects.length, projectsFixed, problemProjects: problemProjects.slice(0, 10) }
-    });
-  } catch (err: any) {
-    req.log?.error?.({ err }, "Global auto-weight failed");
-    res.status(500).json({ error: err.message ?? "Auto-weight failed" });
-  }
-});
-
-// ─────────────────────────────────────────────────────────────
-// GLOBAL SEARCH (Cmd+K — searches projects, milestones, KPIs, risks, documents)
-// ─────────────────────────────────────────────────────────────
-
-router.get("/spmo/search", async (req, res) => {
-  const userId = await requireAuth(req, res);
-  if (!userId) return;
-
-  const q = ((req.query.q as string) || "").trim();
-  if (q.length < 2) { res.json({ results: [] }); return; }
-
-  // Single SQL query using UNION ALL with ILIKE (was: 5 full table scans + JS filtering)
-  const pattern = `%${q}%`;
-  const searchResults = await db.execute(sql`
-    (SELECT 'project' as type, id, name as title, COALESCE(project_code || ' · ' || COALESCE(owner_name, ''), '') as subtitle, '/projects/' || id as link FROM spmo_projects WHERE name ILIKE ${pattern} OR project_code ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
-    UNION ALL
-    (SELECT 'milestone', id, name, 'Milestone', '/projects/' || project_id || '?tab=milestones' FROM spmo_milestones WHERE name ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
-    UNION ALL
-    (SELECT 'kpi', id, name, type || ' KPI', '/kpis' FROM spmo_kpis WHERE name ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
-    UNION ALL
-    (SELECT 'risk', id, title, 'Risk', CASE WHEN project_id IS NOT NULL THEN '/projects/' || project_id || '?tab=risks' ELSE '/risks' END FROM spmo_risks WHERE title ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
-    UNION ALL
-    (SELECT 'initiative', id, name, 'Initiative ' || COALESCE(initiative_code, ''), '/initiatives' FROM spmo_initiatives WHERE name ILIKE ${pattern} OR initiative_code ILIKE ${pattern} OR description ILIKE ${pattern} LIMIT 5)
-  `);
-
-  const results = (searchResults.rows as { type: string; id: number; title: string; subtitle: string; link: string }[]).slice(0, 20);
-  res.json({ results });
-});
-
-// ─────────────────────────────────────────────────────────────
-// USER SEARCH (for @ tagging in action items — any authenticated user)
-// ─────────────────────────────────────────────────────────────
-
-router.get("/spmo/users/search", async (req, res) => {
-  const userId = await requireAuth(req, res);
-  if (!userId) return;
-
-  const q = ((req.query.q as string) || "").trim().toLowerCase();
-  const allUsers = await db.select({
-    id: usersTable.id,
-    email: usersTable.email,
-    firstName: usersTable.firstName,
-    lastName: usersTable.lastName,
-    role: usersTable.role,
-  }).from(usersTable);
-
-  const filtered = q
-    ? allUsers.filter(u => {
-        const name = `${u.firstName ?? ""} ${u.lastName ?? ""}`.toLowerCase();
-        const email = (u.email ?? "").toLowerCase();
-        return name.includes(q) || email.includes(q);
-      })
-    : allUsers;
-
-  res.json({ users: filtered.slice(0, 20) });
-});
-
-// ─────────────────────────────────────────────────────────────
-// ADMIN: DIAGNOSTICS
-// ─────────────────────────────────────────────────────────────
-
-const SERVER_START_TIME = Date.now();
-
-router.get("/spmo/admin/diagnostics", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
-  try {
-    // DB connectivity
-    let dbStatus = "healthy";
-    let dbLatencyMs = 0;
-    try {
-      const t0 = Date.now();
-      await db.execute(sql`SELECT 1`);
-      dbLatencyMs = Date.now() - t0;
-    } catch {
-      dbStatus = "unreachable";
-    }
-
-    // Table row counts
-    const counts = await db.execute(sql`
-      SELECT
-        (SELECT count(*)::int FROM spmo_pillars) AS pillars,
-        (SELECT count(*)::int FROM spmo_initiatives) AS initiatives,
-        (SELECT count(*)::int FROM spmo_projects) AS projects,
-        (SELECT count(*)::int FROM spmo_milestones) AS milestones,
-        (SELECT count(*)::int FROM spmo_kpis) AS kpis,
-        (SELECT count(*)::int FROM spmo_risks) AS risks,
-        (SELECT count(*)::int FROM spmo_budget_entries) AS budget_entries,
-        (SELECT count(*)::int FROM spmo_activity_log) AS activity_log,
-        (SELECT count(*)::int FROM users) AS users
-    `);
-    const tableCounts = counts.rows[0] as Record<string, number>;
-
-    // Programme config
-    const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
-    const lastAiAssessmentAt = cfg?.lastAiAssessmentAt ?? null;
-
-    // Memory usage
-    const mem = process.memoryUsage();
-
-    // Uptime
-    const uptimeMs = Date.now() - SERVER_START_TIME;
-    const uptimeDays = Math.floor(uptimeMs / 86_400_000);
-    const uptimeHours = Math.floor((uptimeMs % 86_400_000) / 3_600_000);
-    const uptimeMins = Math.floor((uptimeMs % 3_600_000) / 60_000);
-
-    res.json({
-      appVersion: "1.1.0",
-      nodeVersion: process.version,
-      environment: process.env.NODE_ENV ?? "development",
-      database: {
-        status: dbStatus,
-        latencyMs: dbLatencyMs,
-      },
-      tableCounts,
-      config: {
-        programmeName: cfg?.programmeName ?? null,
-        weeklyResetDay: cfg?.weeklyResetDay ?? null,
-        riskAlertThreshold: cfg?.riskAlertThreshold ?? null,
-        reminderDaysAhead: cfg?.reminderDaysAhead ?? null,
-        lastAiAssessmentAt,
-      },
-      memory: {
-        rss: `${Math.round(mem.rss / 1_048_576)}MB`,
-        heapUsed: `${Math.round(mem.heapUsed / 1_048_576)}MB`,
-        heapTotal: `${Math.round(mem.heapTotal / 1_048_576)}MB`,
-        external: `${Math.round(mem.external / 1_048_576)}MB`,
-      },
-      uptime: {
-        formatted: `${uptimeDays}d ${uptimeHours}h ${uptimeMins}m`,
-        ms: uptimeMs,
-      },
-      serverTime: new Date().toISOString(),
-    });
-  } catch (err) {
-    req.log.error({ err }, "Diagnostics failed");
-    res.status(500).json({ error: "Diagnostics check failed" });
-  }
-});
-
-// ─────────────────────────────────────────────────────────────
-// ADMIN: USER MANAGEMENT
-// ─────────────────────────────────────────────────────────────
-
-router.get("/spmo/admin/users", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
-  const users = await db
-    .select({
-      id: usersTable.id,
-      email: usersTable.email,
-      firstName: usersTable.firstName,
-      lastName: usersTable.lastName,
-      role: usersTable.role,
-      blocked: usersTable.blocked,
-      blockedAt: usersTable.blockedAt,
-      blockedBy: usersTable.blockedBy,
-      blockedReason: usersTable.blockedReason,
-      createdAt: usersTable.createdAt,
-    })
-    .from(usersTable)
-    .orderBy(asc(usersTable.createdAt));
-
-  res.json({ users });
-});
-
-// GET /spmo/admin/users-access — All users with their project access grants
-router.get("/spmo/admin/users-access", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
-  const users = await db.select({
-    id: usersTable.id,
-    email: usersTable.email,
-    firstName: usersTable.firstName,
-    lastName: usersTable.lastName,
-    role: usersTable.role,
-  }).from(usersTable).orderBy(asc(usersTable.createdAt));
-
-  const grants = await db.select().from(spmoProjectAccessTable);
-  const projects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name, projectCode: spmoProjectsTable.projectCode, ownerId: spmoProjectsTable.ownerId }).from(spmoProjectsTable);
-  const projectMap = new Map(projects.map((p) => [p.id, p]));
-
-  const result = users.map((u) => {
-    const userGrants = grants.filter((g) => g.userId === u.id);
-    const ownedProjects = projects.filter((p) => p.ownerId === u.id);
-    return {
-      ...u,
-      ownedProjects: ownedProjects.map((p) => ({ id: p.id, name: p.name, projectCode: p.projectCode })),
-      accessGrants: userGrants.map((g) => {
-        const proj = projectMap.get(g.projectId);
-        return {
-          projectId: g.projectId,
-          projectName: proj?.name ?? "Unknown",
-          projectCode: proj?.projectCode ?? null,
-          canEditDetails: g.canEditDetails,
-          canManageMilestones: g.canManageMilestones,
-          canSubmitReports: g.canSubmitReports,
-          canManageRisks: g.canManageRisks,
-          canManageBudget: g.canManageBudget,
-          canManageDocuments: g.canManageDocuments,
-          canManageActions: g.canManageActions,
-          canManageRaci: g.canManageRaci,
-          canSubmitChangeRequests: g.canSubmitChangeRequests,
-        };
-      }),
-    };
-  });
-
-  res.json({ users: result });
-});
-
-router.put("/spmo/admin/users/:userId/role", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
-  const parsedParams = UpdateSpmoUserRoleParams.safeParse(req.params);
-  if (!parsedParams.success) { res.status(400).json({ error: "Invalid user id" }); return; }
-  const { userId } = parsedParams.data;
-
-  const parsedBody = UpdateSpmoUserRoleBody.safeParse(req.body);
-  if (!parsedBody.success) { res.status(400).json({ error: parsedBody.error }); return; }
-  const { role } = parsedBody.data;
-
-  const currentAdmin = getAuthUser(req);
-  if (currentAdmin?.id === userId && role !== "admin") {
-    res.status(400).json({ error: "You cannot demote yourself from admin" });
-    return;
-  }
-
-  const [updated] = await db
-    .update(usersTable)
-    .set({ role, updatedAt: new Date() })
-    .where(eq(usersTable.id, userId))
-    .returning();
-
-  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
-
-  res.json({ id: updated.id, email: updated.email, firstName: updated.firstName, lastName: updated.lastName, role: updated.role });
-});
-
-// Block user (admin only)
-router.post("/spmo/admin/users/:userId/block", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
-  const userId = req.params.userId;
-  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
-
-  const currentAdmin = getAuthUser(req);
-  if (currentAdmin?.id === userId) {
-    res.status(400).json({ error: "You cannot block yourself" });
-    return;
-  }
-
-  const reason = typeof req.body?.reason === "string" ? req.body.reason : null;
-
-  const [updated] = await db
-    .update(usersTable)
-    .set({
-      blocked: true,
-      blockedAt: new Date(),
-      blockedBy: currentAdmin?.id ?? null,
-      blockedReason: reason,
-      updatedAt: new Date(),
-    })
-    .where(eq(usersTable.id, userId))
-    .returning();
-
-  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
-
-  res.json({ success: true, id: updated.id, blocked: true });
-});
-
-// Unblock user (admin only)
-router.post("/spmo/admin/users/:userId/unblock", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
-  const userId = req.params.userId;
-  if (!userId) { res.status(400).json({ error: "Invalid user id" }); return; }
-
-  const [updated] = await db
-    .update(usersTable)
-    .set({
-      blocked: false,
-      blockedAt: null,
-      blockedBy: null,
-      blockedReason: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(usersTable.id, userId))
-    .returning();
-
-  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
-
-  res.json({ success: true, id: updated.id, blocked: false });
-});
-
-// ─────────────────────────────────────────────────────────────
-// KPI MEASUREMENTS
-// ─────────────────────────────────────────────────────────────
-
-router.get("/spmo/kpis/:id/measurements", async (req, res) => {
-  const userId = await requireAuth(req, res);
-  if (!userId) return;
-  const kpiId = parseId(req, res);
-  if (!kpiId) return;
-  const rows = await db.select().from(spmoKpiMeasurementsTable).where(eq(spmoKpiMeasurementsTable.kpiId, kpiId)).orderBy(desc(spmoKpiMeasurementsTable.measuredAt));
-  res.json({ measurements: rows });
-});
-
-router.post("/spmo/kpis/:id/measurements", async (req, res) => {
-  const userId = await requireRole(req, res, "admin", "project-manager");
-  if (!userId) return;
-  const kpiId = parseId(req, res);
-  if (!kpiId) return;
-  const user = getAuthUser(req);
-  const body = z.object({
-    measuredAt: z.string(),
-    value: z.number(),
-    notes: z.string().optional(),
-  }).safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: body.error }); return; }
-  const [row] = await db.insert(spmoKpiMeasurementsTable).values({
-    kpiId,
-    measuredAt: body.data.measuredAt,
-    value: body.data.value,
-    notes: body.data.notes,
-    recordedById: userId,
-    recordedByName: getUserDisplayName(user) ?? undefined,
-  }).returning();
-  const measureYear = new Date(body.data.measuredAt).getFullYear();
-  const yearField: Record<string, unknown> = {};
-  if (measureYear === 2026) yearField.actual2026 = body.data.value;
-  else if (measureYear === 2027) yearField.actual2027 = body.data.value;
-  else if (measureYear === 2028) yearField.actual2028 = body.data.value;
-  else if (measureYear === 2029) yearField.actual2029 = body.data.value;
-  await db.update(spmoKpisTable).set({ prevActual: spmoKpisTable.actual, prevActualDt: new Date().toISOString().split("T")[0], actual: body.data.value, ...yearField, updatedAt: new Date() }).where(eq(spmoKpisTable.id, kpiId));
-  res.status(201).json(row);
-});
-
-router.delete("/spmo/kpis/:kpiId/measurements/:id", async (req, res) => {
-  const userId = await requireRole(req, res, "admin", "project-manager");
-  if (!userId) return;
-  const id = parseId(req, res);
-  if (!id) return;
-  const [row] = await db.delete(spmoKpiMeasurementsTable).where(eq(spmoKpiMeasurementsTable.id, id)).returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
-  res.json({ success: true });
-});
-
-// ─────────────────────────────────────────────────────────────
-// KPI EVIDENCE
-// ─────────────────────────────────────────────────────────────
-
-// Upload KPI evidence
-router.post("/spmo/kpis/:id/evidence", async (req, res) => {
-  const userId = await requireAuth(req, res);
-  if (!userId) return;
-  const kpiId = parseId(req, res);
-  if (!kpiId) return;
-  const user = getAuthUser(req);
-
-  // Validate KPI exists
-  const [kpi] = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.id, kpiId)).limit(1);
-  if (!kpi) { res.status(404).json({ error: "KPI not found" }); return; }
-
-  // Check: user must be KPI owner or admin
-  if (kpi.ownerId !== userId && user?.role !== "admin") {
-    res.status(403).json({ error: "Only the KPI owner or an admin can upload evidence" });
-    return;
-  }
-
-  const body = z.object({
-    fileName: z.string().min(1),
-    contentType: z.string().optional(),
-    objectPath: z.string().min(1),
-    description: z.string().optional(),
-    aiScore: z.number().optional(),
-  }).safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: body.error }); return; }
-
-  const [row] = await db.insert(spmoKpiEvidenceTable).values({
-    kpiId,
-    fileName: body.data.fileName,
-    contentType: body.data.contentType,
-    objectPath: body.data.objectPath,
-    description: body.data.description,
-    uploadedById: userId,
-    uploadedByName: getUserDisplayName(user) ?? undefined,
-    aiScore: body.data.aiScore,
-  }).returning();
-
-  // Update KPI evidenceStatus to submitted
-  await db.update(spmoKpisTable).set({
-    evidenceStatus: "submitted",
-    evidenceSubmittedAt: new Date(),
-    updatedAt: new Date(),
-  }).where(eq(spmoKpisTable.id, kpiId));
-
-  // Create notification for all admins
-  const admins = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.role, "admin"));
-  for (const admin of admins) {
-    await db.insert(spmoNotificationsTable).values({
-      userId: admin.id,
-      type: "alert",
-      title: `KPI evidence submitted for "${kpi.name}"`,
-      body: `${getUserDisplayName(user) ?? "A user"} uploaded evidence for KPI "${kpi.name}".`,
-      link: `/kpis`,
-      entityType: "kpi",
-      entityId: kpiId,
-    });
-  }
-
-  await logSpmoActivity(userId, getUserDisplayName(user), "uploaded_evidence", "kpi", kpiId, kpi.name, { fileName: body.data.fileName });
-
-  res.status(201).json(row);
-});
-
-// List KPI evidence
-router.get("/spmo/kpis/:id/evidence", async (req, res) => {
-  const userId = await requireAuth(req, res);
-  if (!userId) return;
-  const kpiId = parseId(req, res);
-  if (!kpiId) return;
-
-  const rows = await db.select().from(spmoKpiEvidenceTable).where(eq(spmoKpiEvidenceTable.kpiId, kpiId)).orderBy(desc(spmoKpiEvidenceTable.createdAt));
-  res.json({ evidence: rows });
-});
-
-// Approve KPI evidence
-router.post("/spmo/kpis/:id/evidence/approve", async (req, res) => {
-  const userId = await requireRole(req, res, "admin", "approver");
-  if (!userId) return;
-  const kpiId = parseId(req, res);
-  if (!kpiId) return;
-  const user = getAuthUser(req);
-
-  const [kpi] = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.id, kpiId)).limit(1);
-  if (!kpi) { res.status(404).json({ error: "KPI not found" }); return; }
-
-  await db.update(spmoKpisTable).set({
-    evidenceStatus: "approved",
-    evidenceReviewedAt: new Date(),
-    evidenceReviewedBy: getUserDisplayName(user),
-    updatedAt: new Date(),
-  }).where(eq(spmoKpisTable.id, kpiId));
-
-  // Notify KPI owner
-  if (kpi.ownerId) {
-    await db.insert(spmoNotificationsTable).values({
-      userId: kpi.ownerId,
-      type: "approval",
-      title: "Your KPI evidence was approved",
-      body: `Evidence for KPI "${kpi.name}" has been approved by ${getUserDisplayName(user) ?? "an admin"}.`,
-      link: `/kpis`,
-      entityType: "kpi",
-      entityId: kpiId,
-    });
-  }
-
-  await logSpmoActivity(userId, getUserDisplayName(user), "approved", "kpi", kpiId, kpi.name);
-
-  res.json({ success: true });
-});
-
-// Reject KPI evidence
-router.post("/spmo/kpis/:id/evidence/reject", async (req, res) => {
-  const userId = await requireRole(req, res, "admin", "approver");
-  if (!userId) return;
-  const kpiId = parseId(req, res);
-  if (!kpiId) return;
-  const user = getAuthUser(req);
-
-  const body = z.object({
-    reason: z.string().min(1, "Rejection reason is required"),
-  }).safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: body.error }); return; }
-
-  const [kpi] = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.id, kpiId)).limit(1);
-  if (!kpi) { res.status(404).json({ error: "KPI not found" }); return; }
-
-  await db.update(spmoKpisTable).set({
-    evidenceStatus: "rejected",
-    evidenceReviewedAt: new Date(),
-    evidenceReviewedBy: getUserDisplayName(user),
-    evidenceRejectionReason: body.data.reason,
-    updatedAt: new Date(),
-  }).where(eq(spmoKpisTable.id, kpiId));
-
-  // Notify KPI owner
-  if (kpi.ownerId) {
-    await db.insert(spmoNotificationsTable).values({
-      userId: kpi.ownerId,
-      type: "alert",
-      title: "Your KPI evidence was rejected",
-      body: `Evidence for KPI "${kpi.name}" was rejected: ${body.data.reason}`,
-      link: `/kpis`,
-      entityType: "kpi",
-      entityId: kpiId,
-    });
-
-    // Send email to KPI owner
-    try {
-      const [ownerUser] = await db.select({ email: usersTable.email, firstName: usersTable.firstName }).from(usersTable).where(eq(usersTable.id, kpi.ownerId)).limit(1);
-      if (ownerUser?.email) {
-        const { sendMentionEmail } = await import("../lib/mention-email.js");
-        await sendMentionEmail({
-          to: ownerUser.email,
-          subject: `KPI Evidence Rejected: ${kpi.name}`,
-          text: `Your evidence for KPI "${kpi.name}" was rejected by ${getUserDisplayName(user) ?? "an admin"}.\n\nReason: ${body.data.reason}\n\nPlease review and resubmit.`,
-          html: `<p>Your evidence for KPI "<strong>${kpi.name}</strong>" was rejected by ${getUserDisplayName(user) ?? "an admin"}.</p><p><strong>Reason:</strong> ${body.data.reason}</p><p>Please review and resubmit.</p>`,
-        });
-      }
-    } catch (emailErr) {
-      req.log?.warn?.({ err: emailErr }, "Failed to send KPI evidence rejection email");
-    }
-  }
-
-  await logSpmoActivity(userId, getUserDisplayName(user), "rejected", "kpi", kpiId, kpi.name, { reason: body.data.reason });
-
-  res.json({ success: true });
-});
-
-// Assign KPI owner
-router.put("/spmo/kpis/:id/owner", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-  const kpiId = parseId(req, res);
-  if (!kpiId) return;
-  const user = getAuthUser(req);
-
-  const body = z.object({
-    ownerId: z.string().min(1),
-    ownerName: z.string().optional(),
-  }).safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: body.error }); return; }
-
-  const [kpi] = await db.select().from(spmoKpisTable).where(eq(spmoKpisTable.id, kpiId)).limit(1);
-  if (!kpi) { res.status(404).json({ error: "KPI not found" }); return; }
-
-  await db.update(spmoKpisTable).set({
-    ownerId: body.data.ownerId,
-    ownerName: body.data.ownerName,
-    updatedAt: new Date(),
-  }).where(eq(spmoKpisTable.id, kpiId));
-
-  // Notify new owner
-  await db.insert(spmoNotificationsTable).values({
-    userId: body.data.ownerId,
-    type: "assignment",
-    title: `You've been assigned as owner of KPI "${kpi.name}"`,
-    body: `${getUserDisplayName(user) ?? "An admin"} assigned you as the owner of KPI "${kpi.name}".`,
-    link: `/kpis`,
-    entityType: "kpi",
-    entityId: kpiId,
-  });
-
-  await logSpmoActivity(user?.id ?? "system", getUserDisplayName(user), "updated", "kpi", kpiId, kpi.name, { action: "owner_assigned", newOwnerId: body.data.ownerId, newOwnerName: body.data.ownerName });
-
-  res.json({ success: true });
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -5409,155 +4370,7 @@ router.get("/spmo/dashboard/department-status", async (req, res) => {
   res.json(result.filter((d) => d.totalProjects > 0));
 });
 
-// ─────────────────────────────────────────────────────────────
-// PROJECT ACCESS GRANTS (admin-managed per-project edit rights)
-// ─────────────────────────────────────────────────────────────
-
-const PermissionsSchema = z.object({
-  canEditDetails:          z.boolean().optional(),
-  canManageMilestones:     z.boolean().optional(),
-  canSubmitReports:        z.boolean().optional(),
-  canManageRisks:          z.boolean().optional(),
-  canManageBudget:         z.boolean().optional(),
-  canManageDocuments:      z.boolean().optional(),
-  canManageActions:        z.boolean().optional(),
-  canManageRaci:           z.boolean().optional(),
-  canSubmitChangeRequests: z.boolean().optional(),
-});
-
-/** GET /spmo/my-project-access — list all projects + per-project permissions for the current user */
-router.get("/spmo/my-project-access", async (req, res) => {
-  const userId = await requireAuth(req, res);
-  if (!userId) return;
-  const user = getAuthUser(req);
-  if (user?.role === "admin") {
-    res.json({ admin: true, grants: [] });
-    return;
-  }
-  const grants = await db
-    .select({
-      projectId:               spmoProjectAccessTable.projectId,
-      canEditDetails:          spmoProjectAccessTable.canEditDetails,
-      canManageMilestones:     spmoProjectAccessTable.canManageMilestones,
-      canSubmitReports:        spmoProjectAccessTable.canSubmitReports,
-      canManageRisks:          spmoProjectAccessTable.canManageRisks,
-      canManageBudget:         spmoProjectAccessTable.canManageBudget,
-      canManageDocuments:      spmoProjectAccessTable.canManageDocuments,
-      canManageActions:        spmoProjectAccessTable.canManageActions,
-      canManageRaci:           spmoProjectAccessTable.canManageRaci,
-      canSubmitChangeRequests: spmoProjectAccessTable.canSubmitChangeRequests,
-    })
-    .from(spmoProjectAccessTable)
-    .where(eq(spmoProjectAccessTable.userId, userId));
-  res.json({ admin: false, grants });
-});
-
-/** GET /spmo/projects/:id/access — list users + permissions for a project (admin only) */
-router.get("/spmo/projects/:id/access", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-  const projectId = parseId(req, res);
-  if (!projectId) return;
-  const grants = await db
-    .select()
-    .from(spmoProjectAccessTable)
-    .where(eq(spmoProjectAccessTable.projectId, projectId))
-    .orderBy(asc(spmoProjectAccessTable.grantedAt));
-  res.json({ grants });
-});
-
-const GrantAccessBody = z.object({
-  userId: z.string().min(1),
-  userName: z.string().optional(),
-  userEmail: z.string().optional(),
-}).merge(PermissionsSchema);
-
-/** POST /spmo/projects/:id/access — grant a user edit rights with specific permissions (admin only) */
-router.post("/spmo/projects/:id/access", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-  const projectId = parseId(req, res);
-  if (!projectId) return;
-  const parsed = GrantAccessBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-
-  const admin = getAuthUser(req);
-  const adminName = getUserDisplayName(admin);
-
-  const [project] = await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, projectId)).limit(1);
-  if (!project) { res.status(404).json({ error: "Project not found" }); return; }
-
-  const { userId: targetUserId, userName, userEmail, ...perms } = parsed.data;
-
-  const [grant] = await db
-    .insert(spmoProjectAccessTable)
-    .values({
-      projectId,
-      userId: targetUserId,
-      userName: userName ?? null,
-      userEmail: userEmail ?? null,
-      grantedById: admin!.id,
-      grantedByName: adminName,
-      ...perms,
-    })
-    .onConflictDoUpdate({
-      target: [spmoProjectAccessTable.projectId, spmoProjectAccessTable.userId],
-      set: {
-        userName: userName ?? null,
-        userEmail: userEmail ?? null,
-        grantedById: admin!.id,
-        grantedByName: adminName,
-        grantedAt: new Date(),
-        ...perms,
-      },
-    })
-    .returning();
-
-  res.status(201).json(grant);
-});
-
-/** PATCH /spmo/projects/:id/access/:userId — update permission flags for an existing grant (admin only) */
-router.patch("/spmo/projects/:id/access/:userId", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-  const projectId = parseId(req, res);
-  if (!projectId) return;
-  const { userId: targetUserId } = req.params;
-  if (!targetUserId) { res.status(400).json({ error: "Missing userId" }); return; }
-
-  const parsed = PermissionsSchema.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-
-  // Filter out undefined values — only update what was sent
-  const updates: Record<string, boolean> = {};
-  for (const [k, v] of Object.entries(parsed.data)) {
-    if (v !== undefined) updates[k] = v;
-  }
-  if (Object.keys(updates).length === 0) {
-    res.status(400).json({ error: "No permission fields provided" });
-    return;
-  }
-
-  const [grant] = await db
-    .update(spmoProjectAccessTable)
-    .set(updates)
-    .where(and(eq(spmoProjectAccessTable.projectId, projectId), eq(spmoProjectAccessTable.userId, targetUserId)))
-    .returning();
-
-  if (!grant) { res.status(404).json({ error: "Grant not found" }); return; }
-  res.json(grant);
-});
-
-/** DELETE /spmo/projects/:id/access/:userId — revoke edit rights from a user (admin only) */
-router.delete("/spmo/projects/:id/access/:userId", async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-  const projectId = parseId(req, res);
-  if (!projectId) return;
-  const { userId: targetUserId } = req.params;
-  if (!targetUserId) { res.status(400).json({ error: "Missing userId" }); return; }
-
-  await db
-    .delete(spmoProjectAccessTable)
-    .where(and(eq(spmoProjectAccessTable.projectId, projectId), eq(spmoProjectAccessTable.userId, targetUserId)));
-
-  res.json({ ok: true });
-});
+// Register admin utility routes (auto-weight, search, diagnostics, user management, project access grants)
+registerAdminRoutes(router);
 
 export default router;

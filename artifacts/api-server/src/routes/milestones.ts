@@ -147,7 +147,7 @@ router.post("/initiatives/:id/milestones", async (req, res) => {
       .values({
         ...parsed.data,
         initiativeId,
-        weight: String(parsed.data.weight),
+        weight: Number(parsed.data.weight),
       })
       .returning();
 
@@ -292,7 +292,7 @@ router.post("/milestones/:id/submit", async (req, res) => {
   }
 
   // Guard: milestone must be at 100% progress before submitting
-  if ((milestone.progress ?? 0) < 100) {
+  if (((milestone as any).progress ?? 0) < 100) {
     res.status(400).json({ error: "Milestone progress must be 100% before submitting for approval" });
     return;
   }

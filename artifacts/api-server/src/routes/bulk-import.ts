@@ -259,7 +259,7 @@ router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res
   const today = new Date().toISOString().split("T")[0];
 
   try {
-    await db.transaction(async (tx: typeof db) => {
+    await db.transaction(async (tx: any) => {
       // ── Replace mode: truncate all SPMO tables ──
       if (mode === "replace") {
         await tx.delete(spmoKpiMeasurementsTable);

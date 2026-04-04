@@ -66,7 +66,7 @@ async function projectProgress(projectId: number): Promise<{
   // Exclude execution placeholder when custom (non-phase-gate) milestones exist
   // Also detect old-format placeholders: phaseGate=null + name starts with "Execution"
   const isExecPlaceholder = (m: typeof allMilestones[0]) =>
-    m.phaseGate === "execution_placeholder" ||
+    (m.phaseGate as string) === "execution_placeholder" ||
     (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
   const nonPlaceholderCustom = allMilestones.filter((m) => !m.phaseGate && !isExecPlaceholder(m));
   const hasCustom = nonPlaceholderCustom.length > 0;
@@ -112,6 +112,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
   totalMilestones: number;
   budgetSpent: number;
   childProjects: ChildProjectSummary[];
+  weightSource: "admin" | "budget" | "effort" | "equal";
 }> {
   const projects = await db
     .select()
@@ -119,7 +120,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
     .where(eq(spmoProjectsTable.initiativeId, initiativeId));
 
   if (projects.length === 0) {
-    return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [] };
+    return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [], weightSource: "equal" as const };
   }
 
   // ── Weight cascade (highest priority first) ──────────────────

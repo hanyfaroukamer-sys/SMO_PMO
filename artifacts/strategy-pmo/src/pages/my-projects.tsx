@@ -87,7 +87,7 @@ export default function MyProjects() {
   const { data: authData } = useGetCurrentAuthUser();
   const { data: projectsData, isLoading } = useListSpmoProjects();
   const { data: configData } = useGetSpmoConfig();
-  const currency = (configData as any)?.reportingCurrency ?? "SAR";
+  const currency = configData?.reportingCurrency ?? "SAR";
   const fmtCurrency = (n: number) => fmtCurrencyWithCode(n, currency);
 
   const userId = authData?.user?.id;

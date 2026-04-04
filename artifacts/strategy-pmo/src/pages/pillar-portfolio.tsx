@@ -173,7 +173,7 @@ export default function PillarPortfolio({ params }: Props) {
 
   const { data, isLoading, isError } = useGetSpmaPillarPortfolio(pillarId);
   const { data: configData } = useGetSpmoConfig();
-  const currency = (configData as any)?.reportingCurrency ?? "SAR";
+  const currency = configData?.reportingCurrency ?? "SAR";
   const fmtCurrency = (n: number) => fmtCurrencyWithCode(n, currency);
 
   function toggleInitiative(id: number) {
