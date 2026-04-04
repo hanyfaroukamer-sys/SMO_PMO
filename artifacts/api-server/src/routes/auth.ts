@@ -162,6 +162,41 @@ router.get("/login", async (req: Request, res: Response) => {
   res.redirect(redirectTo.href);
 });
 
+router.get("/signup", async (req: Request, res: Response) => {
+  const config = await getOidcConfig();
+  const callbackUrl = `${getOrigin(req)}/api/callback`;
+  const returnTo = getSafeReturnTo(req.query.returnTo);
+
+  const state = oidc.randomState();
+  const nonce = oidc.randomNonce();
+  const codeVerifier = oidc.randomPKCECodeVerifier();
+  const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
+
+  if (oidcStateStore.size >= 1000) {
+    res.status(503).json({ error: "Too many pending logins, try again" });
+    return;
+  }
+
+  oidcStateStore.set(state, {
+    nonce,
+    codeVerifier,
+    returnTo,
+    expiresAt: Date.now() + OIDC_TTL_MS,
+  });
+
+  const redirectTo = oidc.buildAuthorizationUrl(config, {
+    redirect_uri: callbackUrl,
+    scope: "openid email profile offline_access",
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
+    prompt: "create consent",
+    state,
+    nonce,
+  });
+
+  res.redirect(redirectTo.href);
+});
+
 router.get("/callback", async (req: Request, res: Response) => {
   const config = await getOidcConfig();
   const callbackUrl = `${getOrigin(req)}/api/callback`;
