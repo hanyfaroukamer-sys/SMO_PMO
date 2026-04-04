@@ -68,6 +68,17 @@ function extractFetchUrls(dir: string): { file: string; line: number; url: strin
             method: "GET",
           });
         }
+
+        // Match URL variable declarations like: const loginUrl = `/api/login...`
+        const urlVarMatch = line.match(/(?:const|let|var)\s+\w+(?:Url|URL|Link|Href)\s*=\s*["'`](\/?api\/[^"'`$\s]+)/);
+        if (urlVarMatch) {
+          results.push({
+            file: path.relative(FRONTEND_DIR, full),
+            line: idx + 1,
+            url: urlVarMatch[1].replace(/\$\{[^}]+\}/g, ":param"),
+            method: "GET",
+          });
+        }
       });
     }
   }
