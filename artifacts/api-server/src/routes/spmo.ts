@@ -4352,8 +4352,26 @@ router.post("/spmo/admin/auto-weight-all", async (req, res) => {
     let milestonesUpdated = 0;
 
     for (const project of allProjects) {
-      const milestones = await db.select().from(spmoMilestonesTable)
+      const allMilestones = await db.select().from(spmoMilestonesTable)
         .where(eq(spmoMilestonesTable.projectId, project.id));
+
+      if (allMilestones.length === 0) continue;
+
+      // Filter out execution_placeholder when custom milestones exist (same logic as GET endpoints)
+      const isExecPlaceholder = (m: typeof allMilestones[0]) =>
+        m.phaseGate === "execution_placeholder" ||
+        (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
+      const customMilestones = allMilestones.filter((m) => !m.phaseGate && !isExecPlaceholder(m));
+      const hasCustom = customMilestones.length > 0;
+      const milestones = hasCustom ? allMilestones.filter((m) => !isExecPlaceholder(m)) : allMilestones;
+
+      // Set hidden placeholder weights to 0 so they don't interfere
+      if (hasCustom) {
+        const hiddenIds = allMilestones.filter((m) => isExecPlaceholder(m)).map((m) => m.id);
+        for (const hId of hiddenIds) {
+          await db.update(spmoMilestonesTable).set({ weight: 0, updatedAt: new Date() }).where(eq(spmoMilestonesTable.id, hId));
+        }
+      }
 
       if (milestones.length === 0) continue;
 
@@ -4422,16 +4440,23 @@ router.post("/spmo/admin/auto-weight-all", async (req, res) => {
       }
     }
 
-    // Verify all projects have weights summing to 100
+    // Verify all projects have visible milestone weights summing to 100
     let projectsFixed = 0;
     const problemProjects: string[] = [];
     for (const project of allProjects) {
-      const ms = await db.select({ id: spmoMilestonesTable.id, weight: spmoMilestonesTable.weight, name: spmoMilestonesTable.name })
+      const allMs = await db.select({ id: spmoMilestonesTable.id, weight: spmoMilestonesTable.weight, name: spmoMilestonesTable.name, phaseGate: spmoMilestonesTable.phaseGate })
         .from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, project.id));
+      if (allMs.length === 0) continue;
+      // Apply same execution placeholder filter
+      const isEP = (m: typeof allMs[0]) =>
+        m.phaseGate === "execution_placeholder" ||
+        (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
+      const hasCustomMs = allMs.some((m) => !m.phaseGate && !isEP(m));
+      const ms = hasCustomMs ? allMs.filter((m) => !isEP(m)) : allMs;
       if (ms.length === 0) continue;
       const sum = ms.reduce((s, m) => s + (m.weight ?? 0), 0);
       if (Math.abs(sum - 100) > 1) {
-        // Force equal distribution
+        // Force equal distribution on visible milestones only
         const eqW = Math.floor(100 / ms.length);
         const rem = 100 - eqW * ms.length;
         for (let i = 0; i < ms.length; i++) {
