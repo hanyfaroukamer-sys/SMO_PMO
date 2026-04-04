@@ -327,12 +327,13 @@ export default function Pillars() {
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={`Weight: ${form.weight}%`}>
+            <FormField label="Weight (%)">
               <input
-                type="range"
+                type="number"
                 min="0"
                 max="100"
-                className="w-full accent-primary mt-2"
+                step="1"
+                className={inputClass}
                 value={form.weight}
                 onChange={(e) => setForm({ ...form, weight: e.target.value })}
               />
