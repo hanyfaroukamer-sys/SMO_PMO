@@ -65,11 +65,17 @@ export default function Pillars() {
       name: pillar.name,
       description: pillar.description ?? "",
       pillarType: (pt === "enabler" ? "enabler" : "pillar"),
-      weight: String(pillar.weight),
+      weight: String(pillar.weight ?? 0),
       color: pillar.color ?? COLORS[0],
       sortOrder: String(pillar.sortOrder ?? 0),
     });
-    setSiblingWeightEdits({});
+    // Pre-populate sibling weights with stored weight
+    const siblings = (data?.pillars ?? []).filter(p => p.id !== pillar.id);
+    const edits: Record<number, string> = {};
+    for (const s of siblings) {
+      edits[s.id] = String(s.weight ?? 0);
+    }
+    setSiblingWeightEdits(edits);
     setModalOpen(true);
   }
 
@@ -147,7 +153,11 @@ export default function Pillars() {
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const siblingPillars = (data?.pillars ?? []).filter(p => p.id !== editId);
-  const siblingPillarWeight = siblingPillars.reduce((s, p) => s + (p.weight ?? 0), 0);
+  const siblingPillarWeight = siblingPillars.reduce((s, p) => {
+    const editVal = siblingWeightEdits[p.id];
+    if (editVal !== undefined) return s + (parseFloat(editVal) || 0);
+    return s + (p.weight ?? 0);
+  }, 0);
   const pillarWeightTotal = siblingPillarWeight + (parseFloat(form.weight) || 0);
   const pillarWeightError = pillarWeightTotal > 100;
   const pillarWeightUnder = !pillarWeightError && pillarWeightTotal > 0 && pillarWeightTotal < 100;
@@ -186,10 +196,23 @@ export default function Pillars() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <div className="bg-secondary px-3 py-1 rounded-md text-sm font-bold border border-border">
-              {pillar.weight}% Weight
+              {(pillar as any).effectiveWeight ?? pillar.weight}% Weight
             </div>
             {isAdmin && (
               <>
+                <button
+                  onClick={async () => {
+                    try {
+                      await fetch(`/api/spmo/pillars/${pillar.id}/initiatives/weights/reset`, { method: "POST", credentials: "include" });
+                      toast({ title: "Auto-weight applied", description: `Initiative weights reset for ${pillar.name}` });
+                      invalidate();
+                    } catch { toast({ variant: "destructive", title: "Failed" }); }
+                  }}
+                  className="text-[10px] px-2 py-1 rounded border border-primary/30 text-primary hover:bg-primary/10 font-semibold"
+                  title="Reset initiative weights under this pillar to auto-calculate"
+                >
+                  ↻ Init Wt
+                </button>
                 <button
                   onClick={() => openEdit(pillar)}
                   className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
@@ -316,12 +339,13 @@ export default function Pillars() {
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label={`Weight: ${form.weight}%`}>
+            <FormField label="Weight (%)">
               <input
-                type="range"
+                type="number"
                 min="0"
                 max="100"
-                className="w-full accent-primary mt-2"
+                step="1"
+                className={inputClass}
                 value={form.weight}
                 onChange={(e) => setForm({ ...form, weight: e.target.value })}
               />
@@ -374,7 +398,7 @@ export default function Pillars() {
               <p className="text-muted-foreground">Adjust another pillar below to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(pillarWeightTotal)}%</span>:</p>
               <ul className="divide-y divide-border/40">
                 {siblingPillars.map(p => {
-                  const localVal = siblingWeightEdits[p.id] ?? String(p.weight);
+                  const localVal = siblingWeightEdits[p.id] ?? String(p.weight ?? 0);
                   const isSavingThis = savingSiblingId === p.id;
                   return (
                     <li key={p.id} className="flex items-center justify-between gap-2 py-1.5">

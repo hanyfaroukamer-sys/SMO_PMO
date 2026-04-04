@@ -1723,6 +1723,10 @@ export interface SpmaAdminUser {
   firstName?: string | null;
   lastName?: string | null;
   role?: string | null;
+  blocked?: boolean;
+  blockedAt?: string | null;
+  blockedBy?: string | null;
+  blockedReason?: string | null;
   createdAt: string;
 }
 

@@ -9,16 +9,17 @@ import {
   useListSpmoProjects,
   useListSpmoInitiatives,
   useListSpmoDepartments,
+  customFetch,
   type CreateSpmoRiskRequest,
   type CreateSpmoMitigationRequest,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, StatusBadge } from "@/components/ui-elements";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LabelList } from "recharts";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
-import { Loader2, ShieldAlert, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck, Building2, FolderOpen, Download } from "lucide-react";
+import { Loader2, ShieldAlert, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ShieldCheck, Building2, FolderOpen, Download, ArrowRight, AlertTriangle } from "lucide-react";
 import { exportToXlsx } from "@/lib/export";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 
 const RISK_STATUSES = ["open", "mitigated", "closed", "accepted"] as const;
@@ -79,6 +80,7 @@ function heatmapColor(count: number) {
 
 export default function Risks() {
   const isAdmin = useIsAdmin();
+  const [tab, setTab] = useState<"risks" | "issues">("risks");
   const { data, isLoading } = useListSpmoRisks();
   const { data: projectsData } = useListSpmoProjects();
   const { data: initiativesData } = useListSpmoInitiatives();
@@ -272,8 +274,31 @@ export default function Risks() {
   const PROB_LEVELS: ProbImpact[] = ["low", "medium", "high", "critical"];
   const IMPACT_LEVELS: ProbImpact[] = ["low", "medium", "high", "critical"];
 
+  async function handleConvertToIssue(riskId: number) {
+    try {
+      await customFetch(`/api/spmo/risks/${riskId}/convert-to-issue`, { method: "POST" });
+      toast({ title: "Risk converted to issue" });
+      qc.invalidateQueries({ queryKey: ["/api/spmo/risks"] });
+      qc.invalidateQueries({ queryKey: ["spmo-issues"] });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to convert risk" });
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in">
+      <div className="flex gap-1 bg-secondary/50 p-1 rounded-xl mb-4">
+        <button onClick={() => setTab("risks")} className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "risks" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
+          Risks
+        </button>
+        <button onClick={() => setTab("issues")} className={`px-4 py-2 rounded-lg text-sm font-semibold ${tab === "issues" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>
+          Issues
+        </button>
+      </div>
+
+      {tab === "issues" && <IssuesPanel />}
+
+      {tab === "risks" && <>
       <PageHeader title="Risk Register" description="Identify, assess, and mitigate programme risks.">
         <div className="flex items-center gap-2">
           <button
@@ -534,6 +559,11 @@ export default function Risks() {
                                       </div>
 
                                       <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                        {isAdmin && risk.status !== "closed" && (
+                                          <button onClick={() => handleConvertToIssue(risk.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border border-amber-400 text-amber-600 hover:bg-amber-50 transition-colors" title="Convert to Issue">
+                                            <ArrowRight className="w-3 h-3" /> Issue
+                                          </button>
+                                        )}
                                         <button onClick={() => { if (risk.status === "closed" && !confirm("This risk is closed. Are you sure you want to edit it?")) return; openEdit(risk); }} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                                           <Pencil className="w-4 h-4" />
                                         </button>
@@ -618,6 +648,11 @@ export default function Risks() {
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            {isAdmin && risk.status !== "closed" && (
+                              <button onClick={() => handleConvertToIssue(risk.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border border-amber-400 text-amber-600 hover:bg-amber-50 transition-colors" title="Convert to Issue">
+                                <ArrowRight className="w-3 h-3" /> Issue
+                              </button>
+                            )}
                             <button onClick={() => { if (risk.status === "closed" && !confirm("This risk is closed. Are you sure you want to edit it?")) return; openEdit(risk); }} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
                               <Pencil className="w-4 h-4" />
                             </button>
@@ -706,6 +741,7 @@ export default function Risks() {
           <FormActions loading={isSaving} label={editId ? "Update Risk" : "Log Risk"} onCancel={() => setRiskModal(false)} />
         </form>
       </Modal>
+      </>}
     </div>
   );
 }
@@ -834,6 +870,337 @@ function MitigationSection({
             </FormField>
           </div>
           <FormActions loading={isSaving} label={editId ? "Update" : "Add Mitigation"} onCancel={() => setModalOpen(false)} />
+        </form>
+      </Modal>
+    </div>
+  );
+}
+
+// ── Issues Panel ──────────────────────────────────────────────────────────────
+
+type Issue = {
+  id: number;
+  title: string;
+  description?: string;
+  severity: "critical" | "high" | "medium" | "low";
+  status: "open" | "in_progress" | "resolved" | "closed";
+  owner?: string;
+  projectId?: number;
+  projectName?: string;
+  originRiskId?: number;
+  originRiskTitle?: string;
+  createdAt?: string;
+};
+
+type IssueForm = {
+  title: string;
+  description: string;
+  severity: "critical" | "high" | "medium" | "low";
+  status: "open" | "in_progress" | "resolved" | "closed";
+  owner: string;
+  projectId: string;
+};
+
+const emptyIssue = (): IssueForm => ({
+  title: "", description: "", severity: "medium", status: "open", owner: "", projectId: "",
+});
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: "bg-red-100 text-red-700 border-red-300",
+  high: "bg-amber-100 text-amber-700 border-amber-300",
+  medium: "bg-blue-100 text-blue-700 border-blue-300",
+  low: "bg-gray-100 text-gray-600 border-gray-300",
+};
+
+const ISSUE_STATUS_COLORS: Record<string, string> = {
+  open: "bg-red-100 text-red-700 border-red-300",
+  in_progress: "bg-amber-100 text-amber-700 border-amber-300",
+  resolved: "bg-green-100 text-green-700 border-green-300",
+  closed: "bg-gray-100 text-gray-600 border-gray-300",
+};
+
+function IssuesPanel() {
+  const isAdmin = useIsAdmin();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: projectsData } = useListSpmoProjects();
+  const projects = projectsData?.projects ?? [];
+
+  const { data: issuesData, isLoading } = useQuery<{ issues: Issue[] }>({
+    queryKey: ["spmo-issues"],
+    queryFn: () => customFetch("/api/spmo/issues") as Promise<{ issues: Issue[] }>,
+    staleTime: 10_000,
+  });
+
+  const issues = issuesData?.issues ?? [];
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState<IssueForm>(emptyIssue());
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [editingInline, setEditingInline] = useState<number | null>(null);
+  const [inlineForm, setInlineForm] = useState<IssueForm>(emptyIssue());
+  const [saving, setSaving] = useState(false);
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["spmo-issues"] });
+
+  function openCreate() {
+    setEditId(null);
+    setForm(emptyIssue());
+    setModalOpen(true);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    const payload = {
+      title: form.title,
+      description: form.description || undefined,
+      severity: form.severity,
+      status: form.status,
+      owner: form.owner || undefined,
+      projectId: form.projectId ? parseInt(form.projectId) : undefined,
+    };
+    try {
+      if (editId !== null) {
+        await customFetch(`/api/spmo/issues/${editId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        toast({ title: "Issue updated" });
+      } else {
+        await customFetch("/api/spmo/issues", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        toast({ title: "Issue created" });
+      }
+      setModalOpen(false);
+      invalidate();
+    } catch {
+      toast({ variant: "destructive", title: "Error saving issue" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function startInlineEdit(issue: Issue) {
+    setEditingInline(issue.id);
+    setExpandedId(issue.id);
+    setInlineForm({
+      title: issue.title,
+      description: issue.description ?? "",
+      severity: issue.severity,
+      status: issue.status,
+      owner: issue.owner ?? "",
+      projectId: issue.projectId ? String(issue.projectId) : "",
+    });
+  }
+
+  async function saveInlineEdit() {
+    if (!editingInline) return;
+    setSaving(true);
+    const payload = {
+      title: inlineForm.title,
+      description: inlineForm.description || undefined,
+      severity: inlineForm.severity,
+      status: inlineForm.status,
+      owner: inlineForm.owner || undefined,
+      projectId: inlineForm.projectId ? parseInt(inlineForm.projectId) : undefined,
+    };
+    try {
+      await customFetch(`/api/spmo/issues/${editingInline}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      toast({ title: "Issue updated" });
+      setEditingInline(null);
+      invalidate();
+    } catch {
+      toast({ variant: "destructive", title: "Error updating issue" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (isLoading) {
+    return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Issue Register" description="Track materialised issues across the programme.">
+        {isAdmin && (
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Log Issue
+          </button>
+        )}
+      </PageHeader>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {(["open", "in_progress", "resolved", "closed"] as const).map((s) => {
+          const count = issues.filter((i) => i.status === s).length;
+          return (
+            <Card key={s} className="text-center py-4">
+              <div className="text-2xl font-bold font-display">{count}</div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wider mt-1">{s.replace("_", " ")}</div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {issues.length === 0 ? (
+        <Card className="p-12 text-center text-muted-foreground flex flex-col items-center">
+          <AlertTriangle className="w-12 h-12 mb-4 opacity-20" />
+          <p>No issues logged yet.</p>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {issues.map((issue) => (
+            <Card key={issue.id} className="overflow-hidden">
+              <div
+                className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-secondary/20 transition-colors"
+                onClick={() => {
+                  if (editingInline === issue.id) return;
+                  setExpandedId(expandedId === issue.id ? null : issue.id);
+                }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="font-bold text-foreground">{issue.title}</h3>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${SEVERITY_COLORS[issue.severity]}`}>
+                      {issue.severity}
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${ISSUE_STATUS_COLORS[issue.status]}`}>
+                      {issue.status.replace("_", " ")}
+                    </span>
+                  </div>
+                  <div className="flex gap-3 text-xs text-muted-foreground flex-wrap">
+                    {issue.projectName && <span>Project: <strong className="text-foreground">{issue.projectName}</strong></span>}
+                    {issue.owner && <span>Owner: <strong className="text-foreground">{issue.owner}</strong></span>}
+                    {issue.createdAt && <span>Created: {new Date(issue.createdAt).toLocaleDateString("en-GB")}</span>}
+                  </div>
+                  {issue.originRiskId && issue.originRiskTitle && (
+                    <div className="mt-1 text-xs text-amber-600 flex items-center gap-1">
+                      <ShieldAlert className="w-3 h-3" /> Converted from Risk: {issue.originRiskTitle}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {isAdmin && (
+                    <button onClick={() => startInlineEdit(issue)} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Edit">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
+                  <div onClick={(e) => { e.stopPropagation(); setExpandedId(expandedId === issue.id ? null : issue.id); }}>
+                    {expandedId === issue.id
+                      ? <ChevronUp className="w-5 h-5 text-muted-foreground cursor-pointer" />
+                      : <ChevronDown className="w-5 h-5 text-muted-foreground cursor-pointer" />}
+                  </div>
+                </div>
+              </div>
+
+              {/* Expanded view / inline edit */}
+              {expandedId === issue.id && (
+                <div className="border-t border-border bg-secondary/10 px-5 py-4">
+                  {editingInline === issue.id ? (
+                    <div className="space-y-3">
+                      <FormField label="Title" required>
+                        <input className={inputClass} value={inlineForm.title} onChange={(e) => setInlineForm({ ...inlineForm, title: e.target.value })} required />
+                      </FormField>
+                      <FormField label="Description">
+                        <textarea className={inputClass} rows={3} value={inlineForm.description} onChange={(e) => setInlineForm({ ...inlineForm, description: e.target.value })} />
+                      </FormField>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <FormField label="Severity">
+                          <select className={selectClass} value={inlineForm.severity} onChange={(e) => setInlineForm({ ...inlineForm, severity: e.target.value as IssueForm["severity"] })}>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                          </select>
+                        </FormField>
+                        <FormField label="Status">
+                          <select className={selectClass} value={inlineForm.status} onChange={(e) => setInlineForm({ ...inlineForm, status: e.target.value as IssueForm["status"] })}>
+                            <option value="open">Open</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="closed">Closed</option>
+                          </select>
+                        </FormField>
+                        <FormField label="Owner">
+                          <input className={inputClass} value={inlineForm.owner} onChange={(e) => setInlineForm({ ...inlineForm, owner: e.target.value })} />
+                        </FormField>
+                        <FormField label="Project">
+                          <select className={selectClass} value={inlineForm.projectId} onChange={(e) => setInlineForm({ ...inlineForm, projectId: e.target.value })}>
+                            <option value="">— None —</option>
+                            {projects.map((p) => <option key={p.id} value={String(p.id)}>{p.projectCode ? `${p.projectCode}: ` : ""}{p.name}</option>)}
+                          </select>
+                        </FormField>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => setEditingInline(null)} className="px-3 py-1.5 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:text-foreground transition-colors">
+                          Cancel
+                        </button>
+                        <button onClick={saveInlineEdit} disabled={saving} className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
+                          {saving ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      {issue.description && <p className="text-sm text-muted-foreground mb-2">{issue.description}</p>}
+                      {!issue.description && <p className="text-sm text-muted-foreground italic">No description provided.</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Create Issue Modal */}
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Log New Issue">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <FormField label="Issue Title" required>
+            <input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. System outage in production" required />
+          </FormField>
+
+          <FormField label="Description">
+            <textarea className={inputClass} rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the issue..." />
+          </FormField>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Severity">
+              <select className={selectClass} value={form.severity} onChange={(e) => setForm({ ...form, severity: e.target.value as IssueForm["severity"] })}>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </FormField>
+            <FormField label="Project">
+              <select className={selectClass} value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
+                <option value="">— None —</option>
+                {projects.map((p) => <option key={p.id} value={String(p.id)}>{p.projectCode ? `${p.projectCode}: ` : ""}{p.name}</option>)}
+              </select>
+            </FormField>
+          </div>
+
+          <FormField label="Owner">
+            <input className={inputClass} value={form.owner} onChange={(e) => setForm({ ...form, owner: e.target.value })} placeholder="e.g. Ahmed Al-Mansouri" />
+          </FormField>
+
+          <FormActions loading={saving} label="Log Issue" onCancel={() => setModalOpen(false)} />
         </form>
       </Modal>
     </div>

@@ -12,7 +12,7 @@ import { PageHeader, Card } from "@/components/ui-elements";
 import {
   Loader2, ShieldCheck, Settings, Users, RefreshCw, Lock,
   KeyRound, Plus, Trash2, ChevronDown, ChevronUp, Check, X, Search, Eye,
-  Bell, Send, Mail,
+  Bell, Send, Mail, RotateCcw, Ban, ShieldOff,
 } from "lucide-react";
 import { inputClass } from "@/components/modal";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +30,29 @@ import {
 } from "@/hooks/use-project-access";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const CURRENCIES = [
+  { code: "SAR", label: "SAR — Saudi Riyal" },
+  { code: "USD", label: "USD — US Dollar" },
+  { code: "EUR", label: "EUR — Euro" },
+  { code: "GBP", label: "GBP — British Pound" },
+  { code: "AED", label: "AED — UAE Dirham" },
+  { code: "QAR", label: "QAR — Qatari Riyal" },
+  { code: "KWD", label: "KWD — Kuwaiti Dinar" },
+  { code: "BHD", label: "BHD — Bahraini Dinar" },
+  { code: "OMR", label: "OMR — Omani Rial" },
+  { code: "EGP", label: "EGP — Egyptian Pound" },
+  { code: "JOD", label: "JOD — Jordanian Dinar" },
+  { code: "INR", label: "INR — Indian Rupee" },
+  { code: "CNY", label: "CNY — Chinese Yuan" },
+  { code: "JPY", label: "JPY — Japanese Yen" },
+  { code: "SGD", label: "SGD — Singapore Dollar" },
+  { code: "MYR", label: "MYR — Malaysian Ringgit" },
+  { code: "CHF", label: "CHF — Swiss Franc" },
+  { code: "CAD", label: "CAD — Canadian Dollar" },
+  { code: "AUD", label: "AUD — Australian Dollar" },
+  { code: "ZAR", label: "ZAR — South African Rand" },
+];
 
 type UserRole = "admin" | "project-manager" | "approver";
 
@@ -53,28 +76,69 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
   );
 }
 
-function UserRoleRow({ user, saving, onRoleChange, currentUserId }: {
+function UserRoleRow({ user, saving, onRoleChange, onBlock, onUnblock, currentUserId }: {
   user: SpmaAdminUser;
   saving: boolean;
   onRoleChange: (userId: string, role: UserRole) => void;
+  onBlock: (userId: string) => void;
+  onUnblock: (userId: string) => void;
   currentUserId?: string;
 }) {
   const isSelf = user.id === currentUserId;
   const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || user.id;
   const initials = ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() || "?";
   const currentRole = (user.role ?? "project-manager") as UserRole;
+  const isBlocked = !!user.blocked;
 
   return (
-    <div className="py-4 border-b border-border/40 last:border-b-0">
+    <div className={["py-4 border-b border-border/40 last:border-b-0", isBlocked ? "opacity-70" : ""].join(" ")}>
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+        <div className={["w-9 h-9 rounded-full border flex items-center justify-center text-sm font-bold shrink-0",
+          isBlocked ? "bg-destructive/10 border-destructive/20 text-destructive" : "bg-primary/10 border-primary/20 text-primary"
+        ].join(" ")}>
           {initials}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold truncate">{displayName}</div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold truncate">{displayName}</span>
+            {isBlocked && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-destructive/10 text-destructive border border-destructive/20">
+                <Ban className="w-3 h-3" />
+                Blocked
+              </span>
+            )}
+          </div>
           {user.email && <div className="text-xs text-muted-foreground truncate">{user.email}</div>}
+          {isBlocked && user.blockedReason && (
+            <div className="text-[10px] text-destructive/80 mt-0.5">Reason: {user.blockedReason}</div>
+          )}
         </div>
-        {saving && <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />}
+        <div className="flex items-center gap-2 shrink-0">
+          {saving && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+          {!isSelf && (
+            isBlocked ? (
+              <button
+                onClick={() => onUnblock(user.id)}
+                disabled={saving}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-40"
+                title="Unblock this user"
+              >
+                <ShieldOff className="w-3.5 h-3.5" />
+                Unblock
+              </button>
+            ) : (
+              <button
+                onClick={() => onBlock(user.id)}
+                disabled={saving}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/20 transition-colors disabled:opacity-40"
+                title="Block this user"
+              >
+                <Ban className="w-3.5 h-3.5" />
+                Block
+              </button>
+            )
+          )}
+        </div>
       </div>
       <div className="flex gap-2 flex-wrap">
         {ROLES.map((role) => {
@@ -83,13 +147,14 @@ function UserRoleRow({ user, saving, onRoleChange, currentUserId }: {
             <button
               key={role.value}
               onClick={() => !isActive && !isSelf && onRoleChange(user.id, role.value)}
-              disabled={saving || (isSelf && role.value !== currentRole)}
-              title={isSelf && role.value !== currentRole ? "You cannot change your own role" : undefined}
+              disabled={saving || (isSelf && role.value !== currentRole) || isBlocked}
+              title={isSelf && role.value !== currentRole ? "You cannot change your own role" : isBlocked ? "Unblock this user first" : undefined}
               className={[
                 "flex flex-col items-start px-3 py-2 rounded-lg border text-left transition-all min-w-[100px]",
                 isActive
                   ? role.color + " shadow-sm"
                   : "bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
+                isBlocked ? "opacity-50 cursor-not-allowed" : "",
               ].join(" ")}
             >
               <span className="text-xs font-bold">{role.label}</span>
@@ -889,12 +954,40 @@ export default function Admin() {
   const [phaseWeights, setPhaseWeights] = useState<{ planning: number; tendering: number; execution: number; closure: number } | null>(null);
   const [savingPhase, setSavingPhase] = useState(false);
 
+  const [phaseEffort, setPhaseEffort] = useState<{ planning: number; tendering: number; execution: number; closure: number } | null>(null);
+  const [autoWeightLoading, setAutoWeightLoading] = useState(false);
+
+  async function handleAutoWeightAll() {
+    if (!confirm("This will reset ALL weights across the programme to auto-calculated values. Continue?")) return;
+    setAutoWeightLoading(true);
+    try {
+      const res = await fetch("/api/spmo/admin/auto-weight-all", { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Auto-weight complete", description: data.message });
+        qc.invalidateQueries();
+      } else {
+        toast({ variant: "destructive", title: "Failed", description: data.error ?? "Auto-weight failed" });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Network error" });
+    } finally {
+      setAutoWeightLoading(false);
+    }
+  }
+
   const effectiveResetDay = weeklyResetDay ?? configData?.weeklyResetDay ?? 3;
   const pw = phaseWeights ?? {
     planning: configData?.defaultPlanningWeight ?? 5,
     tendering: configData?.defaultTenderingWeight ?? 5,
     execution: configData?.defaultExecutionWeight ?? 85,
     closure: configData?.defaultClosureWeight ?? 5,
+  };
+  const pe = phaseEffort ?? {
+    planning: (configData as any)?.defaultPlanningEffortDays ?? 30,
+    tendering: (configData as any)?.defaultTenderingEffortDays ?? 45,
+    execution: (configData as any)?.defaultExecutionEffortDays ?? 120,
+    closure: (configData as any)?.defaultClosureEffortDays ?? 20,
   };
   const pwTotal = pw.planning + pw.tendering + pw.execution + pw.closure;
   const pwValid = Math.abs(pwTotal - 100) < 0.01;
@@ -907,6 +1000,42 @@ export default function Admin() {
         <p className="text-muted-foreground text-sm">You need admin privileges to view this page.</p>
       </div>
     );
+  }
+
+  async function handleBlockUser(userId: string) {
+    const reason = window.prompt("Reason for blocking this user (optional):");
+    if (reason === null) return; // user cancelled
+    setSavingUsers((s) => new Set(s).add(userId));
+    try {
+      await customFetch(`/api/spmo/admin/users/${userId}/block`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason || undefined }),
+      });
+      qc.invalidateQueries({ queryKey: ["/api/spmo/admin/users"] });
+      toast({ title: "User blocked", description: "The user has been blocked and can no longer access the system." });
+    } catch {
+      toast({ variant: "destructive", title: "Failed", description: "Could not block user." });
+    } finally {
+      setSavingUsers((s) => { const n = new Set(s); n.delete(userId); return n; });
+    }
+  }
+
+  async function handleUnblockUser(userId: string) {
+    if (!confirm("Are you sure you want to unblock this user?")) return;
+    setSavingUsers((s) => new Set(s).add(userId));
+    try {
+      await customFetch(`/api/spmo/admin/users/${userId}/unblock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      qc.invalidateQueries({ queryKey: ["/api/spmo/admin/users"] });
+      toast({ title: "User unblocked", description: "The user can now access the system again." });
+    } catch {
+      toast({ variant: "destructive", title: "Failed", description: "Could not unblock user." });
+    } finally {
+      setSavingUsers((s) => { const n = new Set(s); n.delete(userId); return n; });
+    }
   }
 
   async function handleResetDayChange(day: number) {
@@ -934,11 +1063,16 @@ export default function Admin() {
           defaultTenderingWeight: pw.tendering,
           defaultExecutionWeight: pw.execution,
           defaultClosureWeight: pw.closure,
-        },
+          defaultPlanningEffortDays: pe.planning,
+          defaultTenderingEffortDays: pe.tendering,
+          defaultExecutionEffortDays: pe.execution,
+          defaultClosureEffortDays: pe.closure,
+        } as any,
       });
       qc.invalidateQueries({ queryKey: ["/api/spmo/programme-config"] });
       setPhaseWeights(null);
-      toast({ title: "Phase gate defaults saved", description: "New projects will use these weights." });
+      setPhaseEffort(null);
+      toast({ title: "Phase gate defaults saved", description: "New projects will use these weights and effort days." });
     } catch {
       toast({ variant: "destructive", title: "Save failed", description: "Could not update phase gate defaults." });
     } finally {
@@ -965,7 +1099,7 @@ export default function Admin() {
       <PageHeader title="Admin Settings" description="Manage users, roles, and programme configuration." />
 
       {/* Phase Gate Defaults */}
-      <SectionCard title="Phase Gate Default Weights" icon={Lock}>
+      <SectionCard title="Phase Gate Defaults" icon={Lock}>
         {configLoading ? (
           <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
         ) : (
@@ -979,7 +1113,8 @@ export default function Admin() {
                   <tr className="bg-secondary/50">
                     <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground uppercase">Phase Gate</th>
                     <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground uppercase w-28">Weight (%)</th>
-                    <th className="px-4 py-2 w-16" />
+                    <th className="text-right px-4 py-2 text-xs font-semibold text-muted-foreground uppercase w-28">Effort (days)</th>
+                    <th className="px-4 py-2 w-8" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
@@ -1008,13 +1143,25 @@ export default function Admin() {
                           className="w-20 text-right text-sm border border-border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 ml-auto block"
                         />
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground text-right">%</td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          min={1}
+                          max={999}
+                          step={1}
+                          value={pe[key]}
+                          onChange={(e) => setPhaseEffort({ ...pe, [key]: Number(e.target.value) })}
+                          className="w-20 text-right text-sm border border-border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 ml-auto block"
+                        />
+                      </td>
+                      <td className="px-4 py-3" />
                     </tr>
                   ))}
                   <tr className={`font-bold ${pwValid ? "bg-green-50" : "bg-red-50"}`}>
                     <td className="px-4 py-2 text-sm">Total</td>
-                    <td className="px-4 py-2 text-right text-sm">{pwTotal.toFixed(1)}</td>
-                    <td className="px-4 py-2 text-xs text-right">{pwValid ? "✓ 100%" : <span className="text-red-600">Must = 100%</span>}</td>
+                    <td className="px-4 py-2 text-right text-sm">{pwTotal.toFixed(1)}%{!pwValid && <span className="text-red-600 ml-1">≠100</span>}</td>
+                    <td className="px-4 py-2 text-right text-sm text-muted-foreground">{pe.planning + pe.tendering + pe.execution + pe.closure}d</td>
+                    <td className="px-4 py-2" />
                   </tr>
                 </tbody>
               </table>
@@ -1032,6 +1179,32 @@ export default function Admin() {
             </div>
           </div>
         )}
+      </SectionCard>
+
+      {/* Weight Management */}
+      <SectionCard title="Weight Management" icon={RotateCcw}>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Reset all weights across the programme to auto-calculated values. This will:
+          </p>
+          <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
+            <li>Recalculate all milestone weights based on effort days or duration</li>
+            <li>Reset project weights to auto-calculate from budget</li>
+            <li>Reset initiative weights to auto-calculate from child project budgets</li>
+            <li>Reset pillar weights to auto-calculate from child initiative budgets</li>
+          </ul>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleAutoWeightAll}
+              disabled={autoWeightLoading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-50 hover:-translate-y-0.5 transition-transform"
+            >
+              {autoWeightLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+              Auto-Weight Entire Programme
+            </button>
+            <span className="text-xs text-muted-foreground">This action affects all projects and milestones</span>
+          </div>
+        </div>
       </SectionCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1066,6 +1239,31 @@ export default function Admin() {
                 <p className="text-xs text-muted-foreground mt-2">
                   Current: <span className="font-semibold text-foreground">{DAY_NAMES[effectiveResetDay]}</span>
                 </p>
+              </div>
+
+              <div className="pt-3 border-t border-border/50 space-y-2">
+                <label className="block text-sm font-medium mb-2">Reporting Currency</label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Currency code used across dashboards, reports, and exports.
+                </p>
+                <select
+                  className={inputClass}
+                  value={(configData as any)?.reportingCurrency ?? "SAR"}
+                  onChange={async (e) => {
+                    try {
+                      await updateConfig.mutateAsync({ data: { reportingCurrency: e.target.value } as any });
+                      qc.invalidateQueries({ queryKey: ["/api/spmo/config"] });
+                      toast({ title: "Currency updated", description: `Reporting currency set to ${e.target.value}.` });
+                    } catch {
+                      toast({ variant: "destructive", title: "Save failed", description: "Could not update reporting currency." });
+                    }
+                  }}
+                  disabled={updateConfig.isPending}
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>{c.label}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="pt-3 border-t border-border/50 space-y-2">
@@ -1105,6 +1303,8 @@ export default function Admin() {
                     user={user}
                     saving={savingUsers.has(user.id)}
                     onRoleChange={handleRoleChange}
+                    onBlock={handleBlockUser}
+                    onUnblock={handleUnblockUser}
                     currentUserId={authData?.user?.id}
                   />
                 ))

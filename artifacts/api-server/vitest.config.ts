@@ -13,6 +13,7 @@ export default defineConfig({
           "src/__tests__/engines/**",
           "src/__tests__/api/**",
           "src/__tests__/workflows/**",
+          "src/__tests__/e2e/**",
           "src/__tests__/security/injection.test.ts",
         ],
     testTimeout: 30000,

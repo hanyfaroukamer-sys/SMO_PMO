@@ -11,6 +11,7 @@ import {
   useUpdateSpmoInitiative,
   type CreateSpmoBudgetEntryRequest,
   type SpmoInitiativeWithProgress,
+  useGetSpmoConfig,
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
@@ -110,6 +111,8 @@ export default function Budget() {
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: projectsData } = useListSpmoProjects();
   const { data: procurementData } = useListSpmoProcurement();
+  const { data: spmoConfigData } = useGetSpmoConfig();
+  const currency = (spmoConfigData as any)?.reportingCurrency ?? "SAR";
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<EntryForm>(emptyForm());
@@ -288,7 +291,7 @@ export default function Budget() {
             </div>
             <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Allocated</span>
           </div>
-          <div className="text-2xl font-display font-bold">{formatCurrency(totalAllocated)}</div>
+          <div className="text-2xl font-display font-bold">{formatCurrency(totalAllocated, currency)}</div>
         </Card>
         <Card>
           <div className="flex items-center gap-3 mb-2">
@@ -297,7 +300,7 @@ export default function Budget() {
             </div>
             <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Spent</span>
           </div>
-          <div className="text-2xl font-display font-bold text-destructive">{formatCurrency(totalSpent)}</div>
+          <div className="text-2xl font-display font-bold text-destructive">{formatCurrency(totalSpent, currency)}</div>
         </Card>
         <Card>
           <div className="flex items-center gap-3 mb-2">
@@ -307,7 +310,7 @@ export default function Budget() {
             <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Remaining</span>
           </div>
           <div className={`text-2xl font-display font-bold ${remaining < 0 ? "text-destructive" : "text-success"}`}>
-            {formatCurrency(remaining)}
+            {formatCurrency(remaining, currency)}
           </div>
         </Card>
         <Card>
@@ -340,9 +343,9 @@ export default function Budget() {
             <BarChart data={quarterlyChartData} margin={{ top: 4, right: 8, left: 20, bottom: 8 }} barGap={4} barCategoryGap="30%">
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600 }} />
-              <YAxis tickFormatter={(v) => `SAR ${(v / 1_000_000).toFixed(1)}M`} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={(v) => `${currency} ${(v / 1_000_000).toFixed(1)}M`} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
               <Tooltip
-                formatter={(val: number, name: string) => [formatCurrency(val), name]}
+                formatter={(val: number, name: string) => [formatCurrency(val, currency), name]}
                 contentStyle={{ borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "12px" }}
               />
               <Bar dataKey="Allocated" fill="hsl(220 14% 88%)" radius={[6, 6, 0, 0]} />
@@ -360,8 +363,8 @@ export default function Budget() {
             <BarChart data={chartData} margin={{ top: 0, right: 0, left: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} dy={10} />
-              <YAxis tickFormatter={(v) => `SAR ${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(val: number) => formatCurrency(val)} contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0" }} />
+              <YAxis tickFormatter={(v) => `${currency} ${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(val: number) => formatCurrency(val, currency)} contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0" }} />
               <Legend wrapperStyle={{ paddingTop: "12px" }} />
               <Bar dataKey="Allocated" fill="hsl(220 14% 90%)" radius={[4, 4, 0, 0]} />
               <Bar dataKey="Spent" fill="hsl(221 83% 53%)" radius={[4, 4, 0, 0]} />
@@ -385,8 +388,8 @@ export default function Budget() {
                 <thead className="text-xs text-muted-foreground uppercase border-b border-border">
                   <tr>
                     <th className="px-5 py-3 font-semibold">Name</th>
-                    <th className="px-5 py-3 font-semibold text-right">Alloc (SAR)</th>
-                    <th className="px-5 py-3 font-semibold text-right">Spent (SAR)</th>
+                    <th className="px-5 py-3 font-semibold text-right">Alloc ({currency})</th>
+                    <th className="px-5 py-3 font-semibold text-right">Spent ({currency})</th>
                     <th className="px-5 py-3 font-semibold text-right">Weight</th>
                     <th className="px-5 py-3 font-semibold text-right">Progress</th>
                     <th className="px-5 py-3 font-semibold text-center">Health</th>
@@ -448,7 +451,7 @@ export default function Budget() {
         <Card noPadding className="overflow-hidden">
           <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center justify-between">
             <h3 className="font-bold text-sm">Projects Budget</h3>
-            <span className="text-xs text-muted-foreground">{projects.length} projects · SAR {(totalProjBudget / 1_000_000).toFixed(0)}M total · Click budget to edit inline</span>
+            <span className="text-xs text-muted-foreground">{projects.length} projects · {currency} {(totalProjBudget / 1_000_000).toFixed(0)}M total · Click budget to edit inline</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -457,8 +460,8 @@ export default function Budget() {
                   <th className="px-5 py-3 font-semibold">Name</th>
                   <th className="px-5 py-3 font-semibold">Vendor</th>
                   <th className="px-5 py-3 font-semibold text-right">Weight</th>
-                  <th className="px-5 py-3 font-semibold text-right">Alloc (M SAR)</th>
-                  <th className="px-5 py-3 font-semibold text-right">Spent (M SAR)</th>
+                  <th className="px-5 py-3 font-semibold text-right">Alloc (M {currency})</th>
+                  <th className="px-5 py-3 font-semibold text-right">Spent (M {currency})</th>
                   <th className="px-5 py-3 font-semibold text-right">Progress</th>
                 </tr>
               </thead>
@@ -531,10 +534,10 @@ export default function Budget() {
                   <tr key={entry.id} className="hover:bg-secondary/20 transition-colors group">
                     <td className="px-5 py-3 font-semibold">{entry.category}</td>
                     <td className="px-5 py-3 text-muted-foreground text-xs max-w-xs truncate">{entry.description || "—"}</td>
-                    <td className="px-5 py-3 text-right font-mono text-xs">{formatCurrency(entry.allocated)}</td>
-                    <td className="px-5 py-3 text-right font-mono text-xs">{formatCurrency(entry.spent)}</td>
+                    <td className="px-5 py-3 text-right font-mono text-xs">{formatCurrency(entry.allocated, currency)}</td>
+                    <td className="px-5 py-3 text-right font-mono text-xs">{formatCurrency(entry.spent, currency)}</td>
                     <td className={`px-5 py-3 text-right font-mono text-xs font-bold ${rem < 0 ? "text-destructive" : ""}`}>
-                      {formatCurrency(rem)}
+                      {formatCurrency(rem, currency)}
                     </td>
                     <td className="px-5 py-3 text-center text-xs text-muted-foreground">
                       {entry.fiscalYear ? `FY${entry.fiscalYear}${entry.fiscalQuarter ? ` Q${entry.fiscalQuarter}` : ""}` : "—"}
@@ -578,10 +581,10 @@ export default function Budget() {
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Allocated (SAR)" required>
+            <FormField label={`Allocated (${currency})`} required>
               <input type="number" className={inputClass} value={form.allocated} onChange={(e) => setForm({ ...form, allocated: e.target.value })} placeholder="0" min="0" step="any" required />
             </FormField>
-            <FormField label="Spent (SAR)">
+            <FormField label={`Spent (${currency})`}>
               <input type="number" className={inputClass} value={form.spent} onChange={(e) => setForm({ ...form, spent: e.target.value })} placeholder="0" min="0" step="any" />
             </FormField>
           </div>

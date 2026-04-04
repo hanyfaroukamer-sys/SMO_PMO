@@ -98,7 +98,7 @@ describe("computeStatus — project status engine", () => {
     const result = computeStatus(p.progress, p.startDate, p.endDate, p.budget, p.budgetSpent);
     // SPI = 0/10 = 0 < 0.2 AND progress = 0 < 3 → mobilisation stall → at_risk
     expect(result.status).toBe("at_risk");
-    expect(result.reason).toMatch(/stall/i);
+    expect(result.reason).toMatch(/mobilis/i);
   });
 
   it("9. 0% progress, 20% elapsed → SPI 0.0 → delayed (past early-stage window)", () => {
@@ -129,9 +129,9 @@ describe("computeStatus — project status engine", () => {
     expect(result.reason.toLowerCase()).toMatch(/bottleneck|approval/i);
   });
 
-  it("13. No start date → on_track (default status without crash)", () => {
+  it("13. No start date → not_started (dates not configured)", () => {
     const result = computeStatus(40, null, "2025-12-31", 100, 0);
-    expect(result.status).toBe("on_track");
+    expect(result.status).toBe("not_started");
   });
 
   it("14. Start date in future → not_started with 'not yet started' reason", () => {

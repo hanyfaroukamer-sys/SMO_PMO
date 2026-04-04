@@ -77,7 +77,7 @@ export const LogoutBrowserSessionHeader = zod.object({
 export const ExchangeMobileAuthorizationCodeBody = zod.object({
   code: zod.string().min(1),
   code_verifier: zod.string().min(1),
-  redirect_uri: zod.string().url().min(1),
+  redirect_uri: zod.string().min(1),
   state: zod.string().min(1),
   nonce: zod.string().min(1).optional(),
 });
@@ -747,8 +747,8 @@ export const CreateSpmoPillarBody = zod.object({
     .number()
     .min(createSpmoPillarBodyWeightMin)
     .max(createSpmoPillarBodyWeightMax),
-  color: zod.string(),
-  iconName: zod.string(),
+  color: zod.string().optional(),
+  iconName: zod.string().optional(),
   sortOrder: zod.number().optional(),
 });
 
@@ -905,13 +905,16 @@ export const CreateSpmoInitiativeBody = zod.object({
   initiativeCode: zod.string().optional().nullable(),
   name: zod.string().min(1),
   description: zod.string().optional(),
-  ownerId: zod.string(),
+  ownerId: zod.string().optional(),
   startDate: zod.coerce.date(),
   targetDate: zod.coerce.date(),
+  budget: zod.number().optional(),
   weight: zod
     .number()
     .min(createSpmoInitiativeBodyWeightMin)
-    .max(createSpmoInitiativeBodyWeightMax),
+    .max(createSpmoInitiativeBodyWeightMax)
+    .optional()
+    .default(0),
   status: zod.enum(["active", "on_hold", "completed", "cancelled"]).optional(),
 });
 
@@ -1081,6 +1084,8 @@ export const CreateSpmoProjectBody = zod.object({
   ownerId: zod.string(),
   startDate: zod.coerce.date(),
   targetDate: zod.coerce.date(),
+  plannedStartDate: zod.coerce.date().optional().nullable(),
+  plannedEndDate: zod.coerce.date().optional().nullable(),
   weight: zod
     .number()
     .min(createSpmoProjectBodyWeightMin)
@@ -1198,6 +1203,8 @@ export const UpdateSpmoProjectBody = zod.object({
   departmentId: zod.number().optional().nullable(),
   startDate: zod.coerce.date().optional(),
   targetDate: zod.coerce.date().optional(),
+  plannedStartDate: zod.coerce.date().optional().nullable(),
+  plannedEndDate: zod.coerce.date().optional().nullable(),
   weight: zod.number().optional(),
   budget: zod.number().optional(),
   budgetSpent: zod.number().optional(),
@@ -1308,13 +1315,16 @@ export const createSpmoMilestoneBodyWeightMin = 0;
 export const createSpmoMilestoneBodyWeightMax = 100;
 
 export const CreateSpmoMilestoneBody = zod.object({
+  projectId: zod.number().optional(),
   name: zod.string().min(1),
   description: zod.string().optional(),
   weight: zod
     .number()
     .min(createSpmoMilestoneBodyWeightMin)
     .max(createSpmoMilestoneBodyWeightMax),
-  effortDays: zod.number(),
+  effortDays: zod.number().optional(),
+  progress: zod.number().min(0).max(100).optional(),
+  status: zod.enum(["pending", "not_started", "in_progress", "completed", "approved", "rejected"]).optional(),
   startDate: zod.coerce.date().optional(),
   dueDate: zod.coerce.date(),
 });
@@ -2357,6 +2367,11 @@ export const UpdateSpmoConfigBody = zod.object({
   defaultTenderingWeight: zod.number().min(0).max(100).optional(),
   defaultExecutionWeight: zod.number().min(0).max(100).optional(),
   defaultClosureWeight: zod.number().min(0).max(100).optional(),
+  defaultPlanningEffortDays: zod.number().min(1).max(999).optional(),
+  defaultTenderingEffortDays: zod.number().min(1).max(999).optional(),
+  defaultExecutionEffortDays: zod.number().min(1).max(999).optional(),
+  defaultClosureEffortDays: zod.number().min(1).max(999).optional(),
+  reportingCurrency: zod.string().min(2).max(5).optional(),
 });
 
 export const UpdateSpmoConfigResponse = zod.object({

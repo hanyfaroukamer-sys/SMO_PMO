@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import {
   useGetSpmaDepartmentPortfolio,
+  useGetSpmoConfig,
   type SpmaDepartmentPortfolioProject,
 } from "@workspace/api-client-react";
 import { PageHeader, Card, ProgressBar } from "@/components/ui-elements";
@@ -9,10 +10,10 @@ import { selectClass } from "@/components/modal";
 import { Loader2, ArrowLeft, Building2, FolderOpen, TrendingUp, Target, ExternalLink, SlidersHorizontal } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
-const fmtCurrency = (n: number) => {
-  if (n >= 1_000_000) return `SAR ${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `SAR ${(n / 1_000).toFixed(0)}K`;
-  return `SAR ${n.toLocaleString()}`;
+const fmtCurrencyWithCode = (n: number, currency: string = "SAR") => {
+  if (n >= 1_000_000) return `${currency} ${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${currency} ${(n / 1_000).toFixed(0)}K`;
+  return `${currency} ${n.toLocaleString()}`;
 };
 
 type StatusCategory = "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold";
@@ -158,6 +159,114 @@ function DeptProjectStatusPieChart({ projects }: { projects: SpmaDepartmentPortf
   );
 }
 
+const PHASE_COLORS: Record<string, string> = {
+  planning: "#60a5fa",
+  tendering: "#a78bfa",
+  execution: "#34d399",
+  closure: "#f59e0b",
+  completed: "#16a34a",
+  not_started: "#d1d5db",
+};
+
+const PHASE_LABELS: Record<string, string> = {
+  planning: "Planning",
+  tendering: "Tendering",
+  execution: "Execution",
+  closure: "Closure",
+  completed: "Completed",
+  not_started: "Not Started",
+};
+
+const PHASE_ORDER = ["planning", "tendering", "execution", "closure", "completed", "not_started"];
+
+function DeptPhaseDistributionPieChart({ projects }: { projects: SpmaDepartmentPortfolioProject[] }) {
+  const phaseCounts: Record<string, number> = {
+    planning: 0,
+    tendering: 0,
+    execution: 0,
+    closure: 0,
+    completed: 0,
+    not_started: 0,
+  };
+
+  for (const p of projects) {
+    const phase = (p as any).currentPhase;
+    if (phase && phase in phaseCounts) {
+      phaseCounts[phase]++;
+    } else if (p.status === "completed" || p.progress >= 100) {
+      phaseCounts.completed++;
+    } else {
+      phaseCounts.not_started++;
+    }
+  }
+
+  const chartData = PHASE_ORDER
+    .filter((s) => phaseCounts[s] > 0)
+    .map((s) => ({ name: PHASE_LABELS[s], value: phaseCounts[s], key: s }));
+
+  if (chartData.length === 0) return null;
+
+  const total = projects.length;
+
+  return (
+    <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm">
+      <h2 className="text-base font-display font-bold mb-4">Phase Distribution</h2>
+      <div className="flex flex-col sm:flex-row items-center gap-6">
+        <div className="relative w-52 h-52 shrink-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={58}
+                outerRadius={88}
+                paddingAngle={2}
+                dataKey="value"
+                strokeWidth={0}
+              >
+                {chartData.map((entry) => (
+                  <Cell key={entry.key} fill={PHASE_COLORS[entry.key]} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value: number, name: string) => [`${value} project${value !== 1 ? "s" : ""}`, name]}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)" }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-3xl font-display font-bold leading-none">{total}</span>
+            <span className="text-[11px] text-muted-foreground mt-1">projects</span>
+          </div>
+        </div>
+
+        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-y-2.5 gap-x-6 w-full">
+          {PHASE_ORDER.map((s) => (
+            <div key={s} className="flex items-center gap-2.5">
+              <span
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{ backgroundColor: PHASE_COLORS[s], opacity: phaseCounts[s] === 0 ? 0.35 : 1 }}
+              />
+              <span className={`text-sm flex-1 ${phaseCounts[s] === 0 ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                {PHASE_LABELS[s]}
+              </span>
+              <span className={`text-sm font-bold tabular-nums ${phaseCounts[s] === 0 ? "text-muted-foreground/40" : ""}`}>
+                {phaseCounts[s]}
+              </span>
+              {total > 0 && phaseCounts[s] > 0 && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {Math.round((phaseCounts[s] / total) * 100)}%
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type Props = {
   params: { id: string };
 };
@@ -168,6 +277,9 @@ export default function DepartmentPortfolio({ params }: Props) {
   const [statusFilter, setStatusFilter] = useState<"all" | StatusCategory>("all");
 
   const { data, isLoading, isError } = useGetSpmaDepartmentPortfolio(deptId);
+  const { data: configData } = useGetSpmoConfig();
+  const currency = (configData as any)?.reportingCurrency ?? "SAR";
+  const fmtCurrency = (n: number) => fmtCurrencyWithCode(n, currency);
 
   if (isLoading) {
     return (
@@ -242,8 +354,13 @@ export default function DepartmentPortfolio({ params }: Props) {
         </Card>
       </div>
 
-      {/* Status Pie Chart */}
-      {projects.length > 0 && <DeptProjectStatusPieChart projects={projects} />}
+      {/* Status & Phase Pie Charts */}
+      {projects.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <DeptProjectStatusPieChart projects={projects} />
+          <DeptPhaseDistributionPieChart projects={projects} />
+        </div>
+      )}
 
       {/* Project list */}
       {projects.length === 0 ? (
@@ -312,6 +429,18 @@ export default function DepartmentPortfolio({ params }: Props) {
                         {project.projectCode && <span className="font-mono text-slate-500 mr-1">{project.projectCode}:</span>}{project.name}
                       </button>
                       <DeptStatusBadge project={project} />
+                      {(project as any).currentPhase && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
+                          (project as any).currentPhase === "execution" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                          (project as any).currentPhase === "planning" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                          (project as any).currentPhase === "tendering" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                          (project as any).currentPhase === "closure" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                          (project as any).currentPhase === "completed" ? "bg-green-50 text-green-700 border-green-200" :
+                          "bg-gray-50 text-gray-600 border-gray-200"
+                        }`}>
+                          {((project as any).currentPhase ?? "").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                        </span>
+                      )}
                     </div>
                     {(project.initiativeName || project.pillarName) && (
                       <p className="text-xs text-slate-400 mt-0.5">

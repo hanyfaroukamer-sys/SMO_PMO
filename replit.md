@@ -53,7 +53,17 @@ artifacts-monorepo/
 │   │   └── src/lib/spmo-calc.ts  # calcProgress cascade engine
 │   │   └── src/lib/spmo-activity.ts  # Activity logger
 │   ├── initiative-tracker/    # React + Vite frontend (initiative tracker)
-│   └── strategy-pmo/          # React + Vite frontend (StrategyPMO, port 22880)
+│   ├── strategy-pmo/          # React + Vite frontend (StrategyPMO, port 22880)
+│   └── mobile-app/            # Expo React Native app (StrategyPMO Mobile, port 24382)
+│       ├── app/_layout.tsx    # Root layout with AuthProvider + Stack navigation
+│       ├── app/(auth)/login.tsx          # Login screen (Replit Auth via WebBrowser)
+│       ├── app/(tabs)/index.tsx          # Dashboard: project stats grid
+│       ├── app/(tabs)/projects.tsx       # Projects list with search
+│       ├── app/(tabs)/tasks.tsx          # My tasks (fetches /spmo/my-tasks)
+│       ├── app/(tabs)/more.tsx           # Profile + Notifications link + Sign Out
+│       ├── app/projects/[id].tsx         # Project detail: milestones/risks/info tabs
+│       ├── app/notifications.tsx         # Notifications list
+│       └── providers/AuthProvider.tsx    # Auth context (SecureStore token, WebBrowser OIDC)
 ├── lib/
 │   ├── api-spec/              # OpenAPI 3.1 spec + Orval codegen config
 │   ├── api-client-react/      # Generated React Query hooks

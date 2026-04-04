@@ -54,10 +54,25 @@ async function projectProgress(projectId: number): Promise<{
   approvedMilestones: number;
   pendingApprovals: number;
 }> {
-  const milestones = await db
+  const allMilestones = await db
     .select()
     .from(spmoMilestonesTable)
     .where(eq(spmoMilestonesTable.projectId, projectId));
+
+  if (allMilestones.length === 0) {
+    return { progress: 0, rawProgress: 0, milestoneCount: 0, approvedMilestones: 0, pendingApprovals: 0 };
+  }
+
+  // Exclude execution placeholder when custom (non-phase-gate) milestones exist
+  // Also detect old-format placeholders: phaseGate=null + name starts with "Execution"
+  const isExecPlaceholder = (m: typeof allMilestones[0]) =>
+    m.phaseGate === "execution_placeholder" ||
+    (m.phaseGate === null && /^Execution\s*[&+]\s*Delivery/i.test(m.name));
+  const nonPlaceholderCustom = allMilestones.filter((m) => !m.phaseGate && !isExecPlaceholder(m));
+  const hasCustom = nonPlaceholderCustom.length > 0;
+  const milestones = hasCustom
+    ? allMilestones.filter((m) => !isExecPlaceholder(m))
+    : allMilestones;
 
   if (milestones.length === 0) {
     return { progress: 0, rawProgress: 0, milestoneCount: 0, approvedMilestones: 0, pendingApprovals: 0 };
@@ -107,14 +122,60 @@ async function initiativeProgress(initiativeId: number): Promise<{
     return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [] };
   }
 
+  // ── Weight cascade (highest priority first) ──────────────────
+  // 1. Admin-edited weights (any project.weight > 0 means admin set them)
+  // 2. All projects have budget → budget-weighted
+  // 3. effortDays across milestones
+  // 4. Equal weight (weightedAvg handles all-zero)
+  // Admin weights only count if they sum close to 100% (stale/default values like 1 don't count)
+  const adminWeightSum = projects.reduce((s, p) => s + (p.weight ?? 0), 0);
+  const adminWeightsSet = projects.some((p) => (p.weight ?? 0) > 0) && Math.abs(adminWeightSum - 100) <= 5;
   const totalBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
+  const allHaveBudget = !adminWeightsSet && projects.every((p) => (p.budget ?? 0) > 0);
+
+  let useEffortDays = false;
+  let effortByProject: Map<number, number> | null = null;
+  if (!adminWeightsSet && !allHaveBudget) {
+    const allProjectIds = projects.map((p) => p.id);
+    const allMilestones = allProjectIds.length > 0
+      ? await db.select({ projectId: spmoMilestonesTable.projectId, effortDays: spmoMilestonesTable.effortDays }).from(spmoMilestonesTable).where(inArray(spmoMilestonesTable.projectId, allProjectIds))
+      : [];
+    effortByProject = new Map<number, number>();
+    for (const m of allMilestones) {
+      effortByProject.set(m.projectId, (effortByProject.get(m.projectId) ?? 0) + (m.effortDays ?? 0));
+    }
+    const totalEffort = [...effortByProject.values()].reduce((s, v) => s + v, 0);
+    useEffortDays = totalEffort > 0;
+  }
+
+  const weightSource: "admin" | "budget" | "effort" | "equal" =
+    adminWeightsSet ? "admin" : allHaveBudget ? "budget" : useEffortDays ? "effort" : "equal";
 
   const projectStats = await Promise.all(
     projects.map(async (p) => {
       const s = await projectProgress(p.id);
       const projStatus = computeStatus(s.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, s.rawProgress);
-      const budgetWeight = totalBudget > 0 ? ((p.budget ?? 0) / totalBudget) * 100 : (100 / projects.length);
-      return { value: s.progress, rawValue: s.rawProgress, weight: p.budget ?? 0, ...s, budgetSpent: p.budgetSpent ?? 0, projStatus, name: p.name, projectCode: p.projectCode ?? null, budgetWeight };
+
+      let projectWeight: number;
+      if (adminWeightsSet) {
+        projectWeight = p.weight ?? 0;
+      } else if (allHaveBudget) {
+        projectWeight = p.budget ?? 0;
+      } else if (useEffortDays && effortByProject) {
+        projectWeight = effortByProject.get(p.id) ?? 0;
+      } else {
+        projectWeight = 0;
+      }
+
+      // Compute display weight as percentage
+      const totalWeight = adminWeightsSet
+        ? projects.reduce((s2, pp) => s2 + (pp.weight ?? 0), 0)
+        : allHaveBudget ? totalBudget
+        : useEffortDays ? [...effortByProject!.values()].reduce((s2, v) => s2 + v, 0)
+        : projects.length;
+      const displayWeight = totalWeight > 0 ? (projectWeight / totalWeight) * 100 : (100 / projects.length);
+
+      return { value: s.progress, rawValue: s.rawProgress, weight: projectWeight, ...s, budgetSpent: p.budgetSpent ?? 0, projStatus, name: p.name, projectCode: p.projectCode ?? null, budgetWeight: Math.round(displayWeight * 10) / 10 };
     })
   );
 
@@ -139,6 +200,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
     totalMilestones,
     budgetSpent: totalBudgetSpent,
     childProjects,
+    weightSource,
   };
 }
 
@@ -170,10 +232,55 @@ async function pillarProgress(pillarId: number): Promise<{
     };
   }
 
+  // ── Weight cascade for initiatives (highest priority first) ──
+  // 1. Admin-edited weights (any initiative.weight > 0)
+  // 2. All initiatives have computed budget (sum of child projects) → budget-weighted
+  // 3. effortDays across all child milestones
+  // 4. Equal weight
+  const adminInitWeightSum = initiatives.reduce((s, i) => s + (i.weight ?? 0), 0);
+  const adminInitWeightsSet = initiatives.some((i) => (i.weight ?? 0) > 0) && Math.abs(adminInitWeightSum - 100) <= 5;
+
+  const initBudgets = await Promise.all(
+    initiatives.map(async (i) => {
+      const childProjects = await db.select({ id: spmoProjectsTable.id, budget: spmoProjectsTable.budget }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id));
+      const budgetSum = childProjects.reduce((sum, p) => sum + (p.budget ?? 0), 0);
+      return { initId: i.id, budgetSum, projectIds: childProjects.map((p) => p.id) };
+    })
+  );
+  const allInitHaveBudget = !adminInitWeightsSet && initBudgets.every((ib) => ib.budgetSum > 0);
+
+  let initUseEffort = false;
+  let effortByInit: Map<number, number> | null = null;
+  if (!adminInitWeightsSet && !allInitHaveBudget) {
+    effortByInit = new Map();
+    const allProjIds = initBudgets.flatMap((ib) => ib.projectIds);
+    if (allProjIds.length > 0) {
+      const allMs = await db.select({ projectId: spmoMilestonesTable.projectId, effortDays: spmoMilestonesTable.effortDays }).from(spmoMilestonesTable).where(inArray(spmoMilestonesTable.projectId, allProjIds));
+      const effortByProj = new Map<number, number>();
+      for (const m of allMs) effortByProj.set(m.projectId, (effortByProj.get(m.projectId) ?? 0) + (m.effortDays ?? 0));
+      for (const ib of initBudgets) {
+        const effort = ib.projectIds.reduce((s, pid) => s + (effortByProj.get(pid) ?? 0), 0);
+        effortByInit.set(ib.initId, effort);
+      }
+      initUseEffort = [...effortByInit.values()].reduce((s, v) => s + v, 0) > 0;
+    }
+  }
+
   const initiativeStats = await Promise.all(
     initiatives.map(async (i) => {
       const s = await initiativeProgress(i.id);
-      return { value: s.progress, weight: i.budget ?? 0, ...s };
+      const ib = initBudgets.find((b) => b.initId === i.id);
+      let initWeight: number;
+      if (adminInitWeightsSet) {
+        initWeight = i.weight ?? 0;
+      } else if (allInitHaveBudget) {
+        initWeight = ib?.budgetSum ?? 0;
+      } else if (initUseEffort && effortByInit) {
+        initWeight = effortByInit.get(i.id) ?? 0;
+      } else {
+        initWeight = 0;
+      }
+      return { value: s.progress, weight: initWeight, ...s };
     })
   );
 
@@ -247,6 +354,148 @@ export async function calcProgrammeProgress(): Promise<{
 
 // Convenience exports for individual level calcs
 export { pillarProgress, initiativeProgress, projectProgress };
+
+// ─────────────────────────────────────────────────────────────
+// Effective weight computation — returns % weights for display
+// Same cascade: admin weights > budget > effortDays > equal
+// ─────────────────────────────────────────────────────────────
+
+/** Compute effective weight % for each project within an initiative */
+export async function computeProjectWeights(initiativeId: number): Promise<{ projectId: number; effectiveWeight: number; weightSource: "admin" | "budget" | "effort" | "equal" }[]> {
+  const projects = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, initiativeId));
+  if (projects.length === 0) return [];
+
+  const adminSet = projects.some((p) => (p.weight ?? 0) > 0);
+  // Admin weights are only truly "set" if they sum close to 100% — otherwise they're stale/default values
+  const adminWeightSum = projects.reduce((s, p) => s + (p.weight ?? 0), 0);
+  const adminWeightsValid = adminSet && Math.abs(adminWeightSum - 100) <= 5;
+  if (adminWeightsValid) {
+    return projects.map((p) => ({ projectId: p.id, effectiveWeight: Math.round(((p.weight ?? 0) / adminWeightSum) * 1000) / 10, weightSource: "admin" as const }));
+  }
+
+  const allHaveBudget = projects.every((p) => (p.budget ?? 0) > 0);
+  if (allHaveBudget) {
+    const total = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
+    return projects.map((p) => ({ projectId: p.id, effectiveWeight: Math.round(((p.budget ?? 0) / total) * 1000) / 10, weightSource: "budget" as const }));
+  }
+
+  // Try effortDays
+  const allProjectIds = projects.map((p) => p.id);
+  const allMs = allProjectIds.length > 0
+    ? await db.select({ projectId: spmoMilestonesTable.projectId, effortDays: spmoMilestonesTable.effortDays }).from(spmoMilestonesTable).where(inArray(spmoMilestonesTable.projectId, allProjectIds))
+    : [];
+  const effortMap = new Map<number, number>();
+  for (const m of allMs) effortMap.set(m.projectId, (effortMap.get(m.projectId) ?? 0) + (m.effortDays ?? 0));
+  const totalEffort = [...effortMap.values()].reduce((s, v) => s + v, 0);
+  if (totalEffort > 0) {
+    return projects.map((p) => ({ projectId: p.id, effectiveWeight: Math.round(((effortMap.get(p.id) ?? 0) / totalEffort) * 1000) / 10, weightSource: "effort" as const }));
+  }
+
+  // Equal
+  const eq_w = Math.round((100 / projects.length) * 10) / 10;
+  return projects.map((p) => ({ projectId: p.id, effectiveWeight: eq_w, weightSource: "equal" as const }));
+}
+
+/** Compute effective weight % for each initiative within a pillar */
+export async function computeInitiativeWeights(pillarId: number): Promise<{ initiativeId: number; effectiveWeight: number; weightSource: "admin" | "budget" | "effort" | "equal" }[]> {
+  const initiatives = await db.select().from(spmoInitiativesTable).where(eq(spmoInitiativesTable.pillarId, pillarId));
+  if (initiatives.length === 0) return [];
+
+  const adminSet = initiatives.some((i) => (i.weight ?? 0) > 0);
+  const adminWeightSum = initiatives.reduce((s, i) => s + (i.weight ?? 0), 0);
+  const adminWeightsValid = adminSet && Math.abs(adminWeightSum - 100) <= 5;
+  if (adminWeightsValid) {
+    return initiatives.map((i) => ({ initiativeId: i.id, effectiveWeight: Math.round(((i.weight ?? 0) / adminWeightSum) * 1000) / 10, weightSource: "admin" as const }));
+  }
+
+  // Compute budget per initiative (sum of child project budgets)
+  const initBudgets = await Promise.all(
+    initiatives.map(async (i) => {
+      const childProjects = await db.select({ id: spmoProjectsTable.id, budget: spmoProjectsTable.budget }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id));
+      return { initId: i.id, budgetSum: childProjects.reduce((s, p) => s + (p.budget ?? 0), 0), projectIds: childProjects.map((p) => p.id) };
+    })
+  );
+
+  const allHaveBudget = initBudgets.every((ib) => ib.budgetSum > 0);
+  if (allHaveBudget) {
+    const total = initBudgets.reduce((s, ib) => s + ib.budgetSum, 0);
+    return initiatives.map((i) => {
+      const ib = initBudgets.find((b) => b.initId === i.id);
+      return { initiativeId: i.id, effectiveWeight: Math.round(((ib?.budgetSum ?? 0) / total) * 1000) / 10, weightSource: "budget" as const };
+    });
+  }
+
+  // Try effortDays
+  const allProjIds = initBudgets.flatMap((ib) => ib.projectIds);
+  if (allProjIds.length > 0) {
+    const allMs = await db.select({ projectId: spmoMilestonesTable.projectId, effortDays: spmoMilestonesTable.effortDays }).from(spmoMilestonesTable).where(inArray(spmoMilestonesTable.projectId, allProjIds));
+    const effortByProj = new Map<number, number>();
+    for (const m of allMs) effortByProj.set(m.projectId, (effortByProj.get(m.projectId) ?? 0) + (m.effortDays ?? 0));
+    const effortByInit = new Map<number, number>();
+    for (const ib of initBudgets) {
+      effortByInit.set(ib.initId, ib.projectIds.reduce((s, pid) => s + (effortByProj.get(pid) ?? 0), 0));
+    }
+    const totalEffort = [...effortByInit.values()].reduce((s, v) => s + v, 0);
+    if (totalEffort > 0) {
+      return initiatives.map((i) => ({ initiativeId: i.id, effectiveWeight: Math.round(((effortByInit.get(i.id) ?? 0) / totalEffort) * 1000) / 10, weightSource: "effort" as const }));
+    }
+  }
+
+  const eq_w = Math.round((100 / initiatives.length) * 10) / 10;
+  return initiatives.map((i) => ({ initiativeId: i.id, effectiveWeight: eq_w, weightSource: "equal" as const }));
+}
+
+/** Compute effective weight % for each pillar at programme level */
+export async function computePillarWeights(): Promise<{ pillarId: number; effectiveWeight: number; weightSource: "admin" | "budget" | "effort" | "equal" }[]> {
+  const pillars = await db.select().from(spmoPillarsTable).orderBy(spmoPillarsTable.sortOrder);
+  if (pillars.length === 0) return [];
+
+  // Admin override: pillar weights sum to ~100%
+  const adminWeightSum = pillars.reduce((s, p) => s + (p.weight ?? 0), 0);
+  const adminSet = pillars.some((p) => (p.weight ?? 0) > 0) && Math.abs(adminWeightSum - 100) <= 5;
+  if (adminSet) {
+    return pillars.map((p) => ({ pillarId: p.id, effectiveWeight: Math.round(((p.weight ?? 0) / adminWeightSum) * 1000) / 10, weightSource: "admin" as const }));
+  }
+
+  // Budget: sum of all child project budgets per pillar
+  const pillarBudgets = await Promise.all(
+    pillars.map(async (p) => {
+      const inits = await db.select({ id: spmoInitiativesTable.id }).from(spmoInitiativesTable).where(eq(spmoInitiativesTable.pillarId, p.id));
+      if (inits.length === 0) return { pillarId: p.id, budget: 0, projectIds: [] as number[] };
+      const initIds = inits.map((i) => i.id);
+      const projects = await db.select({ id: spmoProjectsTable.id, budget: spmoProjectsTable.budget }).from(spmoProjectsTable).where(inArray(spmoProjectsTable.initiativeId, initIds));
+      return { pillarId: p.id, budget: projects.reduce((s, pr) => s + (pr.budget ?? 0), 0), projectIds: projects.map((pr) => pr.id) };
+    })
+  );
+  const allHaveBudget = pillarBudgets.every((pb) => pb.budget > 0);
+  if (allHaveBudget) {
+    const total = pillarBudgets.reduce((s, pb) => s + pb.budget, 0);
+    return pillars.map((p) => {
+      const pb = pillarBudgets.find((b) => b.pillarId === p.id);
+      return { pillarId: p.id, effectiveWeight: Math.round(((pb?.budget ?? 0) / total) * 1000) / 10, weightSource: "budget" as const };
+    });
+  }
+
+  // Effort: sum of milestone effortDays
+  const allProjIds = pillarBudgets.flatMap((pb) => pb.projectIds);
+  if (allProjIds.length > 0) {
+    const allMs = await db.select({ projectId: spmoMilestonesTable.projectId, effortDays: spmoMilestonesTable.effortDays }).from(spmoMilestonesTable).where(inArray(spmoMilestonesTable.projectId, allProjIds));
+    const effortByProj = new Map<number, number>();
+    for (const m of allMs) effortByProj.set(m.projectId, (effortByProj.get(m.projectId) ?? 0) + (m.effortDays ?? 0));
+    const effortByPillar = new Map<number, number>();
+    for (const pb of pillarBudgets) {
+      effortByPillar.set(pb.pillarId, pb.projectIds.reduce((s, pid) => s + (effortByProj.get(pid) ?? 0), 0));
+    }
+    const totalEffort = [...effortByPillar.values()].reduce((s, v) => s + v, 0);
+    if (totalEffort > 0) {
+      return pillars.map((p) => ({ pillarId: p.id, effectiveWeight: Math.round(((effortByPillar.get(p.id) ?? 0) / totalEffort) * 1000) / 10, weightSource: "effort" as const }));
+    }
+  }
+
+  // Equal
+  const eq_w = Math.round((100 / pillars.length) * 10) / 10;
+  return pillars.map((p) => ({ pillarId: p.id, effectiveWeight: eq_w, weightSource: "equal" as const }));
+}
 
 // Get milestone with evidence
 export async function getMilestoneWithEvidence(milestoneId: number) {
@@ -341,7 +590,7 @@ function computeStatusCore(
   t: StatusThresholds,
 ): StatusResult {
   if (!startDate || !endDate) {
-    return { status: "on_track", reason: "Dates not set.", spi: 1, burnGap: 0 };
+    return { status: "not_started", reason: "Project dates not configured.", spi: 1, burnGap: 0 };
   }
 
   const today = new Date();
@@ -393,7 +642,7 @@ function computeStatusCore(
     if (spi < t.earlyStallSpi && actualProgress < t.earlyStallProgress) {
       return {
         status: "at_risk",
-        reason: `Mobilisation stalled: ${Math.round(elapsedPct)}% elapsed, only ${Math.round(actualProgress)}% complete.`,
+        reason: `Mobilising — project has minimal progress in early stage (${Math.round(elapsedPct)}% elapsed, ${Math.round(actualProgress)}% complete).`,
         spi: r2(spi),
         burnGap: Math.round(burnGap),
       };

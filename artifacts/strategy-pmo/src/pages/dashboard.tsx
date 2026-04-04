@@ -6,6 +6,7 @@ import {
   useListSpmoProjects,
   useRunSpmoAiAssessment,
   useGetSpmoDepartmentStatus,
+  useGetSpmoConfig,
   type SpmoHealthStatus,
   type SpmoStatusResult,
   type SpmoProjectWithProgress,
@@ -21,7 +22,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Target, FolderOpen, AlertTriangle, Sparkles, AlertCircle, Loader2,
   ChevronRight, ChevronDown, Wallet, ThumbsUp, Lightbulb, ShieldAlert,
-  Upload, FileText, BarChart2, Layers, Zap,
+  Upload, FileText, BarChart2, Layers, Zap, X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -93,10 +94,10 @@ function classifyProject(project: SpmoProjectWithProgress): ProjectStatusCategor
 }
 
 const STATUS_CHIPS: Record<ProjectStatusCategory, { label: string; bg: string; text: string }> = {
-  on_track:    { label: "On Track",       bg: "bg-primary/10 border border-primary/20",         text: "text-primary" },
-  at_risk:     { label: "Risk of Delay",  bg: "bg-warning/10 border border-warning/20",         text: "text-warning" },
-  delayed:     { label: "Delayed",        bg: "bg-destructive/10 border border-destructive/20", text: "text-destructive" },
-  completed:   { label: "Completed",      bg: "bg-success/10 border border-success/20",         text: "text-success" },
+  on_track:    { label: "On Track",       bg: "bg-primary/10 border border-primary/40",         text: "text-primary" },
+  at_risk:     { label: "Risk of Delay",  bg: "bg-warning/10 border border-warning/40",         text: "text-warning" },
+  delayed:     { label: "Delayed",        bg: "bg-destructive/10 border border-destructive/40", text: "text-destructive" },
+  completed:   { label: "Completed",      bg: "bg-success/10 border border-success/40",         text: "text-success" },
   not_started: { label: "Not Started",    bg: "bg-secondary border border-border",              text: "text-muted-foreground" },
   on_hold:     { label: "On Hold",        bg: "bg-orange-100 border border-orange-200",         text: "text-orange-600" },
 };
@@ -291,12 +292,13 @@ function DepartmentHealthSegmentedChart({ depts }: { depts: SpmoDepartmentStatus
 
 function BudgetStackedBarChart({
   totalAllocated, totalCapex, totalOpex, totalSpent,
-  budgetUsed, budgetView, setBudgetView,
+  budgetUsed, budgetView, setBudgetView, currency,
 }: {
   totalAllocated: number; totalCapex: number; totalOpex: number; totalSpent: number;
   budgetUsed: number;
   budgetView: "total" | "capex" | "opex";
   setBudgetView: (v: "total" | "capex" | "opex") => void;
+  currency: string;
 }) {
   const M = 1_000_000;
   const capexRatio = totalAllocated > 0 ? totalCapex / totalAllocated : 0.5;
@@ -319,7 +321,7 @@ function BudgetStackedBarChart({
   })();
 
   const maxVal = Math.max(totalAllocated / M, totalSpent / M);
-  const fmt = (v: number) => `${v.toFixed(0)}M SAR`;
+  const fmt = (v: number) => `${v.toFixed(0)}M ${currency}`;
 
   return (
     <div className="rounded-[14px] border border-border bg-card p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -331,7 +333,7 @@ function BudgetStackedBarChart({
           <div>
             <h2 className="text-[15px] font-display font-bold text-foreground tracking-tight">Budget Overview</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {(totalAllocated / M).toFixed(0)}M SAR allocated · {budgetUsed.toFixed(1)}% utilized
+              {(totalAllocated / M).toFixed(0)}M {currency} allocated · {budgetUsed.toFixed(1)}% utilized
             </p>
           </div>
         </div>
@@ -409,6 +411,8 @@ export default function Dashboard() {
   const { data: budgetData } = useListSpmoBudget();
   const { data: projectsData } = useListSpmoProjects();
   const { data: deptStatus } = useGetSpmoDepartmentStatus();
+  const { data: configData } = useGetSpmoConfig();
+  const currency = (configData as any)?.reportingCurrency ?? "SAR";
   const isAdmin = useIsAdmin();
   const [activeTab, setActiveTab] = useState<DashTab>("overview");
   const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
@@ -426,8 +430,21 @@ export default function Dashboard() {
     if (!aiMutation.data) aiMutation.mutate();
   };
 
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
   if (isLoading)
-    return <div className="p-8 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+    return (
+      <div className="p-8 space-y-6">
+        <div className="h-10 animate-pulse bg-secondary/50 rounded-xl w-2/3" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="animate-pulse bg-secondary/50 rounded-xl h-[120px]" />
+          ))}
+        </div>
+        <div className="animate-pulse bg-secondary/50 rounded-xl h-8 w-1/2" />
+        <div className="animate-pulse bg-secondary/50 rounded-xl h-[200px]" />
+      </div>
+    );
   if (error || !data)
     return <div className="p-8 text-destructive">Failed to load dashboard data.</div>;
 
@@ -712,7 +729,7 @@ export default function Dashboard() {
               icon: Wallet,
               label: "Budget Utilized",
               value: `${budgetUsed.toFixed(1)}%`,
-              sub: `${((totalAllocated) / 1_000_000).toFixed(0)}M SAR allocated`,
+              sub: `${((totalAllocated) / 1_000_000).toFixed(0)}M ${currency} allocated`,
               color: "text-warning",
               bg: "bg-warning/10",
               accent: "linear-gradient(90deg, #d97706, #f59e0b)",
@@ -820,6 +837,7 @@ export default function Dashboard() {
                     budgetUsed={budgetUsed}
                     budgetView={budgetView}
                     setBudgetView={setBudgetView}
+                    currency={currency}
                   />
                 )}
 

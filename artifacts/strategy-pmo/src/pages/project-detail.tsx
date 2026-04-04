@@ -39,18 +39,20 @@ import {
   type SpmoRaci,
   type SpmoAction,
   type SpmoDocument,
+  customFetch,
+  useGetSpmoConfig,
 } from "@workspace/api-client-react";
 import { Card, ProgressBar, StatusBadge, PageHeader } from "@/components/ui-elements";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useProjectPermissions } from "@/hooks/use-project-access";
 import {
   Loader2, ArrowLeft, CheckCircle2, XCircle, FileText, FileImage,
   FileArchive, FileSpreadsheet, Upload, AlertCircle, Clock, Target,
   Calendar, DollarSign, User, Building2, Layers, ChevronRight,
   Sparkles, TrendingUp, ShieldAlert, Activity, ClipboardList, Pencil, Save, X, Plus, ExternalLink,
-  GitPullRequest, Grid3X3, ListTodo, FolderOpen, Trash2, ChevronDown, Lock,
+  GitPullRequest, Grid3X3, ListTodo, FolderOpen, Trash2, ChevronDown, Lock, MessageCircle, Send, Reply,
 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -69,10 +71,10 @@ function fileIcon(contentType: string | null | undefined) {
 }
 
 const HEALTH_CONFIG: Record<SpmoHealthStatus, { label: string; color: string; bg: string; border: string }> = {
-  on_track:    { label: "On Track",    color: "text-success",          bg: "bg-success/10",     border: "border-success/20" },
-  at_risk:     { label: "At Risk",     color: "text-warning",          bg: "bg-warning/10",     border: "border-warning/20" },
-  delayed:     { label: "Delayed",     color: "text-destructive",      bg: "bg-destructive/10", border: "border-destructive/20" },
-  completed:   { label: "Completed",   color: "text-success",          bg: "bg-success/10",     border: "border-success/20" },
+  on_track:    { label: "On Track",    color: "text-success",          bg: "bg-success/10",     border: "border-success/40" },
+  at_risk:     { label: "At Risk",     color: "text-warning",          bg: "bg-warning/10",     border: "border-warning/40" },
+  delayed:     { label: "Delayed",     color: "text-destructive",      bg: "bg-destructive/10", border: "border-destructive/40" },
+  completed:   { label: "Completed",   color: "text-success",          bg: "bg-success/10",     border: "border-success/40" },
   not_started: { label: "Not Started", color: "text-muted-foreground", bg: "bg-muted",          border: "border-border" },
 };
 
@@ -86,7 +88,7 @@ function HealthBadge({ status }: { status: SpmoHealthStatus | null | undefined }
   );
 }
 
-type TabKey = "overview" | "milestones" | "weekly-report" | "risks" | "changes" | "raci" | "actions" | "documents" | "reports" | "team";
+type TabKey = "overview" | "milestones" | "weekly-report" | "risks" | "changes" | "raci" | "actions" | "documents" | "reports" | "team" | "discussion";
 
 // ─── Evidence inline panel ─────────────────────────────────────────────────────
 
@@ -120,7 +122,7 @@ function EvidenceSection({
     if (!file) return;
     setUploading(true);
     try {
-      const urlRes = await fetch("/api/storage/uploads/request-url", {
+      const urlRes = await fetch("/api/spmo/uploads/request-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ milestoneId: milestone.id }),
@@ -141,6 +143,7 @@ function EvidenceSection({
   };
 
   const handleApprove = async () => {
+    if (!window.confirm(`Approve milestone '${milestone.name}'? This action cannot be undone.`)) return;
     await approveMutation.mutateAsync({ id: milestone.id, data: {} });
     toast({ title: "Milestone approved" });
     onInvalidate();
@@ -198,7 +201,7 @@ function EvidenceSection({
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading || isApproved}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border hover:bg-secondary/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
           Upload Evidence
@@ -208,7 +211,7 @@ function EvidenceSection({
           <button
             onClick={() => aiMutation.mutate({ data: { milestoneId: milestone.id } })}
             disabled={aiMutation.isPending || isApproved}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-secondary border border-border hover:bg-secondary/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {aiMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-primary" />}
             AI Validate
@@ -221,14 +224,14 @@ function EvidenceSection({
             <button
               onClick={handleApprove}
               disabled={approveMutation.isPending || evidenceList.length === 0}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-success text-white hover:-translate-y-0.5 transition-transform shadow-sm disabled:opacity-50"
+              className="flex items-center gap-1.5 px-2.5 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-success text-white hover:-translate-y-0.5 transition-transform shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <CheckCircle2 className="w-3.5 h-3.5" /> Approve
             </button>
             <button
               onClick={() => setRejecting(true)}
               disabled={rejectMutation.isPending}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive hover:text-white transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-2.5 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-destructive/10 text-destructive border border-destructive/40 hover:bg-destructive hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <XCircle className="w-3.5 h-3.5" /> Reject
             </button>
@@ -243,7 +246,7 @@ function EvidenceSection({
               onInvalidate();
             }}
             disabled={submitMutation.isPending}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {submitMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Target className="w-3.5 h-3.5" />}
             Submit for Approval
@@ -257,6 +260,14 @@ function EvidenceSection({
         )}
       </div>
 
+      {/* Help text when Submit for Approval is not available */}
+      {!isApproved && !isSubmitted && !canSubmitForApproval && (
+        <div className="text-xs text-muted-foreground">
+          {(milestone.progress ?? 0) < 100 && <div>Requires 100% progress</div>}
+          {evidenceList.length === 0 && <div>Requires at least 1 evidence file</div>}
+        </div>
+      )}
+
       {/* Rejection reason input */}
       {rejecting && (
         <div className="flex gap-2 mt-2">
@@ -266,7 +277,7 @@ function EvidenceSection({
             placeholder="Reason for rejection (optional)"
             className="flex-1 text-xs border border-border rounded-lg px-2.5 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/50"
           />
-          <button onClick={handleReject} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-destructive text-white hover:opacity-90">Confirm</button>
+          <button onClick={handleReject} className="px-3 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-destructive text-white hover:opacity-90">Confirm</button>
           <button onClick={() => setRejecting(false)} className="px-2 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-secondary">Cancel</button>
         </div>
       )}
@@ -412,7 +423,7 @@ function MilestonesTab({
             <button
               onClick={handleCreate}
               disabled={createMilestone.isPending || !form.name.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Save className="w-3 h-3" />
               {createMilestone.isPending ? "Creating…" : "Create Milestone"}
@@ -543,6 +554,7 @@ function MilestoneRow({
   };
 
   const handleDelete = async () => {
+    if (!window.confirm(`Delete milestone '${milestone.name}'? This cannot be undone.`)) return;
     await deleteMilestone.mutateAsync({ id: milestone.id });
     toast({ title: "Milestone deleted" });
     onInvalidate();
@@ -650,7 +662,7 @@ function MilestoneRow({
             <button
               onClick={saveDetails}
               disabled={updateMilestone.isPending || !draft.name.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Save className="w-3 h-3" />
               {updateMilestone.isPending ? "Saving…" : "Save Changes"}
@@ -716,7 +728,7 @@ function MilestoneRow({
                     <button
                       onClick={() => saveInlineProgress(inlineProgress)}
                       disabled={savingProgress}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {savingProgress ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Save className="w-2.5 h-2.5" />}
                       Save
@@ -780,7 +792,7 @@ function MilestoneRow({
                     <button
                       onClick={handleDelete}
                       disabled={deleteMilestone.isPending}
-                      className="px-2 py-1 rounded text-[10px] font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors"
+                      className="px-2 py-2.5 min-h-[44px] rounded text-[10px] font-semibold bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       {deleteMilestone.isPending ? "…" : "Confirm delete"}
                     </button>
@@ -796,7 +808,7 @@ function MilestoneRow({
                     onClick={canDelete ? () => setConfirmDelete(true) : undefined}
                     disabled={!canDelete}
                     title={!canDelete ? "Only admins can delete milestones" : undefined}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-destructive/30 text-destructive bg-destructive/5 transition-colors ${canDelete ? "hover:bg-destructive/15" : "opacity-40 cursor-not-allowed"}`}
+                    className={`flex items-center gap-1 px-2.5 py-2.5 min-h-[44px] rounded-lg text-xs font-semibold border border-destructive/30 text-destructive bg-destructive/5 transition-colors ${canDelete ? "hover:bg-destructive/15" : "opacity-40 cursor-not-allowed"}`}
                   >
                     <Trash2 className="w-3 h-3" /> Delete
                   </button>
@@ -826,9 +838,25 @@ export default function ProjectDetail({ params }: Props) {
       "risks": "risks", "actions": "risks", // actions merged into risks tab
       "weekly-report": "reports", "reports": "reports", "changes": "reports", // merged into reports
       "raci": "team", "team": "team", "documents": "team", // merged into team
+      "discussion": "discussion",
     };
     return (param && tabMap[param]) ? tabMap[param] : "overview";
   });
+
+  // React to URL changes (e.g. notification bell navigating with ?tab=discussion)
+  const [location] = useLocation();
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get("tab") as string | null;
+    const tabMap: Record<string, TabKey> = {
+      "overview": "overview", "milestones": "milestones",
+      "risks": "risks", "actions": "risks",
+      "weekly-report": "reports", "reports": "reports", "changes": "reports",
+      "raci": "team", "team": "team", "documents": "team",
+      "discussion": "discussion",
+    };
+    if (param && tabMap[param]) setActiveTab(tabMap[param]);
+  }, [location]);
+
   const [editingReport, setEditingReport] = useState(false);
   const [reportDraft, setReportDraft] = useState({ keyAchievements: "", nextSteps: "" });
   const projectId = parseInt(params?.id ?? "0");
@@ -840,6 +868,8 @@ export default function ProjectDetail({ params }: Props) {
   const isAdmin = userRole === "admin";
 
   const { data: project, isLoading } = useGetSpmoProject(projectId);
+  const { data: spmoConfigData } = useGetSpmoConfig();
+  const currency = (spmoConfigData as any)?.reportingCurrency ?? "SAR";
   const projectOwnerId = (project as Record<string, unknown> | undefined)?.ownerId as string | undefined;
   const perms = useProjectPermissions(projectId, projectOwnerId);
   // PMs who own the project get full edit rights (details + progress + delete)
@@ -957,6 +987,7 @@ export default function ProjectDetail({ params }: Props) {
     { key: "risks",         label: "Risks & Actions", icon: ShieldAlert,   count: (projectRisks.length + openActions) || undefined },
     { key: "reports",       label: "Reports",         icon: Activity,      count: changeRequests.length || undefined },
     { key: "team",          label: "Team & Docs",     icon: Grid3X3,       count: documents.length || undefined },
+    { key: "discussion",    label: "Discussion",      icon: MessageCircle },
   ];
 
   return (
@@ -1071,33 +1102,39 @@ export default function ProjectDetail({ params }: Props) {
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground font-medium">Start Date</span>
+                <span className="text-xs text-muted-foreground font-medium">Planned Start</span>
               </div>
-              <div className="font-semibold text-sm">{fmt(project.startDate)}</div>
+              <div className="font-semibold text-sm">{fmt((project as any).plannedStartDate ?? project.startDate)}</div>
+              {project.startDate && (project as any).plannedStartDate && project.startDate !== (project as any).plannedStartDate && (
+                <div className="text-[10px] text-muted-foreground mt-1">Actual: {fmt(project.startDate)}</div>
+              )}
             </Card>
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Calendar className="w-4 h-4 text-destructive/60" />
-                <span className="text-xs text-muted-foreground font-medium">Target Date</span>
+                <span className="text-xs text-muted-foreground font-medium">Planned End</span>
               </div>
-              <div className="font-semibold text-sm">{fmt(project.targetDate)}</div>
+              <div className="font-semibold text-sm">{fmt((project as any).plannedEndDate ?? project.targetDate)}</div>
+              {project.targetDate && (project as any).plannedEndDate && project.targetDate !== (project as any).plannedEndDate && (
+                <div className="text-[10px] text-muted-foreground mt-1">Actual: {fmt(project.targetDate)}</div>
+              )}
             </Card>
             <Card className="p-4 col-span-1 lg:col-span-2">
               <div className="flex items-center gap-2 mb-3">
                 <DollarSign className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground font-medium">Budget Allocation</span>
               </div>
-              <div className="font-bold text-base font-mono mb-2">{formatCurrency(project.budget)} SAR total</div>
+              <div className="font-bold text-base font-mono mb-2">{formatCurrency(project.budget, currency)} total</div>
               {((project as { budgetCapex?: number }).budgetCapex ?? 0) > 0 || ((project as { budgetOpex?: number }).budgetOpex ?? 0) > 0 ? (
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50">
                   <div>
                     <div className="text-[10px] font-semibold text-muted-foreground uppercase">CAPEX</div>
-                    <div className="font-bold text-sm font-mono">{formatCurrency((project as { budgetCapex?: number }).budgetCapex ?? 0)}</div>
+                    <div className="font-bold text-sm font-mono">{formatCurrency((project as { budgetCapex?: number }).budgetCapex ?? 0, currency)}</div>
                     <div className="text-[10px] text-muted-foreground">{project.budget > 0 ? Math.round(((project as { budgetCapex?: number }).budgetCapex ?? 0) / project.budget * 100) : 0}% of total</div>
                   </div>
                   <div>
                     <div className="text-[10px] font-semibold text-muted-foreground uppercase">OPEX</div>
-                    <div className="font-bold text-sm font-mono">{formatCurrency((project as { budgetOpex?: number }).budgetOpex ?? 0)}</div>
+                    <div className="font-bold text-sm font-mono">{formatCurrency((project as { budgetOpex?: number }).budgetOpex ?? 0, currency)}</div>
                     <div className="text-[10px] text-muted-foreground">{project.budget > 0 ? Math.round(((project as { budgetOpex?: number }).budgetOpex ?? 0) / project.budget * 100) : 0}% of total</div>
                   </div>
                 </div>
@@ -1108,7 +1145,7 @@ export default function ProjectDetail({ params }: Props) {
                 <DollarSign className="w-4 h-4 text-warning/70" />
                 <span className="text-xs text-muted-foreground font-medium">Budget Spent</span>
               </div>
-              <div className="font-bold text-sm font-mono">{formatCurrency(project.budgetSpent)}</div>
+              <div className="font-bold text-sm font-mono">{formatCurrency(project.budgetSpent, currency)}</div>
               <div className="text-[10px] text-muted-foreground mt-0.5">{budgetPct}% of allocation</div>
             </Card>
           </div>
@@ -1290,7 +1327,7 @@ export default function ProjectDetail({ params }: Props) {
                   <button
                     onClick={saveReport}
                     disabled={upsertReport.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-primary to-primary/80 text-white shadow-sm hover:-translate-y-0.5 transition-transform disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-primary to-primary/80 text-white shadow-sm hover:-translate-y-0.5 transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {upsertReport.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     Save Report
@@ -1536,6 +1573,10 @@ export default function ProjectDetail({ params }: Props) {
           onInvalidate={() => qc.invalidateQueries({ queryKey: docsQK })}
         />
       )}
+
+      {activeTab === "discussion" && (
+        <DiscussionTab projectId={projectId} currentUser={authData?.user} />
+      )}
     </div>
   );
 }
@@ -1587,7 +1628,7 @@ function CRInlineForm({
         </select>
       </div>
       <div>
-        <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Budget Impact (SAR)</label>
+        <label className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Budget Impact ({currency})</label>
         <input type="number" value={form.budgetImpact} onChange={f("budgetImpact")} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="e.g. 500000" />
       </div>
       <div>
@@ -1599,7 +1640,7 @@ function CRInlineForm({
         <textarea value={form.description} onChange={f("description")} rows={2} className="w-full text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" placeholder="What is changing and why?" />
       </div>
       <div className="col-span-2 flex gap-2">
-        <button onClick={() => onSave(form)} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-50 hover:-translate-y-0.5 transition-transform">
+        <button onClick={() => onSave(form)} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:-translate-y-0.5 transition-transform">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
         </button>
         <button onClick={onCancel} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
@@ -1716,7 +1757,7 @@ function ChangeControlTab({
                 </div>
                 {cr.description && <p className="text-xs text-muted-foreground">{cr.description}</p>}
                 <div className="flex flex-wrap gap-3 mt-1.5 text-[10px] text-muted-foreground">
-                  {cr.budgetImpact != null && <span>Budget: <span className={`font-semibold ${cr.budgetImpact > 0 ? "text-destructive" : "text-success"}`}>{cr.budgetImpact > 0 ? "+" : ""}{formatCurrency(cr.budgetImpact)}</span></span>}
+                  {cr.budgetImpact != null && <span>Budget: <span className={`font-semibold ${cr.budgetImpact > 0 ? "text-destructive" : "text-success"}`}>{cr.budgetImpact > 0 ? "+" : ""}{formatCurrency(cr.budgetImpact, currency)}</span></span>}
                   {cr.timelineImpact != null && <span>Timeline: <span className={`font-semibold ${cr.timelineImpact > 0 ? "text-warning" : "text-success"}`}>{cr.timelineImpact > 0 ? "+" : ""}{cr.timelineImpact}d</span></span>}
                   <span>By: {cr.requestedByName}</span>
                   <span>{new Date(cr.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
@@ -2062,7 +2103,7 @@ function ActionRow({
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-50 hover:-translate-y-0.5 transition-transform">
+          <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:-translate-y-0.5 transition-transform">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
           </button>
           <button onClick={() => setEditing(false)} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
@@ -2334,7 +2375,7 @@ function DocumentsTab({
             </div>
           </div>
           <div className="flex gap-2 pt-1">
-            <button onClick={handleUpload} disabled={uploading} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:-translate-y-0.5 transition-transform disabled:opacity-50">
+            <button onClick={handleUpload} disabled={uploading} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:-translate-y-0.5 transition-transform disabled:opacity-40 disabled:cursor-not-allowed">
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Save
             </button>
             <button onClick={() => setShowForm(false)} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground">Cancel</button>
@@ -2465,5 +2506,310 @@ function MilestoneTimeline({ milestones }: { milestones: SpmoMilestoneWithEviden
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Discussion Tab ─────────────────────────────────────────────────────────
+
+interface Comment {
+  id: number;
+  entityType: string;
+  entityId: number;
+  parentId: number | null;
+  authorId: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function DiscussionTab({ projectId, currentUser }: { projectId: number; currentUser?: { id: string; email?: string | null; firstName?: string | null; lastName?: string | null; role?: string | null } | null }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const commentsQK = ["spmo-comments", "project", projectId];
+
+  const { data: commentsData, isLoading } = useQuery({
+    queryKey: commentsQK,
+    queryFn: () => customFetch(`/api/spmo/comments?entityType=project&entityId=${projectId}`) as Promise<{ comments: Comment[] }>,
+    staleTime: 10_000,
+  });
+
+  const comments = commentsData?.comments ?? [];
+  const topLevel = comments.filter((c) => !c.parentId);
+  const replies = (parentId: number) => comments.filter((c) => c.parentId === parentId);
+
+  const [body, setBody] = useState("");
+  const [replyTo, setReplyTo] = useState<{ id: number; authorName: string | null } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+
+  // Inline @mention state
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionResults, setMentionResults] = useState<{ id: string; firstName: string | null; lastName: string | null; email: string | null; role: string | null }[]>([]);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const [mentionStartPos, setMentionStartPos] = useState(-1);
+  const mentionDebounce = useRef<ReturnType<typeof setTimeout>>();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Search users when mentionQuery changes
+  useEffect(() => {
+    if (!mentionQuery || mentionQuery.length < 1) { setMentionResults([]); setShowMentionDropdown(false); return; }
+    clearTimeout(mentionDebounce.current);
+    mentionDebounce.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/spmo/users/search?q=${encodeURIComponent(mentionQuery)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMentionResults(data.users ?? []);
+          setShowMentionDropdown((data.users ?? []).length > 0);
+          setMentionIdx(0);
+        }
+      } catch { /* ignore */ }
+    }, 150);
+    return () => clearTimeout(mentionDebounce.current);
+  }, [mentionQuery]);
+
+  const handleBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setBody(val);
+    // Detect @ trigger — find the last @ before cursor
+    const cursorPos = e.target.selectionStart;
+    const textBefore = val.slice(0, cursorPos);
+    const lastAt = textBefore.lastIndexOf("@");
+    if (lastAt >= 0) {
+      const afterAt = textBefore.slice(lastAt + 1);
+      // Only trigger if no space in the query (still typing the name) and @ is at start or after a space
+      if (afterAt.length <= 30 && !afterAt.includes("\n") && (lastAt === 0 || val[lastAt - 1] === " " || val[lastAt - 1] === "\n")) {
+        setMentionQuery(afterAt);
+        setMentionStartPos(lastAt);
+        return;
+      }
+    }
+    setMentionQuery("");
+    setShowMentionDropdown(false);
+  };
+
+  const selectMentionUser = (user: typeof mentionResults[0]) => {
+    const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || user.id;
+    const mention = `@[${name}](${user.id})`;
+    // Replace @query with the mention format
+    const before = body.slice(0, mentionStartPos);
+    const cursorPos = textRef.current?.selectionStart ?? body.length;
+    const after = body.slice(cursorPos);
+    setBody(before + mention + " " + after);
+    setShowMentionDropdown(false);
+    setMentionQuery("");
+    setTimeout(() => textRef.current?.focus(), 0);
+  };
+
+  const handleTextKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showMentionDropdown && mentionResults.length > 0) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setMentionIdx((i) => Math.min(i + 1, mentionResults.length - 1)); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); setMentionIdx((i) => Math.max(i - 1, 0)); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); selectMentionUser(mentionResults[mentionIdx]); return; }
+      if (e.key === "Escape") { setShowMentionDropdown(false); return; }
+    }
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmit();
+  };
+
+  const handleSubmit = async () => {
+    const text = body.trim();
+    if (!text) return;
+    setSubmitting(true);
+    try {
+      await customFetch("/api/spmo/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityType: "project",
+          entityId: projectId,
+          parentId: replyTo?.id ?? null,
+          body: text,
+        }),
+      });
+      setBody("");
+      setReplyTo(null);
+      qc.invalidateQueries({ queryKey: commentsQK });
+      toast({ title: replyTo ? "Reply posted" : "Comment posted" });
+    } catch {
+      toast({ title: "Failed to post comment", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await customFetch(`/api/spmo/comments/${id}`, { method: "DELETE" });
+      qc.invalidateQueries({ queryKey: commentsQK });
+      toast({ title: "Comment deleted" });
+    } catch {
+      toast({ title: "Failed to delete", variant: "destructive" });
+    }
+  };
+
+  const formatTime = (iso: string) => {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  };
+
+  const renderBody = (text: string) => {
+    // Parse @[Name](userId) mentions and render them as highlighted spans
+    const parts = text.split(/(@\[[^\]]+\]\([^)]+\))/g);
+    return parts.map((part, i) => {
+      const mentionMatch = part.match(/@\[([^\]]+)\]\(([^)]+)\)/);
+      if (mentionMatch) {
+        return <span key={i} className="text-primary font-semibold bg-primary/10 px-1 rounded">@{mentionMatch[1]}</span>;
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
+  const initials = (name: string | null) => {
+    if (!name) return "?";
+    return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+  };
+
+  const isAdmin = currentUser?.role === "admin";
+
+  function CommentCard({ comment, depth = 0 }: { comment: Comment; depth?: number }) {
+    const canDelete = comment.authorId === currentUser?.id || isAdmin;
+    const childReplies = replies(comment.id);
+    return (
+      <div className={depth > 0 ? "ml-8 border-l-2 border-border/40 pl-4" : ""}>
+        <div className="group flex gap-3 py-3">
+          <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+            {initials(comment.authorName)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-foreground">{comment.authorName ?? "Unknown"}</span>
+              <span className="text-xs text-muted-foreground">{formatTime(comment.createdAt)}</span>
+            </div>
+            <div className="text-sm text-foreground/90 mt-1 leading-relaxed whitespace-pre-wrap break-words">
+              {renderBody(comment.body)}
+            </div>
+            <div className="flex items-center gap-3 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => setReplyTo({ id: comment.id, authorName: comment.authorName })}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Reply className="w-3 h-3" /> Reply
+              </button>
+              {canDelete && (
+                <button
+                  onClick={() => handleDelete(comment.id)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" /> Delete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        {childReplies.length > 0 && (
+          <div>
+            {childReplies.map((r) => <CommentCard key={r.id} comment={r} depth={depth + 1} />)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <Card className="p-5">
+      <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
+        <MessageCircle className="w-4 h-4 text-primary" />
+        Discussion
+        {comments.length > 0 && <span className="text-xs text-muted-foreground font-normal">({comments.length})</span>}
+      </h3>
+
+      {/* Compose area */}
+      <div className="border border-border rounded-xl p-3 mb-5 focus-within:ring-2 focus-within:ring-primary/20 transition-shadow bg-card">
+        {replyTo && (
+          <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground bg-secondary/50 rounded-lg px-3 py-1.5">
+            <Reply className="w-3 h-3" />
+            <span>Replying to <strong className="text-foreground">{replyTo.authorName ?? "comment"}</strong></span>
+            <button onClick={() => setReplyTo(null)} className="ml-auto hover:text-foreground">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+        <div className="relative">
+          <textarea
+            ref={textRef}
+            value={body}
+            onChange={handleBodyChange}
+            placeholder="Write a comment… Type @ to mention someone"
+            rows={3}
+            className="w-full resize-none text-sm bg-transparent border-0 outline-none placeholder:text-muted-foreground/60"
+            onKeyDown={handleTextKeyDown}
+          />
+          {/* @mention dropdown — appears inline below the textarea */}
+          {showMentionDropdown && mentionResults.length > 0 && (
+            <div ref={dropdownRef} className="absolute z-50 left-0 right-0 bottom-0 translate-y-full bg-popover border border-border rounded-lg shadow-xl max-h-52 overflow-y-auto">
+              {mentionResults.map((user, idx) => {
+                const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || user.id;
+                return (
+                  <button key={user.id} type="button" onClick={() => selectMentionUser(user)}
+                    className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2.5 transition-colors ${idx === mentionIdx ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}>
+                    <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                      {(user.firstName?.[0] ?? user.email?.[0] ?? "?").toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold truncate">{name}</div>
+                      {user.email && <div className="text-[11px] text-muted-foreground truncate">{user.email}</div>}
+                    </div>
+                    {user.role && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium shrink-0">{user.role}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/40">
+          <div className="text-[10px] text-muted-foreground/50">Type @ to mention · Ctrl+Enter to send</div>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !body.trim()}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 disabled:opacity-40 transition-colors"
+          >
+            {submitting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+            {replyTo ? "Reply" : "Post"}
+          </button>
+        </div>
+      </div>
+
+      {/* Comments list */}
+      {isLoading && (
+        <div className="flex justify-center py-8">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {!isLoading && comments.length === 0 && (
+        <div className="text-center py-10 text-muted-foreground">
+          <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm font-medium">No comments yet</p>
+          <p className="text-xs mt-1">Start a discussion about this project</p>
+        </div>
+      )}
+
+      {!isLoading && topLevel.length > 0 && (
+        <div className="divide-y divide-border/30">
+          {topLevel.map((c) => <CommentCard key={c.id} comment={c} />)}
+        </div>
+      )}
+    </Card>
   );
 }

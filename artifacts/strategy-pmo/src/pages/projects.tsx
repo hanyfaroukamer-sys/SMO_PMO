@@ -85,7 +85,7 @@ function EvidencePanel({
     if (!file) return;
     setUploading(true);
     try {
-      const urlRes = await fetch("/api/storage/uploads/request-url", {
+      const urlRes = await fetch("/api/spmo/uploads/request-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ milestoneId: milestone.id }),
@@ -310,11 +310,13 @@ type ProjectForm = {
   budget: string;
   startDate: string;
   targetDate: string;
+  plannedStartDate: string;
+  plannedEndDate: string;
 };
 
 const emptyProject = (): ProjectForm => ({
   name: "", projectCode: "", description: "", initiativeId: "", departmentId: "", ownerId: "", ownerName: "",
-  weight: "50", status: "active", budget: "", startDate: "", targetDate: "",
+  weight: "50", status: "active", budget: "", startDate: "", targetDate: "", plannedStartDate: "", plannedEndDate: "",
 });
 
 function classifyProjectStatus(p: SpmoProjectWithProgress): "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold" {
@@ -344,11 +346,32 @@ export default function Projects() {
   const [pillarFilter, setPillarFilter] = useState<number | "all">("all");
   const [departmentFilter, setDepartmentFilter] = useState<number | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold">("all");
+  const [phaseFilter, setPhaseFilter] = useState<string>("");
   const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
   const [expandedInitiatives, setExpandedInitiatives] = useState<Set<number>>(new Set());
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [globalAutoWeightLoading, setGlobalAutoWeightLoading] = useState(false);
   const didDeepLink = useRef(false);
+
+  async function handleGlobalAutoWeight() {
+    if (!confirm("Reset ALL weights across the entire programme to auto-calculated values?")) return;
+    setGlobalAutoWeightLoading(true);
+    try {
+      const res = await fetch("/api/spmo/admin/auto-weight-all", { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Auto-weight complete", description: data.message });
+        qc.invalidateQueries();
+      } else {
+        toast({ variant: "destructive", title: "Failed", description: data.error });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Network error" });
+    } finally {
+      setGlobalAutoWeightLoading(false);
+    }
+  }
   const deepLinkMilestoneId = useRef<number | null>(null);
 
   useEffect(() => {
@@ -406,13 +429,21 @@ export default function Projects() {
       departmentId: project.departmentId != null ? String(project.departmentId) : "",
       ownerId: project.ownerId ?? "",
       ownerName: project.ownerName ?? "",
-      weight: String(project.weight),
+      weight: String(Math.round(project.weight ?? 0)),
       status: project.status,
       budget: String(project.budget ?? ""),
       startDate: project.startDate ?? "",
       targetDate: project.targetDate ?? "",
+      plannedStartDate: (project as any).plannedStartDate ?? "",
+      plannedEndDate: (project as any).plannedEndDate ?? "",
     });
-    setSiblingWeightEdits({});
+    // Pre-populate sibling weights with stored weight (not effectiveWeight)
+    const siblings = (data?.projects ?? []).filter(p => p.initiativeId === project.initiativeId && p.id !== project.id);
+    const edits: Record<number, string> = {};
+    for (const s of siblings) {
+      edits[s.id] = String(s.weight ?? 0);
+    }
+    setSiblingWeightEdits(edits);
     setModalOpen(true);
   }
 
@@ -472,7 +503,9 @@ export default function Projects() {
         ...commonFields,
         startDate: form.startDate || undefined,
         targetDate: form.targetDate || undefined,
-      };
+        plannedStartDate: form.plannedStartDate || undefined,
+        plannedEndDate: form.plannedEndDate || undefined,
+      } as any;
       updateMutation.mutate({ id: editId, data: updatePayload }, {
         onSuccess: () => {
           toast({ title: "Updated" });
@@ -486,7 +519,9 @@ export default function Projects() {
         ...commonFields,
         startDate: form.startDate,
         targetDate: form.targetDate,
-      };
+        plannedStartDate: form.plannedStartDate || form.startDate,
+        plannedEndDate: form.plannedEndDate || form.targetDate,
+      } as any;
       createMutation.mutate({ data: createPayload }, {
         onSuccess: () => {
           toast({ title: "Created", description: `"${form.name}" created.` });
@@ -502,7 +537,11 @@ export default function Projects() {
 
   const selectedInitiativeId = parseInt(form.initiativeId) || 0;
   const siblingProjects = (data?.projects ?? []).filter(p => p.initiativeId === selectedInitiativeId && p.id !== editId);
-  const siblingProjectWeight = siblingProjects.reduce((s, p) => s + (p.weight ?? 0), 0);
+  const siblingProjectWeight = siblingProjects.reduce((s, p) => {
+    const editVal = siblingWeightEdits[p.id];
+    if (editVal !== undefined) return s + (parseFloat(editVal) || 0);
+    return s + (p.weight ?? 0);
+  }, 0);
   const projectWeightTotal = siblingProjectWeight + (parseFloat(form.weight) || 0);
   const projectWeightError = !!form.initiativeId && projectWeightTotal > 100;
   const projectWeightUnder = !!form.initiativeId && !projectWeightError && projectWeightTotal > 0 && projectWeightTotal < 100;
@@ -546,6 +585,17 @@ export default function Projects() {
               <GanttChartSquare className="w-3.5 h-3.5" /> Gantt
             </button>
           </div>
+          {isAdmin && (
+            <button
+              onClick={handleGlobalAutoWeight}
+              disabled={globalAutoWeightLoading}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-40"
+              title="Reset all weights across entire programme"
+            >
+              {globalAutoWeightLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+              Global Auto-Weight
+            </button>
+          )}
           <button
             onClick={async () => {
               const projectRows = projects.map((p) => ({
@@ -649,6 +699,22 @@ export default function Projects() {
             <option value="on_hold">On Hold</option>
           </select>
         </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Phase</label>
+          <select
+            className={`${selectClass} py-1.5 text-xs w-44`}
+            value={phaseFilter}
+            onChange={(e) => setPhaseFilter(e.target.value)}
+          >
+            <option value="">All Phases</option>
+            <option value="planning">Planning</option>
+            <option value="tendering">Tendering</option>
+            <option value="execution">Execution</option>
+            <option value="closure">Closure</option>
+            <option value="completed">Completed</option>
+            <option value="not_started">Not Started</option>
+          </select>
+        </div>
         {viewMode === "gantt" && (
           <span className="ml-auto text-xs text-muted-foreground">
             Showing projects with milestone markers · hover bars/diamonds for details
@@ -676,11 +742,12 @@ export default function Projects() {
               return (
                 init?.pillarId === pillar.id &&
                 (departmentFilter === "all" || p.departmentId === departmentFilter) &&
-                (statusFilter === "all" || classifyProjectStatus(p) === statusFilter)
+                (statusFilter === "all" || classifyProjectStatus(p) === statusFilter) &&
+                (!phaseFilter || (p as any).currentPhase === phaseFilter)
               );
             }).length;
 
-            if (pillarProjectCount === 0 && (departmentFilter !== "all" || statusFilter !== "all")) return null;
+            if (pillarProjectCount === 0 && (departmentFilter !== "all" || statusFilter !== "all" || phaseFilter)) return null;
 
             return (
               <div key={pillar.id} className="rounded-2xl border border-border overflow-hidden shadow-sm">
@@ -713,9 +780,10 @@ export default function Projects() {
                       const initProjects = projects.filter((p) =>
                         p.initiativeId === initiative.id &&
                         (departmentFilter === "all" || p.departmentId === departmentFilter) &&
-                        (statusFilter === "all" || classifyProjectStatus(p) === statusFilter)
+                        (statusFilter === "all" || classifyProjectStatus(p) === statusFilter) &&
+                        (!phaseFilter || (p as any).currentPhase === phaseFilter)
                       );
-                      if (initProjects.length === 0 && (departmentFilter !== "all" || statusFilter !== "all")) return null;
+                      if (initProjects.length === 0 && (departmentFilter !== "all" || statusFilter !== "all" || phaseFilter)) return null;
 
                       const initProgress = initiative.progress ?? 0;
                       const initPlanned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
@@ -813,7 +881,8 @@ export default function Projects() {
           const orphans = projects.filter((p) =>
             !initiatives.some((i) => i.id === p.initiativeId) &&
             (departmentFilter === "all" || p.departmentId === departmentFilter) &&
-            (statusFilter === "all" || classifyProjectStatus(p) === statusFilter)
+            (statusFilter === "all" || classifyProjectStatus(p) === statusFilter) &&
+            (!phaseFilter || (p as any).currentPhase === phaseFilter)
           );
           return orphans.map((proj) => (
             <Card key={proj.id} noPadding className="overflow-hidden">
@@ -906,8 +975,8 @@ export default function Projects() {
             <FormField label="Budget (SAR)">
               <input type="number" className={inputClass} value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="0" min="0" />
             </FormField>
-            <FormField label={`Weight: ${form.weight}%`}>
-              <input type="range" min="0" max="100" className="w-full accent-primary mt-2" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} />
+            <FormField label="Weight (%)">
+              <input type="number" min="0" max="100" step="1" className={inputClass} value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} placeholder="0" />
               <div className={`flex items-center justify-between text-[11px] mt-1.5 min-h-[1rem] tabular-nums ${projectWeightError ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
                 {form.initiativeId ? (
                   <>
@@ -920,10 +989,18 @@ export default function Projects() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Start Date">
+            <FormField label="Planned Start Date">
+              <input type="date" className={inputClass} value={form.plannedStartDate} onChange={(e) => setForm({ ...form, plannedStartDate: e.target.value })} />
+            </FormField>
+            <FormField label="Planned End Date">
+              <input type="date" className={inputClass} value={form.plannedEndDate} onChange={(e) => setForm({ ...form, plannedEndDate: e.target.value })} />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="Actual Start Date">
               <input type="date" className={inputClass} value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
             </FormField>
-            <FormField label="Target Date">
+            <FormField label="Actual End Date">
               <input type="date" className={inputClass} value={form.targetDate} onChange={(e) => setForm({ ...form, targetDate: e.target.value })} />
             </FormField>
           </div>
@@ -939,7 +1016,7 @@ export default function Projects() {
               <p className="text-muted-foreground">Adjust another project below to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(projectWeightTotal)}%</span>:</p>
               <ul className="divide-y divide-border/40">
                 {siblingProjects.map(p => {
-                  const localVal = siblingWeightEdits[p.id] ?? String(p.weight);
+                  const localVal = siblingWeightEdits[p.id] ?? String(p.weight ?? 0);
                   const isSavingThis = savingSiblingId === p.id;
                   return (
                     <li key={p.id} className="flex items-center justify-between gap-2 py-1.5">
@@ -1016,9 +1093,21 @@ function ProjectRow({
               ) : (
                 <ComputedStatusBadge cs={project.computedStatus} />
               )}
-              {isAdmin && project.weight > 0 && (
-                <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded text-muted-foreground">
-                  {project.weight}% weight
+              {(project as any).currentPhase && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
+                  (project as any).currentPhase === "execution" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                  (project as any).currentPhase === "planning" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                  (project as any).currentPhase === "tendering" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                  (project as any).currentPhase === "closure" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                  (project as any).currentPhase === "completed" ? "bg-green-50 text-green-700 border-green-200" :
+                  "bg-gray-50 text-gray-600 border-gray-200"
+                }`}>
+                  {((project as any).currentPhase ?? "").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                </span>
+              )}
+              {(project as any).effectiveWeight > 0 && (
+                <span className="text-xs bg-secondary border border-border px-2 py-0.5 rounded text-muted-foreground" title={`Weight source: ${(project as any).weightSource ?? "auto"}`}>
+                  {Math.round((project as any).effectiveWeight)}% weight
                 </span>
               )}
             </div>
@@ -1213,17 +1302,41 @@ function VerticalMilestoneTimeline({ projectId, pillarColor }: { projectId: numb
   );
 }
 
-function computeProportionalWeights(items: { id: number; effortDays: number }[]): Map<number, number> {
+function computeProportionalWeights(items: { id: number; effortDays: number; startDate?: string | null; dueDate?: string | null }[]): Map<number, number> {
   if (items.length === 0) return new Map();
-  const total = items.reduce((s, m) => s + m.effortDays, 0);
-  if (total === 0) {
-    const eq = Math.floor(100 / items.length);
-    const rem = 100 - eq * items.length;
-    const result = new Map<number, number>();
-    items.forEach((m, i) => result.set(m.id, i < rem ? eq + 1 : eq));
-    return result;
+
+  // Cascade: effortDays → duration from dates → equal weight
+  let values: { id: number; value: number }[];
+
+  const totalEffort = items.reduce((s, m) => s + m.effortDays, 0);
+  if (totalEffort > 0) {
+    // Use effortDays
+    values = items.map((m) => ({ id: m.id, value: m.effortDays }));
+  } else {
+    // Try duration from dates (dueDate - startDate in days)
+    const durations = items.map((m) => {
+      if (m.startDate && m.dueDate) {
+        const days = Math.max(1, Math.round((new Date(m.dueDate).getTime() - new Date(m.startDate).getTime()) / 86_400_000));
+        return { id: m.id, value: days };
+      }
+      return { id: m.id, value: 0 };
+    });
+    const totalDuration = durations.reduce((s, d) => s + d.value, 0);
+    if (totalDuration > 0) {
+      values = durations;
+    } else {
+      // Equal weight fallback
+      const eq = Math.floor(100 / items.length);
+      const rem = 100 - eq * items.length;
+      const result = new Map<number, number>();
+      items.forEach((m, i) => result.set(m.id, i < rem ? eq + 1 : eq));
+      return result;
+    }
   }
-  const exact = items.map((m) => ({ id: m.id, exact: (m.effortDays / total) * 100 }));
+
+  // Largest-remainder method to distribute integer weights summing to exactly 100
+  const total = values.reduce((s, v) => s + v.value, 0);
+  const exact = values.map((v) => ({ id: v.id, exact: (v.value / total) * 100 }));
   const floored = exact.map((e) => ({ id: e.id, floor: Math.floor(e.exact), rem: e.exact - Math.floor(e.exact) }));
   let remainder = 100 - floored.reduce((s, e) => s + e.floor, 0);
   floored.sort((a, b) => b.rem - a.rem);
@@ -1259,7 +1372,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
   const totalWeight = milestones.reduce((s: number, m) => s + (m.weight ?? 0), 0);
   const milestoneWeightError = totalWeight > 100;
   const milestoneWeightWarning = !milestoneWeightError && Math.round(totalWeight) !== 100 && milestones.length > 0;
-  const autoWeightMap = computeProportionalWeights(milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0 })));
+  const autoWeightMap = computeProportionalWeights(milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0, startDate: m.startDate, dueDate: m.dueDate })));
 
   // Auto-populate weights on first load when all milestones have 0 weight
   useEffect(() => {
@@ -1270,7 +1383,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
     const hasEffort = milestones.some((m) => (m.effortDays ?? 0) > 0);
     if (!hasEffort) return;
     autoPopulatedRef.current = true;
-    const weights = computeProportionalWeights(milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0 })));
+    const weights = computeProportionalWeights(milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0, startDate: m.startDate, dueDate: m.dueDate })));
     const payload = milestones.map((m) => ({ id: m.id, weight: weights.get(m.id) ?? 0 }));
     if (Math.abs(payload.reduce((s, w) => s + w.weight, 0) - 100) < 2) {
       bulkWeightMutation.mutate({ projectId, data: { weights: payload } }, { onSuccess: () => invalidate() });
@@ -1318,7 +1431,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
     const { pendingId, pendingEffort } = effortWeightDialog;
     setEffortWeightDialog({ open: false, pendingId: null, pendingEffort: null });
     if (pendingId === null || pendingEffort === null) return;
-    const updated = milestones.map((m) => ({ id: m.id, effortDays: m.id === pendingId ? pendingEffort : (m.effortDays ?? 0) }));
+    const updated = milestones.map((m) => ({ id: m.id, effortDays: m.id === pendingId ? pendingEffort : (m.effortDays ?? 0), startDate: m.startDate, dueDate: m.dueDate }));
     const weights = computeProportionalWeights(updated);
     const payload = updated.map((m) => ({ id: m.id, weight: weights.get(m.id) ?? 0 }));
     try {
@@ -1384,7 +1497,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
 
   async function applyAutoWeights() {
     if (milestones.length === 0) return;
-    const items = milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0 }));
+    const items = milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0, startDate: m.startDate, dueDate: m.dueDate }));
     const weights = computeProportionalWeights(items);
     const payload = milestones.map((m) => ({ id: m.id, weight: weights.get(m.id) ?? 0 }));
     setApplyingAutoWeights(true);
@@ -1397,6 +1510,51 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
       toast({ variant: "destructive", title: "Auto-weight failed", description: msg });
     } finally {
       setApplyingAutoWeights(false);
+    }
+  }
+
+  const [resettingToDuration, setResettingToDuration] = useState(false);
+  async function resetWeightsToDuration() {
+    if (milestones.length === 0) return;
+    // Compute weights purely from date duration, ignoring effortDays
+    const items = milestones.map((m) => {
+      let days = 0;
+      if (m.startDate && m.dueDate) {
+        days = Math.max(1, Math.round((new Date(m.dueDate).getTime() - new Date(m.startDate).getTime()) / 86_400_000));
+      }
+      return { id: m.id, value: days };
+    });
+    const totalDays = items.reduce((s, i) => s + i.value, 0);
+    if (totalDays === 0) {
+      toast({ variant: "destructive", title: "No dates", description: "Milestones need start and due dates to compute duration-based weights." });
+      return;
+    }
+    setResettingToDuration(true);
+    try {
+      // Compute proportional weights from duration
+      const exact = items.map((i) => ({ id: i.id, exact: (i.value / totalDays) * 100 }));
+      const floored = exact.map((e) => ({ id: e.id, floor: Math.floor(e.exact), rem: e.exact - Math.floor(e.exact) }));
+      let remainder = 100 - floored.reduce((s, e) => s + e.floor, 0);
+      floored.sort((a, b) => b.rem - a.rem);
+      const weightMap = new Map<number, number>();
+      floored.forEach((e, i) => weightMap.set(e.id, e.floor + (i < remainder ? 1 : 0)));
+
+      // First: update effortDays on each milestone (no weight in this call to avoid validation)
+      for (const item of items) {
+        if (item.value > 0) {
+          await updateMutation.mutateAsync({ id: item.id, data: { effortDays: item.value } });
+        }
+      }
+      // Then: bulk-set all weights in one call (atomic, avoids per-milestone sum validation)
+      const payload = milestones.map((m) => ({ id: m.id, weight: weightMap.get(m.id) ?? 0 }));
+      await bulkWeightMutation.mutateAsync({ projectId, data: { weights: payload } });
+      invalidate();
+      toast({ title: "Reset to duration", description: "Effort days and weights set from milestone date ranges" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed";
+      toast({ variant: "destructive", title: "Reset failed", description: msg });
+    } finally {
+      setResettingToDuration(false);
     }
   }
 
@@ -1419,7 +1577,7 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
         data: { name: "New Milestone", effortDays: newEffort, weight: 0, dueDate },
       });
       const allItems = [
-        ...milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0 })),
+        ...milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0, startDate: m.startDate, dueDate: m.dueDate })),
         { id: created.id, effortDays: newEffort },
       ];
       const weights = computeProportionalWeights(allItems);
@@ -1514,17 +1672,30 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
               </span>
               <div className="flex items-center gap-2 shrink-0">
                 {isAdmin && (
-                  <button
-                    onClick={applyAutoWeights}
-                    disabled={applyingAutoWeights}
-                    className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded border border-current hover:opacity-70 transition-opacity disabled:opacity-40"
-                    title="Recalculate all weights proportionally from effort days"
-                  >
-                    {applyingAutoWeights
-                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                      : <RotateCcw className="w-3 h-3" />}
-                    Auto-weight
-                  </button>
+                  <>
+                    <button
+                      onClick={applyAutoWeights}
+                      disabled={applyingAutoWeights}
+                      className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded border border-current hover:opacity-70 transition-opacity disabled:opacity-40"
+                      title="Recalculate weights from effort days (or dates if no effort)"
+                    >
+                      {applyingAutoWeights
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <RotateCcw className="w-3 h-3" />}
+                      Auto-weight
+                    </button>
+                    <button
+                      onClick={resetWeightsToDuration}
+                      disabled={resettingToDuration}
+                      className="flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded border border-blue-400 text-blue-600 hover:opacity-70 transition-opacity disabled:opacity-40"
+                      title="Reset effort days and weights from milestone date ranges (overrides effort days)"
+                    >
+                      {resettingToDuration
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <Calendar className="w-3 h-3" />}
+                      Duration
+                    </button>
+                  </>
                 )}
                 <span className="w-16 text-right">{Math.max(0, Math.round(100 - totalWeight))}% left</span>
               </div>

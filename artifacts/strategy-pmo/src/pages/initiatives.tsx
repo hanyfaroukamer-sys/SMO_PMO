@@ -78,12 +78,18 @@ export default function Initiatives() {
       description: initiative.description ?? "",
       pillarId: String(initiative.pillarId),
       ownerName: initiative.ownerName ?? "",
-      weight: String(initiative.weight),
+      weight: String(initiative.weight ?? 0),
       status: initiative.status,
       startDate: initiative.startDate ?? "",
       targetDate: initiative.targetDate ?? "",
     });
-    setSiblingWeightEdits({});
+    // Pre-populate sibling weights with stored weight
+    const siblings = (data?.initiatives ?? []).filter(i => i.pillarId === initiative.pillarId && i.id !== initiative.id);
+    const edits: Record<number, string> = {};
+    for (const s of siblings) {
+      edits[s.id] = String(s.weight ?? 0);
+    }
+    setSiblingWeightEdits(edits);
     setModalOpen(true);
   }
 
@@ -184,7 +190,12 @@ export default function Initiatives() {
 
   const selectedPillarId = parseInt(form.pillarId) || 0;
   const siblingInitiatives = (data?.initiatives ?? []).filter(i => i.pillarId === selectedPillarId && i.id !== editId);
-  const siblingInitiativeWeight = siblingInitiatives.reduce((s, i) => s + (i.weight ?? 0), 0);
+  // Use effectiveWeight for display, but if siblingWeightEdits exist use those (admin is editing)
+  const siblingInitiativeWeight = siblingInitiatives.reduce((s, i) => {
+    const editVal = siblingWeightEdits[i.id];
+    if (editVal !== undefined) return s + (parseFloat(editVal) || 0);
+    return s + (i.weight ?? 0);
+  }, 0);
   const initiativeWeightTotal = siblingInitiativeWeight + (parseFloat(form.weight) || 0);
   const initiativeWeightError = !!form.pillarId && initiativeWeightTotal > 100;
   const initiativeWeightUnder = !!form.pillarId && !initiativeWeightError && initiativeWeightTotal > 0 && initiativeWeightTotal < 100;
@@ -234,6 +245,7 @@ export default function Initiatives() {
                     <th className="px-6 py-3 font-semibold">Initiative</th>
                     <th className="px-6 py-3 font-semibold">Status</th>
                     <th className="px-6 py-3 font-semibold w-44">Progress</th>
+                    <th className="px-6 py-3 font-semibold text-center">Weight</th>
                     <th className="px-6 py-3 font-semibold">Owner</th>
                     <th className="px-6 py-3 font-semibold">Target Date</th>
                     <th className="px-6 py-3 font-semibold text-right">Projects</th>
@@ -262,6 +274,11 @@ export default function Initiatives() {
                       <td className="px-6 py-4">
                         <ProgressBar progress={init.progress ?? 0} className="w-full" />
                       </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="text-xs font-bold tabular-nums" title={`Source: ${(init as any).weightSource ?? "auto"}`}>
+                          {Math.round((init as any).effectiveWeight ?? 0)}%
+                        </span>
+                      </td>
                       <td className="px-6 py-4 font-medium text-foreground/80">{init.ownerName || "—"}</td>
                       <td className="px-6 py-4 text-muted-foreground">
                         {init.targetDate ? format(new Date(init.targetDate), "MMM d, yyyy") : "—"}
@@ -270,6 +287,19 @@ export default function Initiatives() {
                       <td className="px-6 py-4 text-right">
                         {isAdmin && (
                           <div className="flex justify-end gap-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await fetch(`/api/spmo/initiatives/${init.id}/projects/weights/reset`, { method: "POST", credentials: "include" });
+                                  toast({ title: "Auto-weight applied", description: `Project weights reset for ${init.name}` });
+                                  invalidate();
+                                } catch { toast({ variant: "destructive", title: "Failed" }); }
+                              }}
+                              className="text-[10px] px-2 py-1 rounded border border-primary/30 text-primary hover:bg-primary/10 font-semibold"
+                              title="Reset project weights under this initiative to auto-calculate"
+                            >
+                              ↻ Wt
+                            </button>
                             <button
                               onClick={() => openEdit(init)}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary border border-border text-xs font-semibold text-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
@@ -373,12 +403,13 @@ export default function Initiatives() {
             </FormField>
           </div>
 
-          <FormField label={`Weight: ${form.weight}%`}>
+          <FormField label="Weight (%)">
             <input
-              type="range"
+              type="number"
               min="0"
               max="100"
-              className="w-full accent-primary"
+              step="1"
+              className={inputClass}
               value={form.weight}
               onChange={(e) => setForm({ ...form, weight: e.target.value })}
             />
@@ -422,7 +453,7 @@ export default function Initiatives() {
               <p className="text-muted-foreground">Adjust another initiative below to fill the remaining <span className="font-bold text-foreground">{100 - Math.round(initiativeWeightTotal)}%</span>:</p>
               <ul className="divide-y divide-border/40">
                 {siblingInitiatives.map(i => {
-                  const localVal = siblingWeightEdits[i.id] ?? String(i.weight);
+                  const localVal = siblingWeightEdits[i.id] ?? String(i.weight ?? 0);
                   const isSavingThis = savingSiblingId === i.id;
                   return (
                     <li key={i.id} className="flex items-center justify-between gap-2 py-1.5">

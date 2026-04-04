@@ -1,33 +1,38 @@
 {
   "expo": {
-    "name": "StrategyPMO",
-    "slug": "strategy-pmo-mobile",
+    "name": "StrategyPMO Mobile",
+    "slug": "mobile-app",
     "version": "1.0.0",
-    "scheme": "strategypmo",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/images/icon.png",
+    "scheme": "mobile-app",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
     "splash": {
-      "backgroundColor": "#2563EB"
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.strategypmo.mobile"
+      "supportsTablet": false
     },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#2563EB"
-      },
-      "package": "com.strategypmo.mobile"
+    "android": {},
+    "web": {
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
-      "expo-router",
-      "expo-secure-store"
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser"
     ],
-    "extra": {
-      "router": {
-        "origin": false
-      }
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
     }
   }
 }

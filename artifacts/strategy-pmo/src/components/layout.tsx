@@ -28,6 +28,7 @@ import {
   ClipboardList,
   FolderKanban,
   Stethoscope,
+  BarChart3,
   Menu,
   X,
 } from "lucide-react";
@@ -42,13 +43,13 @@ const pmNavItems = [
   { title: "My Projects",      href: "/my-projects",  icon: FolderKanban,    badge: false },
   { title: "Projects",         href: "/projects",     icon: Briefcase,       badge: false },
   { title: "KPIs",             href: "/kpis",         icon: LineChart,       badge: false },
-  { title: "Risks",            href: "/risks",        icon: ShieldAlert,     badge: false },
+  { title: "Risks & Issues",    href: "/risks",        icon: ShieldAlert,     badge: false },
   { title: "Documents",        href: "/documents",    icon: FolderOpen,      badge: false },
+  { title: "Strategy Map",        href: "/strategy-map", icon: Network,      badge: false },
 ];
 
 // ── PMO Administration items (admin only) ──
 const adminNavItems = [
-  { title: "Strategy Map",        href: "/strategy-map", icon: Network,      badge: false },
   { title: "Pillars & Initiatives", href: "/pillars",    icon: Layers,       badge: false },
   { title: "Financials",          href: "/budget",       icon: Wallet,       badge: false },
   { title: "Departments",         href: "/departments",  icon: Building2,    badge: false },
@@ -56,6 +57,7 @@ const adminNavItems = [
   { title: "Progress Proof",      href: "/progress",     icon: CheckSquare,  badge: false },
   { title: "Monitoring",          href: "/alerts",       icon: BellRing,     badge: false },
   { title: "Import Data",         href: "/import",       icon: Upload,       badge: false },
+  { title: "Analytics",            href: "/admin/analytics",   icon: BarChart3,    badge: false },
   { title: "Diagnostics",         href: "/admin/diagnostics", icon: Stethoscope, badge: false },
 ];
 
@@ -109,6 +111,11 @@ export function Layout({ children }: { children: ReactNode }) {
       {/* Search trigger */}
       <div className="px-1.5 pt-3 pb-1">
         <SearchTrigger collapsed={collapsed && !isMobile} />
+        {!isMobile && collapsed && (
+          <div className="text-center mt-0.5">
+            <span className="text-[10px] text-muted-foreground/50 font-mono">⌘K</span>
+          </div>
+        )}
       </div>
 
       {/* Nav items */}
@@ -126,7 +133,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 {(isMobile || !collapsed) ? (
                   <div className="flex items-center gap-2">
                     <div className="h-px flex-1 bg-sidebar-border/40" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/30">Administration</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/30">Admin</span>
                     <div className="h-px flex-1 bg-sidebar-border/40" />
                   </div>
                 ) : (
@@ -137,8 +144,9 @@ export function Layout({ children }: { children: ReactNode }) {
             <Link
               href={item.href}
               onClick={() => isMobile && setMobileOpen(false)}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-lg transition-all duration-200 group text-[13px] font-medium",
+                "flex items-center gap-2.5 rounded-lg transition-all duration-200 group text-[13px] font-medium focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
                 !isMobile && collapsed ? "justify-center p-2.5" : isActive ? "py-2 pr-2.5 pl-2 border-l-2 border-primary" : "px-2.5 py-2",
                 isActive
                   ? "bg-gradient-to-r from-sidebar-accent to-sidebar-accent/60 text-white"
@@ -146,7 +154,7 @@ export function Layout({ children }: { children: ReactNode }) {
               )}
               title={!isMobile && collapsed ? item.title : undefined}
             >
-              <div className="relative shrink-0">
+              <div className="relative shrink-0 overflow-hidden">
                 <item.icon
                   className={cn(
                     "w-4 h-4 transition-colors",
@@ -156,7 +164,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   )}
                 />
                 {badge > 0 && !isMobile && collapsed && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-0.5 rounded-full bg-destructive text-white text-[9px] font-bold flex items-center justify-center leading-none">
                     {badge > 99 ? "99+" : badge}
                   </span>
                 )}
@@ -177,8 +185,9 @@ export function Layout({ children }: { children: ReactNode }) {
             <Link
               href="/admin"
               onClick={() => isMobile && setMobileOpen(false)}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-lg transition-all duration-200 group text-[13px] font-medium",
+                "flex items-center gap-2.5 rounded-lg transition-all duration-200 group text-[13px] font-medium focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1",
                 !isMobile && collapsed ? "justify-center p-2.5" : isActive ? "py-2 pr-2.5 pl-2 border-l-2 border-primary" : "px-2.5 py-2",
                 isActive
                   ? "bg-gradient-to-r from-sidebar-accent to-sidebar-accent/60 text-white"

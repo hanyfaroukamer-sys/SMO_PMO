@@ -58,12 +58,13 @@ function setSessionCookie(res: Response, sid: string) {
 }
 
 function getSafeReturnTo(value: unknown): string {
+  const basePath = process.env.BASE_PATH || "/strategy-pmo/";
   if (
     typeof value !== "string" ||
     !value.startsWith("/") ||
     value.startsWith("//")
   ) {
-    return "/";
+    return basePath;
   }
   return value;
 }
@@ -154,7 +155,42 @@ router.get("/login", async (req: Request, res: Response) => {
     scope: "openid email profile offline_access",
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
-    prompt: "login consent",
+    prompt: "login",
+    state,
+    nonce,
+  });
+
+  res.redirect(redirectTo.href);
+});
+
+router.get("/signup", async (req: Request, res: Response) => {
+  const config = await getOidcConfig();
+  const callbackUrl = `${getOrigin(req)}/api/callback`;
+  const returnTo = getSafeReturnTo(req.query.returnTo);
+
+  const state = oidc.randomState();
+  const nonce = oidc.randomNonce();
+  const codeVerifier = oidc.randomPKCECodeVerifier();
+  const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
+
+  if (oidcStateStore.size >= 1000) {
+    res.status(503).json({ error: "Too many pending logins, try again" });
+    return;
+  }
+
+  oidcStateStore.set(state, {
+    nonce,
+    codeVerifier,
+    returnTo,
+    expiresAt: Date.now() + OIDC_TTL_MS,
+  });
+
+  const redirectTo = oidc.buildAuthorizationUrl(config, {
+    redirect_uri: callbackUrl,
+    scope: "openid email profile offline_access",
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
+    prompt: "login",
     state,
     nonce,
   });
@@ -169,7 +205,7 @@ router.get("/callback", async (req: Request, res: Response) => {
   const stateParam = req.query.state;
   if (typeof stateParam !== "string" || !stateParam) {
     req.log.warn("OIDC callback: missing state query param");
-    res.redirect("/api/login");
+    res.redirect("/strategy-pmo/login");
     return;
   }
 
@@ -177,7 +213,7 @@ router.get("/callback", async (req: Request, res: Response) => {
   if (!stored || stored.expiresAt < Date.now()) {
     req.log.warn({ stateFound: !!stored }, "OIDC callback: state not found or expired");
     oidcStateStore.delete(stateParam);
-    res.redirect("/api/login");
+    res.redirect("/strategy-pmo/login");
     return;
   }
 
@@ -199,14 +235,14 @@ router.get("/callback", async (req: Request, res: Response) => {
     });
   } catch (err) {
     req.log.error({ err }, "OIDC token exchange failed");
-    res.redirect("/api/login");
+    res.redirect("/strategy-pmo/login");
     return;
   }
 
   const claims = tokens.claims();
   if (!claims) {
     req.log.error("OIDC callback: no claims in ID token");
-    res.redirect("/api/login");
+    res.redirect("/strategy-pmo/login");
     return;
   }
 

@@ -137,6 +137,8 @@ export const spmoProjectsTable = pgTable("spmo_projects", {
   ownerName: text("owner_name"),
   startDate: date("start_date").notNull(),
   targetDate: date("target_date").notNull(),
+  plannedStartDate: date("planned_start_date"),
+  plannedEndDate: date("planned_end_date"),
   weight: real("weight").notNull().default(0),
   budget: real("budget").notNull().default(0),
   budgetCapex: real("budget_capex").notNull().default(0),
@@ -308,6 +310,11 @@ export const spmoKpisTable = pgTable("spmo_kpis", {
   actual2028: real("actual_2028"),
   actual2029: real("actual_2029"),
   actual2030: real("actual_2030"),
+  evidenceStatus: text("evidence_status", { enum: ["pending", "submitted", "approved", "rejected"] }).default("pending"),
+  evidenceSubmittedAt: timestamp("evidence_submitted_at", { withTimezone: true }),
+  evidenceReviewedAt: timestamp("evidence_reviewed_at", { withTimezone: true }),
+  evidenceReviewedBy: text("evidence_reviewed_by"),
+  evidenceRejectionReason: text("evidence_rejection_reason"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -532,6 +539,10 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   defaultTenderingWeight: real("default_tendering_weight").notNull().default(5),
   defaultExecutionWeight: real("default_execution_weight").notNull().default(85),
   defaultClosureWeight: real("default_closure_weight").notNull().default(5),
+  defaultPlanningEffortDays: real("default_planning_effort_days").notNull().default(30),
+  defaultTenderingEffortDays: real("default_tendering_effort_days").notNull().default(45),
+  defaultExecutionEffortDays: real("default_execution_effort_days").notNull().default(120),
+  defaultClosureEffortDays: real("default_closure_effort_days").notNull().default(20),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -855,3 +866,49 @@ export const spmoProjectAccessTable = pgTable(
 );
 
 export type SpmoProjectAccess = typeof spmoProjectAccessTable.$inferSelect;
+
+// ─────────────────────────────────────────────
+// KPI EVIDENCE
+// ─────────────────────────────────────────────
+export const spmoKpiEvidenceTable = pgTable("spmo_kpi_evidence", {
+  id: serial("id").primaryKey(),
+  kpiId: integer("kpi_id").notNull().references(() => spmoKpisTable.id, { onDelete: "cascade" }),
+  fileName: text("file_name").notNull(),
+  contentType: text("content_type"),
+  objectPath: text("object_path").notNull(),
+  description: text("description"),
+  uploadedById: text("uploaded_by_id").notNull(),
+  uploadedByName: text("uploaded_by_name"),
+  aiScore: real("ai_score"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─────────────────────────────────────────────
+// ISSUES (materialised risks)
+// ─────────────────────────────────────────────
+export const spmoIssuesTable = pgTable("spmo_issues", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => spmoProjectsTable.id, { onDelete: "set null" }),
+  originRiskId: integer("origin_risk_id").references(() => spmoRisksTable.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  severity: text("severity", { enum: ["low", "medium", "high", "critical"] }).notNull().default("medium"),
+  impact: text("impact_description"),
+  owner: text("owner"),
+  status: text("status", { enum: ["open", "in_progress", "resolved", "closed"] }).notNull().default("open"),
+  resolution: text("resolution"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  index("idx_issues_project_id").on(t.projectId),
+  index("idx_issues_origin_risk_id").on(t.originRiskId),
+]);
+
+export const insertSpmoIssueSchema = createInsertSchema(spmoIssuesTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSpmoIssue = z.infer<typeof insertSpmoIssueSchema>;
+export type SpmoIssue = typeof spmoIssuesTable.$inferSelect;

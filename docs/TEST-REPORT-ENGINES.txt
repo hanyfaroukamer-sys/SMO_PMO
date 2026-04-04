@@ -1,0 +1,255 @@
+
+[1m[46m RUN [49m[22m [36mv4.1.0 [39m[90m/home/user/SMO_PMO/artifacts/api-server[39m
+
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mPredictive Delay Engine[2m > [22mexports computeDelayPredictions function[32m 2[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mPredictive Delay Engine[2m > [22mcontains 14-day threshold filter (delayDays <= 14)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mPredictive Delay Engine[2m > [22mhas confidence level 'high' when dataPoints >= 5[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mPredictive Delay Engine[2m > [22mhas confidence level 'medium' when dataPoints >= 3[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mPredictive Delay Engine[2m > [22mhas confidence level 'low' as fallback[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mPredictive Delay Engine[2m > [22mhas trend detection: accelerating when ratio > 1.2[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mPredictive Delay Engine[2m > [22mhas trend detection: decelerating when ratio < 0.8[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mPredictive Delay Engine[2m > [22mdefaults trend to 'steady'[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mPredictive Delay Engine[2m > [22msorts data points oldest-first before computing velocity[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mPredictive Delay Engine[2m > [22massigns oldest = dataPoints[0] and newest = dataPoints[last] AFTER sort[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mPredictive Delay Engine[2m > [22mhandles empty activity log without crash (length < 2 guard)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBudget Forecast Engine[2m > [22mexports computeBudgetForecasts function[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBudget Forecast Engine[2m > [22mCPI returns null when spent === 0 (not a huge number)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBudget Forecast Engine[2m > [22mhas 'insufficient_data' alert type[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBudget Forecast Engine[2m > [22mincludes target date warning in reason for high-progress projects (progress > 80)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBudget Forecast Engine[2m > [22mhandles zero budget projects (skips them via budget > 0 in SQL and budget <= 0 guard)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBudget Forecast Engine[2m > [22mburnRate calculation uses elapsed days from startDate[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBudget Forecast Engine[2m > [22melapsedDays is at least 1 via Math.max(1, ...)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mStakeholder Engine[2m > [22mexports computeStakeholderAlerts function[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mStakeholder Engine[2m > [22mdefines alert type approval_bottleneck[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mStakeholder Engine[2m > [22mdefines alert type missing_report[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mStakeholder Engine[2m > [22mdefines alert type department_overdue[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mStakeholder Engine[2m > [22mdefines alert type inactive_pm[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mStakeholder Engine[2m > [22mescalateTo field exists in StakeholderAlert interface[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mStakeholder Engine[2m > [22minactive PM check only considers active projects (status NOT IN completed/cancelled)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mStakeholder Engine[2m > [22mapproval bottleneck includes project owner in actionRequired (escalateNote)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mCritical Path Engine[2m > [22mexports computeCriticalPath function[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mCritical Path Engine[2m > [22mCriticalPathResult interface has cycles array[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mCritical Path Engine[2m > [22mcycle detection: unvisited nodes go to cycles, not topoOrder[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mCritical Path Engine[2m > [22mfloat calculation: float = latestStart - earliestStart[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mCritical Path Engine[2m > [22mhandles empty dependency list — returns empty result when milestones.length === 0[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mCritical Path Engine[2m > [22mduration defaults to Math.max(1, ...) for zero-duration milestones[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mEVM Engine[2m > [22mexports computeEvmMetrics function[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mEVM Engine[2m > [22mTCPI is capped (never Infinity) — uses conditional when remainingBudget <= 0[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mEVM Engine[2m > [22melapsedPct capped at 1.0 via Math.min(..., 1.0)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mEVM Engine[2m > [22mdurationOverrunPct field exists in EvmMetrics interface[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mEVM Engine[2m > [22mcostStatus includes 'not_started' when AC === 0[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mEVM Engine[2m > [22mSPI defaults to 1 when PV === 0[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mEVM Engine[2m > [22mCPI defaults to 1 when AC === 0[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mScenario Engine[2m > [22mexports simulateScenario function[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mScenario Engine[2m > [22mScenarioInput has adjustWeight boolean field[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mScenario Engine[2m > [22mfinancialImpact field exists in ScenarioResult interface[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mScenario Engine[2m > [22mbudget reduction capped via Math.min(input.budgetReduction, project.budget)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mScenario Engine[2m > [22mpillar recalc uses weightedAvg (not simple average)[32m 3[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mScenario Engine[2m > [22mcancel scenario skips the project (contains 'continue')[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mScenario Engine[2m > [22mweightedAvg falls back to simple average when totalWeight === 0[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mAI Advisor Engine[2m > [22mexports queryAdvisor function[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mAI Advisor Engine[2m > [22mhas try-catch around anthropic import[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mAI Advisor Engine[2m > [22mreturns graceful error when API key missing (contains ANTHROPIC_API_KEY)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mAI Advisor Engine[2m > [22mhas timeout via Promise.race[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mAI Advisor Engine[2m > [22mtimeout is 30 seconds[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mAI Advisor Engine[2m > [22mgathers different context based on input.context[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mAI Advisor Engine[2m > [22malways includes portfolio context regardless of input.context[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBoard Report Engine[2m > [22mexports generateBoardReport function[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBoard Report Engine[2m > [22mhas try-catch around anthropic import[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBoard Report Engine[2m > [22mreturns fallback report when API key missing (anthropic is null check)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBoard Report Engine[2m > [22mhas 60-second timeout[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBoard Report Engine[2m > [22mtimeout uses Promise.race[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBoard Report Engine[2m > [22mBoardReport interface has executiveSummary field[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBoard Report Engine[2m > [22mBoardReport interface has sections field[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mBoard Report Engine[2m > [22mBoardReport interface has recommendations field[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mexports computeKpiStatus function[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mhandles all 4 types: cumulative, rate, reduction, milestone[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mrate KPI does NOT have proportional pace override (REMOVED comment)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mrate KPI has absolute floor (actual < 50% target)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mreduction KPI: negative achievedReduction returns 'critical' (worsening check)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mreduction KPI: totalReduction <= 0 returns 'not-started' (misconfiguration)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mmilestone KPI: threshold scales to 10% of duration via Math.min(60, Math.max(7, ...))[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mcumulative KPI: on-track threshold is 0.95 (not 0.90) — Fix #1[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mvelocity requires 3+ data points for override (velocityReliable check)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mtrend field exists in KpiStatusResult (improving/stable/deteriorating)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mseverity multiplier explained in reason (contains 'severity')[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mcomputeTrend uses 3% delta threshold for 'stable'[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mKPI Engine[2m > [22mvelocity calculation tracks dataPoints count[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22madminWeightSum validated against 100 via Math.abs check[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22mweight cascade: admin check comes before budget check[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22mexports computeProjectWeights function[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22mexports computeInitiativeWeights function[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22mexports computePillarWeights function[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22mexecution placeholder detection: phaseGate check[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22mexecution placeholder detection: name regex for Execution & Delivery[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22mprojects with no dates return 'not_started' (not 'on_track')[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22mearly-stage label contains 'Mobilising'[32m 4[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22m99% gate rule: milestoneEffectiveProgress caps at 99 for non-approved milestones at 100%[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22mmilestoneEffectiveProgress returns full progress for approved milestones[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22mweight cascade has 4 sources: admin, budget, effort, equal[32m 3[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/engine-logic-audit.test.ts[2m > [22mspmo-calc Weight Cascade[2m > [22mpillar weights also check admin -> budget -> effort -> equal[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — cumulative KPI[2m > [22m1. PI ≈ 0.83 → at-risk (was at-risk before, still at-risk)[32m 19[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — cumulative KPI[2m > [22m2. PI ≈ 0.93 → at-risk (was on-track at 0.90, now tightened to 0.95)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — cumulative KPI[2m > [22m3. PI ≈ 0.96 → on-track (above new 0.95 threshold)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — cumulative KPI[2m > [22m4. PI very low at 75% elapsed → critical[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — cumulative KPI[2m > [22m5. Actual >= target → achieved[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — cumulative KPI[2m > [22m6. Fix #6: reason includes severity note in late period[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — rate KPI (point-in-time snapshot)[2m > [22m7. 78% vs 85% target → gap-based check, not pace-based[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — rate KPI (point-in-time snapshot)[2m > [22m8. Fix #2b: 22% vs 85% target at 20% elapsed → NOT on-track (old pace check would say on-track)[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — rate KPI (point-in-time snapshot)[2m > [22m9. Fix #2a: actual < 50% of target → never on-track even if gap seems small[32m 2[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — rate KPI (point-in-time snapshot)[2m > [22m10. Target met → achieved[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — rate KPI (point-in-time snapshot)[2m > [22m11. Fix #7: velocity not used for status override with < 3 measurements[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — rate KPI (point-in-time snapshot)[2m > [22m12. Fix #7: velocity override works with 3+ measurements[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — reduction KPI[2m > [22m13. Normal reduction: baseline 120 → target 60, actual 95 → at-risk[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — reduction KPI[2m > [22m14. Fix #3: baseline ≤ target → not-started with misconfiguration message[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — reduction KPI[2m > [22m14b. Reduction KPI: actual > baseline (worsened) → critical[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — reduction KPI[2m > [22m15. Achieved: actual ≤ target[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — milestone KPI[2m > [22m16. Due in 15 days, 180d milestone → at-risk (threshold = 18d)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — milestone KPI[2m > [22m17. Due in 15 days, 30d milestone → on-track (threshold = 7d min)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — milestone KPI[2m > [22m18. Due in 50 days, 1800d (5yr) milestone → at-risk (threshold = 60d max)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — milestone KPI[2m > [22m19. Overdue → critical[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — milestone KPI[2m > [22m20. Done → achieved[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — trend detection[2m > [22m21. PI improved from 0.80 to 0.96 → improving[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — trend detection[2m > [22m22. PI dropped from 1.05 to 0.85 → deteriorating[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — trend detection[2m > [22m23. PI unchanged → stable[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — trend detection[2m > [22m24. No previous PI → trend is null[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — edge cases[2m > [22m25. Target is null → not-started[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — edge cases[2m > [22m26. Actual is null → not-started[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — edge cases[2m > [22m27. Target is 0 → not-started[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — edge cases[2m > [22m28. Result includes trend and previousStatus fields[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/kpi-status.test.ts[2m > [22mcomputeKpiStatus — edge cases[2m > [22m29. Velocity includes dataPoints field[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 9: engine-weekly-digest.ts — logic verification[2m > [22mexports ProgrammeWeeklyDigest interface with highlights array[32m 2[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 9: engine-weekly-digest.ts — logic verification[2m > [22mexports ProgrammeWeeklyDigest interface with concerns array[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 9: engine-weekly-digest.ts — logic verification[2m > [22msorts projects delayed-first via statusOrder mapping[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 9: engine-weekly-digest.ts — logic verification[2m > [22mcomputes progressDelta from currentProgress minus progressLastWeek[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 9: engine-weekly-digest.ts — logic verification[2m > [22mchecks weekly report submission via reportsByProject lookup[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 9: engine-weekly-digest.ts — logic verification[2m > [22mflags missing weekly report only after Wednesday (dayOfWeek >= 3)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 9: engine-weekly-digest.ts — logic verification[2m > [22mcomputes velocityPerDay as progressDelta / 7[32m 3[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 9: engine-weekly-digest.ts — logic verification[2m > [22mgenerates highlight for milestones completed this week[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 9: engine-weekly-digest.ts — logic verification[2m > [22mgenerates concern for projects with zero progress[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 9: engine-weekly-digest.ts — logic verification[2m > [22mgenerates concern for budget at >90%[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 9: engine-weekly-digest.ts — logic verification[2m > [22mfilters out cancelled projects[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mdefines exactly 10 anomaly types in the AnomalyType union[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mdefines 4 severity levels: critical, high, medium, low[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mseverityOrder maps critical=0, high=1, medium=2, low=3[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mweekend_warrior checks day of week via isWeekend helper[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mweekend_warrior triggers when >50% of updates are on weekends[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mduplicate_report compares keyAchievements text between latest two reports[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mduplicate_report trims and lowercases before comparison[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mprogress_spike checks for >30% jump in a single update[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mprogress_stagnant requires milestone stuck at partial progress for 30+ days[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mprogress_stagnant escalates to high severity at 45+ days[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mghost_project requires active status, budget > 0, progress < 5, no activity[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mvelocity_collapse compares last-30 vs prev-30 day velocity at 50% threshold[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mrisk_ignored checks for open risks with riskScore >= 9 and no mitigations[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mapproval_stale triggers for milestones submitted >14 days ago[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mweight_gaming detects progress set to exactly 99%[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mbudget_burn_mismatch has critical (high spend, low progress) and medium (low spend, high progress) cases[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22msorts anomalies by severity (critical first) then detectedAt[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 10: engine-anomaly.ts — logic verification[2m > [22mexcludes cancelled projects from detection[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 11: engine-dependency-finder.ts — logic verification[2m > [22mhas 5 heuristic strategy functions[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 11: engine-dependency-finder.ts — logic verification[2m > [22mhas a STOP_WORDS set with common project terms filtered out[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 11: engine-dependency-finder.ts — logic verification[2m > [22mwordOverlap computes shared words / max length[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 11: engine-dependency-finder.ts — logic verification[2m > [22mwordOverlap returns 0 for empty arrays[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 11: engine-dependency-finder.ts — logic verification[2m > [22mtimeline overlap uses 7-day window (gap >= -7 && gap <= 7)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 11: engine-dependency-finder.ts — logic verification[2m > [22mbudget dependency uses 80% threshold (spentRatio < 0.8)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 11: engine-dependency-finder.ts — logic verification[2m > [22mAI phase uses try-catch around anthropic import[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 11: engine-dependency-finder.ts — logic verification[2m > [22mAI phase has Promise.race timeout pattern[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 11: engine-dependency-finder.ts — logic verification[2m > [22mhandles empty data gracefully (returns empty suggestions)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 11: engine-dependency-finder.ts — logic verification[2m > [22mdeduplicates suggestions by source+target pair, preferring heuristic over AI[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mEngine 11: engine-dependency-finder.ts — logic verification[2m > [22mmarks already-existing dependencies in both forward and reverse direction[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mCross-engine consistency[2m > [22mall engines using projectProgress() import it from spmo-calc[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mCross-engine consistency[2m > [22mall AI-powered engines (advisor, board-report, dependency-finder) have try-catch around anthropic import[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mCross-engine consistency[2m > [22mall AI engines have Promise.race timeout pattern[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mCross-engine consistency[2m > [22mweekly digest and anomaly both filter out cancelled projects[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mCross-engine consistency[2m > [22mEVM and budget-forecast both compute CPI as earnedValue / actualCost (same formula pattern)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mCross-engine consistency[2m > [22mEVM and budget-forecast both guard against division by zero in CPI[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mlarge numbers: no raw division without guards (always checks expected > 0 or uses Math.max)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mdirection=lower with rate KPI uses inverted PI formula: target / max(actual, 0.01)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mmilestone KPI with milestoneDuration uses ?? 180 fallback for null/undefined[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mmilestone at-risk threshold scales to 10% of duration with min 7, max 60[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mvelocity calculation handles negative monthlyRate (no abs() applied)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mtarget=0 (falsy) triggers not-started guard for non-milestone KPIs[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mactual=null triggers not-started guard[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mvelocity reliability requires 3+ data points before overriding status[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mtrend computation uses 3% threshold for stability[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mreduction KPI returns not-started when baseline <= target (misconfiguration)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mcumulative KPI tightened on-track threshold from 0.90 to 0.95[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mKPI engine edge cases (source-code verification)[2m > [22mlate-period severity multiplier increases thresholds in second half[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22madjustWeight flag exists in ScenarioInput interface[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22mbudget_cut handler uses adjustWeight flag to scale project weight[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22mbudget reduction capping uses Math.min to cap at project budget[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22mbudget reduction uses Math.max to ensure newBudget >= 0[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22mpillar recalc in 'after' section uses weightedAvg (not in 'before' helper only)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22mfinancialImpact includes overSpent boolean[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22mfinancialImpact includes originalCpi and newCpi[32m 2[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22mfinancialImpact includes EAC (estimate at completion)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22mdelay scenario throws if delayDays <= 0[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22mbudget_cut scenario throws if budgetReduction <= 0[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22mcancel scenario skips project in after calculation (continue)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mScenario engine edge cases[2m > [22mweightedAvg handles zero-weight items by falling back to simple average[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mAnalytics UI completeness[2m > [22manalytics.tsx has all 11 tabs defined[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mAnalytics UI completeness[2m > [22mWeeklyDigestPanel component exists and fetches /api/spmo/analytics/weekly-digest[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mAnalytics UI completeness[2m > [22mAnomalyPanel component exists and fetches /api/spmo/analytics/anomalies[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mAnalytics UI completeness[2m > [22mDependencyFinderPanel component exists and fetches /api/spmo/analytics/dependency-suggestions[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mAnalytics UI completeness[2m > [22mScenarioPanel has adjustWeight checkbox (input type=checkbox)[32m 3[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mAnalytics UI completeness[2m > [22mScenarioPanel has project dropdown (select element)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mAnalytics UI completeness[2m > [22mAI Advisor panel has QUICK_QUESTIONS array[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mAnalytics UI completeness[2m > [22mBoard Report panel has generate button[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mAnalytics UI completeness[2m > [22mweekly tab key maps to WeeklyDigestPanel in rendering[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/edge-cases-round3.test.ts[2m > [22mAnalytics UI completeness[2m > [22manomalies tab key maps to AnomalyPanel in rendering[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22mfrontend source directory exists[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22mbackend routes directory exists[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22mfound frontend API calls[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22mfound backend routes[32m 3[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22mevidence upload URL points to /spmo/uploads/request-url (NOT /storage/)[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22mevidence download links use /storage/objects/ (correct)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22mlogin link uses /api/login[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22mlogout link uses /api/logout[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[GET] /api/login?returnTo= — route file exists (components/auth-guard.tsx:10)[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[GET] /api/spmo/search?q= → backend has matching route (components/command-palette.tsx:71)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[GET] /api/logout — route file exists (components/layout.tsx:247)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[GET] /api/spmo/notifications → backend has matching route (components/notification-bell.tsx:25)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[POST] /api/spmo/notifications/read-all → backend has matching route (components/notification-bell.tsx:54)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[POST] /api/spmo/notifications/:param → backend has matching route (components/notification-bell.tsx:62)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[GET] /api/spmo/users/search?q= → backend has matching route (components/user-mention-input.tsx:40)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[POST] /api/spmo/admin/send-reminders → backend has matching route (pages/admin.tsx:719)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[POST] /api/spmo/admin/send-weekly-report-reminders → backend has matching route (pages/admin.tsx:734)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[POST] /api/spmo/reports/pdf → backend has matching route (pages/dashboard.tsx:603)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[POST] /api/spmo/reports/pptx → backend has matching route (pages/dashboard.tsx:620)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[GET] /api/spmo/import/template → backend has matching route (pages/import.tsx:532)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[POST] /api/spmo/import/bulk → backend has matching route (pages/import.tsx:559)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[POST] /api/spmo/import/analyse → backend has matching route (pages/import.tsx:726)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[GET] /api/spmo/import/save → backend has matching route (pages/import.tsx:753)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[GET] /api/spmo/uploads/request-url → backend has matching route (pages/progress-proof.tsx:336)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[GET] /api/storage/objects/ — route file exists (pages/progress-proof.tsx:476)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[GET] /api/spmo/milestones/:param → backend has matching route (pages/projects.tsx:268)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22m[GET] /api/spmo/milestones/all → backend has matching route (pages/projects.tsx:572)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/e2e/frontend-wiring.test.ts[2m > [22mFrontend → Backend URL Wiring[2m > [22msummary: lists all frontend API calls for review[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m1. 50% progress, 50% elapsed → SPI 1.0 → on_track[32m 2[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m2. 47% progress, 50% elapsed → SPI ~0.94 → on_track (above 0.90 threshold)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m3. 44% progress, 50% elapsed → SPI 0.88 → at_risk (just below 0.90)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m4. 37% progress, 50% elapsed → SPI ~0.74 → at_risk (in 0.70–0.90 range)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m5. 34% progress, 50% elapsed → SPI 0.68 → delayed (just below 0.70)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m6. 96% progress, past end date → on_track (near completion >= 95% overrides overdue)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m7. 92% progress, past end date → delayed (overdue AND below 95%)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m8. 0% progress, 10% elapsed → at_risk (mobilisation stall: SPI=0 < 0.2 AND progress < 3)[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m9. 0% progress, 20% elapsed → SPI 0.0 → delayed (past early-stage window)[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m10. 70% progress, 80% elapsed, budget 90% spent → at_risk (burn gap = 20 > 15)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m11. 100% progress → completed[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m12. rawProgress 99.5%, gatedProgress 96% → on_track with approval bottleneck note[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m13. No start date → not_started (dates not configured)[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/project-status.test.ts[2m > [22mcomputeStatus — project status engine[2m > [22m14. Start date in future → not_started with 'not yet started' reason[32m 16[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/initiative-status.test.ts[2m > [22mcomputeInitiativeStatus — child-project escalation[2m > [22m1. SPI 0.95, no delayed children → on_track[32m 3[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/initiative-status.test.ts[2m > [22mcomputeInitiativeStatus — child-project escalation[2m > [22m2. SPI 0.85, no delayed children → at_risk[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/initiative-status.test.ts[2m > [22mcomputeInitiativeStatus — child-project escalation[2m > [22m3. SPI 0.95 BUT 1 delayed child → escalated to at_risk[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/initiative-status.test.ts[2m > [22mcomputeInitiativeStatus — child-project escalation[2m > [22m4. SPI 0.95 BUT >50% budget weight in delayed projects → escalated to delayed[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/initiative-status.test.ts[2m > [22mcomputeInitiativeStatus — child-project escalation[2m > [22m5. All children on_track → status matches SPI calculation[32m 0[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/initiative-status.test.ts[2m > [22mcomputeInitiativeStatus — child-project escalation[2m > [22m6. Reason text names delayed child projects[32m 1[2mms[22m[39m
+ [32m✓[39m src/__tests__/engines/initiative-status.test.ts[2m > [22mcomputeInitiativeStatus — child-project escalation[2m > [22m7. No start date → returns not_started (dates not configured)[32m 0[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m246 passed[39m[22m[90m (246)[39m
+[2m   Start at [22m 17:27:45
+[2m   Duration [22m 1.33s[2m (transform 566ms, setup 0ms, import 1.73s, tests 134ms, environment 1ms)[22m
+

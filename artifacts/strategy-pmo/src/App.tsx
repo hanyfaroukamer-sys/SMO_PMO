@@ -1,4 +1,5 @@
 import { Suspense, lazy } from "react";
+import { Loader2 } from "lucide-react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -36,8 +37,10 @@ const ProjectDetail = lazy(() => import("@/pages/project-detail"));
 const Documents = lazy(() => import("@/pages/documents"));
 const MyTasks = lazy(() => import("@/pages/my-tasks"));
 const MyProjects = lazy(() => import("@/pages/my-projects"));
+const Analytics = lazy(() => import("@/pages/analytics"));
 const Diagnostics = lazy(() => import("@/pages/diagnostics"));
 const NotFound = lazy(() => import("@/pages/not-found"));
+const LoginPage = lazy(() => import("@/pages/login"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -88,6 +91,7 @@ function Router() {
               <Route path="/my-tasks" component={MyTasks} />
               <Route path="/my-projects" component={MyProjects} />
               <Route path="/admin">{() => <AdminGuard><Admin /></AdminGuard>}</Route>
+              <Route path="/admin/analytics">{() => <AdminGuard><Analytics /></AdminGuard>}</Route>
               <Route path="/admin/diagnostics">{() => <AdminGuard><Diagnostics /></AdminGuard>}</Route>
               <Route component={NotFound} />
             </Switch>
@@ -103,7 +107,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+            <Switch>
+              <Route path="/login" component={LoginPage} />
+              <Route component={Router} />
+            </Switch>
+          </Suspense>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
