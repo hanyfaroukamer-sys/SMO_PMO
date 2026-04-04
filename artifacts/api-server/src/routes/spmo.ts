@@ -1547,7 +1547,7 @@ router.put("/spmo/projects/:id/milestones/weights", async (req, res): Promise<vo
     return;
   }
 
-  await db.transaction(async (tx: typeof db) => {
+  await db.transaction(async (tx: any) => {
     for (const { id, weight } of weights) {
       await tx.update(spmoMilestonesTable)
         .set({ weight, updatedAt: new Date() })
@@ -1577,7 +1577,7 @@ router.put("/spmo/initiatives/:id/projects/weights", async (req, res): Promise<v
     return;
   }
 
-  await db.transaction(async (tx: typeof db) => {
+  await db.transaction(async (tx: any) => {
     for (const { id, weight } of weights) {
       await tx.update(spmoProjectsTable)
         .set({ weight, updatedAt: new Date() })
@@ -1608,7 +1608,7 @@ router.put("/spmo/pillars/:id/initiatives/weights", async (req, res): Promise<vo
     return;
   }
 
-  await db.transaction(async (tx: typeof db) => {
+  await db.transaction(async (tx: any) => {
     for (const { id, weight } of weights) {
       await tx.update(spmoInitiativesTable)
         .set({ weight, updatedAt: new Date() })

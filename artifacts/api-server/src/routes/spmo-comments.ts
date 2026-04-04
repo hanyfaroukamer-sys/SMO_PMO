@@ -25,7 +25,7 @@ export function registerCommentRoutes(router: IRouter) {
     const entityType = req.query.entityType as string;
     const entityId = req.query.entityId ? Number(req.query.entityId) : null;
     if (!entityType || !entityId) { res.status(400).json({ error: "entityType and entityId required" }); return; }
-    const rows = await db.select().from(spmoCommentsTable).where(and(eq(spmoCommentsTable.entityType, entityType), eq(spmoCommentsTable.entityId, entityId))).orderBy(asc(spmoCommentsTable.createdAt));
+    const rows = await db.select().from(spmoCommentsTable).where(and(eq(spmoCommentsTable.entityType, entityType as "project" | "milestone" | "risk" | "kpi" | "initiative"), eq(spmoCommentsTable.entityId, entityId))).orderBy(asc(spmoCommentsTable.createdAt));
     res.json({ comments: rows });
   });
 

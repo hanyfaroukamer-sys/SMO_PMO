@@ -145,10 +145,10 @@ router.get("/spmo/analytics/summary", async (req, res) => {
     ]);
 
     const [predictions, forecasts, alerts, evm] = await Promise.all([
-      computeDelayPredictions().catch(() => []),
-      computeBudgetForecasts().catch(() => []),
-      computeStakeholderAlerts().catch(() => []),
-      computeEvmMetrics().catch(() => []),
+      computeDelayPredictions().catch(() => [] as any[]),
+      computeBudgetForecasts().catch(() => [] as any[]),
+      computeStakeholderAlerts().catch(() => [] as any[]),
+      computeEvmMetrics().catch(() => [] as any[]),
     ]);
 
     res.json({
