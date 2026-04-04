@@ -232,6 +232,7 @@ const DEPT_STATUS_COLORS = {
   delayed:    { bg: "#ef4444", label: "Delayed" },
   completed:  { bg: "#16a34a", label: "Completed" },
   notStarted: { bg: "#d1d5db", label: "Not Started" },
+  onHold:     { bg: "#9ca3af", label: "On Hold" },
 };
 
 function DepartmentHealthSegmentedChart({ depts }: { depts: SpmoDepartmentStatus[] }) {
@@ -249,13 +250,14 @@ function DepartmentHealthSegmentedChart({ depts }: { depts: SpmoDepartmentStatus
       </div>
       <div className="space-y-3">
         {depts.map((dept, idx) => {
-          const total = (dept.onTrack + dept.atRisk + dept.delayed + dept.completed + dept.notStarted) || 1;
+          const total = (dept.onTrack + dept.atRisk + dept.delayed + dept.completed + dept.notStarted + (dept.onHold ?? 0)) || 1;
           const segments = [
             { key: "onTrack",    value: dept.onTrack,    ...DEPT_STATUS_COLORS.onTrack },
             { key: "atRisk",     value: dept.atRisk,     ...DEPT_STATUS_COLORS.atRisk },
             { key: "delayed",    value: dept.delayed,    ...DEPT_STATUS_COLORS.delayed },
             { key: "completed",  value: dept.completed,  ...DEPT_STATUS_COLORS.completed },
             { key: "notStarted", value: dept.notStarted, ...DEPT_STATUS_COLORS.notStarted },
+            { key: "onHold",     value: dept.onHold ?? 0, ...DEPT_STATUS_COLORS.onHold },
           ].filter((s) => s.value > 0);
           return (
             <div key={dept.departmentId ?? idx}>
