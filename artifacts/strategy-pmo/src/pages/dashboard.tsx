@@ -137,7 +137,16 @@ function ProjectStatusPieChart({ projects }: { projects: SpmoProjectWithProgress
         <div className="relative w-52 h-52 shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={chartData} cx="50%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={2} dataKey="value" strokeWidth={0}>
+              <Pie data={chartData} cx="50%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={2} dataKey="value" strokeWidth={0}
+                label={({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
+                  if (!value) return null;
+                  const RADIAN = Math.PI / 180;
+                  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                  return <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700}>{value}</text>;
+                }}
+                labelLine={false}>
                 {chartData.map((entry) => (
                   <Cell key={entry.key} fill={PIE_COLOURS[entry.key as ProjectStatusCategory]} />
                 ))}
@@ -199,7 +208,16 @@ function ProjectPhasePieChart({ projects }: { projects: SpmoProjectWithProgress[
         <div className="relative w-44 h-44 shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={chartData} cx="50%" cy="50%" innerRadius={48} outerRadius={76} paddingAngle={2} dataKey="value" strokeWidth={0}>
+              <Pie data={chartData} cx="50%" cy="50%" innerRadius={48} outerRadius={76} paddingAngle={2} dataKey="value" strokeWidth={0}
+                label={({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
+                  if (!value) return null;
+                  const RADIAN = Math.PI / 180;
+                  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                  return <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight={700}>{value}</text>;
+                }}
+                labelLine={false}>
                 {chartData.map((entry) => (
                   <Cell key={entry.key} fill={PHASE_COLOURS[entry.key] ?? "#9ca3af"} />
                 ))}
