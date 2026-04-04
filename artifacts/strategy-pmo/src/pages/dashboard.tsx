@@ -412,7 +412,7 @@ export default function Dashboard() {
   const { data: projectsData } = useListSpmoProjects();
   const { data: deptStatus } = useGetSpmoDepartmentStatus();
   const { data: configData } = useGetSpmoConfig();
-  const currency = (configData as any)?.reportingCurrency ?? "SAR";
+  const currency = configData?.reportingCurrency ?? "SAR";
   const isAdmin = useIsAdmin();
   const [activeTab, setActiveTab] = useState<DashTab>("overview");
   const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
