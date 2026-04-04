@@ -340,10 +340,8 @@ async function runPhaseGateMigration(): Promise<void> {
     }
     // Migration is idempotent (skips projects with existing phase gates)
   } catch (err) {
-    // Phase gate migration is best-effort; log but don't crash
-    if (typeof req !== "undefined") {
-      // This runs at module load, not in a request context
-    }
+    // Phase gate migration is best-effort; swallow error silently
+    void err;
   }
 }
 
@@ -673,6 +671,7 @@ router.post("/spmo/initiatives", async (req, res): Promise<void> => {
   const { budget: _ignoredBudget, ...initData } = parsed.data;
   const insertInitiative: InsertSpmoInitiative = {
     ...initData,
+    ownerId: parsed.data.ownerId ?? userId,
     budget: 0, // Budget is computed from child projects, not manually set
     startDate: dateToStr(parsed.data.startDate) as string,
     targetDate: dateToStr(parsed.data.targetDate) as string,
@@ -968,10 +967,10 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
 
   const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
   await db.insert(spmoMilestonesTable).values([
-    { projectId: project.id, name: "Planning & Requirements", description: "Define scope, requirements, stakeholders, project plan. Obtain charter approval.", weight: cfg?.defaultPlanningWeight ?? 5, effortDays: cfg?.defaultPlanningEffortDays ?? 30, progress: 0, status: "pending", depStatus: "ready", phaseGate: "planning" },
-    { projectId: project.id, name: "Tendering & Procurement", description: "Prepare RFP/RFQ, publish tender, evaluate proposals, award contract.", weight: cfg?.defaultTenderingWeight ?? 5, effortDays: cfg?.defaultTenderingEffortDays ?? 45, progress: 0, status: "pending", depStatus: "ready", phaseGate: "tendering" },
-    { projectId: project.id, name: "Execution & Delivery", description: "Implementation, development, testing, UAT, and go-live. Split into detailed milestones.", weight: cfg?.defaultExecutionWeight ?? 85, effortDays: cfg?.defaultExecutionEffortDays ?? 120, progress: 0, status: "pending", depStatus: "ready", phaseGate: "execution_placeholder" },
-    { projectId: project.id, name: "Closure & Handover", description: "Final acceptance, documentation, knowledge transfer, warranty activation, lessons learned.", weight: cfg?.defaultClosureWeight ?? 5, effortDays: cfg?.defaultClosureEffortDays ?? 20, progress: 0, status: "pending", depStatus: "ready", phaseGate: "closure" },
+    { projectId: project.id, name: "Planning & Requirements", description: "Define scope, requirements, stakeholders, project plan. Obtain charter approval.", weight: cfg?.defaultPlanningWeight ?? 5, effortDays: cfg?.defaultPlanningEffortDays ?? 30, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "planning" as const },
+    { projectId: project.id, name: "Tendering & Procurement", description: "Prepare RFP/RFQ, publish tender, evaluate proposals, award contract.", weight: cfg?.defaultTenderingWeight ?? 5, effortDays: cfg?.defaultTenderingEffortDays ?? 45, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "tendering" as const },
+    { projectId: project.id, name: "Execution & Delivery", description: "Implementation, development, testing, UAT, and go-live. Split into detailed milestones.", weight: cfg?.defaultExecutionWeight ?? 85, effortDays: cfg?.defaultExecutionEffortDays ?? 120, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "execution_placeholder" as any },
+    { projectId: project.id, name: "Closure & Handover", description: "Final acceptance, documentation, knowledge transfer, warranty activation, lessons learned.", weight: cfg?.defaultClosureWeight ?? 5, effortDays: cfg?.defaultClosureEffortDays ?? 20, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "closure" as const },
   ]);
 
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "project", project.id, project.name);
@@ -1273,8 +1272,9 @@ router.post("/spmo/projects/:id/milestones", async (req, res): Promise<void> => 
   const insertMilestone: InsertSpmoMilestone = {
     ...parsed.data,
     projectId: params.data.id,
-    startDate: parsed.data.startDate ? dateToStr(parsed.data.startDate) : undefined,
-    dueDate: dateToStr(parsed.data.dueDate),
+    status: parsed.data.status as InsertSpmoMilestone["status"],
+    startDate: parsed.data.startDate ? dateToStr(parsed.data.startDate) as string : undefined,
+    dueDate: dateToStr(parsed.data.dueDate) as string | undefined,
   };
   const [milestone] = await db
     .insert(spmoMilestonesTable)
@@ -1322,8 +1322,9 @@ router.post("/spmo/milestones", async (req, res): Promise<void> => {
   const insertMilestone: InsertSpmoMilestone = {
     ...parsed.data,
     projectId,
-    startDate: parsed.data.startDate ? dateToStr(parsed.data.startDate) : undefined,
-    dueDate: dateToStr(parsed.data.dueDate),
+    status: parsed.data.status as InsertSpmoMilestone["status"],
+    startDate: parsed.data.startDate ? dateToStr(parsed.data.startDate) as string : undefined,
+    dueDate: dateToStr(parsed.data.dueDate) as string | undefined,
   };
   const [milestone] = await db
     .insert(spmoMilestonesTable)
@@ -1547,7 +1548,7 @@ router.put("/spmo/projects/:id/milestones/weights", async (req, res): Promise<vo
     return;
   }
 
-  await db.transaction(async (tx: typeof db) => {
+  await db.transaction(async (tx: any) => {
     for (const { id, weight } of weights) {
       await tx.update(spmoMilestonesTable)
         .set({ weight, updatedAt: new Date() })
@@ -1577,7 +1578,7 @@ router.put("/spmo/initiatives/:id/projects/weights", async (req, res): Promise<v
     return;
   }
 
-  await db.transaction(async (tx: typeof db) => {
+  await db.transaction(async (tx: any) => {
     for (const { id, weight } of weights) {
       await tx.update(spmoProjectsTable)
         .set({ weight, updatedAt: new Date() })
@@ -1608,7 +1609,7 @@ router.put("/spmo/pillars/:id/initiatives/weights", async (req, res): Promise<vo
     return;
   }
 
-  await db.transaction(async (tx: typeof db) => {
+  await db.transaction(async (tx: any) => {
     for (const { id, weight } of weights) {
       await tx.update(spmoInitiativesTable)
         .set({ weight, updatedAt: new Date() })

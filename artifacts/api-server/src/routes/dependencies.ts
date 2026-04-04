@@ -316,7 +316,7 @@ router.post("/spmo/dependencies", async (req, res): Promise<void> => {
     }
 
     // Insert + recalculate in a transaction
-    await db.transaction(async (tx: typeof db) => {
+    await db.transaction(async (tx: any) => {
       const inserted = await tx
         .insert(spmoDependenciesTable)
         .values({
@@ -380,7 +380,7 @@ router.delete("/spmo/dependencies/:id", async (req, res): Promise<void> => {
     }
 
     // Delete + recalculate in a transaction
-    await db.transaction(async (tx: typeof db) => {
+    await db.transaction(async (tx: any) => {
       await tx.delete(spmoDependenciesTable).where(eq(spmoDependenciesTable.id, id));
 
       // Recalculate dep_status for the target after deletion

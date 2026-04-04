@@ -429,7 +429,7 @@ router.post("/spmo/import/save", async (req: Request, res: Response): Promise<vo
   const colorPalette = ["#2563EB", "#7C3AED", "#E8590C", "#0D9488", "#B91C1C", "#CA8A04", "#15803D", "#BE185D"];
 
   try {
-    await db.transaction(async (tx: typeof db) => {
+    await db.transaction(async (tx: any) => {
       if (mode === "replace") {
         await tx.delete(spmoPillarsTable);
         await tx.delete(spmoKpisTable);

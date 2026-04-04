@@ -112,6 +112,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
   totalMilestones: number;
   budgetSpent: number;
   childProjects: ChildProjectSummary[];
+  weightSource: "admin" | "budget" | "effort" | "equal";
 }> {
   const projects = await db
     .select()
@@ -119,7 +120,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
     .where(eq(spmoProjectsTable.initiativeId, initiativeId));
 
   if (projects.length === 0) {
-    return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [] };
+    return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [], weightSource: "equal" as const };
   }
 
   // ── Weight cascade (highest priority first) ──────────────────
