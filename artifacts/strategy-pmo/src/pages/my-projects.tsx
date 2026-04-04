@@ -159,7 +159,15 @@ export default function MyProjects() {
                 <div className="relative w-52 h-52 shrink-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={chartData} cx="50%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={2} dataKey="value" strokeWidth={0}>
+                      <Pie data={chartData} cx="50%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={2} dataKey="value" strokeWidth={0}
+                        label={({ cx, cy, midAngle, innerRadius, outerRadius, value }: any) => {
+                          if (!value) return null;
+                          const r = innerRadius + (outerRadius - innerRadius) * 0.5;
+                          const x = cx + r * Math.cos(-midAngle * Math.PI / 180);
+                          const y = cy + r * Math.sin(-midAngle * Math.PI / 180);
+                          return <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700}>{value}</text>;
+                        }}
+                        labelLine={false}>
                         {chartData.map((entry) => <Cell key={entry.key} fill={PIE_COLOURS[entry.key as StatusCategory]} />)}
                       </Pie>
                       <Tooltip formatter={(value: number, name: string) => [`${value} project${value !== 1 ? "s" : ""}`, name]}
