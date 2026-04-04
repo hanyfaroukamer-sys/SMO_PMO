@@ -26,7 +26,10 @@ const notificationBellSrc = read(path.join(FRONTEND_SRC, "components/notificatio
 const adminSrc = read(path.join(FRONTEND_SRC, "pages/admin.tsx"));
 const analyticsSrc = read(path.join(FRONTEND_SRC, "pages/analytics.tsx"));
 const appTsxSrc = read(path.join(FRONTEND_SRC, "App.tsx"));
-const spmoRouteSrc = read(path.join(API_SRC, "routes/spmo.ts"));
+const spmoRouteSrc = read(path.join(API_SRC, "routes/spmo.ts"))
+  + "\n" + read(path.join(API_SRC, "routes/spmo-comments.ts"))
+  + "\n" + (fs.existsSync(path.join(API_SRC, "routes/spmo-kpis.ts")) ? read(path.join(API_SRC, "routes/spmo-kpis.ts")) : "")
+  + "\n" + (fs.existsSync(path.join(API_SRC, "routes/spmo-admin.ts")) ? read(path.join(API_SRC, "routes/spmo-admin.ts")) : "");
 const mentionEmailSrc = read(path.join(API_SRC, "lib/mention-email.ts"));
 const mobileDashboardSrc = read(path.join(MOBILE_SRC, "app/(tabs)/index.tsx"));
 const mobileProjectDetailSrc = read(path.join(MOBILE_SRC, "app/projects/[id].tsx"));

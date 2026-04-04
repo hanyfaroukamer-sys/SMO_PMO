@@ -11,6 +11,10 @@ const SPMO_ROUTER = path.resolve(
   __dirname,
   "../../routes/spmo.ts",
 );
+const SPMO_COMMENTS = path.resolve(
+  __dirname,
+  "../../routes/spmo-comments.ts",
+);
 const MENTION_EMAIL = path.resolve(
   __dirname,
   "../../lib/mention-email.ts",
@@ -45,8 +49,8 @@ describe("Discussion tab in project-detail.tsx", () => {
   });
 });
 
-describe("Comments API endpoints in spmo.ts", () => {
-  const src = fs.readFileSync(SPMO_ROUTER, "utf-8");
+describe("Comments API endpoints", () => {
+  const src = fs.readFileSync(SPMO_ROUTER, "utf-8") + "\n" + fs.readFileSync(SPMO_COMMENTS, "utf-8");
 
   it("has GET /spmo/comments endpoint", () => {
     expect(src).toMatch(/router\.get\s*\(\s*["']\/spmo\/comments["']/);
@@ -90,7 +94,7 @@ describe("mention-email.ts exists and exports expected functions", () => {
 });
 
 describe("Comment handler parses @mentions", () => {
-  const src = fs.readFileSync(SPMO_ROUTER, "utf-8");
+  const src = fs.readFileSync(SPMO_ROUTER, "utf-8") + "\n" + fs.readFileSync(SPMO_COMMENTS, "utf-8");
 
   it("uses a regex to parse structured @mentions (mentionRegex or structuredRegex)", () => {
     const hasMentionRegex = src.includes("mentionRegex");

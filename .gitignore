@@ -60,3 +60,4 @@ Thumbs.db
 # Lock files from wrong package managers
 package-lock.json
 yarn.lock
+.claude/worktrees/
