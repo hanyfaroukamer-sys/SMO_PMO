@@ -204,7 +204,6 @@ describe("Analytics tabs match API endpoints", () => {
       summary: "overview",
       "weekly-digest": "weekly",
       anomalies: "anomalies",
-      "dependency-suggestions": "dependencies",
     };
     for (const [endpoint, tab] of Object.entries(endpointToTab)) {
       expect(apiEndpoints).toContain(endpoint);

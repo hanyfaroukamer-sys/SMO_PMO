@@ -158,43 +158,54 @@ function findNameSimilarities(
   const suggestions: DependencySuggestion[] = [];
   const seen = new Set<string>();
 
-  for (let i = 0; i < milestones.length; i++) {
-    const msA = milestones[i];
-    const wordsA = extractWords(msA.name);
-    if (wordsA.length === 0) continue;
+  // Pre-compute words for all milestones and skip empty ones
+  const msWithWords = milestones
+    .map((ms) => ({ ms, words: extractWords(ms.name) }))
+    .filter((m) => m.words.length > 0);
 
-    for (let j = i + 1; j < milestones.length; j++) {
-      const msB = milestones[j];
-      // Only compare milestones in different projects
+  // Build an inverted index: word → milestone indices (much faster than O(n²))
+  const wordIndex = new Map<string, number[]>();
+  msWithWords.forEach((m, idx) => {
+    for (const w of m.words) {
+      const list = wordIndex.get(w) ?? [];
+      list.push(idx);
+      wordIndex.set(w, list);
+    }
+  });
+
+  // For each milestone, find candidates that share at least one word
+  for (let i = 0; i < msWithWords.length; i++) {
+    const { ms: msA, words: wordsA } = msWithWords[i];
+    const candidateSet = new Set<number>();
+    for (const w of wordsA) {
+      for (const j of wordIndex.get(w) ?? []) {
+        if (j > i) candidateSet.add(j); // only check j > i to avoid duplicates
+      }
+    }
+
+    for (const j of candidateSet) {
+      const { ms: msB, words: wordsB } = msWithWords[j];
       if (msA.projectId === msB.projectId) continue;
-
-      const wordsB = extractWords(msB.name);
-      if (wordsB.length === 0) continue;
 
       const overlap = wordOverlap(wordsA, wordsB);
       if (overlap < 0.5) continue;
 
-      // Determine direction: earlier due date is source
       const dueA = msA.dueDate ? new Date(msA.dueDate).getTime() : Infinity;
       const dueB = msB.dueDate ? new Date(msB.dueDate).getTime() : Infinity;
-
       const [source, target] = dueA <= dueB ? [msA, msB] : [msB, msA];
       const key = `name_sim:${source.id}->${target.id}`;
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const sourceProject = projectMap.get(source.projectId);
-      const targetProject = projectMap.get(target.projectId);
-
       suggestions.push({
         sourceType: "milestone",
         sourceId: source.id,
         sourceName: source.name,
-        sourceProjectName: sourceProject?.name ?? null,
+        sourceProjectName: projectMap.get(source.projectId)?.name ?? null,
         targetType: "milestone",
         targetId: target.id,
         targetName: target.name,
-        targetProjectName: targetProject?.name ?? null,
+        targetProjectName: projectMap.get(target.projectId)?.name ?? null,
         depType: "finish_to_start",
         confidence: overlap >= 0.7 ? "high" : "medium",
         reason: `Milestone names share ${Math.round(overlap * 100)}% word overlap across different projects, suggesting a handoff or shared deliverable.`,
@@ -217,84 +228,62 @@ function findTimelineOverlaps(
   const suggestions: DependencySuggestion[] = [];
   const seen = new Set<string>();
 
-  // Build initiative lookup for projects
+  // Group milestones by initiative for scoped comparisons (avoids global O(n²))
   const projectInitiativeMap = new Map(projects.map((p) => [p.id, p.initiativeId]));
+  const byInitiative = new Map<number, typeof milestones>();
+  for (const ms of milestones) {
+    const initId = projectInitiativeMap.get(ms.projectId);
+    if (initId == null) continue;
+    const arr = byInitiative.get(initId) ?? [];
+    arr.push(ms);
+    byInitiative.set(initId, arr);
+  }
 
-  for (let i = 0; i < milestones.length; i++) {
-    const msA = milestones[i];
-    if (!msA.dueDate) continue;
+  for (const [, initMs] of byInitiative) {
+    // Build sorted lists: milestones with dueDates, milestones with startDates
+    const withDue = initMs.filter((m) => m.dueDate).map((m) => ({ ms: m, dueTime: new Date(m.dueDate!).getTime() }));
+    const withStart = initMs.filter((m) => m.startDate).map((m) => ({ ms: m, startTime: new Date(m.startDate!).getTime() }));
 
-    for (let j = i + 1; j < milestones.length; j++) {
-      const msB = milestones[j];
-      if (msA.projectId === msB.projectId) continue;
-      if (!msB.startDate) continue;
+    if (withDue.length === 0 || withStart.length === 0) continue;
 
-      // Only consider milestones under the same initiative or pillar
-      const initA = projectInitiativeMap.get(msA.projectId);
-      const initB = projectInitiativeMap.get(msB.projectId);
-      if (initA !== initB) continue;
+    // Sort both by date
+    withDue.sort((a, b) => a.dueTime - b.dueTime);
+    withStart.sort((a, b) => a.startTime - b.startTime);
 
-      const gap = daysBetween(msA.dueDate, msB.startDate);
-      if (gap === null) continue;
+    // Sweep: for each dueDate, find startDates within ±7 days
+    let startIdx = 0;
+    const WINDOW = 7 * 86400000;
+    for (const due of withDue) {
+      // Advance startIdx to first startDate within window
+      while (startIdx < withStart.length && withStart[startIdx].startTime < due.dueTime - WINDOW) startIdx++;
 
-      // If msA's dueDate is within 7 days of msB's startDate
-      if (gap >= -7 && gap <= 7) {
-        const key = `timeline:${msA.id}->${msB.id}`;
+      for (let j = startIdx; j < withStart.length; j++) {
+        const start = withStart[j];
+        if (start.startTime > due.dueTime + WINDOW) break;
+        if (due.ms.projectId === start.ms.projectId) continue;
+
+        const gap = Math.round((start.startTime - due.dueTime) / 86400000);
+        const key = `timeline:${due.ms.id}->${start.ms.id}`;
         if (seen.has(key)) continue;
         seen.add(key);
 
-        const sourceProject = projectMap.get(msA.projectId);
-        const targetProject = projectMap.get(msB.projectId);
-        const lagDays = gap;
-
         suggestions.push({
           sourceType: "milestone",
-          sourceId: msA.id,
-          sourceName: msA.name,
-          sourceProjectName: sourceProject?.name ?? null,
+          sourceId: due.ms.id,
+          sourceName: due.ms.name,
+          sourceProjectName: projectMap.get(due.ms.projectId)?.name ?? null,
           targetType: "milestone",
-          targetId: msB.id,
-          targetName: msB.name,
-          targetProjectName: targetProject?.name ?? null,
+          targetId: start.ms.id,
+          targetName: start.ms.name,
+          targetProjectName: projectMap.get(start.ms.projectId)?.name ?? null,
           depType: "finish_to_start",
           confidence: "medium",
-          reason: `Milestone "${msA.name}" ends ${Math.abs(lagDays)} day(s) ${lagDays >= 0 ? "before" : "after"} "${msB.name}" starts, suggesting a handoff dependency.`,
-          suggestedLagDays: lagDays,
+          reason: `Milestone "${due.ms.name}" ends ${Math.abs(gap)} day(s) ${gap >= 0 ? "before" : "after"} "${start.ms.name}" starts, suggesting a handoff dependency.`,
+          suggestedLagDays: gap,
           isHard: false,
           source: "timeline_overlap",
           alreadyExists: false,
         });
-      }
-
-      // Also check reverse: msB.dueDate close to msA.startDate
-      if (msB.dueDate && msA.startDate) {
-        const reverseGap = daysBetween(msB.dueDate, msA.startDate);
-        if (reverseGap !== null && reverseGap >= -7 && reverseGap <= 7) {
-          const reverseKey = `timeline:${msB.id}->${msA.id}`;
-          if (seen.has(reverseKey)) continue;
-          seen.add(reverseKey);
-
-          const sourceProject = projectMap.get(msB.projectId);
-          const targetProject = projectMap.get(msA.projectId);
-
-          suggestions.push({
-            sourceType: "milestone",
-            sourceId: msB.id,
-            sourceName: msB.name,
-            sourceProjectName: sourceProject?.name ?? null,
-            targetType: "milestone",
-            targetId: msA.id,
-            targetName: msA.name,
-            targetProjectName: targetProject?.name ?? null,
-            depType: "finish_to_start",
-            confidence: "medium",
-            reason: `Milestone "${msB.name}" ends ${Math.abs(reverseGap)} day(s) ${reverseGap >= 0 ? "before" : "after"} "${msA.name}" starts, suggesting a handoff dependency.`,
-            suggestedLagDays: reverseGap,
-            isHard: false,
-            source: "timeline_overlap",
-            alreadyExists: false,
-          });
-        }
       }
     }
   }
@@ -448,6 +437,28 @@ function findSequentialInitiativeMilestones(
   const suggestions: DependencySuggestion[] = [];
   const seen = new Set<string>();
 
+  // Pre-compute last milestone (by dueDate) and first milestone (by startDate) per project
+  const lastMsByProject = new Map<number, typeof milestonesByProject extends Map<number, (infer T)[]> ? T : never>();
+  const firstMsByProject = new Map<number, typeof milestonesByProject extends Map<number, (infer T)[]> ? T : never>();
+  for (const [projId, ms] of milestonesByProject) {
+    let latest: typeof ms[0] | null = null;
+    let latestTime = -Infinity;
+    let earliest: typeof ms[0] | null = null;
+    let earliestTime = Infinity;
+    for (const m of ms) {
+      if (m.dueDate) {
+        const t = new Date(m.dueDate).getTime();
+        if (t > latestTime) { latestTime = t; latest = m; }
+      }
+      if (m.startDate) {
+        const t = new Date(m.startDate).getTime();
+        if (t < earliestTime) { earliestTime = t; earliest = m; }
+      }
+    }
+    if (latest) lastMsByProject.set(projId, latest);
+    if (earliest) firstMsByProject.set(projId, earliest);
+  }
+
   // Group projects by initiativeId
   const projectsByInitiative = new Map<number, typeof projects>();
   for (const p of projects) {
@@ -456,32 +467,19 @@ function findSequentialInitiativeMilestones(
     projectsByInitiative.set(p.initiativeId, arr);
   }
 
-  for (const [_initId, initProjects] of projectsByInitiative) {
+  for (const [, initProjects] of projectsByInitiative) {
     if (initProjects.length < 2) continue;
 
     for (const projA of initProjects) {
-      const msA = milestonesByProject.get(projA.id) ?? [];
-      if (msA.length === 0) continue;
-
-      // Find the last milestone by dueDate
-      const lastMsA = msA
-        .filter((m) => m.dueDate)
-        .sort((a, b) => new Date(b.dueDate!).getTime() - new Date(a.dueDate!).getTime())[0];
+      const lastMsA = lastMsByProject.get(projA.id);
       if (!lastMsA?.dueDate) continue;
 
       for (const projB of initProjects) {
         if (projA.id === projB.id) continue;
 
-        const msB = milestonesByProject.get(projB.id) ?? [];
-        if (msB.length === 0) continue;
-
-        // Find the first milestone by startDate
-        const firstMsB = msB
-          .filter((m) => m.startDate)
-          .sort((a, b) => new Date(a.startDate!).getTime() - new Date(b.startDate!).getTime())[0];
+        const firstMsB = firstMsByProject.get(projB.id);
         if (!firstMsB?.startDate) continue;
 
-        // Check if projA's last milestone ends before projB's first milestone starts
         const gap = daysBetween(lastMsA.dueDate, firstMsB.startDate);
         if (gap === null || gap < 0) continue;
 
@@ -526,42 +524,26 @@ async function getAiSuggestions(
 ): Promise<DependencySuggestion[]> {
   if (!anthropic) return [];
 
+  // Limit payload size to avoid timeouts — send at most 50 projects, 200 milestones, 30 risks
+  const limitedProjects = projects.slice(0, 50);
+  const limitedProjectIds = new Set(limitedProjects.map((p) => p.id));
+  const limitedMilestones = milestones.filter((m) => limitedProjectIds.has(m.projectId)).slice(0, 200);
+  const limitedRisks = risks.filter((r) => r.status === "open").slice(0, 30);
+
   const programmeContext = {
-    projects: projects.map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      status: p.status,
-      startDate: p.startDate,
-      targetDate: p.targetDate,
-      budget: p.budget,
-      budgetSpent: p.budgetSpent,
-      departmentId: p.departmentId,
-      initiativeId: p.initiativeId,
+    projects: limitedProjects.map((p) => ({
+      id: p.id, name: p.name, status: p.status, startDate: p.startDate,
+      targetDate: p.targetDate, departmentId: p.departmentId, initiativeId: p.initiativeId,
     })),
-    milestones: milestones.map((m) => ({
-      id: m.id,
-      name: m.name,
-      description: m.description,
-      projectId: m.projectId,
-      progress: m.progress,
-      status: m.status,
-      startDate: m.startDate,
-      dueDate: m.dueDate,
+    milestones: limitedMilestones.map((m) => ({
+      id: m.id, name: m.name, projectId: m.projectId, status: m.status,
+      startDate: m.startDate, dueDate: m.dueDate,
     })),
-    risks: risks
-      .filter((r) => r.status === "open")
-      .map((r) => ({
-        id: r.id,
-        title: r.title,
-        description: r.description,
-        category: r.category,
-        probability: r.probability,
-        impact: r.impact,
-        riskScore: r.riskScore,
-        projectId: r.projectId,
-      })),
-    alreadySuggested: heuristicSuggestions.map((s) => ({
+    risks: limitedRisks.map((r) => ({
+      id: r.id, title: r.title, category: r.category,
+      probability: r.probability, impact: r.impact, riskScore: r.riskScore, projectId: r.projectId,
+    })),
+    alreadySuggested: heuristicSuggestions.slice(0, 50).map((s) => ({
       source: `${s.sourceType}:${s.sourceId}`,
       target: `${s.targetType}:${s.targetId}`,
       depType: s.depType,

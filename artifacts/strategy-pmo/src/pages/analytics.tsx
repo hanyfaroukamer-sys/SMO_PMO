@@ -4,7 +4,7 @@ import { customFetch, useGetSpmoConfig } from "@workspace/api-client-react";
 import { Card, PageHeader } from "@/components/ui-elements";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Loader2, TrendingDown, TrendingUp, AlertTriangle, Clock, DollarSign,
+  Loader2, TrendingDown, TrendingUp, AlertTriangle, Clock, DollarSign, HelpCircle,
   Users, GitBranch, BarChart3, Brain, FileText, Play, ChevronDown, ChevronRight,
   ArrowRight, Shield, Target, Zap, AlertCircle, CheckCircle2, XCircle,
   Send, MessageCircle,
@@ -107,7 +107,6 @@ export default function AnalyticsPage() {
     { key: "overview", label: "Overview", icon: BarChart3 },
     { key: "weekly", label: "Weekly Digest", icon: FileText },
     { key: "anomalies", label: "Anomalies", icon: AlertTriangle },
-    { key: "dependencies", label: "Dep. Finder", icon: GitBranch },
     { key: "delays", label: "Delay Predictions", icon: Clock },
     { key: "budget", label: "Budget Forecast", icon: DollarSign },
     { key: "stakeholders", label: "Stakeholder Intel", icon: Users },
@@ -234,7 +233,7 @@ export default function AnalyticsPage() {
       {/* ─── Delays Tab ────────────────────────────────────────── */}
       {activeTab === "weekly" && <WeeklyDigestPanel />}
       {activeTab === "anomalies" && <AnomalyPanel />}
-      {activeTab === "dependencies" && <DependencyFinderPanel />}
+
       {activeTab === "delays" && <DelaysPanel />}
 
       {/* ─── Budget Tab ────────────────────────────────────────── */}
@@ -439,23 +438,50 @@ function EvmPanel() {
   if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   const items = data?.metrics ?? [];
 
+  const evmHelp: Record<string, string> = {
+    PV: "Planned Value — the budgeted cost of work that should have been completed by now based on the project schedule.",
+    EV: "Earned Value — the budgeted cost of work that has actually been completed. Measures real progress in budget terms.",
+    AC: "Actual Cost — the real cost incurred for the work completed so far.",
+    CPI: "Cost Performance Index (EV / AC). >1.0 = under budget, <1.0 = over budget. E.g. 0.85 means you're getting 85 cents of value per dollar spent.",
+    SPI: "Schedule Performance Index (EV / PV). >1.0 = ahead of schedule, <1.0 = behind schedule. E.g. 0.90 means only 90% of planned work is done.",
+    CV: "Cost Variance (EV - AC). Positive = savings, negative = overspend.",
+    SV: "Schedule Variance (EV - PV). Positive = ahead, negative = behind schedule.",
+    EAC: "Estimate At Completion — projected total cost when the project finishes, based on current CPI trend.",
+    Cost: "Cost status based on CPI threshold — over budget, on budget, or under budget.",
+    Schedule: "Schedule status based on SPI threshold — behind, on track, or ahead of schedule.",
+  };
+
+  const EvmTh = ({ label, className }: { label: string; className?: string }) => (
+    <th className={`px-3 py-2 ${className ?? ""}`}>
+      <div className="flex items-center gap-1 group relative">
+        <span>{label}</span>
+        <span className="text-muted-foreground/50 cursor-help" title={evmHelp[label]}>
+          <HelpCircle className="w-3 h-3" />
+        </span>
+      </div>
+    </th>
+  );
+
   return (
     <Card className="p-5">
       <SectionHeader title="Earned Value Management" icon={TrendingUp} count={items.length} />
+      <p className="text-xs text-muted-foreground mb-3">
+        EVM compares planned progress (PV) against actual work done (EV) and actual spend (AC) to measure cost and schedule efficiency. Hover column headers for explanations.
+      </p>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] text-sm">
           <thead><tr className="bg-secondary/50 text-xs uppercase text-muted-foreground">
             <th className="px-3 py-2 text-left">Project</th>
-            <th className="px-3 py-2 text-right">PV</th>
-            <th className="px-3 py-2 text-right">EV</th>
-            <th className="px-3 py-2 text-right">AC</th>
-            <th className="px-3 py-2 text-right">CPI</th>
-            <th className="px-3 py-2 text-right">SPI</th>
-            <th className="px-3 py-2 text-right">CV</th>
-            <th className="px-3 py-2 text-right">SV</th>
-            <th className="px-3 py-2 text-right">EAC</th>
-            <th className="px-3 py-2 text-center">Cost</th>
-            <th className="px-3 py-2 text-center">Schedule</th>
+            <EvmTh label="PV" className="text-right" />
+            <EvmTh label="EV" className="text-right" />
+            <EvmTh label="AC" className="text-right" />
+            <EvmTh label="CPI" className="text-right" />
+            <EvmTh label="SPI" className="text-right" />
+            <EvmTh label="CV" className="text-right" />
+            <EvmTh label="SV" className="text-right" />
+            <EvmTh label="EAC" className="text-right" />
+            <EvmTh label="Cost" className="text-center" />
+            <EvmTh label="Schedule" className="text-center" />
           </tr></thead>
           <tbody className="divide-y divide-border/50">
             {items.map((m) => (
@@ -751,60 +777,93 @@ function ScenarioPanel() {
       </Card>
 
       {/* Results */}
-      {result && (
+      {result && (() => {
+        const progDelta = result.after.programmeProgress - result.before.programmeProgress;
+        const selectedProject = projects.find((p) => p.id === result.input.projectId);
+        const delayD = result.input.delayDays ?? 0;
+        const hasCascade = result.cascadeImpact.length > 0;
+        const hasProgImpact = Math.abs(progDelta) >= 0.05;
+
+        return (
         <div className="space-y-4">
-          {/* Summary */}
-          <Card className="p-5 border-l-4 border-l-primary">
-            <h3 className="font-bold text-sm mb-2">Impact Summary</h3>
-            <p className="text-sm text-muted-foreground">{result.summary}</p>
+          {/* Summary banner */}
+          <Card className={`p-5 border-l-4 ${hasProgImpact || hasCascade ? "border-l-destructive bg-destructive/5" : "border-l-warning bg-warning/5"}`}>
+            <h3 className="font-bold text-sm mb-2 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-destructive" />
+              Delay Impact Analysis
+            </h3>
+            <p className="text-sm text-foreground">{result.summary}</p>
           </Card>
 
-          {/* Before / After comparison */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="p-5">
-              <h4 className="text-xs font-bold uppercase text-muted-foreground mb-3">Before</h4>
-              <div className="text-2xl font-bold mb-3">{result.before.programmeProgress.toFixed(1)}%</div>
-              {result.before.affectedPillarProgress.map((p) => (
-                <div key={p.pillarId} className="flex justify-between text-sm py-1 border-b border-border/30">
-                  <span className="text-muted-foreground">{p.pillarName}</span>
-                  <span className="font-semibold">{p.progress.toFixed(1)}%</span>
-                </div>
-              ))}
+          {/* Key metrics row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="p-4 text-center">
+              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Programme Progress</div>
+              <div className="text-xl font-bold">{result.before.programmeProgress.toFixed(1)}%</div>
+              {hasProgImpact ? (
+                <div className="text-sm text-destructive font-bold">{progDelta > 0 ? "+" : ""}{progDelta.toFixed(1)}% impact</div>
+              ) : (
+                <div className="text-[10px] text-muted-foreground">No immediate change</div>
+              )}
             </Card>
-            <Card className="p-5 border-l-4 border-l-destructive">
-              <h4 className="text-xs font-bold uppercase text-muted-foreground mb-3">After</h4>
-              <div className="text-2xl font-bold mb-3">
-                {result.after.programmeProgress.toFixed(1)}%
-                <span className="text-sm text-destructive ml-2">
-                  ({(result.after.programmeProgress - result.before.programmeProgress).toFixed(1)}%)
-                </span>
-              </div>
-              {result.after.affectedPillarProgress.map((p) => {
-                const before = result.before.affectedPillarProgress.find((bp) => bp.pillarId === p.pillarId);
-                const delta = before ? p.progress - before.progress : 0;
-                return (
-                  <div key={p.pillarId} className="flex justify-between text-sm py-1 border-b border-border/30">
-                    <span className="text-muted-foreground">{p.pillarName}</span>
-                    <span>
-                      <span className="font-semibold">{p.progress.toFixed(1)}%</span>
-                      {delta !== 0 && <span className={`text-xs ml-1 ${delta < 0 ? "text-destructive" : "text-green-600"}`}>({delta > 0 ? "+" : ""}{delta.toFixed(1)})</span>}
-                    </span>
-                  </div>
-                );
-              })}
+            <Card className="p-4 text-center border-destructive/30">
+              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Target Date Shift</div>
+              <div className="text-xl font-bold text-destructive">+{delayD} days</div>
+              <div className="text-[10px] text-muted-foreground">Project completion delayed</div>
+            </Card>
+            <Card className="p-4 text-center">
+              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Milestones Affected</div>
+              <div className="text-xl font-bold text-warning">{result.cascadeImpact.length}</div>
+              <div className="text-[10px] text-muted-foreground">{result.cascadeImpact.length > 0 ? "downstream pushed" : "no dependencies"}</div>
+            </Card>
+            <Card className="p-4 text-center">
+              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Projects Impacted</div>
+              <div className="text-xl font-bold">{new Set(result.cascadeImpact.map((c) => c.projectName)).size + 1}</div>
+              <div className="text-[10px] text-muted-foreground">including {selectedProject?.name?.slice(0, 20) ?? "selected"}</div>
             </Card>
           </div>
 
-          {/* Cascade impact */}
-          {result.cascadeImpact.length > 0 && (
-            <Card className="p-5">
-              <SectionHeader title="Cascade Impact" icon={GitBranch} count={result.cascadeImpact.length} />
+          {/* Pillar-level impact — only show pillars that changed */}
+          {(() => {
+            const pillarDeltas = result.after.affectedPillarProgress.map((ap) => {
+              const bp = result.before.affectedPillarProgress.find((b) => b.pillarId === ap.pillarId);
+              return { ...ap, before: bp?.progress ?? ap.progress, delta: ap.progress - (bp?.progress ?? ap.progress) };
+            }).filter((p) => Math.abs(p.delta) >= 0.05);
+
+            return pillarDeltas.length > 0 ? (
+              <Card className="p-5">
+                <h4 className="text-sm font-bold mb-3">Pillar Progress Impact</h4>
+                <div className="space-y-2">
+                  {pillarDeltas.map((p) => (
+                    <div key={p.pillarId} className="flex items-center gap-3 text-sm">
+                      <span className="flex-1 text-muted-foreground">{p.pillarName}</span>
+                      <span className="font-mono">{p.before.toFixed(1)}%</span>
+                      <ArrowRight className="w-3 h-3 text-destructive" />
+                      <span className="font-mono font-bold">{p.progress.toFixed(1)}%</span>
+                      <span className="text-xs text-destructive font-bold">({p.delta > 0 ? "+" : ""}{p.delta.toFixed(1)})</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ) : null;
+          })()}
+
+          {/* Timeline cascade — the most important part */}
+          {hasCascade && (
+            <Card className="p-5 border-l-4 border-l-warning">
+              <h4 className="text-sm font-bold mb-1 flex items-center gap-2">
+                <GitBranch className="w-4 h-4 text-warning" />
+                Dependency Cascade — {result.cascadeImpact.length} milestone{result.cascadeImpact.length > 1 ? "s" : ""} pushed
+              </h4>
+              <p className="text-xs text-muted-foreground mb-3">
+                These milestones in dependent projects will have their due dates shifted because they depend on the delayed project.
+              </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="bg-secondary/50 text-xs uppercase text-muted-foreground">
                     <th className="px-4 py-2 text-left">Milestone</th>
                     <th className="px-4 py-2 text-left">Project</th>
-                    <th className="px-4 py-2 text-right">Shift</th>
+                    <th className="px-4 py-2 text-right">Days Pushed</th>
                     <th className="px-4 py-2 text-right">New Due Date</th>
                   </tr></thead>
                   <tbody className="divide-y divide-border/50">
@@ -812,13 +871,24 @@ function ScenarioPanel() {
                       <tr key={c.milestoneId} className="hover:bg-secondary/20">
                         <td className="px-4 py-2 font-semibold">{c.milestoneName}</td>
                         <td className="px-4 py-2 text-muted-foreground">{c.projectName}</td>
-                        <td className="px-4 py-2 text-right font-bold text-destructive">+{c.shiftDays}d</td>
-                        <td className="px-4 py-2 text-right">{fmtDate(c.newDueDate)}</td>
+                        <td className="px-4 py-2 text-right"><span className="font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded">+{c.shiftDays}d</span></td>
+                        <td className="px-4 py-2 text-right font-mono">{fmtDate(c.newDueDate)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+            </Card>
+          )}
+
+          {/* No cascade — explain why */}
+          {!hasCascade && scenarioType === "delay" && (
+            <Card className="p-5 bg-muted/30">
+              <p className="text-sm text-muted-foreground">
+                No downstream dependencies found. This project's delay will not cascade to other projects.
+                The {delayD}-day delay shifts the target date but does not affect current progress percentages
+                (progress measures work completed, not time elapsed).
+              </p>
             </Card>
           )}
 
@@ -857,7 +927,8 @@ function ScenarioPanel() {
             </Card>
           )}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
