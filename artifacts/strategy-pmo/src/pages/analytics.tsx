@@ -1152,7 +1152,7 @@ function ScenarioPanel() {
                         {result.progressImpact.milestoneBreakdown.map((ms, i) => (
                           <tr key={i} className={`${ms.willBeCompleteByOriginalTarget ? "" : "bg-destructive/5"}`}>
                             <td className="px-2 py-1.5 font-semibold truncate max-w-[200px]">{ms.name}</td>
-                            <td className="px-2 py-1.5 text-right font-mono text-muted-foreground">{ms.weight.toFixed(0)}%</td>
+                            <td className="px-2 py-1.5 text-right font-mono text-muted-foreground">{Math.round((ms as any).effectiveWeight ?? ms.weight ?? 0)}%</td>
                             <td className="px-2 py-1.5 text-right font-mono">{ms.dueDate ? fmtDate(ms.dueDate) : "—"}</td>
                             <td className="px-2 py-1.5 text-right font-mono text-destructive">{ms.newDueDate ? fmtDate(ms.newDueDate) : "—"}</td>
                             <td className="px-2 py-1.5 text-right font-mono">{ms.currentProgress}%</td>

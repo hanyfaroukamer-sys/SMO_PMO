@@ -58,8 +58,10 @@ import {
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(date: string | null | undefined) {
-  if (!date) return "—";
-  return new Date(date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  if (!date || date === "") return "—";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function fileIcon(contentType: string | null | undefined) {
@@ -1249,8 +1251,8 @@ export default function ProjectDetail({ params }: Props) {
                 <div className="text-sm text-muted-foreground flex-1 leading-relaxed">{project.computedStatus.reason}</div>
                 <div className="text-right shrink-0">
                   <div className="text-xs text-muted-foreground">SPI</div>
-                  <div className={`text-sm font-bold ${project.computedStatus.spi >= 1 ? "text-success" : project.computedStatus.spi >= 0.85 ? "text-warning" : "text-destructive"}`}>
-                    {project.computedStatus.spi.toFixed(2)}
+                  <div className={`text-sm font-bold ${(project.computedStatus.spi ?? 1) >= 1 ? "text-success" : (project.computedStatus.spi ?? 1) >= 0.85 ? "text-warning" : "text-destructive"}`}>
+                    {(project.computedStatus.spi ?? 1).toFixed(2)}
                   </div>
                 </div>
               </div>

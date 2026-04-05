@@ -74,7 +74,8 @@ function renderFieldValue(key: string, value: unknown): string {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (typeof value === "number") {
     if (key.toLowerCase().includes("budget") || key.toLowerCase().includes("capex") || key.toLowerCase().includes("opex")) {
-      return `${(value / 1_000_000).toFixed(2)}M SAR`;
+      // Currency code not available in audit log context
+      return `${(value / 1_000_000).toFixed(2)}M`;
     }
     if (key === "progress") return `${value}%`;
     if (key === "riskScore") return String(value);

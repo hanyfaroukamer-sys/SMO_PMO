@@ -5,6 +5,7 @@ import {
   spmoActivityLogTable,
   spmoProjectWeeklyReportsTable,
   spmoDepartmentsTable,
+  spmoProgrammeConfigTable,
   usersTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, sql, inArray, desc } from "drizzle-orm";
@@ -147,12 +148,14 @@ export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
       sql`${spmoProjectsTable.status} NOT IN ('completed', 'cancelled')`,
     );
 
-  // Calculate the start of the current week (Monday)
+  // Calculate the start of the current week using configurable reset day
+  const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
+  const weeklyResetDay = cfg?.weeklyResetDay ?? 3; // default Wednesday if not configured
   const weekStart = new Date(now);
-  const dayOfWeek = weekStart.getDay();
-  const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  weekStart.setDate(weekStart.getDate() - diffToMonday);
   weekStart.setHours(0, 0, 0, 0);
+  const dow = weekStart.getDay();
+  const daysAgo = (dow - weeklyResetDay + 7) % 7;
+  weekStart.setDate(weekStart.getDate() - daysAgo);
   const weekStartStr = weekStart.toISOString().split("T")[0];
 
   // Get all weekly reports for this week
@@ -166,7 +169,7 @@ export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
   for (const project of activeProjects) {
     if (reportedProjectIds.has(project.id)) continue;
 
-    // Days since Monday
+    // Days since week start
     const daysSinceWeekStart = Math.floor(
       (now.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24),
     );

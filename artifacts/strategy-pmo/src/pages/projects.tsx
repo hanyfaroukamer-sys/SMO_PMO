@@ -549,6 +549,10 @@ export default function Projects() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (projectWeightError) return; // Block submit when weights exceed 100%
+    if (form.startDate && form.targetDate && form.targetDate < form.startDate) {
+      toast({ variant: "destructive", title: "Invalid dates", description: "Target date cannot be before start date." });
+      return;
+    }
     const commonFields = {
       name: form.name,
       projectCode: form.projectCode || null,
@@ -790,7 +794,7 @@ export default function Projects() {
 
       {/* Gantt view */}
       {viewMode === "gantt" && (
-        <GanttChart pillarFilter={pillarFilter} departmentFilter={departmentFilter} />
+        <GanttChart pillarFilter={pillarFilter} departmentFilter={departmentFilter} statusFilter={statusFilter} phaseFilter={phaseFilter} />
       )}
 
       {/* Flat view — all projects as a simple list with hierarchy tooltip */}

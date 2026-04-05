@@ -95,6 +95,8 @@ type PillarGroup = { pillar: GanttPillar | undefined; pillarId: number; rows: Ga
 interface GanttChartProps {
   pillarFilter: Set<number>;
   departmentFilter: Set<number>;
+  statusFilter: Set<string>;
+  phaseFilter: Set<string>;
 }
 
 interface HoverCard {
@@ -106,7 +108,7 @@ interface HoverCard {
 }
 
 // ─── Component ────────────────────────────────────────────────────
-export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) {
+export function GanttChart({ pillarFilter, departmentFilter, statusFilter, phaseFilter }: GanttChartProps) {
   const TODAY = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -174,6 +176,14 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
       if (departmentFilter.size > 0 && (project.departmentId == null || !departmentFilter.has(project.departmentId))) continue;
       const pillarId = initiativeMap.get(project.initiativeId) ?? 0;
       if (pillarFilter.size > 0 && !pillarFilter.has(pillarId)) continue;
+      if (statusFilter.size > 0) {
+        const cs = project.computedStatus?.status ?? "";
+        if (!statusFilter.has(cs)) continue;
+      }
+      if (phaseFilter.size > 0) {
+        const cp = (project as any).currentPhase ?? "";
+        if (!phaseFilter.has(cp)) continue;
+      }
       const pillar = pillarMap.get(pillarId);
       const rows = byPillar.get(pillarId) ?? [];
       rows.push({ project, pillar, milestones: milestonesByProject.get(project.id) ?? [] });
@@ -184,7 +194,7 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
       pillar: pillarMap.get(pillarId),
       rows,
     }));
-  }, [projectsData, departmentFilter, pillarFilter, initiativeMap, pillarMap, milestonesByProject]);
+  }, [projectsData, departmentFilter, pillarFilter, statusFilter, phaseFilter, initiativeMap, pillarMap, milestonesByProject]);
 
   // Default: all groups collapsed (grouped view)
   const didInitCollapse = useRef(false);

@@ -7,7 +7,7 @@ import {
   spmoEvidenceTable,
   type SpmoPillar,
 } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 // ─────────────────────────────────────────────────────────────
 // 99% Gate Rule
@@ -102,6 +102,9 @@ async function projectProgress(projectId: number): Promise<{
     }
     const msStart = new Date(m.startDate).getTime();
     const msEnd = new Date(m.dueDate).getTime();
+    if (msEnd <= msStart) {
+      return { value: 0, weight: w }; // Invalid date range — treat as undated
+    }
     const msDuration = Math.max(msEnd - msStart, 86_400_000); // min 1 day
     const msElapsed = Math.max(today.getTime() - msStart, 0);
     // If milestone hasn't started yet → planned 0%. If past due → planned 100%.
@@ -147,7 +150,9 @@ async function initiativeProgress(initiativeId: number): Promise<{
   const projects = await db
     .select()
     .from(spmoProjectsTable)
-    .where(eq(spmoProjectsTable.initiativeId, initiativeId));
+    .where(
+      and(eq(spmoProjectsTable.initiativeId, initiativeId), eq(spmoProjectsTable.status, "active"))
+    );
 
   if (projects.length === 0) {
     return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [], weightSource: "equal" as const };
@@ -160,7 +165,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
   // 4. Equal weight (weightedAvg handles all-zero)
   // Admin weights only count if they sum close to 100% (stale/default values like 1 don't count)
   const adminWeightSum = projects.reduce((s, p) => s + (p.weight ?? 0), 0);
-  const adminWeightsSet = projects.some((p) => (p.weight ?? 0) > 0) && Math.abs(adminWeightSum - 100) <= 5;
+  const adminWeightsSet = projects.some((p) => (p.weight ?? 0) > 0) && Math.abs(adminWeightSum - 100) <= 10;
   const totalBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
   const allHaveBudget = !adminWeightsSet && projects.every((p) => (p.budget ?? 0) > 0);
 
@@ -269,7 +274,7 @@ async function pillarProgress(pillarId: number): Promise<{
   // 3. effortDays across all child milestones
   // 4. Equal weight
   const adminInitWeightSum = initiatives.reduce((s, i) => s + (i.weight ?? 0), 0);
-  const adminInitWeightsSet = initiatives.some((i) => (i.weight ?? 0) > 0) && Math.abs(adminInitWeightSum - 100) <= 5;
+  const adminInitWeightsSet = initiatives.some((i) => (i.weight ?? 0) > 0) && Math.abs(adminInitWeightSum - 100) <= 10;
 
   const initBudgets = await Promise.all(
     initiatives.map(async (i) => {
@@ -399,7 +404,7 @@ export async function computeProjectWeights(initiativeId: number): Promise<{ pro
   const adminSet = projects.some((p) => (p.weight ?? 0) > 0);
   // Admin weights are only truly "set" if they sum close to 100% — otherwise they're stale/default values
   const adminWeightSum = projects.reduce((s, p) => s + (p.weight ?? 0), 0);
-  const adminWeightsValid = adminSet && Math.abs(adminWeightSum - 100) <= 5;
+  const adminWeightsValid = adminSet && Math.abs(adminWeightSum - 100) <= 10;
   if (adminWeightsValid) {
     return projects.map((p) => ({ projectId: p.id, effectiveWeight: Math.round(((p.weight ?? 0) / adminWeightSum) * 1000) / 10, weightSource: "admin" as const }));
   }
@@ -434,7 +439,7 @@ export async function computeInitiativeWeights(pillarId: number): Promise<{ init
 
   const adminSet = initiatives.some((i) => (i.weight ?? 0) > 0);
   const adminWeightSum = initiatives.reduce((s, i) => s + (i.weight ?? 0), 0);
-  const adminWeightsValid = adminSet && Math.abs(adminWeightSum - 100) <= 5;
+  const adminWeightsValid = adminSet && Math.abs(adminWeightSum - 100) <= 10;
   if (adminWeightsValid) {
     return initiatives.map((i) => ({ initiativeId: i.id, effectiveWeight: Math.round(((i.weight ?? 0) / adminWeightSum) * 1000) / 10, weightSource: "admin" as const }));
   }
@@ -483,7 +488,7 @@ export async function computePillarWeights(): Promise<{ pillarId: number; effect
 
   // Admin override: pillar weights sum to ~100%
   const adminWeightSum = pillars.reduce((s, p) => s + (p.weight ?? 0), 0);
-  const adminSet = pillars.some((p) => (p.weight ?? 0) > 0) && Math.abs(adminWeightSum - 100) <= 5;
+  const adminSet = pillars.some((p) => (p.weight ?? 0) > 0) && Math.abs(adminWeightSum - 100) <= 10;
   if (adminSet) {
     return pillars.map((p) => ({ pillarId: p.id, effectiveWeight: Math.round(((p.weight ?? 0) / adminWeightSum) * 1000) / 10, weightSource: "admin" as const }));
   }
@@ -644,12 +649,12 @@ export function computeStatus(
   const gap = Math.round(expectedPct - actualProgress);
 
   // RULE 1: Completed
-  if (actualProgress >= 100) {
+  if (actualProgress >= 99.9) {
     return { status: "completed", reason: "All milestones approved and complete.", spi: r2(spi), burnGap };
   }
 
-  // RULE 2: Not yet started
-  if (elapsedPct <= 0) {
+  // RULE 2: Not yet started — BOTH before start date AND no progress recorded
+  if (elapsedPct <= 0 && actualProgress === 0) {
     return { status: "not_started", reason: `Not yet started. Begins ${start.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`, spi: 1, burnGap };
   }
 
