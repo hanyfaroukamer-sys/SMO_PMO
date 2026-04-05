@@ -11,6 +11,9 @@ import {
   calcProgrammeProgress,
   projectProgress,
   computeStatus,
+  computeProjectWeights,
+  computeInitiativeWeights,
+  computePillarWeights,
 } from "./spmo-calc";
 import { computeEvmMetrics } from "./engine-evm";
 
@@ -397,50 +400,47 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
   let afterProgrammeProgress: number;
 
   if (input.type === "delay" && simulatedDelayProgress !== null && initiative) {
-    // Only recalculate the affected initiative
-    const initProjects = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, initiative.id));
-    const progItems: { value: number; weight: number }[] = [];
-    for (const p of initProjects) {
-      if (p.id === input.projectId) {
-        progItems.push({ value: simulatedDelayProgress, weight: p.budget ?? 0 });
-      } else {
-        const pp = await projectProgress(p.id);
-        progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
-      }
-    }
-    const newInitProgress = weightedAvg(progItems);
+    // For delay: compute exactly how much this project's shortfall drags down the chain.
+    // Current project progress = X%, simulated at deadline = Y%, shortfall = X - Y
+    // But we need the shortfall relative to PLANNED (100%), not current.
+    // The project was supposed to contribute its full progress to the initiative.
+    // With delay, it contributes simulatedDelayProgress instead of currentProgress.
 
-    // Use the same initiative progress for "before" baseline (recalculated with same method)
-    const origProgItems: { value: number; weight: number }[] = [];
-    for (const p of initProjects) {
-      const pp = await projectProgress(p.id);
-      origProgItems.push({ value: pp.progress, weight: p.budget ?? 0 });
-    }
-    const origInitProgress = weightedAvg(origProgItems);
-    const initDelta = newInitProgress - origInitProgress;
+    const currentProjectProgress = (await projectProgress(input.projectId)).progress;
+    const projectProgressDrop = Math.max(0, currentProjectProgress - simulatedDelayProgress);
 
-    // Apply delta to the before values (preserves consistent weighting)
+    // Use the real weight cascade (admin override → budget → effort → equal)
+    // Project weight in initiative
+    const projWeights = await computeProjectWeights(initiative.id);
+    const projW = projWeights.find((w) => w.projectId === input.projectId);
+    const projectWeightPct = projW ? projW.effectiveWeight / 100 : 0;
+
+    // Initiative weight in pillar
+    const initWeights = pillar ? await computeInitiativeWeights(pillar.id) : [];
+    const initW = initWeights.find((w) => w.initiativeId === initiative.id);
+    const initWeightPct = initW ? initW.effectiveWeight / 100 : 0;
+
+    // Pillar weight in programme
+    const pillarWeights = await computePillarWeights();
+    const pillarW = pillarWeights.find((w) => w.pillarId === pillar?.id);
+    const pillarWeightPct = pillarW ? pillarW.effectiveWeight / 100 : 0;
+
+    // Cascade the drop: project → initiative → pillar → programme
+    const initProgressDrop = round1(projectProgressDrop * projectWeightPct);
+    const pillarDrop = round1(initProgressDrop * initWeightPct);
+    const programmeDrop = round1(pillarDrop * pillarWeightPct);
+
     afterInitiativeProgress = beforeInitiativeProgress.map((bi) => ({
       initiativeId: bi.initiativeId,
       initiativeName: bi.initiativeName,
-      progress: bi.initiativeId === initiative.id ? round1(bi.progress + initDelta) : bi.progress,
+      progress: bi.initiativeId === initiative.id ? round1(Math.max(0, bi.progress - initProgressDrop)) : bi.progress,
     }));
 
-    // Pillar: apply the init delta weighted by this initiative's share
-    const pillarInitiatives = beforeInitiativeProgress.filter((i) => {
-      const init = siblingInitiatives.find((si) => si.id === i.initiativeId);
-      return init != null;
-    });
-    const initShare = pillarInitiatives.length > 0 ? 1 / pillarInitiatives.length : 1;
-    const pillarDelta = initDelta * initShare;
-
     afterPillarProgress = beforePillarProgress.map((bp) =>
-      bp.pillarId === pillar?.id ? { ...bp, progress: round1(bp.progress + pillarDelta) } : bp
+      bp.pillarId === pillar?.id ? { ...bp, progress: round1(Math.max(0, bp.progress - pillarDrop)) } : bp
     );
 
-    // Programme: apply pillar delta weighted by pillar share
-    const pillarShare = beforePillarProgress.length > 0 ? 1 / beforePillarProgress.length : 1;
-    afterProgrammeProgress = round1(programmeProgress + pillarDelta * pillarShare);
+    afterProgrammeProgress = round1(Math.max(0, programmeProgress - programmeDrop));
   } else {
     // Cancel / budget_cut: full recalculation
     const afterInitProgress: { initiativeId: number; initiativeName: string; progress: number }[] = [];
