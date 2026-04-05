@@ -656,11 +656,20 @@ interface ScenarioResultData {
     projectName: string;
     currentProgress: number;
     plannedProgressAtOriginalTarget: number;
-    expectedProgressAtOriginalTarget: number;
+    simulatedProgressAtOriginalTarget: number;
     progressGapAtTarget: number;
     originalTargetDate: string;
     newTargetDate: string;
     daysDelayed: number;
+    milestoneBreakdown: {
+      name: string;
+      weight: number;
+      dueDate: string | null;
+      newDueDate: string | null;
+      currentProgress: number;
+      willBeCompleteByOriginalTarget: boolean;
+      simulatedProgress: number;
+    }[];
   };
   cancelImpact?: {
     projectName: string;
@@ -926,8 +935,8 @@ function ScenarioPanel() {
                 Progress Shortfall at Original Deadline — {result.progressImpact.projectName}
               </h4>
               <p className="text-xs text-muted-foreground mb-3">
-                By the original target date ({result.progressImpact.originalTargetDate}), the project should be 100% complete.
-                With a {result.progressImpact.daysDelayed}-day delay, it will only reach ~{result.progressImpact.expectedProgressAtOriginalTarget}% — a <span className="font-bold text-destructive">{result.progressImpact.progressGapAtTarget}% shortfall</span>.
+                By the original target date ({result.progressImpact.originalTargetDate}), planned progress should be <span className="font-bold text-primary">{result.progressImpact.plannedProgressAtOriginalTarget}%</span>.
+                With a {result.progressImpact.daysDelayed}-day delay, only <span className="font-bold text-destructive">{result.progressImpact.simulatedProgressAtOriginalTarget}%</span> will be achieved — a <span className="font-bold text-destructive">{result.progressImpact.progressGapAtTarget}% gap</span> that cascades across the strategy.
               </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                 <div className="bg-secondary/50 rounded-lg px-3 py-2.5 text-center">
@@ -936,27 +945,67 @@ function ScenarioPanel() {
                   <div className="text-[10px] text-muted-foreground">Work completed today</div>
                 </div>
                 <div className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-2.5 text-center">
-                  <div className="text-[10px] font-bold uppercase text-muted-foreground">Planned at Target Date</div>
-                  <div className="text-xl font-bold text-primary">100%</div>
-                  <div className="text-[10px] text-muted-foreground">Should complete by {result.progressImpact.originalTargetDate}</div>
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground">Planned at Deadline</div>
+                  <div className="text-xl font-bold text-primary">{result.progressImpact.plannedProgressAtOriginalTarget}%</div>
+                  <div className="text-[10px] text-muted-foreground">Should be at by {result.progressImpact.originalTargetDate}</div>
                 </div>
                 <div className="bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2.5 text-center">
-                  <div className="text-[10px] font-bold uppercase text-destructive">Actual at Target Date</div>
-                  <div className="text-xl font-bold text-destructive">~{result.progressImpact.expectedProgressAtOriginalTarget}%</div>
-                  <div className="text-[10px] text-muted-foreground">What will be done by then</div>
+                  <div className="text-[10px] font-bold uppercase text-destructive">Simulated at Deadline</div>
+                  <div className="text-xl font-bold text-destructive">{result.progressImpact.simulatedProgressAtOriginalTarget}%</div>
+                  <div className="text-[10px] text-muted-foreground">What will actually be done</div>
                 </div>
                 <div className="bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2.5 text-center">
-                  <div className="text-[10px] font-bold uppercase text-destructive">Shortfall</div>
+                  <div className="text-[10px] font-bold uppercase text-destructive">Progress Gap</div>
                   <div className="text-xl font-bold text-destructive">-{result.progressImpact.progressGapAtTarget}%</div>
-                  <div className="text-[10px] text-destructive font-semibold">Behind original plan</div>
+                  <div className="text-[10px] text-destructive font-semibold">Shortfall vs plan</div>
                 </div>
               </div>
-              <div className="text-xs text-muted-foreground flex items-center gap-2">
+              <div className="text-xs text-muted-foreground flex items-center gap-2 mb-4">
                 <span>Original: <span className="font-mono">{result.progressImpact.originalTargetDate}</span></span>
                 <ArrowRight className="w-3 h-3 text-destructive" />
                 <span>New: <span className="font-mono font-bold text-destructive">{result.progressImpact.newTargetDate}</span></span>
                 <span className="text-destructive font-bold">(+{result.progressImpact.daysDelayed} days)</span>
               </div>
+
+              {/* Milestone-by-milestone breakdown */}
+              {result.progressImpact.milestoneBreakdown && result.progressImpact.milestoneBreakdown.length > 0 && (
+                <div className="mt-1">
+                  <h5 className="text-xs font-bold uppercase text-muted-foreground mb-2">Milestone-by-Milestone at Original Deadline</h5>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead><tr className="bg-secondary/50 text-[10px] uppercase text-muted-foreground">
+                        <th className="px-2 py-1.5 text-left">Milestone</th>
+                        <th className="px-2 py-1.5 text-right">Wt%</th>
+                        <th className="px-2 py-1.5 text-right">Due</th>
+                        <th className="px-2 py-1.5 text-right">New Due</th>
+                        <th className="px-2 py-1.5 text-right">Now</th>
+                        <th className="px-2 py-1.5 text-right">At Deadline</th>
+                        <th className="px-2 py-1.5 text-center">Status</th>
+                      </tr></thead>
+                      <tbody className="divide-y divide-border/30">
+                        {result.progressImpact.milestoneBreakdown.map((ms, i) => (
+                          <tr key={i} className={`${ms.willBeCompleteByOriginalTarget ? "" : "bg-destructive/5"}`}>
+                            <td className="px-2 py-1.5 font-semibold truncate max-w-[200px]">{ms.name}</td>
+                            <td className="px-2 py-1.5 text-right font-mono text-muted-foreground">{ms.weight.toFixed(0)}%</td>
+                            <td className="px-2 py-1.5 text-right font-mono">{ms.dueDate ? fmtDate(ms.dueDate) : "—"}</td>
+                            <td className="px-2 py-1.5 text-right font-mono text-destructive">{ms.newDueDate ? fmtDate(ms.newDueDate) : "—"}</td>
+                            <td className="px-2 py-1.5 text-right font-mono">{ms.currentProgress}%</td>
+                            <td className="px-2 py-1.5 text-right font-mono font-bold">
+                              <span className={ms.simulatedProgress >= 100 ? "text-green-600" : "text-destructive"}>{ms.simulatedProgress}%</span>
+                            </td>
+                            <td className="px-2 py-1.5 text-center">
+                              {ms.willBeCompleteByOriginalTarget
+                                ? <span className="text-[9px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded">DONE</span>
+                                : <span className="text-[9px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">INCOMPLETE</span>
+                              }
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
