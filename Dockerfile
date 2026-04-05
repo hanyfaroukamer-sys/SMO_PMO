@@ -1,88 +1,69 @@
-# ─── Stage 1: Install dependencies ────────────────────────────────────────────
-FROM node:20-slim AS deps
+# ──────────────────────────────────────────────
+# StrategyPMO — Production Docker Image
+# Multi-stage: deps → build → production
+# ──────────────────────────────────────────────
 
-RUN corepack enable && corepack prepare pnpm@9 --activate
-
+# Stage 1: Install dependencies
+FROM node:22-alpine AS deps
 WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy package manifests first for better layer caching
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY tsconfig.base.json tsconfig.json ./
-COPY lib/db/package.json lib/db/tsconfig.json lib/db/
-COPY lib/api-spec/package.json lib/api-spec/
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY lib/db/package.json lib/db/
 COPY lib/api-zod/package.json lib/api-zod/
 COPY lib/api-client-react/package.json lib/api-client-react/
-COPY lib/integrations-anthropic-ai/package.json lib/integrations-anthropic-ai/
-COPY lib/object-storage-web/package.json lib/object-storage-web/
-COPY lib/replit-auth-web/package.json lib/replit-auth-web/
 COPY artifacts/api-server/package.json artifacts/api-server/
 COPY artifacts/strategy-pmo/package.json artifacts/strategy-pmo/
-COPY scripts/package.json scripts/
 
 RUN pnpm install --frozen-lockfile
 
-# ─── Stage 2: Build ──────────────────────────────────────────────────────────
-FROM deps AS build
-
+# Stage 2: Build everything
+FROM node:22-alpine AS builder
 WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy all source code
+COPY --from=deps /app/ ./
 COPY . .
 
-# Build libraries, API server, and frontend
-RUN bash scripts/build-production.sh
+# Build libs → frontend → API
+RUN pnpm run typecheck:libs
+RUN pnpm --filter @workspace/strategy-pmo run build
+RUN pnpm --filter @workspace/api-server run build
 
-# ─── Stage 3: Production runtime ─────────────────────────────────────────────
-FROM node:20-slim AS runtime
-
-RUN corepack enable && corepack prepare pnpm@9 --activate
-
-# Install curl for health checks and postgresql-client for schema push
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
-
+# Stage 3: Production (minimal image)
+FROM node:22-alpine AS production
 WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Copy package manifests and install production deps only
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY tsconfig.base.json tsconfig.json ./
-COPY lib/db/package.json lib/db/tsconfig.json lib/db/
-COPY lib/api-spec/package.json lib/api-spec/
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY lib/db/package.json lib/db/
 COPY lib/api-zod/package.json lib/api-zod/
 COPY lib/api-client-react/package.json lib/api-client-react/
-COPY lib/integrations-anthropic-ai/package.json lib/integrations-anthropic-ai/
-COPY lib/object-storage-web/package.json lib/object-storage-web/
-COPY lib/replit-auth-web/package.json lib/replit-auth-web/
 COPY artifacts/api-server/package.json artifacts/api-server/
-COPY artifacts/strategy-pmo/package.json artifacts/strategy-pmo/
-COPY scripts/package.json scripts/
 
-RUN pnpm install --frozen-lockfile --prod || pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --prod
 
-# Copy built artifacts
-COPY --from=build /app/artifacts/api-server/dist ./artifacts/api-server/dist
-COPY --from=build /app/artifacts/strategy-pmo/dist ./artifacts/strategy-pmo/dist
+# Built artifacts
+COPY --from=builder /app/lib/db/dist lib/db/dist
+COPY --from=builder /app/lib/db/src lib/db/src
+COPY --from=builder /app/lib/api-zod/dist lib/api-zod/dist
+COPY --from=builder /app/lib/api-client-react/dist lib/api-client-react/dist
+COPY --from=builder /app/artifacts/api-server/dist artifacts/api-server/dist
+COPY --from=builder /app/artifacts/api-server/src/lib artifacts/api-server/src/lib
+COPY --from=builder /app/artifacts/strategy-pmo/dist artifacts/strategy-pmo/dist
 
-# Copy Drizzle config and schema source (needed for drizzle-kit push)
-COPY --from=build /app/lib/db ./lib/db
+# Drizzle schema (auto-migration on startup)
+COPY --from=builder /app/lib/db/src/schema lib/db/src/schema
 
-# Copy entrypoint script
-COPY scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
-RUN chmod +x ./scripts/docker-entrypoint.sh
+# Security: non-root user
+RUN addgroup -g 1001 -S app && adduser -S app -u 1001 -G app
+USER app
 
-# Non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser -d /app appuser
-RUN chown -R appuser:appuser /app
-USER appuser
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:3000/api/health || exit 1
 
+EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
 
-EXPOSE 3000
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:3000/api/health || exit 1
-
-ENTRYPOINT ["./scripts/docker-entrypoint.sh"]
+CMD ["node", "artifacts/api-server/dist/index.cjs"]

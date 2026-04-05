@@ -983,11 +983,33 @@ router.post("/spmo/projects", async (req, res): Promise<void> => {
     .returning();
 
   const [cfg] = await db.select().from(spmoProgrammeConfigTable).limit(1);
+
+  // Compute sequential start/due dates for phase gates based on project start + effort days
+  const projStart = project.startDate;
+  const addDaysToDate = (base: string, days: number) => {
+    const d = new Date(base);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split("T")[0];
+  };
+  const planningEffort = cfg?.defaultPlanningEffortDays ?? 30;
+  const tenderingEffort = cfg?.defaultTenderingEffortDays ?? 45;
+  const executionEffort = cfg?.defaultExecutionEffortDays ?? 120;
+  const closureEffort = cfg?.defaultClosureEffortDays ?? 20;
+
+  const planningStart = projStart;
+  const planningEnd = addDaysToDate(planningStart, planningEffort);
+  const tenderingStart = planningEnd;
+  const tenderingEnd = addDaysToDate(tenderingStart, tenderingEffort);
+  const executionStart = tenderingEnd;
+  const executionEnd = addDaysToDate(executionStart, executionEffort);
+  const closureStart = executionEnd;
+  const closureEnd = addDaysToDate(closureStart, closureEffort);
+
   await db.insert(spmoMilestonesTable).values([
-    { projectId: project.id, name: "Planning & Requirements", description: "Define scope, requirements, stakeholders, project plan. Obtain charter approval.", weight: cfg?.defaultPlanningWeight ?? 5, effortDays: cfg?.defaultPlanningEffortDays ?? 30, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "planning" as const },
-    { projectId: project.id, name: "Tendering & Procurement", description: "Prepare RFP/RFQ, publish tender, evaluate proposals, award contract.", weight: cfg?.defaultTenderingWeight ?? 5, effortDays: cfg?.defaultTenderingEffortDays ?? 45, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "tendering" as const },
-    { projectId: project.id, name: "Execution & Delivery", description: "Implementation, development, testing, UAT, and go-live. Split into detailed milestones.", weight: cfg?.defaultExecutionWeight ?? 85, effortDays: cfg?.defaultExecutionEffortDays ?? 120, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "execution_placeholder" as any },
-    { projectId: project.id, name: "Closure & Handover", description: "Final acceptance, documentation, knowledge transfer, warranty activation, lessons learned.", weight: cfg?.defaultClosureWeight ?? 5, effortDays: cfg?.defaultClosureEffortDays ?? 20, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "closure" as const },
+    { projectId: project.id, name: "Planning & Requirements", description: "Define scope, requirements, stakeholders, project plan. Obtain charter approval.", weight: cfg?.defaultPlanningWeight ?? 5, effortDays: planningEffort, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "planning" as const, startDate: planningStart, dueDate: planningEnd },
+    { projectId: project.id, name: "Tendering & Procurement", description: "Prepare RFP/RFQ, publish tender, evaluate proposals, award contract.", weight: cfg?.defaultTenderingWeight ?? 5, effortDays: tenderingEffort, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "tendering" as const, startDate: tenderingStart, dueDate: tenderingEnd },
+    { projectId: project.id, name: "Execution & Delivery", description: "Implementation, development, testing, UAT, and go-live. Split into detailed milestones.", weight: cfg?.defaultExecutionWeight ?? 85, effortDays: executionEffort, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "execution_placeholder" as any, startDate: executionStart, dueDate: executionEnd },
+    { projectId: project.id, name: "Closure & Handover", description: "Final acceptance, documentation, knowledge transfer, warranty activation, lessons learned.", weight: cfg?.defaultClosureWeight ?? 5, effortDays: closureEffort, progress: 0, status: "pending" as const, depStatus: "ready" as const, phaseGate: "closure" as const, startDate: closureStart, dueDate: closureEnd },
   ]);
 
   await logSpmoActivity(userId, getUserDisplayName(user), "created", "project", project.id, project.name);
@@ -4347,6 +4369,42 @@ router.get("/spmo/my-tasks", async (req, res) => {
         });
       }
     }
+
+    // Milestones at risk in owned projects — behind schedule but not yet overdue
+    const allOwnedMs = await db.select().from(spmoMilestonesTable).where(and(
+      inArray(spmoMilestonesTable.projectId, myProjectIds),
+      ne(spmoMilestonesTable.status, "approved"),
+    ));
+    for (const m of allOwnedMs) {
+      if (assignedMsIds.has(m.id)) continue;
+      if (!m.dueDate || !m.startDate) continue;
+      if (m.dueDate < today) continue; // already shown as overdue above
+      const daysLeft = Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000);
+      if (daysLeft <= 7) continue; // already shown as due_soon above
+      // Check if milestone is at risk: progress is significantly behind timeline
+      const totalDays = Math.max((new Date(m.dueDate).getTime() - new Date(m.startDate).getTime()) / 86400000, 1);
+      const elapsed = Math.max((now.getTime() - new Date(m.startDate).getTime()) / 86400000, 0);
+      const expectedProgress = Math.min((elapsed / totalDays) * 100, 100);
+      const actualProgress = m.progress ?? 0;
+      const gap = expectedProgress - actualProgress;
+      // At risk: expected progress is at least 10% ahead of actual and expected > 20%
+      if (gap >= 10 && expectedProgress >= 20) {
+        tasks.push({
+          id: `ms-atrisk-${m.id}`,
+          type: "milestone_at_risk",
+          priority: "high",
+          title: `At Risk: ${m.name}`,
+          subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${actualProgress}% done, should be ~${Math.round(expectedProgress)}% · Due in ${daysLeft}d`,
+          entityType: "milestone",
+          entityId: m.id,
+          projectId: m.projectId,
+          dueDate: m.dueDate,
+          daysLeft,
+          action: `Progress is ${Math.round(gap)}% behind expected timeline — review and take action`,
+          link: `/projects/${m.projectId}?tab=milestones`,
+        });
+      }
+    }
   }
 
   // ── KPI evidence pending review (admins/approvers only) ──
@@ -4368,6 +4426,49 @@ router.get("/spmo/my-tasks", async (req, res) => {
         action: "Review submitted KPI evidence and approve or reject",
         link: `/kpis`,
       });
+    }
+  }
+
+  // ── Milestones at risk across ALL projects (admins/approvers see programme-wide) ──
+  if (isApprover) {
+    const existingTaskIds = new Set(tasks.map((t: Record<string, unknown>) => t.id));
+    const allActiveMs = await db.select().from(spmoMilestonesTable).where(and(
+      inArray(spmoMilestonesTable.projectId, activeProjectIds),
+      ne(spmoMilestonesTable.status, "approved"),
+    ));
+    // Build full project name map for admin view
+    if (activeProjectIds.length > 0) {
+      const allProjects = await db.select({ id: spmoProjectsTable.id, name: spmoProjectsTable.name }).from(spmoProjectsTable).where(inArray(spmoProjectsTable.id, activeProjectIds));
+      for (const p of allProjects) if (!projectNameMap.has(p.id)) projectNameMap.set(p.id, p.name);
+    }
+    for (const m of allActiveMs) {
+      // Skip if already surfaced as any other task type
+      if (existingTaskIds.has(`ms-atrisk-${m.id}`) || existingTaskIds.has(`overdue-${m.id}`) || existingTaskIds.has(`duesoon-${m.id}`) || existingTaskIds.has(`owner-overdue-${m.id}`) || existingTaskIds.has(`owner-duesoon-${m.id}`) || existingTaskIds.has(`update-${m.id}`) || existingTaskIds.has(`approve-${m.id}`)) continue;
+      if (!m.dueDate || !m.startDate) continue;
+      if (m.dueDate < today) continue; // overdue handled elsewhere
+      const daysLeft = Math.ceil((new Date(m.dueDate).getTime() - now.getTime()) / 86400000);
+      if (daysLeft <= 7) continue; // due soon handled elsewhere
+      const totalDays = Math.max((new Date(m.dueDate).getTime() - new Date(m.startDate).getTime()) / 86400000, 1);
+      const elapsed = Math.max((now.getTime() - new Date(m.startDate).getTime()) / 86400000, 0);
+      const expectedProgress = Math.min((elapsed / totalDays) * 100, 100);
+      const actualProgress = m.progress ?? 0;
+      const gap = expectedProgress - actualProgress;
+      if (gap >= 10 && expectedProgress >= 20) {
+        tasks.push({
+          id: `ms-atrisk-${m.id}`,
+          type: "milestone_at_risk",
+          priority: "high",
+          title: `At Risk: ${m.name}`,
+          subtitle: `${projectNameMap.get(m.projectId) ?? "—"} · ${actualProgress}% done, should be ~${Math.round(expectedProgress)}% · Due in ${daysLeft}d`,
+          entityType: "milestone",
+          entityId: m.id,
+          projectId: m.projectId,
+          dueDate: m.dueDate,
+          daysLeft,
+          action: `Progress is ${Math.round(gap)}% behind expected timeline — review and take action`,
+          link: `/projects/${m.projectId}?tab=milestones`,
+        });
+      }
     }
   }
 

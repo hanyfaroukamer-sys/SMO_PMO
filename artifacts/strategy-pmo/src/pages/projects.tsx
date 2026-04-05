@@ -1755,11 +1755,12 @@ function MilestoneSection({ projectId, pillarColor, isAdmin, targetMilestoneId }
 
   async function handleAddMilestone() {
     const newEffort = 5;
+    const startDate = new Date().toISOString().split("T")[0];
     const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     try {
       const created = await createMutation.mutateAsync({
         id: projectId,
-        data: { name: "New Milestone", effortDays: newEffort, weight: 0, dueDate },
+        data: { name: "New Milestone", effortDays: newEffort, weight: 0, startDate, dueDate },
       });
       const allItems = [
         ...milestones.map((m) => ({ id: m.id, effortDays: m.effortDays ?? 0, startDate: m.startDate, dueDate: m.dueDate })),
