@@ -652,7 +652,36 @@ interface ScenarioResultData {
   input: { type: string; projectId: number; delayDays?: number; budgetReduction?: number };
   before: { programmeProgress: number; affectedPillarProgress: { pillarId: number; pillarName: string; progress: number }[]; affectedInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[] };
   after: { programmeProgress: number; affectedPillarProgress: { pillarId: number; pillarName: string; progress: number }[]; affectedInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[] };
-  cascadeImpact: { milestoneId: number; milestoneName: string; projectName: string; shiftDays: number; newDueDate: string }[];
+  progressImpact?: {
+    projectName: string;
+    currentProgress: number;
+    plannedProgressByNow: number;
+    plannedProgressAfterDelay: number;
+    progressGap: number;
+    originalTargetDate: string;
+    newTargetDate: string;
+    daysDelayed: number;
+  };
+  cancelImpact?: {
+    projectName: string;
+    projectBudget: number;
+    projectBudgetSpent: number;
+    projectProgress: number;
+    projectMilestoneCount: number;
+    projectRiskCount: number;
+    initiativeName: string;
+    initiativeProgressBefore: number;
+    initiativeProgressAfter: number;
+    initiativeProjectCount: number;
+    pillarName: string;
+    pillarProgressBefore: number;
+    pillarProgressAfter: number;
+    programmeProgressBefore: number;
+    programmeProgressAfter: number;
+    budgetFreed: number;
+    sunkenCost: number;
+  };
+  cascadeImpact: { milestoneId: number; milestoneName: string; projectName: string; shiftDays: number; newDueDate: string; currentProgress?: number; plannedProgress?: number }[];
   financialImpact?: { originalBudget: number; newBudget: number; actualSpent: number; overSpent: boolean; originalCpi: number; newCpi: number; originalEac: number; newEac: number };
   summary: string;
 }
@@ -795,33 +824,155 @@ function ScenarioPanel() {
             <p className="text-sm text-foreground">{result.summary}</p>
           </Card>
 
-          {/* Key metrics row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="p-4 text-center">
-              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Programme Progress</div>
-              <div className="text-xl font-bold">{result.before.programmeProgress.toFixed(1)}%</div>
-              {hasProgImpact ? (
-                <div className="text-sm text-destructive font-bold">{progDelta > 0 ? "+" : ""}{progDelta.toFixed(1)}% impact</div>
-              ) : (
-                <div className="text-[10px] text-muted-foreground">No immediate change</div>
-              )}
+          {/* ═══ CANCEL IMPACT ═══ */}
+          {result.cancelImpact && (() => {
+            const ci = result.cancelImpact;
+            const progDrop = ci.programmeProgressBefore - ci.programmeProgressAfter;
+            const initDrop = ci.initiativeProgressBefore - ci.initiativeProgressAfter;
+            const pillarDrop = ci.pillarProgressBefore - ci.pillarProgressAfter;
+            const fmtBudget = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}K` : String(n);
+            return (
+              <div className="space-y-4">
+                {/* Strategy impact */}
+                <Card className="p-5 border-l-4 border-l-destructive">
+                  <h4 className="text-sm font-bold mb-3">Strategy Impact</h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className="text-[10px] font-bold uppercase text-muted-foreground">Programme</div>
+                      <div className="text-lg font-bold">{ci.programmeProgressBefore}%</div>
+                      <ArrowRight className="w-3 h-3 mx-auto text-destructive my-0.5 rotate-90" />
+                      <div className="text-lg font-bold text-destructive">{ci.programmeProgressAfter}%</div>
+                      {progDrop > 0 && <div className="text-xs text-destructive font-bold">-{progDrop.toFixed(1)}pp</div>}
+                    </div>
+                    <div className="text-center border-x border-border px-3">
+                      <div className="text-[10px] font-bold uppercase text-muted-foreground">Pillar: {ci.pillarName.slice(0, 20)}</div>
+                      <div className="text-lg font-bold">{ci.pillarProgressBefore}%</div>
+                      <ArrowRight className="w-3 h-3 mx-auto text-destructive my-0.5 rotate-90" />
+                      <div className="text-lg font-bold text-destructive">{ci.pillarProgressAfter}%</div>
+                      {pillarDrop > 0 && <div className="text-xs text-destructive font-bold">-{pillarDrop.toFixed(1)}pp</div>}
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[10px] font-bold uppercase text-muted-foreground">Initiative: {ci.initiativeName.slice(0, 20)}</div>
+                      <div className="text-lg font-bold">{ci.initiativeProgressBefore}%</div>
+                      <ArrowRight className="w-3 h-3 mx-auto text-destructive my-0.5 rotate-90" />
+                      <div className="text-lg font-bold text-destructive">{ci.initiativeProgressAfter}%</div>
+                      {initDrop > 0 && <div className="text-xs text-destructive font-bold">-{initDrop.toFixed(1)}pp</div>}
+                      <div className="text-[10px] text-muted-foreground mt-1">{ci.initiativeProjectCount - 1} remaining project{ci.initiativeProjectCount - 1 !== 1 ? "s" : ""}</div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Financial impact */}
+                <Card className="p-5">
+                  <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-warning" />
+                    Financial Impact
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-secondary/50 rounded-lg px-3 py-2.5 text-center">
+                      <div className="text-[10px] font-bold uppercase text-muted-foreground">Project Budget</div>
+                      <div className="text-sm font-bold">{fmtBudget(ci.projectBudget)}</div>
+                    </div>
+                    <div className="bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2.5 text-center">
+                      <div className="text-[10px] font-bold uppercase text-destructive">Sunken Cost</div>
+                      <div className="text-sm font-bold text-destructive">{fmtBudget(ci.sunkenCost)}</div>
+                      <div className="text-[10px] text-muted-foreground">Already spent, non-recoverable</div>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-center">
+                      <div className="text-[10px] font-bold uppercase text-green-700">Budget Freed</div>
+                      <div className="text-sm font-bold text-green-700">{fmtBudget(ci.budgetFreed)}</div>
+                      <div className="text-[10px] text-muted-foreground">Available to reallocate</div>
+                    </div>
+                    <div className="bg-secondary/50 rounded-lg px-3 py-2.5 text-center">
+                      <div className="text-[10px] font-bold uppercase text-muted-foreground">Spend Ratio</div>
+                      <div className="text-sm font-bold">{ci.projectBudget > 0 ? Math.round((ci.sunkenCost / ci.projectBudget) * 100) : 0}%</div>
+                      <div className="text-[10px] text-muted-foreground">of budget already consumed</div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* What gets cancelled */}
+                <Card className="p-5 bg-muted/30">
+                  <h4 className="text-sm font-bold mb-2">What Gets Cancelled</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-sm">
+                    <div>
+                      <div className="text-xl font-bold">{ci.projectMilestoneCount}</div>
+                      <div className="text-xs text-muted-foreground">Milestones</div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold">{ci.projectRiskCount}</div>
+                      <div className="text-xs text-muted-foreground">Open Risks</div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold">{ci.projectProgress}%</div>
+                      <div className="text-xs text-muted-foreground">Progress Lost</div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold text-destructive">{fmtBudget(ci.sunkenCost)}</div>
+                      <div className="text-xs text-muted-foreground">Wasted Investment</div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            );
+          })()}
+
+          {/* ═══ DELAY-SPECIFIC SECTIONS ═══ */}
+          {/* Progress Impact — the key insight */}
+          {result.progressImpact && (
+            <Card className="p-5 border-l-4 border-l-warning">
+              <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                <TrendingDown className="w-4 h-4 text-warning" />
+                Progress Impact — {result.progressImpact.projectName}
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                <div className="bg-secondary/50 rounded-lg px-3 py-2.5 text-center">
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground">Current Progress</div>
+                  <div className="text-xl font-bold">{result.progressImpact.currentProgress}%</div>
+                  <div className="text-[10px] text-muted-foreground">Work completed</div>
+                </div>
+                <div className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-2.5 text-center">
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground">Planned by Now</div>
+                  <div className="text-xl font-bold text-primary">{result.progressImpact.plannedProgressByNow}%</div>
+                  <div className="text-[10px] text-muted-foreground">Should be here today</div>
+                </div>
+                <div className="bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2.5 text-center">
+                  <div className="text-[10px] font-bold uppercase text-destructive">Progress Gap</div>
+                  <div className="text-xl font-bold text-destructive">{result.progressImpact.progressGap > 0 ? "-" : ""}{Math.abs(result.progressImpact.progressGap)}%</div>
+                  <div className="text-[10px] text-muted-foreground">Behind schedule</div>
+                </div>
+                <div className="bg-warning/5 border border-warning/20 rounded-lg px-3 py-2.5 text-center">
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground">After +{result.progressImpact.daysDelayed}d</div>
+                  <div className="text-xl font-bold text-warning">{result.progressImpact.plannedProgressAfterDelay}%</div>
+                  <div className="text-[10px] text-muted-foreground">New planned target</div>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground flex items-center gap-2">
+                <span className="font-mono">{result.progressImpact.originalTargetDate}</span>
+                <ArrowRight className="w-3 h-3" />
+                <span className="font-mono font-bold text-destructive">{result.progressImpact.newTargetDate}</span>
+                <span className="text-destructive font-bold">(+{result.progressImpact.daysDelayed} days)</span>
+              </div>
             </Card>
-            <Card className="p-4 text-center border-destructive/30">
-              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Target Date Shift</div>
-              <div className="text-xl font-bold text-destructive">+{delayD} days</div>
-              <div className="text-[10px] text-muted-foreground">Project completion delayed</div>
-            </Card>
-            <Card className="p-4 text-center">
-              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Milestones Affected</div>
-              <div className="text-xl font-bold text-warning">{result.cascadeImpact.length}</div>
-              <div className="text-[10px] text-muted-foreground">{result.cascadeImpact.length > 0 ? "downstream pushed" : "no dependencies"}</div>
-            </Card>
-            <Card className="p-4 text-center">
-              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Projects Impacted</div>
-              <div className="text-xl font-bold">{new Set(result.cascadeImpact.map((c) => c.projectName)).size + 1}</div>
-              <div className="text-[10px] text-muted-foreground">including {selectedProject?.name?.slice(0, 20) ?? "selected"}</div>
-            </Card>
-          </div>
+          )}
+
+          {/* Key metrics row — delay/budget only */}
+          {scenarioType !== "cancel" && (
+            <div className="grid grid-cols-3 gap-3">
+              <Card className="p-4 text-center border-destructive/30">
+                <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Target Date Shift</div>
+                <div className="text-xl font-bold text-destructive">+{delayD} days</div>
+              </Card>
+              <Card className="p-4 text-center">
+                <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Milestones Pushed</div>
+                <div className="text-xl font-bold text-warning">{result.cascadeImpact.length}</div>
+              </Card>
+              <Card className="p-4 text-center">
+                <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Projects Impacted</div>
+                <div className="text-xl font-bold">{new Set(result.cascadeImpact.map((c) => c.projectName)).size + 1}</div>
+              </Card>
+            </div>
+          )}
 
           {/* Pillar-level impact — only show pillars that changed */}
           {(() => {
@@ -863,6 +1014,7 @@ function ScenarioPanel() {
                   <thead><tr className="bg-secondary/50 text-xs uppercase text-muted-foreground">
                     <th className="px-4 py-2 text-left">Milestone</th>
                     <th className="px-4 py-2 text-left">Project</th>
+                    <th className="px-4 py-2 text-right">Progress</th>
                     <th className="px-4 py-2 text-right">Days Pushed</th>
                     <th className="px-4 py-2 text-right">New Due Date</th>
                   </tr></thead>
@@ -871,6 +1023,12 @@ function ScenarioPanel() {
                       <tr key={c.milestoneId} className="hover:bg-secondary/20">
                         <td className="px-4 py-2 font-semibold">{c.milestoneName}</td>
                         <td className="px-4 py-2 text-muted-foreground">{c.projectName}</td>
+                        <td className="px-4 py-2 text-right text-xs">
+                          <span className="font-mono">{c.currentProgress ?? 0}%</span>
+                          {c.plannedProgress != null && c.plannedProgress > (c.currentProgress ?? 0) && (
+                            <span className="text-destructive ml-1">(plan {c.plannedProgress}%)</span>
+                          )}
+                        </td>
                         <td className="px-4 py-2 text-right"><span className="font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded">+{c.shiftDays}d</span></td>
                         <td className="px-4 py-2 text-right font-mono">{fmtDate(c.newDueDate)}</td>
                       </tr>

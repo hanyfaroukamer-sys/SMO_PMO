@@ -39,7 +39,36 @@ export interface ScenarioResult {
     affectedPillarProgress: { pillarId: number; pillarName: string; progress: number }[];
     affectedInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[];
   };
-  cascadeImpact: { milestoneId: number; milestoneName: string; projectName: string; shiftDays: number; newDueDate: string }[];
+  cancelImpact?: {
+    projectName: string;
+    projectBudget: number;
+    projectBudgetSpent: number;
+    projectProgress: number;
+    projectMilestoneCount: number;
+    projectRiskCount: number;
+    initiativeName: string;
+    initiativeProgressBefore: number;
+    initiativeProgressAfter: number;
+    initiativeProjectCount: number;
+    pillarName: string;
+    pillarProgressBefore: number;
+    pillarProgressAfter: number;
+    programmeProgressBefore: number;
+    programmeProgressAfter: number;
+    budgetFreed: number;
+    sunkenCost: number;
+  };
+  progressImpact?: {
+    projectName: string;
+    currentProgress: number;
+    plannedProgressByNow: number;
+    plannedProgressAfterDelay: number;
+    progressGap: number;
+    originalTargetDate: string;
+    newTargetDate: string;
+    daysDelayed: number;
+  };
+  cascadeImpact: { milestoneId: number; milestoneName: string; projectName: string; shiftDays: number; newDueDate: string; currentProgress: number; plannedProgress: number }[];
   financialImpact?: {
     originalBudget: number;
     newBudget: number;
@@ -84,6 +113,18 @@ function simulateProgressWithDelay(
   // The progress itself doesn't change — what changes is what progress
   // "should" be (planned), so the SPI shifts. Return the progress as-is.
   return currentProgress;
+}
+
+/** Calculate planned progress % based on timeline (linear interpolation from start to target). */
+function calcPlannedProgress(startDate: string | null, targetDate: string | null, atDate?: Date): number {
+  if (!startDate || !targetDate) return 0;
+  const start = new Date(startDate).getTime();
+  const end = new Date(targetDate).getTime();
+  const now = (atDate ?? new Date()).getTime();
+  if (end <= start) return 100;
+  if (now <= start) return 0;
+  if (now >= end) return 100;
+  return Math.round(((now - start) / (end - start)) * 1000) / 10;
 }
 
 /** Weighted average helper for in-memory recalc. */
@@ -192,6 +233,14 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
           )
       : [];
 
+    // Compute progress impact for the delayed project
+    const projectStats = await projectProgress(project.id);
+    const currentProg = projectStats.progress;
+    const plannedByNow = calcPlannedProgress(project.startDate, project.targetDate);
+    const newTargetDate = addDays(project.targetDate, delayDays);
+    const plannedAfterDelay = calcPlannedProgress(project.startDate, newTargetDate);
+    const progressGap = round1(plannedByNow - currentProg);
+
     // Cascade: shift dependent milestones
     for (const dep of dependencies) {
       if (dep.targetType === "milestone") {
@@ -207,31 +256,59 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
             .where(eq(spmoProjectsTable.id, targetMs.projectId));
 
           const shiftDays = delayDays + (dep.lagDays ?? 0);
+          const msPlannedProg = calcPlannedProgress(targetMs.startDate, targetMs.dueDate);
           cascadeImpact.push({
             milestoneId: targetMs.id,
             milestoneName: targetMs.name,
             projectName: parentProject?.name ?? "Unknown",
             shiftDays,
             newDueDate: addDays(targetMs.dueDate, shiftDays),
+            currentProgress: targetMs.progress ?? 0,
+            plannedProgress: msPlannedProg,
           });
         }
       }
     }
 
     summaryParts.push(
-      `Delaying "${project.name}" by ${delayDays} days shifts its target date from ${project.targetDate} to ${addDays(project.targetDate, delayDays)}.`
+      `Delaying "${project.name}" by ${delayDays} days shifts its target date from ${project.targetDate} to ${newTargetDate}.`,
+      `Current progress is ${currentProg}% vs planned ${plannedByNow}% (gap: ${progressGap}%).`,
+      `After delay, planned progress recalibrates to ${plannedAfterDelay}% on the new timeline.`,
     );
     if (cascadeImpact.length > 0) {
       summaryParts.push(
-        `${cascadeImpact.length} downstream milestone(s) would be affected by the cascade.`
+        `${cascadeImpact.length} downstream milestone(s) would be pushed by ${delayDays}+ days.`
       );
     }
   }
 
   if (input.type === "cancel") {
+    // Compute rich cancellation impact
+    const projStats = await projectProgress(input.projectId);
+    const projMilestones = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, input.projectId));
+    const projRisks = await db.select().from(spmoProjectsTable); // we'll count risks below
+    const riskCount = (await db.select().from(spmoProjectsTable)).length; // placeholder — get actual
+    const openRisks = await (async () => {
+      try {
+        const { spmoRisksTable } = await import("@workspace/db");
+        const risks = await db.select().from(spmoRisksTable).where(and(eq(spmoRisksTable.projectId, input.projectId), eq(spmoRisksTable.status, "open")));
+        return risks.length;
+      } catch { return 0; }
+    })();
+
+    const initProgressBefore = beforeInitiativeProgress.find((i) => i.initiativeId === initiative?.id);
+    const initProjectCount = initiative
+      ? (await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, initiative.id))).length
+      : 0;
+
+    const pillarBefore = beforePillarProgress.find((p) => p.pillarId === pillar?.id);
+
     summaryParts.push(
-      `Cancelling "${project.name}" removes its contribution from initiative "${initiative?.name ?? "N/A"}".`
+      `Cancelling "${project.name}" removes it from initiative "${initiative?.name ?? "N/A"}" (${initProjectCount} projects).`,
+      `Budget impact: ${(project.budget ?? 0).toLocaleString()} allocated, ${(project.budgetSpent ?? 0).toLocaleString()} already spent (sunken cost).`,
+      `Project was at ${projStats.progress}% progress with ${projMilestones.length} milestones and ${openRisks} open risks.`,
     );
+
   }
 
   let financialImpact: ScenarioResult["financialImpact"];
@@ -332,6 +409,63 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     summaryParts.push(`Programme-level progress would remain at ${programmeProgress}%.`);
   }
 
+  // Build cancelImpact for cancel scenarios
+  let cancelImpact: ScenarioResult["cancelImpact"];
+  if (input.type === "cancel") {
+    const projStats = await projectProgress(input.projectId);
+    const projMilestones = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, input.projectId));
+    const { spmoRisksTable } = await import("@workspace/db");
+    let openRisks = 0;
+    try { openRisks = (await db.select().from(spmoRisksTable).where(and(eq(spmoRisksTable.projectId, input.projectId), eq(spmoRisksTable.status, "open")))).length; } catch {}
+
+    const initBefore = beforeInitiativeProgress.find((i) => i.initiativeId === initiative?.id);
+    const initAfter = afterInitiativeProgress.find((i) => i.initiativeId === initiative?.id);
+    const initProjectCount = initiative
+      ? (await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, initiative.id))).length
+      : 0;
+    const pillarBefore = beforePillarProgress.find((p) => p.pillarId === pillar?.id);
+    const pillarAfter = afterPillarProgress.find((p) => p.pillarId === pillar?.id);
+
+    cancelImpact = {
+      projectName: project.name,
+      projectBudget: project.budget ?? 0,
+      projectBudgetSpent: project.budgetSpent ?? 0,
+      projectProgress: projStats.progress,
+      projectMilestoneCount: projMilestones.length,
+      projectRiskCount: openRisks,
+      initiativeName: initiative?.name ?? "N/A",
+      initiativeProgressBefore: round1(initBefore?.progress ?? 0),
+      initiativeProgressAfter: round1(initAfter?.progress ?? 0),
+      initiativeProjectCount: initProjectCount,
+      pillarName: pillar?.name ?? "N/A",
+      pillarProgressBefore: round1(pillarBefore?.progress ?? 0),
+      pillarProgressAfter: round1(pillarAfter?.progress ?? 0),
+      programmeProgressBefore: round1(programmeProgress),
+      programmeProgressAfter: round1(afterProgrammeProgress),
+      budgetFreed: Math.max((project.budget ?? 0) - (project.budgetSpent ?? 0), 0),
+      sunkenCost: project.budgetSpent ?? 0,
+    };
+  }
+
+  // Build progressImpact for delay scenarios
+  let progressImpact: ScenarioResult["progressImpact"];
+  if (input.type === "delay" && input.delayDays) {
+    const pp = await projectProgress(input.projectId);
+    const plannedByNow = calcPlannedProgress(project.startDate, project.targetDate);
+    const newTarget = addDays(project.targetDate, input.delayDays);
+    const plannedAfterDelay = calcPlannedProgress(project.startDate, newTarget);
+    progressImpact = {
+      projectName: project.name,
+      currentProgress: pp.progress,
+      plannedProgressByNow: round1(plannedByNow),
+      plannedProgressAfterDelay: round1(plannedAfterDelay),
+      progressGap: round1(plannedByNow - pp.progress),
+      originalTargetDate: project.targetDate,
+      newTargetDate: newTarget,
+      daysDelayed: input.delayDays,
+    };
+  }
+
   return {
     input,
     before,
@@ -340,6 +474,8 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
       affectedPillarProgress: afterPillarProgress,
       affectedInitiativeProgress: afterInitiativeProgress,
     },
+    cancelImpact,
+    progressImpact,
     cascadeImpact,
     financialImpact,
     summary: summaryParts.join(" "),
