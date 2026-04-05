@@ -1326,7 +1326,7 @@ function ProjectRow({
           )}
           <div className="hidden md:block text-right">
             <div className="text-xs text-muted-foreground">Budget</div>
-            <div className="font-bold text-sm font-mono">{formatCurrency(project.budget ?? 0, currency)}</div>
+            <div className="font-bold text-sm font-mono">{formatCurrency(project.budget ?? 0)}</div>
           </div>
           <div className="text-right">
             <div className="text-xs text-muted-foreground">Milestones</div>
