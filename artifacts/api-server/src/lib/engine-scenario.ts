@@ -11,6 +11,9 @@ import {
   calcProgrammeProgress,
   projectProgress,
   computeStatus,
+  computeProjectWeights,
+  computeInitiativeWeights,
+  computePillarWeights,
 } from "./spmo-calc";
 import { computeEvmMetrics } from "./engine-evm";
 
@@ -403,19 +406,29 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     // The project was supposed to contribute its full progress to the initiative.
     // With delay, it contributes simulatedDelayProgress instead of currentProgress.
 
-    const initProjects = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, initiative.id));
     const currentProjectProgress = (await projectProgress(input.projectId)).progress;
+    const projectProgressDrop = Math.max(0, currentProjectProgress - simulatedDelayProgress);
 
-    // How much does this project's progress drop contribute to initiative?
-    const projectProgressDrop = currentProjectProgress - simulatedDelayProgress; // always >= 0
+    // Use the real weight cascade (admin override → budget → effort → equal)
+    // Project weight in initiative
+    const projWeights = await computeProjectWeights(initiative.id);
+    const projW = projWeights.find((w) => w.projectId === input.projectId);
+    const projectWeightPct = projW ? projW.effectiveWeight / 100 : 0;
 
-    // Project's weight in the initiative (budget-based)
-    const totalInitBudget = initProjects.reduce((s, p) => s + (p.budget ?? 0), 0);
-    const projectBudget = project.budget ?? 0;
-    const projectWeightInInit = totalInitBudget > 0 ? projectBudget / totalInitBudget : (1 / Math.max(initProjects.length, 1));
+    // Initiative weight in pillar
+    const initWeights = pillar ? await computeInitiativeWeights(pillar.id) : [];
+    const initW = initWeights.find((w) => w.initiativeId === initiative.id);
+    const initWeightPct = initW ? initW.effectiveWeight / 100 : 0;
 
-    // Initiative progress drop = project drop * project's weight
-    const initProgressDrop = round1(projectProgressDrop * projectWeightInInit);
+    // Pillar weight in programme
+    const pillarWeights = await computePillarWeights();
+    const pillarW = pillarWeights.find((w) => w.pillarId === pillar?.id);
+    const pillarWeightPct = pillarW ? pillarW.effectiveWeight / 100 : 0;
+
+    // Cascade the drop: project → initiative → pillar → programme
+    const initProgressDrop = round1(projectProgressDrop * projectWeightPct);
+    const pillarDrop = round1(initProgressDrop * initWeightPct);
+    const programmeDrop = round1(pillarDrop * pillarWeightPct);
 
     afterInitiativeProgress = beforeInitiativeProgress.map((bi) => ({
       initiativeId: bi.initiativeId,
@@ -423,17 +436,11 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
       progress: bi.initiativeId === initiative.id ? round1(Math.max(0, bi.progress - initProgressDrop)) : bi.progress,
     }));
 
-    // Initiative's weight in the pillar
-    const pillarInits = siblingInitiatives.length || 1;
-    const pillarDrop = round1(initProgressDrop / pillarInits);
-
     afterPillarProgress = beforePillarProgress.map((bp) =>
       bp.pillarId === pillar?.id ? { ...bp, progress: round1(Math.max(0, bp.progress - pillarDrop)) } : bp
     );
 
-    // Programme
-    const numPillars = beforePillarProgress.length || 1;
-    afterProgrammeProgress = round1(Math.max(0, programmeProgress - pillarDrop / numPillars));
+    afterProgrammeProgress = round1(Math.max(0, programmeProgress - programmeDrop));
   } else {
     // Cancel / budget_cut: full recalculation
     const afterInitProgress: { initiativeId: number; initiativeName: string; progress: number }[] = [];
