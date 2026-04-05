@@ -1056,8 +1056,11 @@ function ScenarioPanel() {
                   <AlertTriangle className="w-4 h-4 text-destructive" />
                   Strategy Cascade Impact
                 </h4>
+                <p className="text-xs text-muted-foreground mb-1">
+                  At the original deadline ({result.progressImpact!.originalTargetDate}), each level shows: <span className="font-semibold text-primary">Planned %</span> → <span className="font-semibold text-destructive">Simulated %</span> with delay.
+                </p>
                 <p className="text-xs text-muted-foreground mb-4">
-                  The {result.progressImpact!.daysDelayed}-day delay creates a <span className="font-bold text-destructive">{gap}%</span> progress gap in the project, which cascades through the strategy hierarchy:
+                  The {result.progressImpact!.daysDelayed}-day delay creates a <span className="font-bold text-destructive">{gap}%</span> shortfall at the project level, cascading up through the strategy:
                 </p>
                 <div className="space-y-3">
                   {/* Project */}
@@ -1077,10 +1080,10 @@ function ScenarioPanel() {
                       <div className="flex-1 bg-warning/5 border border-warning/20 rounded-lg px-3 py-2 flex items-center justify-between">
                         <span className="text-sm font-semibold truncate">{affectedInitPair.after.initiativeName}</span>
                         <span className="text-sm shrink-0 ml-2">
-                          <span className="font-mono">{(affectedInitPair.before?.progress ?? 0).toFixed(1)}%</span>
+                          <span className="font-mono text-primary">{(affectedInitPair.before?.progress ?? 0).toFixed(1)}%</span>
                           <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
-                          <span className="font-mono font-bold">{affectedInitPair.after.progress.toFixed(1)}%</span>
-                          <span className="text-xs text-destructive font-bold ml-1">({affectedInitPair.delta >= 0 ? "+" : ""}{fmtDelta(affectedInitPair.delta)})</span>
+                          <span className="font-mono font-bold text-destructive">{affectedInitPair.after.progress.toFixed(1)}%</span>
+                          <span className="text-xs text-destructive font-bold ml-1">({fmtDelta(affectedInitPair.delta)})</span>
                         </span>
                       </div>
                     </div>
@@ -1092,10 +1095,10 @@ function ScenarioPanel() {
                       <div className="flex-1 bg-secondary/50 border border-border rounded-lg px-3 py-2 flex items-center justify-between">
                         <span className="text-sm font-semibold truncate">{affectedPillarPair.after.pillarName}</span>
                         <span className="text-sm shrink-0 ml-2">
-                          <span className="font-mono">{(affectedPillarPair.before?.progress ?? 0).toFixed(1)}%</span>
+                          <span className="font-mono text-primary">{(affectedPillarPair.before?.progress ?? 0).toFixed(1)}%</span>
                           <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
-                          <span className="font-mono font-bold">{affectedPillarPair.after.progress.toFixed(1)}%</span>
-                          <span className="text-xs text-destructive font-bold ml-1">({affectedPillarPair.delta >= 0 ? "+" : ""}{fmtDelta(affectedPillarPair.delta)})</span>
+                          <span className="font-mono font-bold text-destructive">{affectedPillarPair.after.progress.toFixed(1)}%</span>
+                          <span className="text-xs text-destructive font-bold ml-1">({fmtDelta(affectedPillarPair.delta)})</span>
                         </span>
                       </div>
                     </div>
@@ -1106,10 +1109,10 @@ function ScenarioPanel() {
                     <div className="flex-1 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 flex items-center justify-between">
                       <span className="text-sm font-semibold">Overall Strategy Progress</span>
                       <span className="text-sm shrink-0 ml-2">
-                        <span className="font-mono">{progBefore.toFixed(1)}%</span>
+                        <span className="font-mono text-primary">{progBefore.toFixed(1)}%</span>
                         <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
-                        <span className="font-mono font-bold">{progAfter.toFixed(1)}%</span>
-                        <span className="text-xs text-destructive font-bold ml-1">({progDelta2 >= 0 ? "+" : ""}{fmtDelta(progDelta2)})</span>
+                        <span className="font-mono font-bold text-destructive">{progAfter.toFixed(1)}%</span>
+                        <span className="text-xs text-destructive font-bold ml-1">({fmtDelta(progDelta2)})</span>
                       </span>
                     </div>
                   </div>

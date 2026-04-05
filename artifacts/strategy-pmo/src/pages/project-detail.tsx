@@ -1037,9 +1037,12 @@ export default function ProjectDetail({ params }: Props) {
               </div>
               <h1 className="text-2xl font-display font-bold leading-tight">{project.name}</h1>
               {project.ownerName && (
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
-                  <User className="w-3.5 h-3.5" />
-                  {project.ownerName}
+                <div className="flex items-center gap-2 mt-1.5 bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5">
+                  <User className="w-4 h-4 text-primary" />
+                  <div>
+                    <div className="text-[9px] uppercase font-bold text-primary tracking-wider">Project Owner</div>
+                    <div className="text-sm font-semibold text-foreground">{project.ownerName}</div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1152,12 +1155,23 @@ export default function ProjectDetail({ params }: Props) {
 
           {/* Description + Pillar/Initiative info */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className="p-5 lg:col-span-2">
-              <h3 className="font-semibold text-sm mb-3">Project Description</h3>
-              {project.description ? (
-                <p className="text-sm text-muted-foreground leading-relaxed">{project.description}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">No description provided.</p>
+            <Card className="p-5 lg:col-span-2 space-y-4">
+              <div>
+                <h3 className="font-semibold text-sm mb-2">Project Description</h3>
+                {project.description ? (
+                  <p className="text-sm text-muted-foreground leading-relaxed">{project.description}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No description provided.</p>
+                )}
+              </div>
+              {(project as any).objectives && (
+                <div className="border-t border-border pt-3">
+                  <h3 className="font-semibold text-sm mb-2 flex items-center gap-1.5">
+                    <Target className="w-3.5 h-3.5 text-primary" />
+                    Objectives
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{(project as any).objectives}</p>
+                </div>
               )}
             </Card>
 

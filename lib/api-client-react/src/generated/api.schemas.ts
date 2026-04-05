@@ -419,6 +419,8 @@ export interface SpmoProject {
   name: string;
   /** @nullable */
   description: string | null;
+  /** @nullable */
+  objectives: string | null;
   ownerId: string;
   /** @nullable */
   ownerName: string | null;
