@@ -39,7 +39,17 @@ export interface ScenarioResult {
     affectedPillarProgress: { pillarId: number; pillarName: string; progress: number }[];
     affectedInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[];
   };
-  cascadeImpact: { milestoneId: number; milestoneName: string; projectName: string; shiftDays: number; newDueDate: string }[];
+  progressImpact?: {
+    projectName: string;
+    currentProgress: number;
+    plannedProgressByNow: number;
+    plannedProgressAfterDelay: number;
+    progressGap: number;
+    originalTargetDate: string;
+    newTargetDate: string;
+    daysDelayed: number;
+  };
+  cascadeImpact: { milestoneId: number; milestoneName: string; projectName: string; shiftDays: number; newDueDate: string; currentProgress: number; plannedProgress: number }[];
   financialImpact?: {
     originalBudget: number;
     newBudget: number;
@@ -84,6 +94,18 @@ function simulateProgressWithDelay(
   // The progress itself doesn't change — what changes is what progress
   // "should" be (planned), so the SPI shifts. Return the progress as-is.
   return currentProgress;
+}
+
+/** Calculate planned progress % based on timeline (linear interpolation from start to target). */
+function calcPlannedProgress(startDate: string | null, targetDate: string | null, atDate?: Date): number {
+  if (!startDate || !targetDate) return 0;
+  const start = new Date(startDate).getTime();
+  const end = new Date(targetDate).getTime();
+  const now = (atDate ?? new Date()).getTime();
+  if (end <= start) return 100;
+  if (now <= start) return 0;
+  if (now >= end) return 100;
+  return Math.round(((now - start) / (end - start)) * 1000) / 10;
 }
 
 /** Weighted average helper for in-memory recalc. */
@@ -192,6 +214,14 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
           )
       : [];
 
+    // Compute progress impact for the delayed project
+    const projectStats = await projectProgress(project.id);
+    const currentProg = projectStats.progress;
+    const plannedByNow = calcPlannedProgress(project.startDate, project.targetDate);
+    const newTargetDate = addDays(project.targetDate, delayDays);
+    const plannedAfterDelay = calcPlannedProgress(project.startDate, newTargetDate);
+    const progressGap = round1(plannedByNow - currentProg);
+
     // Cascade: shift dependent milestones
     for (const dep of dependencies) {
       if (dep.targetType === "milestone") {
@@ -207,23 +237,28 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
             .where(eq(spmoProjectsTable.id, targetMs.projectId));
 
           const shiftDays = delayDays + (dep.lagDays ?? 0);
+          const msPlannedProg = calcPlannedProgress(targetMs.startDate, targetMs.dueDate);
           cascadeImpact.push({
             milestoneId: targetMs.id,
             milestoneName: targetMs.name,
             projectName: parentProject?.name ?? "Unknown",
             shiftDays,
             newDueDate: addDays(targetMs.dueDate, shiftDays),
+            currentProgress: targetMs.progress ?? 0,
+            plannedProgress: msPlannedProg,
           });
         }
       }
     }
 
     summaryParts.push(
-      `Delaying "${project.name}" by ${delayDays} days shifts its target date from ${project.targetDate} to ${addDays(project.targetDate, delayDays)}.`
+      `Delaying "${project.name}" by ${delayDays} days shifts its target date from ${project.targetDate} to ${newTargetDate}.`,
+      `Current progress is ${currentProg}% vs planned ${plannedByNow}% (gap: ${progressGap}%).`,
+      `After delay, planned progress recalibrates to ${plannedAfterDelay}% on the new timeline.`,
     );
     if (cascadeImpact.length > 0) {
       summaryParts.push(
-        `${cascadeImpact.length} downstream milestone(s) would be affected by the cascade.`
+        `${cascadeImpact.length} downstream milestone(s) would be pushed by ${delayDays}+ days.`
       );
     }
   }
@@ -332,6 +367,25 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     summaryParts.push(`Programme-level progress would remain at ${programmeProgress}%.`);
   }
 
+  // Build progressImpact for delay scenarios
+  let progressImpact: ScenarioResult["progressImpact"];
+  if (input.type === "delay" && input.delayDays) {
+    const pp = await projectProgress(input.projectId);
+    const plannedByNow = calcPlannedProgress(project.startDate, project.targetDate);
+    const newTarget = addDays(project.targetDate, input.delayDays);
+    const plannedAfterDelay = calcPlannedProgress(project.startDate, newTarget);
+    progressImpact = {
+      projectName: project.name,
+      currentProgress: pp.progress,
+      plannedProgressByNow: round1(plannedByNow),
+      plannedProgressAfterDelay: round1(plannedAfterDelay),
+      progressGap: round1(plannedByNow - pp.progress),
+      originalTargetDate: project.targetDate,
+      newTargetDate: newTarget,
+      daysDelayed: input.delayDays,
+    };
+  }
+
   return {
     input,
     before,
@@ -340,6 +394,7 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
       affectedPillarProgress: afterPillarProgress,
       affectedInitiativeProgress: afterInitiativeProgress,
     },
+    progressImpact,
     cascadeImpact,
     financialImpact,
     summary: summaryParts.join(" "),
