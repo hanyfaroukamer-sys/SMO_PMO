@@ -61,12 +61,21 @@ export interface ScenarioResult {
   progressImpact?: {
     projectName: string;
     currentProgress: number;
-    plannedProgressByNow: number;
-    plannedProgressAfterDelay: number;
-    progressGap: number;
+    plannedProgressAtOriginalTarget: number;
+    simulatedProgressAtOriginalTarget: number;
+    progressGapAtTarget: number;
     originalTargetDate: string;
     newTargetDate: string;
     daysDelayed: number;
+    milestoneBreakdown: {
+      name: string;
+      weight: number;
+      dueDate: string | null;
+      newDueDate: string | null;
+      currentProgress: number;
+      willBeCompleteByOriginalTarget: boolean;
+      simulatedProgress: number;
+    }[];
   };
   cascadeImpact: { milestoneId: number; milestoneName: string; projectName: string; shiftDays: number; newDueDate: string; currentProgress: number; plannedProgress: number }[];
   financialImpact?: {
@@ -272,8 +281,7 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
 
     summaryParts.push(
       `Delaying "${project.name}" by ${delayDays} days shifts its target date from ${project.targetDate} to ${newTargetDate}.`,
-      `Current progress is ${currentProg}% vs planned ${plannedByNow}% (gap: ${progressGap}%).`,
-      `After delay, planned progress recalibrates to ${plannedAfterDelay}% on the new timeline.`,
+      `Current progress is ${currentProg}%. Milestones that won't complete by the original deadline will widen the progress gap.`,
     );
     if (cascadeImpact.length > 0) {
       summaryParts.push(
@@ -448,21 +456,96 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
   }
 
   // Build progressImpact for delay scenarios
+  // Simulate milestone-by-milestone: at the ORIGINAL target date,
+  // which milestones will be complete and which won't?
   let progressImpact: ScenarioResult["progressImpact"];
   if (input.type === "delay" && input.delayDays) {
     const pp = await projectProgress(input.projectId);
-    const plannedByNow = calcPlannedProgress(project.startDate, project.targetDate);
     const newTarget = addDays(project.targetDate, input.delayDays);
-    const plannedAfterDelay = calcPlannedProgress(project.startDate, newTarget);
+    const origTargetTime = new Date(project.targetDate).getTime();
+
+    // Get all milestones for this project
+    const projectMs = await db.select().from(spmoMilestonesTable)
+      .where(eq(spmoMilestonesTable.projectId, input.projectId));
+
+    // Compute weights (same cascade as spmo-calc: weight > effortDays > equal)
+    const totalStoredWeight = projectMs.reduce((s, m) => s + (m.weight ?? 0), 0);
+    const allHaveWeight = projectMs.every((m) => (m.weight ?? 0) > 0) && Math.abs(totalStoredWeight - 100) <= 5;
+    const totalEffort = projectMs.reduce((s, m) => s + (m.effortDays ?? 0), 0);
+
+    const getWeight = (m: typeof projectMs[0]) => {
+      if (allHaveWeight) return (m.weight ?? 0) / totalStoredWeight * 100;
+      if (totalEffort > 0) return ((m.effortDays ?? 0) / totalEffort) * 100;
+      return projectMs.length > 0 ? 100 / projectMs.length : 0;
+    };
+
+    // For each milestone, determine:
+    // 1. PLANNED: was it supposed to be done by original target? (dueDate <= originalTarget)
+    // 2. SIMULATED: with delay, will it actually be done by original target?
+    //    - Already approved/completed milestones: YES (100%)
+    //    - dueDate + delayDays <= originalTarget: YES (assume it finishes on shifted date)
+    //    - dueDate + delayDays > originalTarget: NO — estimate partial progress
+    const milestoneBreakdown: NonNullable<ScenarioResult["progressImpact"]>["milestoneBreakdown"] = [];
+    let plannedWeightedSum = 0;
+    let simulatedWeightedSum = 0;
+    let totalWeight = 0;
+
+    for (const ms of projectMs) {
+      const w = getWeight(ms);
+      totalWeight += w;
+      const msDueTime = ms.dueDate ? new Date(ms.dueDate).getTime() : origTargetTime;
+      const msNewDueTime = msDueTime + input.delayDays * 86_400_000;
+      const isCompleted = ms.status === "approved" || (ms.progress ?? 0) >= 100;
+
+      // PLANNED: by original target, this milestone should be complete if dueDate <= originalTarget
+      const shouldBeCompleteByTarget = msDueTime <= origTargetTime;
+      const plannedProgress = shouldBeCompleteByTarget ? 100 : 0;
+      plannedWeightedSum += (plannedProgress / 100) * w;
+
+      // SIMULATED: with delay, what will this milestone's progress be at original target?
+      let simulatedMsProgress: number;
+      if (isCompleted) {
+        simulatedMsProgress = 100; // already done, delay doesn't undo work
+      } else if (msNewDueTime <= origTargetTime) {
+        // Shifted date still before original target — assume it'll complete
+        simulatedMsProgress = 100;
+      } else {
+        // Shifted date is AFTER original target — milestone won't be done
+        // Estimate: how far along will it be? Use time-based proportion
+        const msStart = ms.startDate ? new Date(ms.startDate).getTime() : msDueTime - 30 * 86_400_000;
+        const msDuration = Math.max(msNewDueTime - msStart, 86_400_000);
+        const timeToOrigTarget = Math.max(origTargetTime - msStart, 0);
+        const timeProportion = Math.min(timeToOrigTarget / msDuration, 1);
+        // Take the max of current progress and time proportion
+        simulatedMsProgress = round1(Math.max(ms.progress ?? 0, timeProportion * 100));
+      }
+      simulatedWeightedSum += (simulatedMsProgress / 100) * w;
+
+      milestoneBreakdown.push({
+        name: ms.name,
+        weight: round1(w),
+        dueDate: ms.dueDate,
+        newDueDate: ms.dueDate ? addDays(ms.dueDate, input.delayDays) : null,
+        currentProgress: ms.progress ?? 0,
+        willBeCompleteByOriginalTarget: isCompleted || msNewDueTime <= origTargetTime,
+        simulatedProgress: round1(simulatedMsProgress),
+      });
+    }
+
+    const plannedAtOriginal = totalWeight > 0 ? round1((plannedWeightedSum / totalWeight) * 100) : 100;
+    const simulatedAtOriginal = totalWeight > 0 ? round1((simulatedWeightedSum / totalWeight) * 100) : 0;
+    const gap = round1(plannedAtOriginal - simulatedAtOriginal);
+
     progressImpact = {
       projectName: project.name,
       currentProgress: pp.progress,
-      plannedProgressByNow: round1(plannedByNow),
-      plannedProgressAfterDelay: round1(plannedAfterDelay),
-      progressGap: round1(plannedByNow - pp.progress),
+      plannedProgressAtOriginalTarget: plannedAtOriginal,
+      simulatedProgressAtOriginalTarget: simulatedAtOriginal,
+      progressGapAtTarget: gap,
       originalTargetDate: project.targetDate,
       newTargetDate: newTarget,
       daysDelayed: input.delayDays,
+      milestoneBreakdown,
     };
   }
 
