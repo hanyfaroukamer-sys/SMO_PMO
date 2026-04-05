@@ -112,6 +112,9 @@ export default function Pillars() {
         toast({ title: "Deleted", description: `"${name}" removed.` });
         invalidate();
       },
+      onError: () => {
+        toast({ variant: "destructive", title: "Delete failed", description: `Could not delete "${name}".` });
+      },
     });
   }
 
@@ -205,7 +208,8 @@ export default function Pillars() {
                 <button
                   onClick={async () => {
                     try {
-                      await fetch(`/api/spmo/pillars/${pillar.id}/initiatives/weights/reset`, { method: "POST", credentials: "include" });
+                      const res = await fetch(`/api/spmo/pillars/${pillar.id}/initiatives/weights/reset`, { method: "POST", credentials: "include" });
+                      if (!res.ok) throw new Error("Weight reset failed");
                       toast({ title: "Auto-weight applied", description: `Initiative weights reset for ${pillar.name}` });
                       invalidate();
                     } catch { toast({ variant: "destructive", title: "Failed" }); }

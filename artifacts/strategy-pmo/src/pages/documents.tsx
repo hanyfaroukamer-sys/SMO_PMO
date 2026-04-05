@@ -114,9 +114,13 @@ export default function Documents() {
   };
 
   const handleDelete = async (id: number) => {
-    await deleteDoc.mutateAsync(id);
-    qc.invalidateQueries({ queryKey });
-    toast({ title: "Document deleted" });
+    try {
+      await deleteDoc.mutateAsync(id);
+      qc.invalidateQueries({ queryKey });
+      toast({ title: "Document deleted" });
+    } catch {
+      toast({ title: "Failed to delete document", variant: "destructive" });
+    }
   };
 
   const projectName = (id: number | null) =>

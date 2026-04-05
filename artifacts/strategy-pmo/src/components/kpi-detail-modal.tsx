@@ -245,10 +245,14 @@ export function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, onClose 
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this measurement?")) return;
-    await deleteMeasurement.mutateAsync(id);
-    qc.invalidateQueries({ queryKey });
-    qc.invalidateQueries({ queryKey: ["/api/spmo/kpis"] });
-    toast({ title: "Measurement deleted" });
+    try {
+      await deleteMeasurement.mutateAsync(id);
+      qc.invalidateQueries({ queryKey });
+      qc.invalidateQueries({ queryKey: ["/api/spmo/kpis"] });
+      toast({ title: "Measurement deleted" });
+    } catch {
+      toast({ title: "Failed to delete measurement", variant: "destructive" });
+    }
   };
 
   const currentYear = new Date().getFullYear();

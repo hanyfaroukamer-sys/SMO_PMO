@@ -18,17 +18,9 @@ import {
 import { eq, desc } from "drizzle-orm";
 import { calcProgrammeProgress, computeStatus } from "../lib/spmo-calc";
 import { getCachedAssessment } from "../lib/assessment-cache";
+import { requireAuth } from "./spmo";
 
 const router = Router();
-
-function requireAuth(req: Request, res: Response): string | null {
-  const user = (req as Request & { user?: { id?: string } }).user;
-  if (!user?.id) {
-    res.status(401).json({ error: "Authentication required" });
-    return null;
-  }
-  return user.id;
-}
 
 // ─── McKinsey/BCG Colour Palette ─────────────────────────────────────────────
 const C = {
@@ -343,7 +335,7 @@ function pdfKpiBox(
 // ─── PDF REPORT (McKinsey/BCG Executive Style) ─────────────────────────────
 router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
   try {
-    const requireAuthCheck = requireAuth(req, res);
+    const requireAuthCheck = await requireAuth(req, res);
     if (!requireAuthCheck) return;
 
     const data = await gatherReportData();
@@ -1284,7 +1276,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
 // ─── PPTX REPORT (mirrors PDF structure — text + tables only) ────────────────
 router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
   try {
-    const requireAuthCheck = requireAuth(req, res);
+    const requireAuthCheck = await requireAuth(req, res);
     if (!requireAuthCheck) return;
 
     const data = await gatherReportData();

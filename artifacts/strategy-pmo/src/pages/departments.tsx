@@ -89,6 +89,9 @@ export default function Departments() {
         toast({ title: "Deleted", description: `"${name}" removed.` });
         invalidate();
       },
+      onError: () => {
+        toast({ variant: "destructive", title: "Delete failed", description: `Could not delete "${name}".` });
+      },
     });
   }
 
@@ -171,7 +174,7 @@ export default function Departments() {
                 <div className="flex items-center gap-3 min-w-0">
                   <div
                     className="w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center"
-                    style={{ backgroundColor: dept.color ?? "#3b82f6" + "22" }}
+                    style={{ backgroundColor: (dept.color ?? "#3b82f6") + "22" }}
                   >
                     <Building2 className="w-5 h-5" style={{ color: dept.color ?? "#3b82f6" }} />
                   </div>

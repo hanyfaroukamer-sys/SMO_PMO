@@ -384,6 +384,9 @@ router.get("/spmo/programme", async (req, res): Promise<void> => {
 
   const reportingCurrency = config?.reportingCurrency ?? "SAR";
 
+  const pillarWeights = await computePillarWeights();
+  const pwMap = new Map(pillarWeights.map((w) => [w.pillarId, w]));
+
   const responseData = {
     programmeName,
     vision,
@@ -391,20 +394,25 @@ router.get("/spmo/programme", async (req, res): Promise<void> => {
     reportingCurrency,
     programmeProgress,
     lastUpdated: new Date(),
-    pillarSummaries: pillarSummaries.map(({ pillar, progress, ...stats }) => ({
-      id: pillar.id,
-      name: pillar.name,
-      description: pillar.description,
-      pillarType: pillar.pillarType,
-      weight: pillar.weight,
-      color: pillar.color,
-      iconName: pillar.iconName,
-      sortOrder: pillar.sortOrder,
-      createdAt: pillar.createdAt,
-      updatedAt: pillar.updatedAt,
-      progress,
-      ...stats,
-    })),
+    pillarSummaries: pillarSummaries.map(({ pillar, progress, ...stats }) => {
+      const pw = pwMap.get(pillar.id);
+      return {
+        id: pillar.id,
+        name: pillar.name,
+        description: pillar.description,
+        pillarType: pillar.pillarType,
+        weight: pillar.weight,
+        effectiveWeight: pw?.effectiveWeight ?? 0,
+        weightSource: pw?.weightSource ?? "equal",
+        color: pillar.color,
+        iconName: pillar.iconName,
+        sortOrder: pillar.sortOrder,
+        createdAt: pillar.createdAt,
+        updatedAt: pillar.updatedAt,
+        progress,
+        ...stats,
+      };
+    }),
     totalMilestones,
     approvedMilestones,
     pendingApprovals,

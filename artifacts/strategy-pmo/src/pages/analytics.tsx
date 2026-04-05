@@ -99,7 +99,7 @@ export default function AnalyticsPage() {
   const { data: spmoConfigData } = useGetSpmoConfig();
   const currency = spmoConfigData?.reportingCurrency ?? "SAR";
 
-  const { data: summary, isLoading } = useQuery<AnalyticsSummary>({
+  const { data: summary, isLoading, isError: summaryError, refetch: refetchSummary } = useQuery<AnalyticsSummary>({
     queryKey: ["/api/spmo/analytics/summary"],
     queryFn: () => customFetch("/api/spmo/analytics/summary"),
     staleTime: 60_000,
@@ -141,6 +141,19 @@ export default function AnalyticsPage() {
       )}
 
       {/* ─── Overview Tab ──────────────────────────────────────── */}
+      {!isLoading && activeTab === "overview" && summaryError && (
+        <Card className="p-12 text-center flex flex-col items-center gap-4">
+          <AlertCircle className="w-12 h-12 text-destructive opacity-60" />
+          <p className="text-destructive font-semibold">Failed to load analytics summary.</p>
+          <button
+            onClick={() => refetchSummary()}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            Retry
+          </button>
+        </Card>
+      )}
+
       {!isLoading && activeTab === "overview" && summary && (
         <div className="space-y-6">
           {/* Metric cards */}

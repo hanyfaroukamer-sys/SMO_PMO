@@ -13,6 +13,7 @@ import {
   spmoActivityLogTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { requireAuth, getAuthUser, getUserDisplayName } from "./spmo";
 
 const router = Router();
 
@@ -25,26 +26,6 @@ const upload = multer({
     cb(null, ALLOWED_EXTENSIONS.includes(ext));
   },
 });
-
-// ─── AUTH HELPERS ─────────────────────────────────────────────────────────────
-
-type AuthUser = { id: string; email?: string | null; firstName?: string | null; lastName?: string | null; role?: string | null } | undefined;
-
-function getAuthUser(req: Request): AuthUser {
-  return req.user as AuthUser;
-}
-
-function getUserDisplayName(user: AuthUser): string | null {
-  if (!user) return null;
-  const parts = [user.firstName, user.lastName].filter(Boolean);
-  return parts.length > 0 ? parts.join(" ") : user.email ?? null;
-}
-
-function requireAuth(req: Request, res: Response): string | null {
-  const user = getAuthUser(req);
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return null; }
-  return user.id;
-}
 
 // ─── TIMEOUT WRAPPER ─────────────────────────────────────────────────────────
 
@@ -277,7 +258,7 @@ router.post(
   "/spmo/import/analyse",
   upload.array("files", 10) as unknown as (req: Request, res: Response, next: () => void) => void,
   async (req: Request, res: Response): Promise<void> => {
-    const userId = requireAuth(req, res);
+    const userId = await requireAuth(req, res);
     if (!userId) return;
 
     const files = req.files as Express.Multer.File[] | undefined;
@@ -410,7 +391,7 @@ interface ImportData {
 }
 
 router.post("/spmo/import/save", async (req: Request, res: Response): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const { mode, data } = req.body as { mode: "new" | "merge" | "replace"; data: ImportData };

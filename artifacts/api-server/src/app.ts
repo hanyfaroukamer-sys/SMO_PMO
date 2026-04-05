@@ -84,4 +84,12 @@ app.get("/strategy-pmo/*path", (_req, res) => {
 // Redirect root to frontend
 app.get("/", (_req, res) => { res.redirect("/strategy-pmo/"); });
 
+// Global error handler — catches unhandled errors from async route handlers
+app.use((err: any, _req: any, res: any, _next: any) => {
+  console.error("[unhandled-error]", err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default app;
