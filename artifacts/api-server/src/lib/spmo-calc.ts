@@ -140,6 +140,7 @@ async function projectProgress(projectId: number): Promise<{
 async function initiativeProgress(initiativeId: number): Promise<{
   progress: number;
   rawProgress: number;
+  plannedProgress: number;
   projectCount: number;
   approvedMilestones: number;
   totalMilestones: number;
@@ -158,7 +159,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
     );
 
   if (projects.length === 0) {
-    return { progress: 0, rawProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [], weightSource: "equal" as const };
+    return { progress: 0, rawProgress: 0, plannedProgress: -1, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [], weightSource: "equal" as const };
   }
 
   // ── Weight cascade (highest priority first) ──────────────────
@@ -223,6 +224,15 @@ async function initiativeProgress(initiativeId: number): Promise<{
   const totalBudgetSpent = projectStats.reduce((s, p) => s + p.budgetSpent, 0);
   const rawItems = projectStats.map((p) => ({ value: p.rawValue, weight: p.weight }));
 
+  // Compute initiative-level planned progress from weighted project planned progress
+  // Same logic as project SPI: planned = what should be done, actual = what is done
+  const plannedItems = projectStats.map((p) => ({
+    value: p.plannedProgress >= 0 ? p.plannedProgress : 0,
+    weight: p.weight,
+  }));
+  const hasAnyPlanned = projectStats.some((p) => p.plannedProgress >= 0);
+  const initiativePlannedProgress = hasAnyPlanned ? weightedAvg(plannedItems) : -1;
+
   const childProjects: ChildProjectSummary[] = projectStats.map((p) => ({
     name: p.name,
     projectCode: p.projectCode,
@@ -234,6 +244,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
   return {
     progress: weightedAvg(projectStats),
     rawProgress: weightedAvg(rawItems),
+    plannedProgress: initiativePlannedProgress,
     projectCount: projects.length,
     approvedMilestones: totalApproved,
     totalMilestones,
@@ -719,51 +730,41 @@ export function computeInitiativeStatus(
   budgetSpent: number,
   rawProgress: number | undefined,
   childProjects: ChildProjectSummary[],
+  plannedProgress?: number,
 ): StatusResult {
-  const result: StatusResult = { ...computeStatus(actualProgress, startDate, endDate, budgetAllocated, budgetSpent, rawProgress) };
+  // Compute initiative SPI using weighted project planned progress
+  // Same logic as projects: SPI = actual weighted progress / planned weighted progress
+  const result: StatusResult = { ...computeStatus(actualProgress, startDate, endDate, budgetAllocated, budgetSpent, rawProgress, plannedProgress) };
 
-  const delayed = [...childProjects.filter(p => p.computedStatus.status === "delayed")]
-    .sort((a, b) => a.computedStatus.spi - b.computedStatus.spi);
-  const atRisk = [...childProjects.filter(p => p.computedStatus.status === "at_risk")]
-    .sort((a, b) => a.computedStatus.spi - b.computedStatus.spi);
+  // If no child projects, return the SPI-based status as-is
+  if (childProjects.length === 0) return result;
+
+  // Child project escalation — can only WORSEN the status, never improve it
+  const delayed = childProjects.filter(p => p.computedStatus.status === "delayed");
+  const atRisk = childProjects.filter(p => p.computedStatus.status === "at_risk");
 
   // ESCALATION 1: Any delayed child → initiative minimum at-risk
   if (delayed.length > 0 && (result.status === "on_track" || result.status === "not_started")) {
     result.status = "at_risk";
-    result.reason = `Contains ${delayed.length} delayed project${delayed.length > 1 ? "s" : ""}.`;
-  }
-
-  // ESCALATION 2: All child projects delayed → initiative delayed
-  const activeProjCount = childProjects.filter(p => p.computedStatus.status !== "completed").length;
-  if (delayed.length > 0 && delayed.length === activeProjCount && result.status !== "delayed" && result.status !== "completed") {
-    result.status = "delayed";
-    result.reason = `All ${delayed.length} active project${delayed.length > 1 ? "s" : ""} under this initiative are delayed.`;
-  }
-
-  // ESCALATION 3: >50% of budget weight in delayed projects → initiative delayed
-  const delayedWeight = delayed.reduce((s, p) => s + p.weight, 0);
-  if (delayedWeight > 50 && result.status !== "delayed" && result.status !== "completed") {
-    result.status = "delayed";
-    result.reason = `${Math.round(delayedWeight)}% of budget weight in delayed projects.`;
-  }
-
-  // APPEND: Name the problematic projects
-  if (result.status === "delayed" || result.status === "at_risk") {
-    const parts: string[] = [];
-    if (delayed.length > 0) {
-      parts.push("Delayed: " + delayed.map(p =>
-        `${p.name} (${Math.round(p.weight)}% wt)`
-      ).join(", "));
-    }
-    if (atRisk.length > 0) {
-      parts.push("At risk: " + atRisk.map(p =>
-        `${p.name}`
-      ).join(", "));
-    }
-    if (parts.length > 0) {
-      result.reason += " | " + parts.join(". ");
-    }
+    result.reason = `${delayed.length} project${delayed.length > 1 ? "s" : ""} delayed: ${delayed.map(p => p.name).slice(0, 3).join(", ")}${delayed.length > 3 ? ` +${delayed.length - 3} more` : ""}.`;
     result.delayedChildren = delayed.map(p => p.projectCode ? `${p.projectCode}: ${p.name}` : p.name);
+  }
+
+  // ESCALATION 2: >50% of weight in delayed projects → initiative delayed
+  if (delayed.length > 0 && result.status !== "delayed" && result.status !== "completed") {
+    const delayedWeight = delayed.reduce((s, p) => s + p.weight, 0);
+    const totalWeight = childProjects.reduce((s, p) => s + p.weight, 0);
+    if (totalWeight > 0 && (delayedWeight / totalWeight) >= 0.5) {
+      result.status = "delayed";
+      result.reason = `${Math.round((delayedWeight / totalWeight) * 100)}% of weight in delayed projects.`;
+      result.delayedChildren = delayed.map(p => p.projectCode ? `${p.projectCode}: ${p.name}` : p.name);
+    }
+  }
+
+  // ESCALATION 3: Any at-risk child (when SPI says on_track) → minimum at-risk
+  if (atRisk.length > 0 && delayed.length === 0 && result.status === "on_track") {
+    result.status = "at_risk";
+    result.reason = `${atRisk.length} project${atRisk.length > 1 ? "s" : ""} at risk: ${atRisk.map(p => p.name).slice(0, 3).join(", ")}${atRisk.length > 3 ? ` +${atRisk.length - 3} more` : ""}.`;
   }
 
   return result;

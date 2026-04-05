@@ -668,6 +668,7 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
         stats.budgetSpent,
         stats.rawProgress,
         stats.childProjects,
+        stats.plannedProgress,
       );
       const wInfo = initWeightMaps.get(i.pillarId)?.get(i.id);
       return { ...i, budget: computedBudget, ...stats, computedStatus, healthStatus: computedStatus.status, effectiveWeight: wInfo?.effectiveWeight ?? 0, weightSource: wInfo?.weightSource ?? "equal" };
@@ -764,6 +765,7 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     stats.budgetSpent,
     stats.rawProgress,
     stats.childProjects,
+    stats.plannedProgress,
   );
 
   // Compute effective weights for projects in this initiative
