@@ -325,27 +325,29 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
   let financialImpact: ScenarioResult["financialImpact"];
 
   if (input.type === "budget_cut") {
-    const reduction = Math.min(input.budgetReduction ?? 0, project.budget ?? 0);
-    if (reduction <= 0) {
-      throw new Error("budgetReduction must be > 0 for a budget_cut scenario");
+    const reductionPct = input.budgetReduction ?? 0;
+    if (reductionPct <= 0 || reductionPct > 100) {
+      throw new Error("budgetReduction must be 1-100 (percentage) for a budget_cut scenario");
     }
     const originalBudget = project.budget ?? 0;
+    const reduction = originalBudget * (reductionPct / 100);
     const newBudget = Math.max(originalBudget - reduction, 0);
     const actualSpent = project.budgetSpent ?? 0;
     const overSpent = actualSpent > newBudget;
 
     // Compute EVM impact
     const pp = await projectProgress(project.id);
-    const ev = originalBudget * (pp.progress / 100);
-    const originalCpi = actualSpent > 0 ? ev / actualSpent : 1;
-    const newCpi = actualSpent > 0 ? (newBudget * (pp.progress / 100)) / actualSpent : 1;
+    const evOriginal = originalBudget * (pp.progress / 100); // Earned Value based on original budget
+    const evNew = newBudget * (pp.progress / 100); // Earned Value based on new budget
+    const originalCpi = actualSpent > 0 ? evOriginal / actualSpent : 1;
+    const newCpi = actualSpent > 0 ? evNew / actualSpent : 1;
     const originalEac = originalCpi > 0 ? originalBudget / originalCpi : originalBudget;
     const newEac = newCpi > 0 ? newBudget / newCpi : newBudget;
 
     financialImpact = { originalBudget, newBudget, actualSpent, overSpent, originalCpi: Math.round(originalCpi * 100) / 100, newCpi: Math.round(newCpi * 100) / 100, originalEac: Math.round(originalEac), newEac: Math.round(newEac) };
 
     const fmtM = (n: number) => n >= 1_000_000 ? `SAR ${(n / 1_000_000).toFixed(1)}M` : `SAR ${n.toLocaleString()}`;
-    summaryParts.push(`Cutting "${project.name}" budget from ${fmtM(originalBudget)} to ${fmtM(newBudget)} (reduction: ${fmtM(reduction)}).`);
+    summaryParts.push(`Cutting "${project.name}" budget by ${reductionPct}% — from ${fmtM(originalBudget)} to ${fmtM(newBudget)} (reduction: ${fmtM(reduction)}).`);
     summaryParts.push(`CPI would shift from ${financialImpact.originalCpi} to ${financialImpact.newCpi}. EAC from ${fmtM(originalEac)} to ${fmtM(newEac)}.`);
     if (overSpent) {
       summaryParts.push(`⚠ CRITICAL: Actual spend (${fmtM(actualSpent)}) already exceeds the proposed new budget.`);
@@ -566,7 +568,8 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
           }
           const pp = await projectProgress(p.id);
           if (input.type === "budget_cut" && input.adjustWeight) {
-            const newBudget = Math.max((p.budget ?? 0) - (input.budgetReduction ?? 0), 0);
+            const cutPct = input.budgetReduction ?? 0;
+            const newBudget = Math.max((p.budget ?? 0) * (1 - cutPct / 100), 0);
             progItems.push({ value: pp.progress, weight: newBudget });
           } else {
             progItems.push({ value: pp.progress, weight: p.budget ?? 0 });

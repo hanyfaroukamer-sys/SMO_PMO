@@ -461,41 +461,131 @@ function StakeholderAlertCard({ alert: a, type }: { alert: StakeholderAlert; typ
   );
 }
 
+const STAKEHOLDER_CATEGORIES = [
+  { key: "approval", label: "Approval Bottlenecks", type: "approval_bottleneck", icon: Clock, color: "#f59e0b" },
+  { key: "report", label: "Missing Weekly Reports", type: "missing_report", icon: FileText, color: "#ef4444" },
+  { key: "department", label: "Department Overdue", type: "department_overdue", icon: AlertTriangle, color: "#8b5cf6" },
+  { key: "inactive", label: "Inactive PMs", type: "inactive_pm", icon: Users, color: "#6b7280" },
+] as const;
+
+const SEV_FILTER_OPTIONS = [
+  { key: "critical", label: "Critical", color: "#ef4444" },
+  { key: "high", label: "High", color: "#f97316" },
+  { key: "medium", label: "Medium", color: "#eab308" },
+] as const;
+
 function StakeholdersPanel() {
   const { data, isLoading } = useQuery<{ alerts: StakeholderAlert[] }>({
     queryKey: ["/api/spmo/analytics/stakeholder-alerts"],
     queryFn: () => customFetch("/api/spmo/analytics/stakeholder-alerts"),
     staleTime: 60_000,
   });
+  const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
+  const [severityFilter, setSeverityFilter] = useState<Set<string>>(new Set());
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
-  const items = data?.alerts ?? [];
-  const grouped = {
-    approval: items.filter((a) => a.type === "approval_bottleneck"),
-    report: items.filter((a) => a.type === "missing_report"),
-    department: items.filter((a) => a.type === "department_overdue"),
-    inactive: items.filter((a) => a.type === "inactive_pm"),
-  };
+  const allItems = data?.alerts ?? [];
+
+  // Count per category and severity (before filtering)
+  const catCounts = STAKEHOLDER_CATEGORIES.map((c) => ({ ...c, count: allItems.filter((a) => a.type === c.type).length }));
+  const sevCounts = SEV_FILTER_OPTIONS.map((s) => ({ ...s, count: allItems.filter((a) => a.severity === s.key).length }));
+
+  // Apply filters
+  const filtered = allItems.filter((a) => {
+    if (categoryFilter.size > 0) {
+      const cat = STAKEHOLDER_CATEGORIES.find((c) => c.type === a.type);
+      if (!cat || !categoryFilter.has(cat.key)) return false;
+    }
+    if (severityFilter.size > 0 && !severityFilter.has(a.severity)) return false;
+    return true;
+  });
+
+  const hasAnyFilter = categoryFilter.size > 0 || severityFilter.size > 0;
+
+  // Group filtered items
+  const groups = STAKEHOLDER_CATEGORIES.map((cat) => ({
+    ...cat,
+    alerts: filtered.filter((a) => a.type === cat.type),
+  })).filter((g) => g.alerts.length > 0);
+
+  const toggleSection = (key: string) => setCollapsedSections((prev) => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
 
   return (
     <div className="space-y-4">
-      {Object.entries(grouped).map(([type, alerts]) => {
-        if (alerts.length === 0) return null;
-        const titles: Record<string, string> = { approval: "Approval Bottlenecks", report: "Missing Weekly Reports", department: "Department Overdue", inactive: "Inactive Project Managers" };
-        const icons: Record<string, React.ElementType> = { approval: Clock, report: FileText, department: AlertTriangle, inactive: Users };
-        const Icon = icons[type] ?? AlertCircle;
+      {/* Summary + Filters */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-semibold">{allItems.length} alert{allItems.length !== 1 ? "s" : ""}</span>
+          {sevCounts.filter((s) => s.count > 0).map((s) => (
+            <span key={s.key} className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: s.color + "20", color: s.color }}>{s.count} {s.label.toLowerCase()}</span>
+          ))}
+        </div>
+
+        {/* Category filter */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Category</span>
+          {catCounts.filter((c) => c.count > 0).map((c) => (
+            <button key={c.key} onClick={() => setCategoryFilter((prev) => { const s = new Set(prev); s.has(c.key) ? s.delete(c.key) : s.add(c.key); return s; })}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ${categoryFilter.has(c.key) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:border-primary/40"}`}>
+              <c.icon className="w-3 h-3" /> {c.label}
+              <span className={`text-[10px] px-1 rounded-full ${categoryFilter.has(c.key) ? "bg-primary-foreground/20" : "bg-secondary"}`}>{c.count}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Severity filter */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Severity</span>
+          {sevCounts.filter((s) => s.count > 0).map((s) => (
+            <button key={s.key} onClick={() => setSeverityFilter((prev) => { const set = new Set(prev); set.has(s.key) ? set.delete(s.key) : set.add(s.key); return set; })}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ${severityFilter.has(s.key) ? "text-white border-current" : "bg-background border-border text-muted-foreground hover:border-primary/40"}`}
+              style={severityFilter.has(s.key) ? { backgroundColor: s.color, borderColor: s.color } : {}}>
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} /> {s.label}
+              <span className={`text-[10px] px-1 rounded-full ${severityFilter.has(s.key) ? "bg-white/20" : "bg-secondary"}`}>{s.count}</span>
+            </button>
+          ))}
+          {hasAnyFilter && (
+            <button onClick={() => { setCategoryFilter(new Set()); setSeverityFilter(new Set()); }}
+              className="text-xs font-semibold text-destructive hover:text-destructive/80 px-2 py-1 rounded-lg border border-destructive/30 hover:bg-destructive/5 transition-colors">
+              Clear
+            </button>
+          )}
+        </div>
+
+        {hasAnyFilter && (
+          <p className="text-xs text-muted-foreground">Showing {filtered.length} of {allItems.length} alerts</p>
+        )}
+      </div>
+
+      {/* Collapsible groups */}
+      {groups.map(({ key, label, icon: Icon, color, alerts }) => {
+        const isCollapsed = collapsedSections.has(key);
         return (
-          <Card key={type} className="p-5">
-            <SectionHeader title={titles[type] ?? type} icon={Icon} count={alerts.length} />
-            <div className="space-y-2">
-              {alerts.map((a, i) => (
-                <StakeholderAlertCard key={i} alert={a} type={type} />
-              ))}
-            </div>
+          <Card key={key} className="overflow-hidden">
+            <button onClick={() => toggleSection(key)}
+              className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-secondary/30 transition-colors">
+              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+              <Icon className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-bold flex-1">{label}</span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">{alerts.length}</span>
+            </button>
+            {!isCollapsed && (
+              <div className="px-5 pb-4 space-y-1 border-t border-border/30">
+                {alerts.map((a, i) => (
+                  <StakeholderAlertCard key={i} alert={a} type={key} />
+                ))}
+              </div>
+            )}
           </Card>
         );
       })}
-      {items.length === 0 && (
+
+      {filtered.length === 0 && allItems.length > 0 && (
+        <Card className="p-6 text-center text-muted-foreground text-sm">No alerts match the selected filters.</Card>
+      )}
+      {allItems.length === 0 && (
         <Card className="p-8 text-center"><CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500" /><p className="text-sm text-muted-foreground">No stakeholder issues detected.</p></Card>
       )}
     </div>
@@ -904,7 +994,7 @@ function ScenarioPanel() {
           <Card className={`p-5 border-l-4 ${hasProgImpact || hasCascade ? "border-l-destructive bg-destructive/5" : "border-l-warning bg-warning/5"}`}>
             <h3 className="font-bold text-sm mb-2 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-destructive" />
-              Delay Impact Analysis
+              {scenarioType === "delay" ? "Delay Impact Analysis" : scenarioType === "cancel" ? "Cancellation Impact Analysis" : "Budget Cut Impact Analysis"}
             </h3>
             <p className="text-sm text-foreground">{result.summary}</p>
           </Card>
@@ -1086,7 +1176,7 @@ function ScenarioPanel() {
           )}
 
           {/* Key metrics row — delay/budget only */}
-          {scenarioType !== "cancel" && (
+          {scenarioType === "delay" && (
             <div className="grid grid-cols-3 gap-3">
               <Card className="p-4 text-center border-destructive/30">
                 <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Target Date Shift</div>
