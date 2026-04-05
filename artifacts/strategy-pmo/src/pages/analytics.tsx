@@ -1033,22 +1033,21 @@ function ScenarioPanel() {
             const progBefore = result.before.programmeProgress;
             const progAfter = result.after.programmeProgress;
             const progDelta2 = round1(progAfter - progBefore);
-
-            const affectedPillar = result.after.affectedPillarProgress.find((ap) => {
-              const bp = result.before.affectedPillarProgress.find((b) => b.pillarId === ap.pillarId);
-              return bp && Math.abs(ap.progress - bp.progress) >= 0.01;
-            });
-            const pillarBefore = affectedPillar ? result.before.affectedPillarProgress.find((b) => b.pillarId === affectedPillar.pillarId) : null;
-            const pillarDelta = affectedPillar && pillarBefore ? round1(affectedPillar.progress - pillarBefore.progress) : 0;
-
-            const affectedInit = result.after.affectedInitiativeProgress?.find((ai) => {
-              const bi = result.before.affectedInitiativeProgress?.find((b) => b.initiativeId === ai.initiativeId);
-              return bi && Math.abs(ai.progress - bi.progress) >= 0.01;
-            });
-            const initBefore = affectedInit ? result.before.affectedInitiativeProgress?.find((b) => b.initiativeId === affectedInit.initiativeId) : null;
-            const initDelta = affectedInit && initBefore ? round1(affectedInit.progress - initBefore.progress) : 0;
-
             const gap = result.progressImpact!.progressGapAtTarget;
+
+            // Find the initiative and pillar by matching before/after arrays
+            // Use index 0 as fallback — the affected initiative is always included
+            const initPairs = result.after.affectedInitiativeProgress?.map((ai) => {
+              const bi = result.before.affectedInitiativeProgress?.find((b) => b.initiativeId === ai.initiativeId);
+              return { after: ai, before: bi, delta: round1(ai.progress - (bi?.progress ?? ai.progress)) };
+            }) ?? [];
+            const affectedInitPair = initPairs.find((p) => p.delta !== 0) ?? initPairs[0];
+
+            const pillarPairs = result.after.affectedPillarProgress.map((ap) => {
+              const bp = result.before.affectedPillarProgress.find((b) => b.pillarId === ap.pillarId);
+              return { after: ap, before: bp, delta: round1(ap.progress - (bp?.progress ?? ap.progress)) };
+            });
+            const affectedPillarPair = pillarPairs.find((p) => p.delta !== 0) ?? pillarPairs.find((p) => p.before != null);
 
             return (
               <Card className="p-5 border-l-4 border-l-destructive">
@@ -1065,35 +1064,37 @@ function ScenarioPanel() {
                     <span className="w-24 text-[10px] font-bold uppercase text-muted-foreground shrink-0">Project</span>
                     <div className="flex-1 bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2 flex items-center justify-between">
                       <span className="text-sm font-semibold truncate">{result.progressImpact!.projectName}</span>
-                      <span className="text-sm font-bold text-destructive shrink-0 ml-2">-{gap}% shortfall</span>
+                      <span className="text-sm font-bold text-destructive shrink-0 ml-2">
+                        {result.progressImpact!.currentProgress}% now → {result.progressImpact!.simulatedProgressAtOriginalTarget}% at deadline <span className="bg-destructive/10 px-1 rounded">(-{gap}%)</span>
+                      </span>
                     </div>
                   </div>
                   {/* Initiative */}
-                  {affectedInit && initBefore && (
+                  {affectedInitPair && (
                     <div className="flex items-center gap-3">
                       <span className="w-24 text-[10px] font-bold uppercase text-muted-foreground shrink-0">Initiative</span>
                       <div className="flex-1 bg-warning/5 border border-warning/20 rounded-lg px-3 py-2 flex items-center justify-between">
-                        <span className="text-sm font-semibold truncate">{affectedInit.initiativeName}</span>
+                        <span className="text-sm font-semibold truncate">{affectedInitPair.after.initiativeName}</span>
                         <span className="text-sm shrink-0 ml-2">
-                          <span className="font-mono">{initBefore.progress.toFixed(1)}%</span>
+                          <span className="font-mono">{(affectedInitPair.before?.progress ?? 0).toFixed(1)}%</span>
                           <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
-                          <span className="font-mono font-bold">{affectedInit.progress.toFixed(1)}%</span>
-                          {initDelta !== 0 && <span className="text-xs text-destructive font-bold ml-1">({initDelta > 0 ? "+" : ""}{initDelta})</span>}
+                          <span className="font-mono font-bold">{affectedInitPair.after.progress.toFixed(1)}%</span>
+                          <span className="text-xs text-destructive font-bold ml-1">({affectedInitPair.delta >= 0 ? "+" : ""}{affectedInitPair.delta})</span>
                         </span>
                       </div>
                     </div>
                   )}
                   {/* Pillar */}
-                  {affectedPillar && pillarBefore && (
+                  {affectedPillarPair && (
                     <div className="flex items-center gap-3">
                       <span className="w-24 text-[10px] font-bold uppercase text-muted-foreground shrink-0">Pillar</span>
                       <div className="flex-1 bg-secondary/50 border border-border rounded-lg px-3 py-2 flex items-center justify-between">
-                        <span className="text-sm font-semibold truncate">{affectedPillar.pillarName}</span>
+                        <span className="text-sm font-semibold truncate">{affectedPillarPair.after.pillarName}</span>
                         <span className="text-sm shrink-0 ml-2">
-                          <span className="font-mono">{pillarBefore.progress.toFixed(1)}%</span>
+                          <span className="font-mono">{(affectedPillarPair.before?.progress ?? 0).toFixed(1)}%</span>
                           <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
-                          <span className="font-mono font-bold">{affectedPillar.progress.toFixed(1)}%</span>
-                          {pillarDelta !== 0 && <span className="text-xs text-destructive font-bold ml-1">({pillarDelta > 0 ? "+" : ""}{pillarDelta})</span>}
+                          <span className="font-mono font-bold">{affectedPillarPair.after.progress.toFixed(1)}%</span>
+                          <span className="text-xs text-destructive font-bold ml-1">({affectedPillarPair.delta >= 0 ? "+" : ""}{affectedPillarPair.delta})</span>
                         </span>
                       </div>
                     </div>
@@ -1107,7 +1108,7 @@ function ScenarioPanel() {
                         <span className="font-mono">{progBefore.toFixed(1)}%</span>
                         <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
                         <span className="font-mono font-bold">{progAfter.toFixed(1)}%</span>
-                        {progDelta2 !== 0 && <span className="text-xs text-destructive font-bold ml-1">({progDelta2 > 0 ? "+" : ""}{progDelta2})</span>}
+                        <span className="text-xs text-destructive font-bold ml-1">({progDelta2 >= 0 ? "+" : ""}{progDelta2})</span>
                       </span>
                     </div>
                   </div>
