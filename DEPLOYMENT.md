@@ -123,6 +123,203 @@ server {
 
 Set `ALLOWED_ORIGINS=https://pmo.your-domain.com` in your `.env`.
 
+## Google Cloud Platform (GCP) Deployment
+
+### Option A: Cloud Run (Recommended — serverless, auto-scaling)
+
+```bash
+# 1. Install gcloud CLI and authenticate
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+
+# 2. Create Cloud SQL PostgreSQL instance
+gcloud sql instances create strategypmo-db \
+  --database-version=POSTGRES_16 \
+  --tier=db-f1-micro \
+  --region=me-central1 \
+  --root-password=YOUR_DB_PASSWORD
+
+gcloud sql databases create strategypmo --instance=strategypmo-db
+
+gcloud sql users create spmo \
+  --instance=strategypmo-db \
+  --password=YOUR_DB_PASSWORD
+
+# 3. Build and push Docker image to Artifact Registry
+gcloud artifacts repositories create strategypmo \
+  --repository-format=docker \
+  --location=me-central1
+
+gcloud builds submit --tag me-central1-docker.pkg.dev/YOUR_PROJECT_ID/strategypmo/app:v2.0
+
+# 4. Deploy to Cloud Run
+gcloud run deploy strategypmo \
+  --image me-central1-docker.pkg.dev/YOUR_PROJECT_ID/strategypmo/app:v2.0 \
+  --platform managed \
+  --region me-central1 \
+  --allow-unauthenticated \
+  --port 3000 \
+  --memory 1Gi \
+  --cpu 1 \
+  --min-instances 1 \
+  --max-instances 5 \
+  --add-cloudsql-instances YOUR_PROJECT_ID:me-central1:strategypmo-db \
+  --set-env-vars "NODE_ENV=production" \
+  --set-env-vars "DATABASE_URL=postgres://spmo:YOUR_DB_PASSWORD@/strategypmo?host=/cloudsql/YOUR_PROJECT_ID:me-central1:strategypmo-db" \
+  --set-env-vars "SESSION_SECRET=YOUR_SECRET" \
+  --set-env-vars "ISSUER_URL=https://login.microsoftonline.com/TENANT_ID/v2.0" \
+  --set-env-vars "OIDC_CLIENT_ID=YOUR_CLIENT_ID" \
+  --set-env-vars "OIDC_CLIENT_SECRET=YOUR_CLIENT_SECRET" \
+  --set-env-vars "APP_URL=https://strategypmo-HASH-me.a.run.app/strategy-pmo" \
+  --set-env-vars "INITIAL_ADMIN_EMAIL=admin@your-domain.com"
+```
+
+**GCP-specific requirements for Cloud Run:**
+- Cloud SQL Proxy is handled automatically via `--add-cloudsql-instances`
+- DATABASE_URL uses Unix socket: `?host=/cloudsql/PROJECT:REGION:INSTANCE`
+- Set `--min-instances 1` to avoid cold starts (email scheduler needs to run)
+- Map a custom domain via Cloud Run domain mapping or a load balancer
+
+### Option B: GKE (Kubernetes — full control)
+
+```bash
+# 1. Create GKE cluster
+gcloud container clusters create strategypmo \
+  --region me-central1 \
+  --num-nodes 2 \
+  --machine-type e2-standard-2
+
+# 2. Push image (same as Cloud Run step 3)
+
+# 3. Create Kubernetes secrets
+kubectl create secret generic strategypmo-env \
+  --from-env-file=.env
+
+# 4. Apply deployment
+kubectl apply -f k8s/deployment.yaml
+```
+
+For GKE, create `k8s/deployment.yaml`:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: strategypmo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: strategypmo
+  template:
+    metadata:
+      labels:
+        app: strategypmo
+    spec:
+      containers:
+        - name: app
+          image: me-central1-docker.pkg.dev/PROJECT/strategypmo/app:v2.0
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: strategypmo-env
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: strategypmo
+spec:
+  type: LoadBalancer
+  selector:
+    app: strategypmo
+  ports:
+    - port: 443
+      targetPort: 3000
+```
+
+### Option C: Compute Engine (VM — simplest)
+
+```bash
+# 1. Create VM
+gcloud compute instances create strategypmo \
+  --zone=me-central1-a \
+  --machine-type=e2-medium \
+  --image-family=ubuntu-2204-lts \
+  --image-project=ubuntu-os-cloud \
+  --boot-disk-size=50GB
+
+# 2. SSH in and install Docker
+gcloud compute ssh strategypmo
+sudo apt update && sudo apt install -y docker.io docker-compose-v2
+sudo usermod -aG docker $USER
+
+# 3. Clone and run
+git clone https://github.com/hanyfaroukamer-sys/SMO_PMO.git
+cd SMO_PMO && git checkout release/v2.0
+cp .env.example .env  # edit with real values
+docker compose up -d --build
+```
+
+### GCP Services Used
+
+| Service | Purpose | Required? |
+|---|---|---|
+| **Cloud SQL** (PostgreSQL 16) | Database | Yes (or self-managed PostgreSQL) |
+| **Cloud Run** or **GKE** or **Compute Engine** | Application hosting | Yes (pick one) |
+| **Artifact Registry** | Docker image storage | Yes (for Cloud Run / GKE) |
+| **Cloud Storage** | File uploads (evidence, documents) | Optional — replaces Replit Object Storage |
+| **Secret Manager** | Store env vars securely | Recommended for production |
+| **Cloud Load Balancing** | HTTPS termination + custom domain | Recommended |
+| **Cloud Armor** | WAF / DDoS protection | Recommended for government deployments |
+| **Cloud Logging** | Centralized logs (app outputs JSON) | Recommended |
+
+### File Storage on GCP (Cloud Storage)
+
+To use GCS instead of Replit Object Storage, the `ObjectStorageService` in `artifacts/api-server/src/lib/objectStorage.ts` already uses `@google-cloud/storage`. For GCP:
+
+1. Create a GCS bucket: `gsutil mb gs://strategypmo-uploads`
+2. Create a service account with Storage Object Admin role
+3. Download the JSON key file
+4. Set env vars:
+```
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+PRIVATE_OBJECT_DIR=gs://strategypmo-uploads/private
+PUBLIC_OBJECT_SEARCH_PATHS=gs://strategypmo-uploads/public
+```
+
+The app already uses `@google-cloud/storage` natively — no adapter changes needed for GCP.
+
+### Cost Estimate (GCP)
+
+| Component | Spec | Monthly Est. |
+|---|---|---|
+| Cloud SQL (PostgreSQL) | db-f1-micro, 10GB | ~$10-15 |
+| Cloud Run | 1 vCPU, 1GB RAM, min 1 instance | ~$20-40 |
+| Cloud Storage | 10GB | ~$0.50 |
+| Load Balancer + SSL | Managed cert | ~$18 |
+| **Total** | | **~$50-75/month** |
+
+For production with higher traffic, scale to db-custom-2-4096 (~$50/mo) and Cloud Run max 5 instances (~$100/mo).
+
 ## Identity Provider Setup
 
 ### Azure AD
