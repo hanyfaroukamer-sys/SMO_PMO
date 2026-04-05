@@ -388,60 +388,108 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     simulatedDelayProgress = totW > 0 ? round1((simWeightedSum / totW) * 100) : 0;
   }
 
-  // 5. Compute "after" state by simulating modified values in memory
-  const afterInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[] = [];
+  // 5. Compute "after" state
+  // For delay scenarios: use the "before" values as baseline and only adjust
+  // the initiative that contains the delayed project. This avoids weighting
+  // method discrepancies between calcProgrammeProgress and our local recalc.
+  let afterInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[];
+  let afterPillarProgress: typeof beforePillarProgress;
+  let afterProgrammeProgress: number;
 
-  for (const init of siblingInitiatives) {
-    const projects = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, init.id));
+  if (input.type === "delay" && simulatedDelayProgress !== null && initiative) {
+    // Only recalculate the affected initiative
+    const initProjects = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, initiative.id));
     const progItems: { value: number; weight: number }[] = [];
-
-    for (const p of projects) {
-      // For the target project, apply scenario modifications
+    for (const p of initProjects) {
       if (p.id === input.projectId) {
-        if (input.type === "cancel") {
-          // Skip this project entirely
-          continue;
-        }
-        const pp = await projectProgress(p.id);
-        if (input.type === "delay" && simulatedDelayProgress !== null) {
-          // Use the milestone-simulated progress at original target date
-          progItems.push({ value: simulatedDelayProgress, weight: p.budget ?? 0 });
-        } else if (input.type === "budget_cut" && input.adjustWeight) {
-          const newBudget = Math.max((p.budget ?? 0) - (input.budgetReduction ?? 0), 0);
-          progItems.push({ value: pp.progress, weight: newBudget });
-        } else {
-          progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
-        }
+        progItems.push({ value: simulatedDelayProgress, weight: p.budget ?? 0 });
       } else {
         const pp = await projectProgress(p.id);
         progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
       }
     }
+    const newInitProgress = weightedAvg(progItems);
 
-    afterInitiativeProgress.push({
-      initiativeId: init.id,
-      initiativeName: init.name,
-      progress: weightedAvg(progItems),
-    });
-  }
-
-  // Recalculate pillar progress with modified initiative values (weighted by initiative budget)
-  const afterPillarProgress = beforePillarProgress.map((bp) => {
-    if (pillar && bp.pillarId === pillar.id) {
-      // Use our simulated initiative progress for this pillar, weighted by budget
-      const initItems = afterInitiativeProgress.map((ip) => {
-        const budgetWeight = beforeInitiativeProgress.find((bip) => bip.initiativeId === ip.initiativeId)?.budget ?? 0;
-        return { value: ip.progress, weight: budgetWeight };
-      });
-      return { ...bp, progress: weightedAvg(initItems) };
+    // Use the same initiative progress for "before" baseline (recalculated with same method)
+    const origProgItems: { value: number; weight: number }[] = [];
+    for (const p of initProjects) {
+      const pp = await projectProgress(p.id);
+      origProgItems.push({ value: pp.progress, weight: p.budget ?? 0 });
     }
-    return bp;
-  });
+    const origInitProgress = weightedAvg(origProgItems);
+    const initDelta = newInitProgress - origInitProgress;
 
-  // Recalculate programme progress
-  const afterProgrammeProgress = afterPillarProgress.length > 0
-    ? round1(afterPillarProgress.reduce((s, p) => s + p.progress, 0) / afterPillarProgress.length)
-    : 0;
+    // Apply delta to the before values (preserves consistent weighting)
+    afterInitiativeProgress = beforeInitiativeProgress.map((bi) => ({
+      initiativeId: bi.initiativeId,
+      initiativeName: bi.initiativeName,
+      progress: bi.initiativeId === initiative.id ? round1(bi.progress + initDelta) : bi.progress,
+    }));
+
+    // Pillar: apply the init delta weighted by this initiative's share
+    const pillarInitiatives = beforeInitiativeProgress.filter((i) => {
+      const init = siblingInitiatives.find((si) => si.id === i.initiativeId);
+      return init != null;
+    });
+    const initShare = pillarInitiatives.length > 0 ? 1 / pillarInitiatives.length : 1;
+    const pillarDelta = initDelta * initShare;
+
+    afterPillarProgress = beforePillarProgress.map((bp) =>
+      bp.pillarId === pillar?.id ? { ...bp, progress: round1(bp.progress + pillarDelta) } : bp
+    );
+
+    // Programme: apply pillar delta weighted by pillar share
+    const pillarShare = beforePillarProgress.length > 0 ? 1 / beforePillarProgress.length : 1;
+    afterProgrammeProgress = round1(programmeProgress + pillarDelta * pillarShare);
+  } else {
+    // Cancel / budget_cut: full recalculation
+    const afterInitProgress: { initiativeId: number; initiativeName: string; progress: number }[] = [];
+
+    for (const init of siblingInitiatives) {
+      const projects = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, init.id));
+      const progItems: { value: number; weight: number }[] = [];
+
+      for (const p of projects) {
+        if (p.id === input.projectId) {
+          if (input.type === "cancel") { continue; }
+          const pp = await projectProgress(p.id);
+          if (input.type === "budget_cut" && input.adjustWeight) {
+            const newBudget = Math.max((p.budget ?? 0) - (input.budgetReduction ?? 0), 0);
+            progItems.push({ value: pp.progress, weight: newBudget });
+          } else {
+            progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
+          }
+        } else {
+          const pp = await projectProgress(p.id);
+          progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
+        }
+      }
+
+      afterInitProgress.push({
+        initiativeId: init.id,
+        initiativeName: init.name,
+        progress: weightedAvg(progItems),
+      });
+    }
+
+    afterInitiativeProgress = afterInitProgress;
+
+    // Recalculate pillar progress
+    afterPillarProgress = beforePillarProgress.map((bp) => {
+      if (pillar && bp.pillarId === pillar.id) {
+        const initItems = afterInitiativeProgress.map((ip) => {
+          const budgetWeight = beforeInitiativeProgress.find((bip) => bip.initiativeId === ip.initiativeId)?.budget ?? 0;
+          return { value: ip.progress, weight: budgetWeight };
+        });
+        return { ...bp, progress: weightedAvg(initItems) };
+      }
+      return bp;
+    });
+
+    afterProgrammeProgress = afterPillarProgress.length > 0
+      ? round1(afterPillarProgress.reduce((s, p) => s + p.progress, 0) / afterPillarProgress.length)
+      : 0;
+  }
 
   const progressDelta = round1(afterProgrammeProgress - programmeProgress);
   if (progressDelta !== 0) {
