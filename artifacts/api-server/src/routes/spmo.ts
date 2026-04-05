@@ -3494,10 +3494,16 @@ router.get("/spmo/departments/:id/portfolio", async (req, res): Promise<void> =>
     .from(spmoProjectsTable)
     .where(eq(spmoProjectsTable.departmentId, dept.id));
 
-  // Enrich with progress stats + initiative/pillar names
+  // Enrich with progress stats + initiative/pillar names + phase + status
   const enriched = await Promise.all(
     projects.map(async (p) => {
       const stats = await projectProgress(p.id);
+      const computedStatus = computeStatus(stats.progress, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, stats.rawProgress, stats.plannedProgress);
+
+      // Detect project phase from milestones
+      const pMilestones = await db.select({ phaseGate: spmoMilestonesTable.phaseGate, status: spmoMilestonesTable.status, progress: spmoMilestonesTable.progress })
+        .from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
+      const currentPhase = detectProjectPhase(pMilestones);
 
       // Get initiative name + pillar name
       const [initiative] = await db
@@ -3521,6 +3527,9 @@ router.get("/spmo/departments/:id/portfolio", async (req, res): Promise<void> =>
       return {
         ...p,
         ...stats,
+        computedStatus,
+        healthStatus: computedStatus.status,
+        currentPhase,
         effectiveWeight: pwInfo?.effectiveWeight ?? 0,
         weightSource: pwInfo?.weightSource ?? "equal",
         initiativeName: initiative?.name,
