@@ -354,6 +354,40 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     }
   }
 
+  // Pre-compute simulated progress for delay scenarios (milestone-level analysis)
+  let simulatedDelayProgress: number | null = null;
+  if (input.type === "delay" && input.delayDays) {
+    const projMs = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, input.projectId));
+    const origTargetTime = new Date(project.targetDate).getTime();
+    const totalStoredW = projMs.reduce((s, m) => s + (m.weight ?? 0), 0);
+    const allHaveW = projMs.every((m) => (m.weight ?? 0) > 0) && Math.abs(totalStoredW - 100) <= 5;
+    const totalEff = projMs.reduce((s, m) => s + (m.effortDays ?? 0), 0);
+    const getW = (m: typeof projMs[0]) => {
+      if (allHaveW) return (m.weight ?? 0) / totalStoredW * 100;
+      if (totalEff > 0) return ((m.effortDays ?? 0) / totalEff) * 100;
+      return projMs.length > 0 ? 100 / projMs.length : 0;
+    };
+    let simWeightedSum = 0, totW = 0;
+    for (const ms of projMs) {
+      const w = getW(ms);
+      totW += w;
+      const msDueTime = ms.dueDate ? new Date(ms.dueDate).getTime() : origTargetTime;
+      const msNewDueTime = msDueTime + input.delayDays * 86_400_000;
+      const isCompleted = ms.status === "approved" || (ms.progress ?? 0) >= 100;
+      let simProg: number;
+      if (isCompleted) { simProg = 100; }
+      else if (msNewDueTime <= origTargetTime) { simProg = 100; }
+      else {
+        const msStart = ms.startDate ? new Date(ms.startDate).getTime() : msDueTime - 30 * 86_400_000;
+        const msDur = Math.max(msNewDueTime - msStart, 86_400_000);
+        const timeToOrig = Math.max(origTargetTime - msStart, 0);
+        simProg = Math.max(ms.progress ?? 0, Math.min(timeToOrig / msDur, 1) * 100);
+      }
+      simWeightedSum += (simProg / 100) * w;
+    }
+    simulatedDelayProgress = totW > 0 ? round1((simWeightedSum / totW) * 100) : 0;
+  }
+
   // 5. Compute "after" state by simulating modified values in memory
   const afterInitiativeProgress: { initiativeId: number; initiativeName: string; progress: number }[] = [];
 
@@ -369,12 +403,13 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
           continue;
         }
         const pp = await projectProgress(p.id);
-        if (input.type === "budget_cut" && input.adjustWeight) {
-          // User chose to also scale down the project's strategic weight
+        if (input.type === "delay" && simulatedDelayProgress !== null) {
+          // Use the milestone-simulated progress at original target date
+          progItems.push({ value: simulatedDelayProgress, weight: p.budget ?? 0 });
+        } else if (input.type === "budget_cut" && input.adjustWeight) {
           const newBudget = Math.max((p.budget ?? 0) - (input.budgetReduction ?? 0), 0);
           progItems.push({ value: pp.progress, weight: newBudget });
         } else {
-          // Default: keep weight unchanged (budget doesn't change work done)
           progItems.push({ value: pp.progress, weight: p.budget ?? 0 });
         }
       } else {

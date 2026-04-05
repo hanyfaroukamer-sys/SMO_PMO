@@ -1092,13 +1092,12 @@ function ScenarioPanel() {
             </Card>
           )}
 
-          {/* No cascade — explain why */}
+          {/* No cascade — but still has milestone impact */}
           {!hasCascade && scenarioType === "delay" && (
             <Card className="p-5 bg-muted/30">
               <p className="text-sm text-muted-foreground">
-                No downstream dependencies found. This project's delay will not cascade to other projects.
-                The {delayD}-day delay shifts the target date but does not affect current progress percentages
-                (progress measures work completed, not time elapsed).
+                No downstream dependencies to other projects found. The delay impact is contained within this project
+                but still affects initiative, pillar, and programme progress as shown in the shortfall analysis above.
               </p>
             </Card>
           )}
