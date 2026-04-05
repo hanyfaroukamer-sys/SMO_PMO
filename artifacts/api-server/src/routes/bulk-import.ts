@@ -19,18 +19,9 @@ import {
   spmoProgrammeConfigTable,
   spmoActivityLogTable,
 } from "@workspace/db";
+import { requireAuth, getAuthUser } from "./spmo";
 
 const router = Router();
-
-// ─── AUTH ────────────────────────────────────────────────────────────────────
-
-type AuthUser = { id: string; role?: string | null } | undefined;
-function getAuthUser(req: Request): AuthUser { return req.user as AuthUser; }
-function requireAuth(req: Request, res: Response): string | null {
-  const user = getAuthUser(req);
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return null; }
-  return user.id;
-}
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -155,7 +146,7 @@ const SHEETS = [
 // ─── GET /api/spmo/import/template ──────────────────────────────────────────
 
 router.get("/spmo/import/template", async (req: Request, res: Response): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   const wb = new ExcelJS.Workbook();
@@ -236,16 +227,16 @@ const upload = multer({
 });
 
 router.post("/spmo/import/bulk", upload.single("file"), async (req: Request, res: Response): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   if (!req.file) { res.status(400).json({ error: "No .xlsx file uploaded" }); return; }
 
   const mode = (req.body?.mode as string) || "append";
-  if (mode === "replace") {
-    const user = getAuthUser(req);
+  const user = getAuthUser(req);
+  if (mode === "replace" || mode === "append") {
     if (user?.role !== "admin") {
-      res.status(403).json({ error: "Admin role required for replace mode" });
+      res.status(403).json({ error: "Admin role required for bulk import" });
       return;
     }
   }

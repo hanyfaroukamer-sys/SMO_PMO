@@ -6,6 +6,7 @@ import {
   useCreateSpmoProcurement,
   useUpdateSpmoProcurement,
   useDeleteSpmoProcurement,
+  useGetSpmoConfig,
   type SpmoProcurementRecord,
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
@@ -47,6 +48,8 @@ export default function Procurement() {
   const { data: projectsData } = useListSpmoProjects();
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: procurementData, isLoading } = useListSpmoProcurement();
+  const { data: configData } = useGetSpmoConfig();
+  const currency = configData?.reportingCurrency ?? "SAR";
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -155,7 +158,7 @@ export default function Procurement() {
     <div className="space-y-6 animate-in fade-in">
       <PageHeader
         title="Procurement Pipeline"
-        description={`${allRecords.length} records · ${formatCurrency(totalValue)} total contract value`}
+        description={`${allRecords.length} records · ${formatCurrency(totalValue, currency)} total contract value`}
       >
         <button
           onClick={openCreate}
@@ -185,7 +188,7 @@ export default function Procurement() {
               </div>
               <div className="text-2xl font-display font-bold" style={{ color: stage.color }}>{stageRecords.length}</div>
               {stageValue > 0 && (
-                <div className="text-xs text-muted-foreground mt-0.5">{formatCurrency(stageValue)}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{formatCurrency(stageValue, currency)}</div>
               )}
             </Card>
           );
@@ -213,7 +216,7 @@ export default function Procurement() {
                 </div>
                 {stageValue > 0 && (
                   <div className="text-xs text-muted-foreground mt-1 pl-4 font-medium">
-                    {formatCurrency(stageValue)}
+                    {formatCurrency(stageValue, currency)}
                   </div>
                 )}
               </div>
@@ -298,7 +301,7 @@ export default function Procurement() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Contract Value (SAR)">
+            <FormField label={`Contract Value (${currency})`}>
               <input
                 className={inputClass}
                 type="number"
@@ -408,7 +411,7 @@ function KanbanCard({
       {rec.contractValue !== null && rec.contractValue !== undefined && rec.contractValue > 0 && (
         <div className="flex items-center gap-1 text-xs font-semibold text-foreground mb-1.5">
           <DollarSign className="w-3 h-3 shrink-0" />
-          {formatCurrency(rec.contractValue)}
+          {formatCurrency(rec.contractValue, currency)}
         </div>
       )}
 

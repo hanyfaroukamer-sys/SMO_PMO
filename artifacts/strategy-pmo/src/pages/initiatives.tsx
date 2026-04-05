@@ -128,6 +128,9 @@ export default function Initiatives() {
           toast({ title: "Deleted", description: `"${name}" removed.` });
           invalidate();
         },
+        onError: () => {
+          toast({ variant: "destructive", title: "Delete failed", description: `Could not delete "${name}".` });
+        },
       }
     );
   }
@@ -292,7 +295,8 @@ export default function Initiatives() {
                             <button
                               onClick={async () => {
                                 try {
-                                  await fetch(`/api/spmo/initiatives/${init.id}/projects/weights/reset`, { method: "POST", credentials: "include" });
+                                  const res = await fetch(`/api/spmo/initiatives/${init.id}/projects/weights/reset`, { method: "POST", credentials: "include" });
+                                  if (!res.ok) throw new Error("Weight reset failed");
                                   toast({ title: "Auto-weight applied", description: `Project weights reset for ${init.name}` });
                                   invalidate();
                                 } catch { toast({ variant: "destructive", title: "Failed" }); }

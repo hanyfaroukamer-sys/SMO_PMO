@@ -218,13 +218,14 @@ describe("UAT: Admin opens analytics — all tabs render", () => {
     expect(analyticsTsx).toContain("Generate Board Report");
   });
 
-  test("analytics API routes require authentication (check user.id)", () => {
+  test("analytics API routes require authentication (requireAuth from spmo)", () => {
     const analyticsRoutesSrc = readFile(path.join(API_SRC, "routes/analytics.ts"));
-    // Count auth checks
-    const authChecks = analyticsRoutesSrc.match(/user\?\.id/g);
-    expect(authChecks).not.toBeNull();
-    // Should have auth check on every route (at least 10 endpoints)
-    expect(authChecks!.length).toBeGreaterThanOrEqual(10);
+    // Should import requireAuth from shared spmo module (includes blocked-user check)
+    expect(analyticsRoutesSrc).toMatch(/import.*requireAuth.*from/);
+    // Count requireAuth calls — at least 10 endpoints
+    const authCalls = analyticsRoutesSrc.match(/requireAuth\s*\(/g);
+    expect(authCalls).not.toBeNull();
+    expect(authCalls!.length).toBeGreaterThanOrEqual(10);
   });
 
   test("scenario and board-report routes require admin role", () => {
@@ -366,11 +367,11 @@ describe("UAT: Mobile app has all required sections", () => {
 // ═════════════════════════════════════════════════════════════════
 
 describe("UAT: API route error handling consistency", () => {
-  test("all analytics routes return 401 for unauthenticated requests", () => {
+  test("all analytics routes use shared requireAuth (which handles 401)", () => {
     const analyticsRoutesSrc = readFile(path.join(API_SRC, "routes/analytics.ts"));
-    const status401Count = (analyticsRoutesSrc.match(/status\(401\)/g) ?? []).length;
-    // Each route handler should have a 401 check
-    expect(status401Count).toBeGreaterThanOrEqual(10);
+    // Auth is now handled by imported requireAuth which returns 401 internally
+    const authCalls = (analyticsRoutesSrc.match(/requireAuth\s*\(/g) ?? []).length;
+    expect(authCalls).toBeGreaterThanOrEqual(10);
   });
 
   test("all analytics routes have error handler returning 500", () => {

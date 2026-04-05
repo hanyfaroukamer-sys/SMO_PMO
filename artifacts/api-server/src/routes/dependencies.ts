@@ -13,34 +13,11 @@ import {
   recalculateDownstreamStatuses,
   analyzeCascade,
 } from "../lib/dep-engine";
+import { requireAuth, getAuthUser } from "./spmo";
 
 const router = Router();
 
 // ─── AUTH HELPERS ─────────────────────────────────────────────────────────────
-
-function getAuthUser(req: Parameters<Parameters<typeof router.get>[1]>[0]) {
-  return req.user as
-    | {
-        id: string;
-        email?: string | null;
-        firstName?: string | null;
-        lastName?: string | null;
-        role?: string | null;
-      }
-    | undefined;
-}
-
-function requireAuth(
-  req: Parameters<Parameters<typeof router.get>[1]>[0],
-  res: Parameters<Parameters<typeof router.get>[1]>[1]
-): string | null {
-  const user = getAuthUser(req);
-  if (!user?.id) {
-    res.status(401).json({ error: "Authentication required" });
-    return null;
-  }
-  return user.id;
-}
 
 function requireRole(
   req: Parameters<Parameters<typeof router.get>[1]>[0],
@@ -73,7 +50,7 @@ const CreateDepBody = z.object({
 
 // GET /spmo/api/spmo/dependencies — list all
 router.get("/spmo/dependencies", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   try {
@@ -156,7 +133,7 @@ router.get("/spmo/dependencies", async (req, res): Promise<void> => {
 
 // GET /spmo/api/spmo/dependencies/resolve — resolve single target
 router.get("/spmo/dependencies/resolve", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   try {
@@ -178,7 +155,7 @@ router.get("/spmo/dependencies/resolve", async (req, res): Promise<void> => {
 
 // GET /spmo/api/spmo/dependencies/resolve-project — batch resolve all milestones in a project
 router.get("/spmo/dependencies/resolve-project", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   try {
@@ -209,7 +186,7 @@ router.get("/spmo/dependencies/resolve-project", async (req, res): Promise<void>
 
 // GET /spmo/api/spmo/dependencies/cascade — cascade impact
 router.get("/spmo/dependencies/cascade", async (req, res): Promise<void> => {
-  const userId = requireAuth(req, res);
+  const userId = await requireAuth(req, res);
   if (!userId) return;
 
   try {

@@ -151,6 +151,9 @@ export default function Risks() {
         toast({ title: "Risk removed" });
         invalidate();
       },
+      onError: () => {
+        toast({ variant: "destructive", title: "Delete failed", description: `Could not delete "${title}".` });
+      },
     });
   }
 
@@ -464,7 +467,15 @@ export default function Risks() {
       {risks.length === 0 ? (
         <Card className="p-12 text-center text-muted-foreground flex flex-col items-center">
           <ShieldAlert className="w-12 h-12 mb-4 opacity-20" />
-          <p>No risks logged yet.</p>
+          <p className="mb-4">No risks logged yet.</p>
+          {isAdmin && (
+            <button
+              onClick={() => { setEditId(null); setRiskForm(emptyRisk()); setRiskModal(true); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Log First Risk
+            </button>
+          )}
         </Card>
       ) : (
         <div className="space-y-5">

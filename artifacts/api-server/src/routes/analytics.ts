@@ -3,13 +3,14 @@
  * Exposes the 8 competitive engines to the frontend.
  */
 import { Router, type IRouter } from "express";
+import { requireAuth } from "./spmo";
 
 const router: IRouter = Router();
 
 // ─── Predictive Delay ──────────────────────────────────────────
 router.get("/spmo/analytics/delay-predictions", async (req, res) => {
-  const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   try {
     const { computeDelayPredictions } = await import("../lib/engine-predictive-delay.js");
     const predictions = await computeDelayPredictions();
@@ -22,8 +23,8 @@ router.get("/spmo/analytics/delay-predictions", async (req, res) => {
 
 // ─── Budget Forecast ───────────────────────────────────────────
 router.get("/spmo/analytics/budget-forecasts", async (req, res) => {
-  const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   try {
     const { computeBudgetForecasts } = await import("../lib/engine-budget-forecast.js");
     const forecasts = await computeBudgetForecasts();
@@ -36,8 +37,8 @@ router.get("/spmo/analytics/budget-forecasts", async (req, res) => {
 
 // ─── Stakeholder Intelligence ──────────────────────────────────
 router.get("/spmo/analytics/stakeholder-alerts", async (req, res) => {
-  const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   try {
     const { computeStakeholderAlerts } = await import("../lib/engine-stakeholder.js");
     const alerts = await computeStakeholderAlerts();
@@ -50,8 +51,8 @@ router.get("/spmo/analytics/stakeholder-alerts", async (req, res) => {
 
 // ─── Critical Path ─────────────────────────────────────────────
 router.get("/spmo/analytics/critical-path", async (req, res) => {
-  const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   const projectId = req.query.projectId ? Number(req.query.projectId) : undefined;
   try {
     const { computeCriticalPath } = await import("../lib/engine-critical-path.js");
@@ -65,8 +66,8 @@ router.get("/spmo/analytics/critical-path", async (req, res) => {
 
 // ─── Earned Value Management ───────────────────────────────────
 router.get("/spmo/analytics/evm", async (req, res) => {
-  const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   try {
     const { computeEvmMetrics } = await import("../lib/engine-evm.js");
     const metrics = await computeEvmMetrics();
@@ -79,8 +80,9 @@ router.get("/spmo/analytics/evm", async (req, res) => {
 
 // ─── Scenario Simulation ──────────────────────────────────────
 router.post("/spmo/analytics/scenario", async (req, res) => {
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
   if (user.role !== "admin") { res.status(403).json({ error: "Admin access required" }); return; }
   try {
     const { simulateScenario } = await import("../lib/engine-scenario.js");
@@ -94,8 +96,8 @@ router.post("/spmo/analytics/scenario", async (req, res) => {
 
 // ─── AI Programme Advisor ──────────────────────────────────────
 router.post("/spmo/analytics/advisor", async (req, res) => {
-  const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   const { question, context, projectId } = req.body;
   if (!question || typeof question !== "string") {
     res.status(400).json({ error: "question (string) is required" });
@@ -113,8 +115,9 @@ router.post("/spmo/analytics/advisor", async (req, res) => {
 
 // ─── Board Report Generator ───────────────────────────────────
 router.post("/spmo/analytics/board-report", async (req, res) => {
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
   if (user.role !== "admin") { res.status(403).json({ error: "Admin access required" }); return; }
   try {
     const { generateBoardReport } = await import("../lib/engine-board-report.js");
@@ -129,8 +132,8 @@ router.post("/spmo/analytics/board-report", async (req, res) => {
 // ─── Combined Analytics Dashboard ──────────────────────────────
 // Returns summary data from all engines for the analytics dashboard
 router.get("/spmo/analytics/summary", async (req, res) => {
-  const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   try {
     const [
       { computeDelayPredictions },
@@ -171,8 +174,8 @@ router.get("/spmo/analytics/summary", async (req, res) => {
 
 // ─── Programme Weekly Digest ──────────────────────────────────
 router.get("/spmo/analytics/weekly-digest", async (req, res) => {
-  const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   try {
     const { generateProgrammeWeeklyDigest } = await import("../lib/engine-weekly-digest.js");
     const digest = await generateProgrammeWeeklyDigest();
@@ -185,8 +188,8 @@ router.get("/spmo/analytics/weekly-digest", async (req, res) => {
 
 // ─── Anomaly Detection ────────────────────────────────────────
 router.get("/spmo/analytics/anomalies", async (req, res) => {
-  const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   try {
     const { detectAnomalies } = await import("../lib/engine-anomaly.js");
     const anomalies = await detectAnomalies();
@@ -199,8 +202,8 @@ router.get("/spmo/analytics/anomalies", async (req, res) => {
 
 // ─── Dependency Finder ────────────────────────────────────────
 router.get("/spmo/analytics/dependency-suggestions", async (req, res) => {
-  const user = (req as any).user;
-  if (!user?.id) { res.status(401).json({ error: "Authentication required" }); return; }
+  const userId = await requireAuth(req, res);
+  if (!userId) return;
   try {
     const { findDependencies } = await import("../lib/engine-dependency-finder.js");
     const result = await findDependencies();

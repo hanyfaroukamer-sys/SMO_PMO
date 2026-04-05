@@ -466,12 +466,16 @@ export function registerKpiRoutes(router: IRouter): void {
       try {
         const [ownerUser] = await db.select({ email: usersTable.email, firstName: usersTable.firstName }).from(usersTable).where(eq(usersTable.id, kpi.ownerId)).limit(1);
         if (ownerUser?.email) {
+          const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+          const safeKpiName = escapeHtml(kpi.name);
+          const safeAdminName = escapeHtml(getUserDisplayName(user) ?? "an admin");
+          const safeReason = escapeHtml(body.data.reason);
           const { sendMentionEmail } = await import("../lib/mention-email.js");
           await sendMentionEmail({
             to: ownerUser.email,
-            subject: `KPI Evidence Rejected: ${kpi.name}`,
+            subject: `KPI Evidence Rejected: ${safeKpiName}`,
             text: `Your evidence for KPI "${kpi.name}" was rejected by ${getUserDisplayName(user) ?? "an admin"}.\n\nReason: ${body.data.reason}\n\nPlease review and resubmit.`,
-            html: `<p>Your evidence for KPI "<strong>${kpi.name}</strong>" was rejected by ${getUserDisplayName(user) ?? "an admin"}.</p><p><strong>Reason:</strong> ${body.data.reason}</p><p>Please review and resubmit.</p>`,
+            html: `<p>Your evidence for KPI "<strong>${safeKpiName}</strong>" was rejected by ${safeAdminName}.</p><p><strong>Reason:</strong> ${safeReason}</p><p>Please review and resubmit.</p>`,
           });
         }
       } catch (emailErr) {

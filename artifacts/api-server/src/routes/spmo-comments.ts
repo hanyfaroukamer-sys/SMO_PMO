@@ -136,8 +136,11 @@ export function registerCommentRoutes(router: IRouter) {
         const [mentionedUser] = await db.select({ email: usersTable.email, firstName: usersTable.firstName, lastName: usersTable.lastName })
           .from(usersTable).where(eq(usersTable.id, mentionedUserId)).limit(1);
         if (mentionedUser?.email) {
-          const authorName = getUserDisplayName(user) ?? "A team member";
-          const entityLabel = entityName || body.data.entityType;
+          const rawAuthorName = getUserDisplayName(user) ?? "A team member";
+          const rawEntityLabel = entityName || body.data.entityType;
+          const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+          const authorName = escapeHtml(rawAuthorName);
+          const entityLabel = escapeHtml(rawEntityLabel);
           const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
           const fullLink = entityLink ? `${baseUrl}/strategy-pmo${entityLink}` : baseUrl;
           const subject = `${authorName} mentioned you in ${entityLabel}`;

@@ -17,6 +17,7 @@ import {
   useApproveSpmoMilestone,
   useRejectSpmoMilestone,
   useGetCurrentAuthUser,
+  useGetSpmoConfig,
   useGetSpmaProjectWeeklyReport,
   useUpsertSpmaProjectWeeklyReport,
   useGetSpmaProjectWeeklyReportHistory,
@@ -336,6 +337,8 @@ export default function Projects() {
   const { data: initiativesData } = useListSpmoInitiatives();
   const { data: pillarsData } = useListSpmoPillars();
   const { data: departmentsData } = useListSpmoDepartments();
+  const { data: configData } = useGetSpmoConfig();
+  const currency = configData?.reportingCurrency ?? "SAR";
   const isAdmin = useIsAdmin();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -616,14 +619,15 @@ export default function Projects() {
                 Name: p.name,
                 Status: p.healthStatus,
                 Progress: Math.round(p.progress) + "%",
-                "Budget (SAR)": p.budget ?? 0,
-                "Spent (SAR)": p.budgetSpent ?? 0,
+                [`Budget (${currency})`]: p.budget ?? 0,
+                [`Spent (${currency})`]: p.budgetSpent ?? 0,
                 "Start Date": p.startDate ?? "",
                 "End Date": p.targetDate ?? "",
                 Owner: p.ownerName ?? "",
               }));
               try {
                 const res = await fetch("/api/spmo/milestones/all", { credentials: "include" });
+                if (!res.ok) throw new Error("Failed to fetch milestones");
                 const json = await res.json();
                 const items = (json.items ?? []) as Array<{
                   milestone: { name: string; progress: number; status: string; dueDate?: string | null; effortDays?: number | null };
@@ -1098,7 +1102,7 @@ export default function Projects() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Budget (SAR)">
+            <FormField label={`Budget (${currency})`}>
               <input type="number" className={inputClass} value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="0" min="0" />
             </FormField>
             <FormField label="Weight (%)">
@@ -1273,7 +1277,7 @@ function ProjectRow({
           )}
           <div className="hidden md:block text-right">
             <div className="text-xs text-muted-foreground">Budget</div>
-            <div className="font-bold text-sm font-mono">{formatCurrency(project.budget ?? 0)}</div>
+            <div className="font-bold text-sm font-mono">{formatCurrency(project.budget ?? 0, currency)}</div>
           </div>
           <div className="text-right">
             <div className="text-xs text-muted-foreground">Milestones</div>
