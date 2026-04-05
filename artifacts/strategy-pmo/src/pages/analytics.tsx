@@ -48,6 +48,7 @@ interface AnalyticsSummary {
 // ─── Helpers ────────────────────────────────────────────────────
 
 const fmtM = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}K` : n.toFixed(0);
+const round1 = (n: number) => Math.round(n * 10) / 10;
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
 const RISK_COLORS: Record<string, string> = { critical: "#DC2626", high: "#F97316", medium: "#EAB308", low: "#22C55E" };
@@ -1027,29 +1028,92 @@ function ScenarioPanel() {
             </div>
           )}
 
-          {/* Pillar-level impact — only show pillars that changed */}
-          {(() => {
-            const pillarDeltas = result.after.affectedPillarProgress.map((ap) => {
-              const bp = result.before.affectedPillarProgress.find((b) => b.pillarId === ap.pillarId);
-              return { ...ap, before: bp?.progress ?? ap.progress, delta: ap.progress - (bp?.progress ?? ap.progress) };
-            }).filter((p) => Math.abs(p.delta) >= 0.05);
+          {/* Strategy Cascade Impact — always show for delay */}
+          {scenarioType === "delay" && result.progressImpact && (() => {
+            const progBefore = result.before.programmeProgress;
+            const progAfter = result.after.programmeProgress;
+            const progDelta2 = round1(progAfter - progBefore);
 
-            return pillarDeltas.length > 0 ? (
-              <Card className="p-5">
-                <h4 className="text-sm font-bold mb-3">Pillar Progress Impact</h4>
-                <div className="space-y-2">
-                  {pillarDeltas.map((p) => (
-                    <div key={p.pillarId} className="flex items-center gap-3 text-sm">
-                      <span className="flex-1 text-muted-foreground">{p.pillarName}</span>
-                      <span className="font-mono">{p.before.toFixed(1)}%</span>
-                      <ArrowRight className="w-3 h-3 text-destructive" />
-                      <span className="font-mono font-bold">{p.progress.toFixed(1)}%</span>
-                      <span className="text-xs text-destructive font-bold">({p.delta > 0 ? "+" : ""}{p.delta.toFixed(1)})</span>
+            const affectedPillar = result.after.affectedPillarProgress.find((ap) => {
+              const bp = result.before.affectedPillarProgress.find((b) => b.pillarId === ap.pillarId);
+              return bp && Math.abs(ap.progress - bp.progress) >= 0.01;
+            });
+            const pillarBefore = affectedPillar ? result.before.affectedPillarProgress.find((b) => b.pillarId === affectedPillar.pillarId) : null;
+            const pillarDelta = affectedPillar && pillarBefore ? round1(affectedPillar.progress - pillarBefore.progress) : 0;
+
+            const affectedInit = result.after.affectedInitiativeProgress?.find((ai) => {
+              const bi = result.before.affectedInitiativeProgress?.find((b) => b.initiativeId === ai.initiativeId);
+              return bi && Math.abs(ai.progress - bi.progress) >= 0.01;
+            });
+            const initBefore = affectedInit ? result.before.affectedInitiativeProgress?.find((b) => b.initiativeId === affectedInit.initiativeId) : null;
+            const initDelta = affectedInit && initBefore ? round1(affectedInit.progress - initBefore.progress) : 0;
+
+            const gap = result.progressImpact!.progressGapAtTarget;
+
+            return (
+              <Card className="p-5 border-l-4 border-l-destructive">
+                <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-destructive" />
+                  Strategy Cascade Impact
+                </h4>
+                <p className="text-xs text-muted-foreground mb-4">
+                  The {result.progressImpact!.daysDelayed}-day delay creates a <span className="font-bold text-destructive">{gap}%</span> progress gap in the project, which cascades through the strategy hierarchy:
+                </p>
+                <div className="space-y-3">
+                  {/* Project */}
+                  <div className="flex items-center gap-3">
+                    <span className="w-24 text-[10px] font-bold uppercase text-muted-foreground shrink-0">Project</span>
+                    <div className="flex-1 bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2 flex items-center justify-between">
+                      <span className="text-sm font-semibold truncate">{result.progressImpact!.projectName}</span>
+                      <span className="text-sm font-bold text-destructive shrink-0 ml-2">-{gap}% shortfall</span>
                     </div>
-                  ))}
+                  </div>
+                  {/* Initiative */}
+                  {affectedInit && initBefore && (
+                    <div className="flex items-center gap-3">
+                      <span className="w-24 text-[10px] font-bold uppercase text-muted-foreground shrink-0">Initiative</span>
+                      <div className="flex-1 bg-warning/5 border border-warning/20 rounded-lg px-3 py-2 flex items-center justify-between">
+                        <span className="text-sm font-semibold truncate">{affectedInit.initiativeName}</span>
+                        <span className="text-sm shrink-0 ml-2">
+                          <span className="font-mono">{initBefore.progress.toFixed(1)}%</span>
+                          <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
+                          <span className="font-mono font-bold">{affectedInit.progress.toFixed(1)}%</span>
+                          {initDelta !== 0 && <span className="text-xs text-destructive font-bold ml-1">({initDelta > 0 ? "+" : ""}{initDelta})</span>}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Pillar */}
+                  {affectedPillar && pillarBefore && (
+                    <div className="flex items-center gap-3">
+                      <span className="w-24 text-[10px] font-bold uppercase text-muted-foreground shrink-0">Pillar</span>
+                      <div className="flex-1 bg-secondary/50 border border-border rounded-lg px-3 py-2 flex items-center justify-between">
+                        <span className="text-sm font-semibold truncate">{affectedPillar.pillarName}</span>
+                        <span className="text-sm shrink-0 ml-2">
+                          <span className="font-mono">{pillarBefore.progress.toFixed(1)}%</span>
+                          <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
+                          <span className="font-mono font-bold">{affectedPillar.progress.toFixed(1)}%</span>
+                          {pillarDelta !== 0 && <span className="text-xs text-destructive font-bold ml-1">({pillarDelta > 0 ? "+" : ""}{pillarDelta})</span>}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Programme */}
+                  <div className="flex items-center gap-3">
+                    <span className="w-24 text-[10px] font-bold uppercase text-muted-foreground shrink-0">Programme</span>
+                    <div className="flex-1 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 flex items-center justify-between">
+                      <span className="text-sm font-semibold">Overall Strategy Progress</span>
+                      <span className="text-sm shrink-0 ml-2">
+                        <span className="font-mono">{progBefore.toFixed(1)}%</span>
+                        <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
+                        <span className="font-mono font-bold">{progAfter.toFixed(1)}%</span>
+                        {progDelta2 !== 0 && <span className="text-xs text-destructive font-bold ml-1">({progDelta2 > 0 ? "+" : ""}{progDelta2})</span>}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </Card>
-            ) : null;
+            );
           })()}
 
           {/* Timeline cascade — the most important part */}
