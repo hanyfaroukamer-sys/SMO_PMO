@@ -1048,7 +1048,11 @@ router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
     })
   );
 
-  res.json({ ...project, ...stats, milestones: milestonesWithEvidence, executionPlaceholderHidden: hasCustomSingle });
+  // Compute effective weight for this project (same cascade as list endpoint)
+  const projWeights = await computeProjectWeights(project.initiativeId);
+  const pwInfo = projWeights.find((w) => w.projectId === project.id);
+
+  res.json({ ...project, ...stats, effectiveWeight: pwInfo?.effectiveWeight ?? 0, weightSource: pwInfo?.weightSource ?? "equal", milestones: milestonesWithEvidence, executionPlaceholderHidden: hasCustomSingle });
 });
 
 router.put("/spmo/projects/:id", async (req, res): Promise<void> => {

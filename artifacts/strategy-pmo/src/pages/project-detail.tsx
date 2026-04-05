@@ -1036,15 +1036,13 @@ export default function ProjectDetail({ params }: Props) {
                 <HealthBadge status={project.healthStatus} />
               </div>
               <h1 className="text-2xl font-display font-bold leading-tight">{project.name}</h1>
-              {project.ownerName && (
-                <div className="flex items-center gap-2 mt-1.5 bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5">
-                  <User className="w-4 h-4 text-primary" />
-                  <div>
-                    <div className="text-[9px] uppercase font-bold text-primary tracking-wider">Project Owner</div>
-                    <div className="text-sm font-semibold text-foreground">{project.ownerName}</div>
-                  </div>
+              <div className="flex items-center gap-2 mt-1.5 bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5">
+                <User className="w-4 h-4 text-primary" />
+                <div>
+                  <div className="text-[9px] uppercase font-bold text-primary tracking-wider">Project Owner</div>
+                  <div className="text-sm font-semibold text-foreground">{project.ownerName || "Not assigned"}</div>
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Quick stats */}
@@ -1164,15 +1162,17 @@ export default function ProjectDetail({ params }: Props) {
                   <p className="text-sm text-muted-foreground italic">No description provided.</p>
                 )}
               </div>
-              {(project as any).objectives && (
-                <div className="border-t border-border pt-3">
-                  <h3 className="font-semibold text-sm mb-2 flex items-center gap-1.5">
-                    <Target className="w-3.5 h-3.5 text-primary" />
-                    Objectives
-                  </h3>
+              <div className="border-t border-border pt-3">
+                <h3 className="font-semibold text-sm mb-2 flex items-center gap-1.5">
+                  <Target className="w-3.5 h-3.5 text-primary" />
+                  Objectives
+                </h3>
+                {(project as any).objectives ? (
                   <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{(project as any).objectives}</p>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No objectives defined. Edit the project to add objectives.</p>
+                )}
+              </div>
             </Card>
 
             <Card className="p-5">
