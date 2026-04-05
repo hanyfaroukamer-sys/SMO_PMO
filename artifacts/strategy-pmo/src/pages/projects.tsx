@@ -965,7 +965,7 @@ export default function Projects() {
                       if (initProjects.length === 0 && hasAnyFilter) return null;
 
                       const initProgress = initiative.progress ?? 0;
-                      const initPlanned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
+                      const initPlanned = (initiative as any).plannedProgress >= 0 ? Math.round((initiative as any).plannedProgress) : calcPlannedProgress(initiative.startDate, initiative.targetDate);
 
                       return (
                         <div key={initiative.id}>
@@ -1297,7 +1297,7 @@ function ProjectRow({
           </div>
           <div className="w-52">
             {(() => {
-              const planned = calcPlannedProgress(project.startDate, project.targetDate);
+              const planned = (project as any).plannedProgress >= 0 ? Math.round((project as any).plannedProgress) : calcPlannedProgress(project.startDate, project.targetDate);
               return (
                 <>
                   <div className="flex justify-between text-[10px] mb-0.5 text-muted-foreground">

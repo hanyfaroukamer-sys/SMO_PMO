@@ -520,6 +520,17 @@ export default function Dashboard() {
             const pillarInitiatives = initiatives.filter((i) => i.pillarId === pillar.id);
             const pillarPlanned = (() => {
               if (pillarInitiatives.length === 0) return 0;
+              // Use weighted average of child initiative plannedProgress
+              const hasApiPlanned = pillarInitiatives.some((i: any) => i.plannedProgress >= 0);
+              if (hasApiPlanned) {
+                const totalBudget = pillarInitiatives.reduce((s, i) => s + ((i as any).budget ?? 0), 0);
+                if (totalBudget > 0) {
+                  const weighted = pillarInitiatives.reduce((s, i) => s + (Math.max(0, (i as any).plannedProgress ?? 0) * ((i as any).budget ?? 0)), 0);
+                  return Math.round(weighted / totalBudget);
+                }
+                const avg = pillarInitiatives.reduce((s, i) => s + Math.max(0, (i as any).plannedProgress ?? 0), 0) / pillarInitiatives.length;
+                return Math.round(avg);
+              }
               const minStart = pillarInitiatives.reduce((m, i) => i.startDate < m ? i.startDate : m, pillarInitiatives[0].startDate);
               const maxEnd = pillarInitiatives.reduce((m, i) => i.targetDate > m ? i.targetDate : m, pillarInitiatives[0].targetDate);
               return calcPlannedProgress(minStart, maxEnd);
@@ -561,7 +572,7 @@ export default function Dashboard() {
                         {pillarInitiatives.map((initiative) => {
                           const isInitExpanded = expandedInitiatives.has(initiative.id);
                           const progress = initiative.progress ?? 0;
-                          const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
+                          const planned = (initiative as any).plannedProgress >= 0 ? Math.round((initiative as any).plannedProgress) : calcPlannedProgress(initiative.startDate, initiative.targetDate);
                           const initProjects = projectsByInitiative.get(initiative.id) ?? [];
                           const initCounts: Record<ProjectStatusCategory, number> = { on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0, on_hold: 0 };
                           for (const p of initProjects) { initCounts[classifyProject(p)]++; }
@@ -892,7 +903,7 @@ export default function Dashboard() {
                       {initiatives.map((initiative) => {
                         const isInitExpanded = expandedInitiatives.has(initiative.id);
                         const progress = initiative.progress ?? 0;
-                        const planned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
+                        const planned = (initiative as any).plannedProgress >= 0 ? Math.round((initiative as any).plannedProgress) : calcPlannedProgress(initiative.startDate, initiative.targetDate);
                         const initProjects = projectsByInitiative.get(initiative.id) ?? [];
                         return (
                           <div key={initiative.id}>

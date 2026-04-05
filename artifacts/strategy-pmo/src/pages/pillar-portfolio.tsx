@@ -261,10 +261,18 @@ export default function PillarPortfolio({ params }: Props) {
             {Math.round(pillar.progress)}%
           </span>
         </div>
-        <ProgressBar progress={pillar.progress} planned={calcPlannedProgress(
-          initiatives.length > 0 ? initiatives.reduce((m, i) => i.startDate < m ? i.startDate : m, initiatives[0].startDate) : undefined,
-          initiatives.length > 0 ? initiatives.reduce((m, i) => i.targetDate > m ? i.targetDate : m, initiatives[0].targetDate) : undefined,
-        )} showLabel={false} />
+        <ProgressBar progress={pillar.progress} planned={(() => {
+          if (initiatives.length === 0) return 0;
+          const hasApi = initiatives.some((i: any) => i.plannedProgress >= 0);
+          if (hasApi) {
+            const avg = initiatives.reduce((s, i) => s + Math.max(0, (i as any).plannedProgress ?? 0), 0) / initiatives.length;
+            return Math.round(avg);
+          }
+          return calcPlannedProgress(
+            initiatives.reduce((m, i) => i.startDate < m ? i.startDate : m, initiatives[0].startDate),
+            initiatives.reduce((m, i) => i.targetDate > m ? i.targetDate : m, initiatives[0].targetDate),
+          );
+        })()} showLabel={false} />
       </div>
 
       {/* Summary KPIs */}
@@ -351,7 +359,7 @@ export default function PillarPortfolio({ params }: Props) {
             <div className="space-y-5">
               {filteredInitiatives.map((initiative) => {
                 const isExpanded = expandedInitiatives.has(initiative.id);
-                const initPlanned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
+                const initPlanned = (initiative as any).plannedProgress >= 0 ? Math.round((initiative as any).plannedProgress) : calcPlannedProgress(initiative.startDate, initiative.targetDate);
                 const initiativeProjects = initiative.projects;
 
                 return (
@@ -441,7 +449,7 @@ export default function PillarPortfolio({ params }: Props) {
                                   <span>Progress</span>
                                   <span>{project.approvedMilestones ?? 0} / {project.milestoneCount ?? 0} milestones</span>
                                 </div>
-                                <ProgressBar progress={project.progress} planned={calcPlannedProgress(project.startDate, project.targetDate)} showLabel={false} />
+                                <ProgressBar progress={project.progress} planned={(project as any).plannedProgress >= 0 ? Math.round((project as any).plannedProgress) : calcPlannedProgress(project.startDate, project.targetDate)} showLabel={false} />
                               </div>
 
                               <div className="flex items-center justify-between text-sm text-slate-500 border-t border-slate-100 mt-3 pt-2">
