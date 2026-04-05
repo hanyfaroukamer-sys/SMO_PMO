@@ -965,7 +965,7 @@ export default function Projects() {
                       if (initProjects.length === 0 && hasAnyFilter) return null;
 
                       const initProgress = initiative.progress ?? 0;
-                      const initPlanned = (initiative as any).plannedProgress >= 0 ? Math.round((initiative as any).plannedProgress) : calcPlannedProgress(initiative.startDate, initiative.targetDate);
+                      const initPlanned = (initiative as any).plannedProgress >= 0 ? Math.round((initiative as any).plannedProgress) : ((initiative as any).projectCount === 0 ? 0 : calcPlannedProgress(initiative.startDate, initiative.targetDate));
 
                       return (
                         <div key={initiative.id}>

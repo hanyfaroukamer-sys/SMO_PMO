@@ -159,7 +159,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
     );
 
   if (projects.length === 0) {
-    return { progress: 0, rawProgress: 0, plannedProgress: -1, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [], weightSource: "equal" as const };
+    return { progress: 0, rawProgress: 0, plannedProgress: 0, projectCount: 0, approvedMilestones: 0, totalMilestones: 0, budgetSpent: 0, childProjects: [], weightSource: "equal" as const };
   }
 
   // ── Weight cascade (highest priority first) ──────────────────
@@ -688,10 +688,12 @@ export function computeStatus(
     return { status: "delayed", reason: `Overdue by ${overdueDays}d at ${Math.round(actualProgress)}% complete.`, spi: r2(spi), burnGap };
   }
 
-  // RULE 5: Early stage (<15% elapsed) — give benefit of the doubt unless stalled
+  // RULE 5: Early stage (<15% elapsed) — still apply SPI thresholds but with tolerance
   if (elapsedPct < 15) {
-    if (spi < 0.2 && actualProgress < 3) {
-      return { status: "at_risk", reason: `Mobilising — minimal progress in early stage (${Math.round(elapsedPct)}% elapsed, ${Math.round(actualProgress)}% complete).`, spi: r2(spi), burnGap };
+    // In early stage, only flag as at_risk/delayed if SPI is significantly low
+    // and there's enough planned progress to be meaningful (> 2%)
+    if (expectedPct > 2 && spi < _configuredAtRiskSpi) {
+      return { status: spi < _configuredAtRiskSpi * 0.5 ? "delayed" : "at_risk", reason: `Early stage but behind: expected ~${Math.round(expectedPct)}%, actual ${Math.round(actualProgress)}%.`, spi: r2(spi), burnGap };
     }
     return { status: "on_track", reason: "Early stage.", spi: r2(spi), burnGap };
   }
@@ -736,8 +738,10 @@ export function computeInitiativeStatus(
   // Same logic as projects: SPI = actual weighted progress / planned weighted progress
   const result: StatusResult = { ...computeStatus(actualProgress, startDate, endDate, budgetAllocated, budgetSpent, rawProgress, plannedProgress) };
 
-  // If no child projects, return the SPI-based status as-is
-  if (childProjects.length === 0) return result;
+  // If no child projects, initiative has no meaningful progress to measure
+  if (childProjects.length === 0) {
+    return { status: "not_started", reason: "No active projects under this initiative.", spi: 1, burnGap: 0 };
+  }
 
   // Child project escalation — can only WORSEN the status, never improve it
   const delayed = childProjects.filter(p => p.computedStatus.status === "delayed");
