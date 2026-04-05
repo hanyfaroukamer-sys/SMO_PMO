@@ -8,6 +8,7 @@ import {
   useUpdateSpmoKpi,
   useDeleteSpmoKpi,
   type CreateSpmoKpiRequest,
+  useGetCurrentAuthUser,
 } from "@workspace/api-client-react";
 import { PageHeader, Card } from "@/components/ui-elements";
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
@@ -108,7 +109,10 @@ function MiniBar({ actual, target }: { actual: number; target: number }) {
 
 export default function KPIs() {
   const isAdmin = useIsAdmin();
+  const { data: authData } = useGetCurrentAuthUser();
+  const currentUserId = authData?.user?.id;
   const [kpiTypeTab, setKpiTypeTab] = useState<"strategic" | "operational">("strategic");
+  const [pillarFilter, setPillarFilter] = useState<Set<number>>(new Set());
   const { data, isLoading } = useListSpmoKpis({ type: kpiTypeTab });
   const { data: pillarsData } = useListSpmoPillars();
   const { data: initiativesData } = useListSpmoInitiatives();
@@ -265,11 +269,12 @@ export default function KPIs() {
 
   const groups: Array<{ pillarId: number | null; kpis: Kpi[] }> = [];
   for (const pillar of pillars) {
+    if (pillarFilter.size > 0 && !pillarFilter.has(pillar.id)) continue;
     const list = kpisByPillar.get(pillar.id);
     if (list && list.length > 0) groups.push({ pillarId: pillar.id, kpis: list });
   }
   const unlinked = kpisByPillar.get(null) ?? [];
-  if (unlinked.length > 0) groups.push({ pillarId: null, kpis: unlinked });
+  if (unlinked.length > 0 && pillarFilter.size === 0) groups.push({ pillarId: null, kpis: unlinked });
 
   if (isLoading) return <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
@@ -314,6 +319,28 @@ export default function KPIs() {
           <Activity className="w-4 h-4" /> Operational
         </button>
       </div>
+
+      {/* Pillar / Enabler filter */}
+      {pillars.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Pillar</span>
+          {pillars.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setPillarFilter((prev) => { const s = new Set(prev); s.has(p.id) ? s.delete(p.id) : s.add(p.id); return s; })}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ${pillarFilter.has(p.id) ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:border-primary/40"}`}
+            >
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.color ?? "#6366f1" }} />
+              {p.name}
+            </button>
+          ))}
+          {pillarFilter.size > 0 && (
+            <button onClick={() => setPillarFilter(new Set())} className="text-xs font-semibold text-destructive hover:text-destructive/80 px-2 py-1 rounded-lg border border-destructive/30 hover:bg-destructive/5 transition-colors">
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       {kpis.length === 0 ? (
         <Card className="text-center py-16 text-muted-foreground">
@@ -463,10 +490,11 @@ export default function KPIs() {
         const detailPillar = pillars.find((p) => p.id === detailKpi.pillarId);
         return (
           <KpiDetailModal
-            kpi={detailKpi}
+            kpi={{ ...detailKpi, ownerName: (detailKpi as any).ownerName, ownerId: (detailKpi as any).ownerId }}
             pillarName={detailPillar?.name}
             pillarColor={detailPillar?.color}
             isAdmin={isAdmin}
+            currentUserId={currentUserId}
             onClose={() => setDetailKpi(null)}
           />
         );

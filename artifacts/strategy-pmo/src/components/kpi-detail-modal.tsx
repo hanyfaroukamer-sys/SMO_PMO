@@ -8,7 +8,7 @@ import {
   type SpmoKpiMeasurement,
 } from "@workspace/api-client-react";
 import { inputClass } from "@/components/modal";
-import { Loader2, Trash2, TrendingUp, BarChart2, X, Upload, FileText, CheckCircle, XCircle } from "lucide-react";
+import { Loader2, Trash2, TrendingUp, BarChart2, X, Upload, FileText, CheckCircle, XCircle, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
@@ -61,6 +61,9 @@ export type KpiDetail = {
   targetRationale?: string | null;
   category?: string | null;
   measurementFrequency?: string | null;
+  ownerName?: string | null;
+  ownerId?: string | null;
+  projectId?: number | null;
   target2026?: number | null;
   target2027?: number | null;
   target2028?: number | null;
@@ -76,13 +79,16 @@ function fmt(val: number | null | undefined, unit: string) {
   return `${val.toLocaleString()} ${unit}`.trim();
 }
 
-export function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, onClose }: {
+export function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, currentUserId, onClose }: {
   kpi: KpiDetail;
   pillarName?: string;
   pillarColor?: string;
   isAdmin?: boolean;
+  currentUserId?: string;
   onClose: () => void;
 }) {
+  // Only admin or the assigned KPI owner can add measurements and upload evidence
+  const canEdit = isAdmin || (currentUserId && kpi.ownerId && currentUserId === kpi.ownerId);
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data, isLoading, queryKey } = useListSpmoKpiMeasurements(kpi.id);
@@ -291,7 +297,19 @@ export function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, onClose 
               </span>
             </div>
             <h2 className="text-xl font-display font-bold text-foreground leading-tight">{kpi.name}</h2>
-            {kpi.description && <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{kpi.description}</p>}
+            {kpi.description ? (
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{kpi.description}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-1 italic">No description provided</p>
+            )}
+            {/* Owner badge */}
+            <div className="flex items-center gap-2 mt-2">
+              <div className="flex items-center gap-1.5 bg-primary/5 border border-primary/20 rounded-lg px-2.5 py-1">
+                <User className="w-3.5 h-3.5 text-primary" />
+                <span className="text-[10px] font-bold text-primary uppercase">Owner:</span>
+                <span className="text-xs font-semibold text-foreground">{kpi.ownerName || "Not assigned"}</span>
+              </div>
+            </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-secondary text-muted-foreground transition-colors shrink-0">
             <X className="w-5 h-5" />
@@ -366,14 +384,16 @@ export function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, onClose 
             </div>
 
             {/* Target Rationale */}
-            {kpi.targetRationale && (
-              <div className="rounded-xl border border-border bg-secondary/20 p-4">
-                <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1.5 flex items-center gap-1.5">
-                  <TrendingUp className="w-3 h-3" /> Target Rationale
-                </div>
-                <p className="text-sm text-foreground leading-relaxed">{kpi.targetRationale}</p>
+            <div className="rounded-xl border border-border bg-secondary/20 p-4">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-1.5 flex items-center gap-1.5">
+                <TrendingUp className="w-3 h-3" /> Target Rationale
               </div>
-            )}
+              {kpi.targetRationale ? (
+                <p className="text-sm text-foreground leading-relaxed">{kpi.targetRationale}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">No rationale defined</p>
+              )}
+            </div>
 
             {/* Multi-year Targets Table 2026–2030 */}
             {hasMultiYear && (
@@ -443,7 +463,8 @@ export function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, onClose 
               </div>
             )}
 
-            {/* Record New Measurement */}
+            {/* Record New Measurement — only for admin or KPI owner */}
+            {canEdit ? (
             <div className="rounded-xl border border-border bg-secondary/10 p-4">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Record New Measurement</h3>
               <form onSubmit={handleAdd} className="flex items-end gap-2 flex-wrap">
@@ -464,6 +485,11 @@ export function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, onClose 
                 </button>
               </form>
             </div>
+            ) : (
+              <div className="rounded-xl border border-border bg-secondary/10 p-4 text-center">
+                <p className="text-xs text-muted-foreground">Only the KPI owner or an admin can add measurements.</p>
+              </div>
+            )}
 
             {/* Measurement History */}
             <div>
@@ -499,9 +525,11 @@ export function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, onClose 
                             <td className="px-4 py-2.5 text-muted-foreground text-xs">{m.notes ?? "—"}</td>
                             <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{m.recordedByName ?? "—"}</td>
                             <td className="px-2 py-2.5">
-                              <button onClick={() => handleDelete(m.id)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                                <Trash2 className="w-3 h-3" />
-                              </button>
+                              {canEdit && (
+                                <button onClick={() => handleDelete(m.id)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -522,11 +550,13 @@ export function KpiDetailModal({ kpi, pillarName, pillarColor, isAdmin, onClose 
                     {evidenceFiles.length}
                   </span>
                 </h3>
-                <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors cursor-pointer">
-                  <Upload className="w-3 h-3" />
-                  {uploading ? "Uploading..." : "Upload Evidence"}
-                  <input type="file" className="hidden" onChange={handleEvidenceUpload} disabled={uploading} />
-                </label>
+                {canEdit && (
+                  <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors cursor-pointer">
+                    <Upload className="w-3 h-3" />
+                    {uploading ? "Uploading..." : "Upload Evidence"}
+                    <input type="file" className="hidden" onChange={handleEvidenceUpload} disabled={uploading} />
+                  </label>
+                )}
               </div>
 
               {/* Evidence status pill */}

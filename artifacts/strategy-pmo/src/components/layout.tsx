@@ -38,14 +38,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 // ── Project Manager items (everyone sees these) ──
 const pmNavItems = [
+  { title: "Strategy Map",     href: "/strategy-map", icon: Network,         badge: false },
   { title: "Dashboard",        href: "/",             icon: LayoutDashboard, badge: false },
   { title: "My Tasks",         href: "/my-tasks",     icon: ClipboardList,   badge: true },
   { title: "My Projects",      href: "/my-projects",  icon: FolderKanban,    badge: false },
   { title: "Projects",         href: "/projects",     icon: Briefcase,       badge: false },
   { title: "KPIs",             href: "/kpis",         icon: LineChart,       badge: false },
-  { title: "Risks & Issues",    href: "/risks",        icon: ShieldAlert,     badge: false },
+  { title: "Risks & Issues",   href: "/risks",        icon: ShieldAlert,     badge: false },
   { title: "Documents",        href: "/documents",    icon: FolderOpen,      badge: false },
-  { title: "Strategy Map",        href: "/strategy-map", icon: Network,      badge: false },
 ];
 
 // ── PMO Administration items (admin only) ──
