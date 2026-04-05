@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useCallback } from "react";
+import { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import {
@@ -12,7 +12,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useListDependencies, type DepEnrichedRow } from "@/hooks/use-dependencies";
 import {
-  Loader2, ChevronDown, ChevronRight,
+  Loader2, ChevronDown, ChevronUp, ChevronRight,
   CalendarDays, X, Minus, Plus, ArrowRight,
 } from "lucide-react";
 
@@ -93,8 +93,8 @@ type GanttRow = { project: SpmoProjectWithProgress; pillar: GanttPillar | undefi
 type PillarGroup = { pillar: GanttPillar | undefined; pillarId: number; rows: GanttRow[] };
 
 interface GanttChartProps {
-  pillarFilter: number | "all";
-  departmentFilter: number | "all";
+  pillarFilter: Set<number>;
+  departmentFilter: Set<number>;
 }
 
 interface HoverCard {
@@ -171,9 +171,9 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
     const byPillar = new Map<number, GanttRow[]>();
     const projects = (projectsData?.projects ?? []) as SpmoProjectWithProgress[];
     for (const project of projects) {
-      if (departmentFilter !== "all" && project.departmentId !== departmentFilter) continue;
+      if (departmentFilter.size > 0 && (project.departmentId == null || !departmentFilter.has(project.departmentId))) continue;
       const pillarId = initiativeMap.get(project.initiativeId) ?? 0;
-      if (pillarFilter !== "all" && pillarId !== pillarFilter) continue;
+      if (pillarFilter.size > 0 && !pillarFilter.has(pillarId)) continue;
       const pillar = pillarMap.get(pillarId);
       const rows = byPillar.get(pillarId) ?? [];
       rows.push({ project, pillar, milestones: milestonesByProject.get(project.id) ?? [] });
@@ -185,6 +185,14 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
       rows,
     }));
   }, [projectsData, departmentFilter, pillarFilter, initiativeMap, pillarMap, milestonesByProject]);
+
+  // Default: all groups collapsed (grouped view)
+  const didInitCollapse = useRef(false);
+  useEffect(() => {
+    if (didInitCollapse.current || groups.length === 0) return;
+    setCollapsed(new Set(groups.map((g) => g.pillarId)));
+    didInitCollapse.current = true;
+  }, [groups]);
 
   // ── Date range ──
   const { chartStart, chartEnd } = useMemo(() => {
@@ -414,6 +422,17 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
               <Plus className="w-3.5 h-3.5" />
             </button>
           </div>
+          {/* Expand/Collapse All */}
+          <button
+            onClick={() => {
+              const allCollapsed = collapsed.size >= groups.length;
+              setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.pillarId)));
+            }}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-muted-foreground hover:bg-secondary/80 transition-colors border border-border"
+          >
+            {collapsed.size >= groups.length ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+            {collapsed.size >= groups.length ? "Expand All" : "Collapse All"}
+          </button>
         </div>
       </div>
 
