@@ -740,21 +740,31 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
           // Key Achievements & Next Steps from weekly report
           const report = data.weeklyReports.get(p.id);
           if (report) {
-            const achievements = ((report as any).keyAchievements || (report as any).statusReason || "").slice(0, 150);
-            const nextSteps = ((report as any).nextSteps || (report as any).completionReason || "").slice(0, 150);
+            const achievements = ((report as any).keyAchievements || "").slice(0, 150);
+            const nextSteps = ((report as any).nextSteps || "").slice(0, 150);
             if (achievements || nextSteps) {
-              const subBg = localIdx % 2 === 0 ? "#F8FAFC" : "#F1F5F9";
-              doc.save().rect(M, ptY, CW, 1).fill(subBg).restore();
-              let subY = ptY;
+              const achLines = achievements ? Math.ceil(achievements.length / 90) : 0;
+              const nsLines = nextSteps ? Math.ceil(nextSteps.length / 90) : 0;
+              const subRowH = (achLines * 9 + (achievements ? 4 : 0)) + (nsLines * 9 + (nextSteps ? 4 : 0)) + 4;
+              // Page overflow check
+              if (ptY + subRowH > H - 40) {
+                doc.addPage();
+                pdfAccentBar(doc);
+                ptY = drawDeptHeader(30, group.name + " (cont.)", group.projects.length, group.avg);
+                ptY = drawPortfolioHeader(ptY);
+              }
+              const subBg = localIdx % 2 === 0 ? "#F0F4FF" : "#EEF2FF";
+              doc.save().rect(M, ptY, CW, subRowH).fill(subBg).restore();
+              let subY = ptY + 2;
               if (achievements) {
-                doc.font("Helvetica-Bold").fontSize(7).fillColor(C.primary).text("Achievements: ", M + 6, subY + 1, { continued: true, width: CW - 12 });
-                doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(achievements, { width: CW - 80 });
-                subY += Math.ceil(achievements.length / 100) * 9 + 4;
+                doc.font("Helvetica-Bold").fontSize(7).fillColor(C.primary).text("Achievements: ", M + 8, subY, { continued: true });
+                doc.font("Helvetica").fontSize(7).fillColor(C.dark).text(achievements, { width: CW - 90 });
+                subY += achLines * 9 + 4;
               }
               if (nextSteps) {
-                doc.font("Helvetica-Bold").fontSize(7).fillColor(C.primary).text("Next Steps: ", M + 6, subY + 1, { continued: true, width: CW - 12 });
-                doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(nextSteps, { width: CW - 80 });
-                subY += Math.ceil(nextSteps.length / 100) * 9 + 4;
+                doc.font("Helvetica-Bold").fontSize(7).fillColor(C.primary).text("Next Steps: ", M + 8, subY, { continued: true });
+                doc.font("Helvetica").fontSize(7).fillColor(C.dark).text(nextSteps, { width: CW - 90 });
+                subY += nsLines * 9 + 4;
               }
               ptY = subY + 2;
             }
