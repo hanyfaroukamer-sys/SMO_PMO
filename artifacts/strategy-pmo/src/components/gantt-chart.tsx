@@ -134,6 +134,8 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
   const [hoveredDepId, setHoveredDepId] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const syncing = useRef(false);
 
   const pillars = useMemo(() => (pillarsData?.pillars ?? []) as GanttPillar[], [pillarsData]);
   const pillarMap = useMemo(() => new Map(pillars.map(p => [p.id, p])), [pillars]);
@@ -515,8 +517,32 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
         )}
       </AnimatePresence>
 
+      {/* ── Top horizontal scrollbar ── */}
+      <div
+        ref={topScrollRef}
+        className="overflow-x-auto overflow-y-hidden"
+        style={{ height: 12 }}
+        onScroll={() => {
+          if (syncing.current || !topScrollRef.current || !scrollRef.current) return;
+          syncing.current = true;
+          scrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+          syncing.current = false;
+        }}
+      >
+        <div style={{ width: LABEL_W + timelineWidth, height: 1 }} />
+      </div>
+
       {/* ── Scrollable chart ── */}
-      <div ref={(el) => { (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el; if (el) setTimeout(scrollToToday, 50); }} className="overflow-auto">
+      <div
+        ref={(el) => { (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el; if (el) setTimeout(scrollToToday, 50); }}
+        className="overflow-auto"
+        onScroll={() => {
+          if (syncing.current || !scrollRef.current || !topScrollRef.current) return;
+          syncing.current = true;
+          topScrollRef.current.scrollLeft = scrollRef.current.scrollLeft;
+          syncing.current = false;
+        }}
+      >
         <div style={{ minWidth: LABEL_W + timelineWidth, position: "relative" }}>
           {/* === HEADER (sticky) === */}
           <div className="sticky top-0 z-30" style={{ height: HEADER_H }}>
