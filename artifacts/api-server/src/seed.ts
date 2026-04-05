@@ -51,10 +51,17 @@ export async function seedIfEmpty(): Promise<void> {
   const seedFile = demoMode ? "seed-demo.sql" : "seed-full.sql";
   console.log(`[seed] Loading ${demoMode ? "demo" : "full"} dataset from ${seedFile}…`);
 
-  // In CJS builds (production), __dirname is always available
-  const seedPath = resolve(__dirname, seedFile);
-  if (!existsSync(seedPath)) {
-    console.log(`[seed] ${seedFile} not found at ${seedPath} — skipping.`);
+  // Resolve seed file: try multiple paths for dev (ESM/tsx) and production (CJS)
+  const cwd = process.cwd();
+  const candidatePaths = [
+    resolve(cwd, "dist", seedFile),                          // dev: cwd=artifacts/api-server
+    resolve(cwd, "src", seedFile),                           // dev fallback
+    resolve(cwd, "artifacts/api-server", "dist", seedFile), // production: cwd=workspace root
+    resolve(cwd, "artifacts/api-server", "src", seedFile),  // production fallback
+  ];
+  const seedPath = candidatePaths.find((p) => existsSync(p));
+  if (!seedPath) {
+    console.log(`[seed] ${seedFile} not found in any candidate path — skipping.`);
     return;
   }
   const seedSql = readFileSync(seedPath, "utf-8");
