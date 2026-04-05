@@ -301,7 +301,13 @@ function dateToStr(d: Date | undefined | null): string | undefined | null {
 
 type ProjectPhase = "not_started" | "planning" | "tendering" | "execution" | "closure" | "completed";
 
-function detectProjectPhase(milestones: Array<{ phaseGate: string | null; status: string; progress: number }>): ProjectPhase {
+function detectProjectPhase(
+  milestones: Array<{ phaseGate: string | null; status: string; progress: number }>,
+  projectDbStatus?: string,
+): ProjectPhase {
+  // If the project's DB status is 'completed', phase is always completed
+  if (projectDbStatus === "completed") return "completed";
+
   const planning = milestones.find((m) => m.phaseGate === "planning");
   const tendering = milestones.find((m) => m.phaseGate === "tendering");
   const closure = milestones.find((m) => m.phaseGate === "closure");
@@ -310,8 +316,10 @@ function detectProjectPhase(milestones: Array<{ phaseGate: string | null; status
   if (!planning || planning.progress === 0) return "not_started";
   if (planning.status !== "approved") return "planning";
   if (tendering && tendering.status !== "approved" && (tendering.progress > 0 || tendering.status !== "pending")) return "tendering";
-  if (closure && closure.status === "approved") return "completed";
   const allExecApproved = executionMs.length > 0 && executionMs.every((m) => m.status === "approved");
+  if (!allExecApproved && executionMs.length > 0) return "execution";
+  if (closure && closure.status !== "approved") return "closure";
+  if (closure && closure.status === "approved" && allExecApproved) return "completed";
   if (allExecApproved) return "closure";
   return "execution";
 }
@@ -977,7 +985,7 @@ router.get("/spmo/projects", async (req, res): Promise<void> => {
         stats.plannedProgress,
       );
       const pMilestones = await db.select({ phaseGate: spmoMilestonesTable.phaseGate, status: spmoMilestonesTable.status, progress: spmoMilestonesTable.progress }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
-      const currentPhase = detectProjectPhase(pMilestones);
+      const currentPhase = detectProjectPhase(pMilestones, p.status);
       const wInfo = weightMaps.get(p.initiativeId)?.get(p.id);
       return { ...p, ...stats, computedStatus, healthStatus: computedStatus.status, currentPhase, effectiveWeight: wInfo?.effectiveWeight ?? 0, weightSource: wInfo?.weightSource ?? "equal" };
     })
@@ -3503,7 +3511,7 @@ router.get("/spmo/departments/:id/portfolio", async (req, res): Promise<void> =>
       // Detect project phase from milestones
       const pMilestones = await db.select({ phaseGate: spmoMilestonesTable.phaseGate, status: spmoMilestonesTable.status, progress: spmoMilestonesTable.progress })
         .from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
-      const currentPhase = detectProjectPhase(pMilestones);
+      const currentPhase = detectProjectPhase(pMilestones, p.status);
 
       // Get initiative name + pillar name
       const [initiative] = await db

@@ -196,7 +196,11 @@ const PHASE_ORDER = ["planning", "tendering", "execution", "closure", "completed
 function ProjectPhasePieChart({ projects }: { projects: SpmoProjectWithProgress[] }) {
   const counts: Record<string, number> = {};
   for (const p of projects) {
-    const phase = (p as { currentPhase?: string }).currentPhase ?? "unknown";
+    let phase = (p as { currentPhase?: string }).currentPhase ?? "unknown";
+    // Normalise: "not_started" from backend maps to "unknown" in chart
+    if (phase === "not_started") phase = "unknown";
+    // If phase is not in our known set, map to "unknown"
+    if (!PHASE_ORDER.includes(phase)) phase = "unknown";
     counts[phase] = (counts[phase] ?? 0) + 1;
   }
   const chartData = PHASE_ORDER.filter((ph) => (counts[ph] ?? 0) > 0).map((ph) => ({ name: PHASE_LABELS[ph] ?? ph, value: counts[ph], key: ph }));
