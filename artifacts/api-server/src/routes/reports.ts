@@ -736,6 +736,29 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
           doc.font("Helvetica").fontSize(8).fillColor(C.dark).text((p.ownerName ?? "—").slice(0, 20), ptColX[8] + 3, textY, { width: ptColWidths[8] - 6 });
 
           ptY += ptRowH;
+
+          // Key Achievements & Next Steps from weekly report
+          const report = data.weeklyReports.get(p.id);
+          if (report) {
+            const achievements = ((report as any).keyAchievements || (report as any).statusReason || "").slice(0, 150);
+            const nextSteps = ((report as any).nextSteps || (report as any).completionReason || "").slice(0, 150);
+            if (achievements || nextSteps) {
+              const subBg = localIdx % 2 === 0 ? "#F8FAFC" : "#F1F5F9";
+              doc.save().rect(M, ptY, CW, 1).fill(subBg).restore();
+              let subY = ptY;
+              if (achievements) {
+                doc.font("Helvetica-Bold").fontSize(7).fillColor(C.primary).text("Achievements: ", M + 6, subY + 1, { continued: true, width: CW - 12 });
+                doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(achievements, { width: CW - 80 });
+                subY += Math.ceil(achievements.length / 100) * 9 + 4;
+              }
+              if (nextSteps) {
+                doc.font("Helvetica-Bold").fontSize(7).fillColor(C.primary).text("Next Steps: ", M + 6, subY + 1, { continued: true, width: CW - 12 });
+                doc.font("Helvetica").fontSize(7).fillColor(C.secondary).text(nextSteps, { width: CW - 80 });
+                subY += Math.ceil(nextSteps.length / 100) * 9 + 4;
+              }
+              ptY = subY + 2;
+            }
+          }
         });
 
         // Gap between departments
