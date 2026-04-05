@@ -49,6 +49,7 @@ interface AnalyticsSummary {
 
 const fmtM = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}K` : n.toFixed(0);
 const round1 = (n: number) => Math.round(n * 10) / 10;
+const fmtDelta = (n: number) => Math.abs(n) < 0.1 && n !== 0 ? n.toFixed(2) : n.toFixed(1);
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
 const RISK_COLORS: Record<string, string> = { critical: "#DC2626", high: "#F97316", medium: "#EAB308", low: "#22C55E" };
@@ -1079,7 +1080,7 @@ function ScenarioPanel() {
                           <span className="font-mono">{(affectedInitPair.before?.progress ?? 0).toFixed(1)}%</span>
                           <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
                           <span className="font-mono font-bold">{affectedInitPair.after.progress.toFixed(1)}%</span>
-                          <span className="text-xs text-destructive font-bold ml-1">({affectedInitPair.delta >= 0 ? "+" : ""}{affectedInitPair.delta})</span>
+                          <span className="text-xs text-destructive font-bold ml-1">({affectedInitPair.delta >= 0 ? "+" : ""}{fmtDelta(affectedInitPair.delta)})</span>
                         </span>
                       </div>
                     </div>
@@ -1094,7 +1095,7 @@ function ScenarioPanel() {
                           <span className="font-mono">{(affectedPillarPair.before?.progress ?? 0).toFixed(1)}%</span>
                           <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
                           <span className="font-mono font-bold">{affectedPillarPair.after.progress.toFixed(1)}%</span>
-                          <span className="text-xs text-destructive font-bold ml-1">({affectedPillarPair.delta >= 0 ? "+" : ""}{affectedPillarPair.delta})</span>
+                          <span className="text-xs text-destructive font-bold ml-1">({affectedPillarPair.delta >= 0 ? "+" : ""}{fmtDelta(affectedPillarPair.delta)})</span>
                         </span>
                       </div>
                     </div>
@@ -1108,7 +1109,7 @@ function ScenarioPanel() {
                         <span className="font-mono">{progBefore.toFixed(1)}%</span>
                         <ArrowRight className="w-3 h-3 inline mx-1 text-destructive" />
                         <span className="font-mono font-bold">{progAfter.toFixed(1)}%</span>
-                        <span className="text-xs text-destructive font-bold ml-1">({progDelta2 >= 0 ? "+" : ""}{progDelta2})</span>
+                        <span className="text-xs text-destructive font-bold ml-1">({progDelta2 >= 0 ? "+" : ""}{fmtDelta(progDelta2)})</span>
                       </span>
                     </div>
                   </div>

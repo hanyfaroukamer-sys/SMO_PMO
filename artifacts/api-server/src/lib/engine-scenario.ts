@@ -426,9 +426,10 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     const pillarWeightPct = pillarW ? pillarW.effectiveWeight / 100 : 0;
 
     // Cascade the drop: project → initiative → pillar → programme
-    const initProgressDrop = round1(projectProgressDrop * projectWeightPct);
-    const pillarDrop = round1(initProgressDrop * initWeightPct);
-    const programmeDrop = round1(pillarDrop * pillarWeightPct);
+    // Don't round intermediate values — only round at the final display level
+    const initProgressDrop = projectProgressDrop * projectWeightPct;
+    const pillarDrop = initProgressDrop * initWeightPct;
+    const programmeDrop = pillarDrop * pillarWeightPct;
 
     afterInitiativeProgress = beforeInitiativeProgress.map((bi) => ({
       initiativeId: bi.initiativeId,
