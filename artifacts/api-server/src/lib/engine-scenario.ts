@@ -451,7 +451,12 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
 
       for (const p of projects) {
         if (p.id === input.projectId) {
-          if (input.type === "cancel") { continue; }
+          if (input.type === "cancel") {
+            // Cancelled project contributes 0% at its original weight (dead weight)
+            // This shows the real loss — not redistribution to remaining projects
+            progItems.push({ value: 0, weight: p.budget ?? 0 });
+            continue;
+          }
           const pp = await projectProgress(p.id);
           if (input.type === "budget_cut" && input.adjustWeight) {
             const newBudget = Math.max((p.budget ?? 0) - (input.budgetReduction ?? 0), 0);
