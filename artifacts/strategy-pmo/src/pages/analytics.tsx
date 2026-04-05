@@ -662,6 +662,25 @@ interface ScenarioResultData {
     newTargetDate: string;
     daysDelayed: number;
   };
+  cancelImpact?: {
+    projectName: string;
+    projectBudget: number;
+    projectBudgetSpent: number;
+    projectProgress: number;
+    projectMilestoneCount: number;
+    projectRiskCount: number;
+    initiativeName: string;
+    initiativeProgressBefore: number;
+    initiativeProgressAfter: number;
+    initiativeProjectCount: number;
+    pillarName: string;
+    pillarProgressBefore: number;
+    pillarProgressAfter: number;
+    programmeProgressBefore: number;
+    programmeProgressAfter: number;
+    budgetFreed: number;
+    sunkenCost: number;
+  };
   cascadeImpact: { milestoneId: number; milestoneName: string; projectName: string; shiftDays: number; newDueDate: string; currentProgress?: number; plannedProgress?: number }[];
   financialImpact?: { originalBudget: number; newBudget: number; actualSpent: number; overSpent: boolean; originalCpi: number; newCpi: number; originalEac: number; newEac: number };
   summary: string;
@@ -805,6 +824,100 @@ function ScenarioPanel() {
             <p className="text-sm text-foreground">{result.summary}</p>
           </Card>
 
+          {/* ═══ CANCEL IMPACT ═══ */}
+          {result.cancelImpact && (() => {
+            const ci = result.cancelImpact;
+            const progDrop = ci.programmeProgressBefore - ci.programmeProgressAfter;
+            const initDrop = ci.initiativeProgressBefore - ci.initiativeProgressAfter;
+            const pillarDrop = ci.pillarProgressBefore - ci.pillarProgressAfter;
+            const fmtBudget = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}K` : String(n);
+            return (
+              <div className="space-y-4">
+                {/* Strategy impact */}
+                <Card className="p-5 border-l-4 border-l-destructive">
+                  <h4 className="text-sm font-bold mb-3">Strategy Impact</h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className="text-[10px] font-bold uppercase text-muted-foreground">Programme</div>
+                      <div className="text-lg font-bold">{ci.programmeProgressBefore}%</div>
+                      <ArrowRight className="w-3 h-3 mx-auto text-destructive my-0.5 rotate-90" />
+                      <div className="text-lg font-bold text-destructive">{ci.programmeProgressAfter}%</div>
+                      {progDrop > 0 && <div className="text-xs text-destructive font-bold">-{progDrop.toFixed(1)}pp</div>}
+                    </div>
+                    <div className="text-center border-x border-border px-3">
+                      <div className="text-[10px] font-bold uppercase text-muted-foreground">Pillar: {ci.pillarName.slice(0, 20)}</div>
+                      <div className="text-lg font-bold">{ci.pillarProgressBefore}%</div>
+                      <ArrowRight className="w-3 h-3 mx-auto text-destructive my-0.5 rotate-90" />
+                      <div className="text-lg font-bold text-destructive">{ci.pillarProgressAfter}%</div>
+                      {pillarDrop > 0 && <div className="text-xs text-destructive font-bold">-{pillarDrop.toFixed(1)}pp</div>}
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[10px] font-bold uppercase text-muted-foreground">Initiative: {ci.initiativeName.slice(0, 20)}</div>
+                      <div className="text-lg font-bold">{ci.initiativeProgressBefore}%</div>
+                      <ArrowRight className="w-3 h-3 mx-auto text-destructive my-0.5 rotate-90" />
+                      <div className="text-lg font-bold text-destructive">{ci.initiativeProgressAfter}%</div>
+                      {initDrop > 0 && <div className="text-xs text-destructive font-bold">-{initDrop.toFixed(1)}pp</div>}
+                      <div className="text-[10px] text-muted-foreground mt-1">{ci.initiativeProjectCount - 1} remaining project{ci.initiativeProjectCount - 1 !== 1 ? "s" : ""}</div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Financial impact */}
+                <Card className="p-5">
+                  <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-warning" />
+                    Financial Impact
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-secondary/50 rounded-lg px-3 py-2.5 text-center">
+                      <div className="text-[10px] font-bold uppercase text-muted-foreground">Project Budget</div>
+                      <div className="text-sm font-bold">{fmtBudget(ci.projectBudget)}</div>
+                    </div>
+                    <div className="bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2.5 text-center">
+                      <div className="text-[10px] font-bold uppercase text-destructive">Sunken Cost</div>
+                      <div className="text-sm font-bold text-destructive">{fmtBudget(ci.sunkenCost)}</div>
+                      <div className="text-[10px] text-muted-foreground">Already spent, non-recoverable</div>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-center">
+                      <div className="text-[10px] font-bold uppercase text-green-700">Budget Freed</div>
+                      <div className="text-sm font-bold text-green-700">{fmtBudget(ci.budgetFreed)}</div>
+                      <div className="text-[10px] text-muted-foreground">Available to reallocate</div>
+                    </div>
+                    <div className="bg-secondary/50 rounded-lg px-3 py-2.5 text-center">
+                      <div className="text-[10px] font-bold uppercase text-muted-foreground">Spend Ratio</div>
+                      <div className="text-sm font-bold">{ci.projectBudget > 0 ? Math.round((ci.sunkenCost / ci.projectBudget) * 100) : 0}%</div>
+                      <div className="text-[10px] text-muted-foreground">of budget already consumed</div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* What gets cancelled */}
+                <Card className="p-5 bg-muted/30">
+                  <h4 className="text-sm font-bold mb-2">What Gets Cancelled</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center text-sm">
+                    <div>
+                      <div className="text-xl font-bold">{ci.projectMilestoneCount}</div>
+                      <div className="text-xs text-muted-foreground">Milestones</div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold">{ci.projectRiskCount}</div>
+                      <div className="text-xs text-muted-foreground">Open Risks</div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold">{ci.projectProgress}%</div>
+                      <div className="text-xs text-muted-foreground">Progress Lost</div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold text-destructive">{fmtBudget(ci.sunkenCost)}</div>
+                      <div className="text-xs text-muted-foreground">Wasted Investment</div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            );
+          })()}
+
+          {/* ═══ DELAY-SPECIFIC SECTIONS ═══ */}
           {/* Progress Impact — the key insight */}
           {result.progressImpact && (
             <Card className="p-5 border-l-4 border-l-warning">
@@ -843,21 +956,23 @@ function ScenarioPanel() {
             </Card>
           )}
 
-          {/* Key metrics row */}
-          <div className="grid grid-cols-3 gap-3">
-            <Card className="p-4 text-center border-destructive/30">
-              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Target Date Shift</div>
-              <div className="text-xl font-bold text-destructive">+{delayD} days</div>
-            </Card>
-            <Card className="p-4 text-center">
-              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Milestones Pushed</div>
-              <div className="text-xl font-bold text-warning">{result.cascadeImpact.length}</div>
-            </Card>
-            <Card className="p-4 text-center">
-              <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Projects Impacted</div>
-              <div className="text-xl font-bold">{new Set(result.cascadeImpact.map((c) => c.projectName)).size + 1}</div>
-            </Card>
-          </div>
+          {/* Key metrics row — delay/budget only */}
+          {scenarioType !== "cancel" && (
+            <div className="grid grid-cols-3 gap-3">
+              <Card className="p-4 text-center border-destructive/30">
+                <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Target Date Shift</div>
+                <div className="text-xl font-bold text-destructive">+{delayD} days</div>
+              </Card>
+              <Card className="p-4 text-center">
+                <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Milestones Pushed</div>
+                <div className="text-xl font-bold text-warning">{result.cascadeImpact.length}</div>
+              </Card>
+              <Card className="p-4 text-center">
+                <div className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Projects Impacted</div>
+                <div className="text-xl font-bold">{new Set(result.cascadeImpact.map((c) => c.projectName)).size + 1}</div>
+              </Card>
+            </div>
+          )}
 
           {/* Pillar-level impact — only show pillars that changed */}
           {(() => {
