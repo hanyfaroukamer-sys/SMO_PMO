@@ -47,9 +47,8 @@ export async function seedIfEmpty(): Promise<void> {
   `);
   console.log("[seed] All SPMO tables truncated.");
 
-  const demoMode = process.env.DEMO_MODE === "1" || process.env.DEMO_MODE === "true";
-  const seedFile = demoMode ? "seed-demo.sql" : "seed-full.sql";
-  console.log(`[seed] Loading ${demoMode ? "demo" : "full"} dataset from ${seedFile}…`);
+  const seedFile = "seed-demo.sql";
+  console.log(`[seed] Loading demo dataset from ${seedFile}…`);
 
   // Resolve seed file: try multiple paths for dev (ESM/tsx) and production (CJS)
   const cwd = process.cwd();
@@ -73,9 +72,21 @@ export async function seedIfEmpty(): Promise<void> {
     .map((line) => line.trim());
 
   let loaded = 0;
+  let failed = 0;
   for (const stmt of statements) {
-    await db.execute(sql.raw(stmt));
-    loaded++;
+    try {
+      await db.execute(sql.raw(stmt));
+      loaded++;
+    } catch (e: any) {
+      failed++;
+      if (failed <= 5) {
+        console.error(`[seed] FAILED statement ${loaded + failed}: ${e.message}`);
+        console.error(`[seed] Statement: ${stmt.slice(0, 120)}...`);
+      }
+    }
+  }
+  if (failed > 0) {
+    console.warn(`[seed] ${failed} statements failed (see errors above). ${loaded} succeeded.`);
   }
 
   // Reset each sequence individually — spmo_programme_config uses a plain default (no sequence)
