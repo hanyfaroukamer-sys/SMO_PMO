@@ -332,6 +332,62 @@ function classifyProjectStatus(p: SpmoProjectWithProgress): "on_track" | "at_ris
   return "on_track";
 }
 
+// ── Multi-select filter dropdown with checkboxes ──
+function FilterDropdown({ label, selected, options, onToggle }: {
+  label: string;
+  selected: Set<number | string>;
+  options: { value: number | string; label: string }[];
+  onToggle: (value: number | string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const count = selected.size;
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${count > 0 ? "bg-primary/10 border-primary/40 text-primary" : "bg-background border-border text-muted-foreground hover:border-primary/40"}`}
+      >
+        {label}
+        {count > 0 && <span className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0 rounded-full">{count}</span>}
+        <ChevronDown className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[200px] max-h-[280px] overflow-y-auto">
+          {options.map((opt) => (
+            <label key={String(opt.value)} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-secondary/50 cursor-pointer transition-colors">
+              <input
+                type="checkbox"
+                checked={selected.has(opt.value)}
+                onChange={() => onToggle(opt.value)}
+                className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary/30 accent-primary"
+              />
+              <span className="text-xs font-medium text-foreground">{opt.label}</span>
+            </label>
+          ))}
+          {count > 0 && (
+            <button
+              onClick={() => { options.forEach((o) => { if (selected.has(o.value)) onToggle(o.value); }); }}
+              className="w-full text-left px-3 py-1.5 text-[11px] font-semibold text-destructive hover:bg-destructive/5 border-t border-border mt-1"
+            >
+              Clear {label}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Projects() {
   const { data, isLoading } = useListSpmoProjects();
   const { data: initiativesData } = useListSpmoInitiatives();
@@ -671,65 +727,58 @@ export default function Projects() {
         </div>
       </PageHeader>
 
-      {/* Filter bar — multi-select chips */}
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Pillar filter */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">Pillar</label>
-          {(pillars as Array<{id: number; name: string; color?: string}>).map((p) => (
-            <button key={p.id}
-              onClick={() => setPillarFilter((prev) => { const s = new Set(prev); s.has(p.id) ? s.delete(p.id) : s.add(p.id); return s; })}
-              className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${pillarFilter.has(p.id) ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/40"}`}
-            >{p.name.slice(0, 18)}</button>
-          ))}
-        </div>
+      {/* Filter bar — dropdown multi-select */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Pillar dropdown */}
+        <FilterDropdown
+          label="Pillar / Enabler"
+          selected={pillarFilter}
+          options={(pillars as Array<{id: number; name: string}>).map((p) => ({ value: p.id, label: p.name }))}
+          onToggle={(id) => setPillarFilter((prev) => { const s = new Set(prev); s.has(id as number) ? s.delete(id as number) : s.add(id as number); return s; })}
+        />
 
-        {/* Department filter */}
+        {/* Department dropdown */}
         {departments.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">Dept</label>
-            {(departments as Array<{id: number; name: string}>).map((d) => (
-              <button key={d.id}
-                onClick={() => setDepartmentFilter((prev) => { const s = new Set(prev); s.has(d.id) ? s.delete(d.id) : s.add(d.id); return s; })}
-                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${departmentFilter.has(d.id) ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/40"}`}
-              >{d.name.slice(0, 16)}</button>
-            ))}
-          </div>
+          <FilterDropdown
+            label="Department"
+            selected={departmentFilter}
+            options={(departments as Array<{id: number; name: string}>).map((d) => ({ value: d.id, label: d.name }))}
+            onToggle={(id) => setDepartmentFilter((prev) => { const s = new Set(prev); s.has(id as number) ? s.delete(id as number) : s.add(id as number); return s; })}
+          />
         )}
 
-        {/* Status filter */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">Status</label>
-          {([
-            { key: "on_track", label: "On Track", cls: "bg-green-100 text-green-700 border-green-300" },
-            { key: "at_risk", label: "At Risk", cls: "bg-amber-100 text-amber-700 border-amber-300" },
-            { key: "delayed", label: "Delayed", cls: "bg-red-100 text-red-700 border-red-300" },
-            { key: "completed", label: "Done", cls: "bg-blue-100 text-blue-700 border-blue-300" },
-            { key: "not_started", label: "Not Started", cls: "bg-gray-100 text-gray-600 border-gray-300" },
-            { key: "on_hold", label: "On Hold", cls: "bg-orange-100 text-orange-600 border-orange-300" },
-          ] as const).map((s) => (
-            <button key={s.key}
-              onClick={() => setStatusFilter((prev) => { const set = new Set(prev); set.has(s.key) ? set.delete(s.key) : set.add(s.key); return set; })}
-              className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-all ${statusFilter.has(s.key) ? s.cls + " ring-1 ring-offset-1 ring-current" : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/40"}`}
-            >{s.label}</button>
-          ))}
-        </div>
+        {/* Status dropdown */}
+        <FilterDropdown
+          label="Status"
+          selected={statusFilter}
+          options={[
+            { value: "on_track", label: "On Track" },
+            { value: "at_risk", label: "At Risk" },
+            { value: "delayed", label: "Delayed" },
+            { value: "completed", label: "Completed" },
+            { value: "not_started", label: "Not Started" },
+            { value: "on_hold", label: "On Hold" },
+          ]}
+          onToggle={(key) => setStatusFilter((prev) => { const s = new Set(prev); s.has(key as string) ? s.delete(key as string) : s.add(key as string); return s; })}
+        />
 
-        {/* Phase filter */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">Phase</label>
-          {(["planning", "tendering", "execution", "closure"] as const).map((ph) => (
-            <button key={ph}
-              onClick={() => setPhaseFilter((prev) => { const s = new Set(prev); s.has(ph) ? s.delete(ph) : s.add(ph); return s; })}
-              className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors capitalize ${phaseFilter.has(ph) ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/40"}`}
-            >{ph}</button>
-          ))}
-        </div>
+        {/* Phase dropdown */}
+        <FilterDropdown
+          label="Phase"
+          selected={phaseFilter}
+          options={[
+            { value: "planning", label: "Planning" },
+            { value: "tendering", label: "Tendering" },
+            { value: "execution", label: "Execution" },
+            { value: "closure", label: "Closure" },
+          ]}
+          onToggle={(key) => setPhaseFilter((prev) => { const s = new Set(prev); s.has(key as string) ? s.delete(key as string) : s.add(key as string); return s; })}
+        />
 
         {/* Clear all filters */}
         {hasAnyFilter && (
-          <button onClick={clearAllFilters} className="flex items-center gap-1 text-xs font-semibold text-destructive hover:text-destructive/80 px-2 py-1 rounded-lg border border-destructive/30 hover:bg-destructive/5 transition-colors">
-            <X className="w-3 h-3" /> Clear Filters
+          <button onClick={clearAllFilters} className="flex items-center gap-1 text-xs font-semibold text-destructive hover:text-destructive/80 px-2 py-1.5 rounded-lg border border-destructive/30 hover:bg-destructive/5 transition-colors">
+            <X className="w-3 h-3" /> Clear
           </button>
         )}
         {viewMode === "gantt" && (
@@ -1277,7 +1326,7 @@ function ProjectRow({
           )}
           <div className="hidden md:block text-right">
             <div className="text-xs text-muted-foreground">Budget</div>
-            <div className="font-bold text-sm font-mono">{formatCurrency(project.budget ?? 0, currency)}</div>
+            <div className="font-bold text-sm font-mono">{formatCurrency(project.budget ?? 0)}</div>
           </div>
           <div className="text-right">
             <div className="text-xs text-muted-foreground">Milestones</div>

@@ -239,6 +239,7 @@ export default function Procurement() {
                     onEdit={() => openEdit(rec)}
                     onDelete={() => handleDelete(rec.id)}
                     onStageChange={(s) => handleStageChange(rec.id, s)}
+                    currency={currency}
                   />
                 ))}
               </div>
@@ -351,7 +352,7 @@ export default function Procurement() {
 }
 
 function KanbanCard({
-  rec, stageColor, projectName, initiativeName, stages, onEdit, onDelete, onStageChange,
+  rec, stageColor, projectName, initiativeName, stages, onEdit, onDelete, onStageChange, currency = "SAR",
 }: {
   rec: SpmoProcurementRecord;
   stageColor: string;
@@ -360,6 +361,7 @@ function KanbanCard({
   stages: typeof STAGES;
   onEdit: () => void;
   onDelete: () => void;
+  currency?: string;
   onStageChange: (stage: ProcurementStage) => void;
 }) {
   return (
