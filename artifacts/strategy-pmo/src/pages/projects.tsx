@@ -344,10 +344,12 @@ export default function Projects() {
   const [savingSiblingId, setSavingSiblingId] = useState<number | null>(null);
   const [expandedProject, setExpandedProject] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "flat" | "gantt">("list");
-  const [pillarFilter, setPillarFilter] = useState<number | "all">("all");
-  const [departmentFilter, setDepartmentFilter] = useState<number | "all">("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold">("all");
-  const [phaseFilter, setPhaseFilter] = useState<string>("");
+  const [pillarFilter, setPillarFilter] = useState<Set<number>>(new Set());
+  const [departmentFilter, setDepartmentFilter] = useState<Set<number>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+  const [phaseFilter, setPhaseFilter] = useState<Set<string>>(new Set());
+  const hasAnyFilter = pillarFilter.size > 0 || departmentFilter.size > 0 || statusFilter.size > 0 || phaseFilter.size > 0;
+  const clearAllFilters = () => { setPillarFilter(new Set()); setDepartmentFilter(new Set()); setStatusFilter(new Set()); setPhaseFilter(new Set()); };
   const [expandedPillars, setExpandedPillars] = useState<Set<number>>(new Set());
   const [expandedInitiatives, setExpandedInitiatives] = useState<Set<number>>(new Set());
   const { toast } = useToast();
@@ -665,68 +667,67 @@ export default function Projects() {
         </div>
       </PageHeader>
 
-      {/* Filter bar — shown in both list and Gantt views */}
+      {/* Filter bar — multi-select chips */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pillar / Enabler</label>
-          <select
-            className={`${selectClass} py-1.5 text-xs w-44`}
-            value={pillarFilter === "all" ? "all" : String(pillarFilter)}
-            onChange={(e) => setPillarFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-          >
-            <option value="all">All Pillars & Enablers</option>
-            {(pillars as Array<{id: number; name: string}>).map((p) => (
-              <option key={p.id} value={String(p.id)}>{p.name}</option>
-            ))}
-          </select>
+        {/* Pillar filter */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">Pillar</label>
+          {(pillars as Array<{id: number; name: string; color?: string}>).map((p) => (
+            <button key={p.id}
+              onClick={() => setPillarFilter((prev) => { const s = new Set(prev); s.has(p.id) ? s.delete(p.id) : s.add(p.id); return s; })}
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${pillarFilter.has(p.id) ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/40"}`}
+            >{p.name.slice(0, 18)}</button>
+          ))}
         </div>
+
+        {/* Department filter */}
         {departments.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</label>
-            <select
-              className={`${selectClass} py-1.5 text-xs w-44`}
-              value={departmentFilter === "all" ? "all" : String(departmentFilter)}
-              onChange={(e) => setDepartmentFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-            >
-              <option value="all">All Departments</option>
-              {(departments as Array<{id: number; name: string}>).map((d) => (
-                <option key={d.id} value={String(d.id)}>{d.name}</option>
-              ))}
-            </select>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">Dept</label>
+            {(departments as Array<{id: number; name: string}>).map((d) => (
+              <button key={d.id}
+                onClick={() => setDepartmentFilter((prev) => { const s = new Set(prev); s.has(d.id) ? s.delete(d.id) : s.add(d.id); return s; })}
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${departmentFilter.has(d.id) ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/40"}`}
+              >{d.name.slice(0, 16)}</button>
+            ))}
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</label>
-          <select
-            className={`${selectClass} py-1.5 text-xs w-44`}
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-          >
-            <option value="all">All Statuses</option>
-            <option value="on_track">On Track</option>
-            <option value="at_risk">Risk of Delay</option>
-            <option value="delayed">Delayed</option>
-            <option value="completed">Completed</option>
-            <option value="not_started">Not Started</option>
-            <option value="on_hold">On Hold</option>
-          </select>
+
+        {/* Status filter */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">Status</label>
+          {([
+            { key: "on_track", label: "On Track", cls: "bg-green-100 text-green-700 border-green-300" },
+            { key: "at_risk", label: "At Risk", cls: "bg-amber-100 text-amber-700 border-amber-300" },
+            { key: "delayed", label: "Delayed", cls: "bg-red-100 text-red-700 border-red-300" },
+            { key: "completed", label: "Done", cls: "bg-blue-100 text-blue-700 border-blue-300" },
+            { key: "not_started", label: "Not Started", cls: "bg-gray-100 text-gray-600 border-gray-300" },
+            { key: "on_hold", label: "On Hold", cls: "bg-orange-100 text-orange-600 border-orange-300" },
+          ] as const).map((s) => (
+            <button key={s.key}
+              onClick={() => setStatusFilter((prev) => { const set = new Set(prev); set.has(s.key) ? set.delete(s.key) : set.add(s.key); return set; })}
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-all ${statusFilter.has(s.key) ? s.cls + " ring-1 ring-offset-1 ring-current" : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/40"}`}
+            >{s.label}</button>
+          ))}
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Phase</label>
-          <select
-            className={`${selectClass} py-1.5 text-xs w-44`}
-            value={phaseFilter}
-            onChange={(e) => setPhaseFilter(e.target.value)}
-          >
-            <option value="">All Phases</option>
-            <option value="planning">Planning</option>
-            <option value="tendering">Tendering</option>
-            <option value="execution">Execution</option>
-            <option value="closure">Closure</option>
-            <option value="completed">Completed</option>
-            <option value="not_started">Not Started</option>
-          </select>
+
+        {/* Phase filter */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0">Phase</label>
+          {(["planning", "tendering", "execution", "closure"] as const).map((ph) => (
+            <button key={ph}
+              onClick={() => setPhaseFilter((prev) => { const s = new Set(prev); s.has(ph) ? s.delete(ph) : s.add(ph); return s; })}
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors capitalize ${phaseFilter.has(ph) ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/50 text-muted-foreground border-border hover:border-primary/40"}`}
+            >{ph}</button>
+          ))}
         </div>
+
+        {/* Clear all filters */}
+        {hasAnyFilter && (
+          <button onClick={clearAllFilters} className="flex items-center gap-1 text-xs font-semibold text-destructive hover:text-destructive/80 px-2 py-1 rounded-lg border border-destructive/30 hover:bg-destructive/5 transition-colors">
+            <X className="w-3 h-3" /> Clear Filters
+          </button>
+        )}
         {viewMode === "gantt" && (
           <span className="ml-auto text-xs text-muted-foreground">
             Showing projects with milestone markers · hover bars/diamonds for details
@@ -744,10 +745,10 @@ export default function Projects() {
         <div className="space-y-2">
           {projects
             .filter((p) =>
-              (pillarFilter === "all" || initiatives.find((i) => i.id === p.initiativeId && pillars.find((pl) => pl.id === i.pillarId)?.id === pillarFilter)) &&
-              (departmentFilter === "all" || p.departmentId === departmentFilter) &&
-              (statusFilter === "all" || classifyProjectStatus(p) === statusFilter) &&
-              (!phaseFilter || (p as any).currentPhase === phaseFilter)
+              (pillarFilter.size === 0 || (() => { const init = initiatives.find((i) => i.id === p.initiativeId); const pl = init ? pillars.find((pl2) => pl2.id === init.pillarId) : null; return pl ? pillarFilter.has(pl.id) : false; })()) &&
+              (departmentFilter.size === 0 || (p.departmentId != null && departmentFilter.has(p.departmentId))) &&
+              (statusFilter.size === 0 || statusFilter.has(classifyProjectStatus(p))) &&
+              (phaseFilter.size === 0 || phaseFilter.has((p as any).currentPhase ?? ""))
             )
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((proj) => {
@@ -851,7 +852,7 @@ export default function Projects() {
       {/* List view — Pillar/Enabler → Initiative → Project hierarchy */}
       {viewMode === "list" && <div className="space-y-5">
         {pillars
-          .filter((pillar) => pillarFilter === "all" || pillar.id === pillarFilter)
+          .filter((pillar) => pillarFilter.size === 0 || pillarFilter.has(pillar.id))
           .map((pillar) => {
             const isPillarExpanded = expandedPillars.has(pillar.id);
             const pillarColor = pillar.color ?? "#6366f1";
@@ -862,13 +863,13 @@ export default function Projects() {
               const init = initiatives.find((i) => i.id === p.initiativeId);
               return (
                 init?.pillarId === pillar.id &&
-                (departmentFilter === "all" || p.departmentId === departmentFilter) &&
-                (statusFilter === "all" || classifyProjectStatus(p) === statusFilter) &&
-                (!phaseFilter || (p as any).currentPhase === phaseFilter)
+                (departmentFilter.size === 0 || (p.departmentId != null && departmentFilter.has(p.departmentId))) &&
+                (statusFilter.size === 0 || statusFilter.has(classifyProjectStatus(p))) &&
+                (phaseFilter.size === 0 || phaseFilter.has((p as any).currentPhase ?? ""))
               );
             }).length;
 
-            if (pillarProjectCount === 0 && (departmentFilter !== "all" || statusFilter !== "all" || phaseFilter)) return null;
+            if (pillarProjectCount === 0 && hasAnyFilter) return null;
 
             return (
               <div key={pillar.id} className="rounded-2xl border border-border overflow-hidden shadow-sm">
@@ -900,11 +901,11 @@ export default function Projects() {
                       const isInitExpanded = expandedInitiatives.has(initiative.id);
                       const initProjects = projects.filter((p) =>
                         p.initiativeId === initiative.id &&
-                        (departmentFilter === "all" || p.departmentId === departmentFilter) &&
-                        (statusFilter === "all" || classifyProjectStatus(p) === statusFilter) &&
-                        (!phaseFilter || (p as any).currentPhase === phaseFilter)
+                        (departmentFilter.size === 0 || (p.departmentId != null && departmentFilter.has(p.departmentId))) &&
+                        (statusFilter.size === 0 || statusFilter.has(classifyProjectStatus(p))) &&
+                        (phaseFilter.size === 0 || phaseFilter.has((p as any).currentPhase ?? ""))
                       );
-                      if (initProjects.length === 0 && (departmentFilter !== "all" || statusFilter !== "all" || phaseFilter)) return null;
+                      if (initProjects.length === 0 && hasAnyFilter) return null;
 
                       const initProgress = initiative.progress ?? 0;
                       const initPlanned = calcPlannedProgress(initiative.startDate, initiative.targetDate);
@@ -1001,9 +1002,9 @@ export default function Projects() {
         {(() => {
           const orphans = projects.filter((p) =>
             !initiatives.some((i) => i.id === p.initiativeId) &&
-            (departmentFilter === "all" || p.departmentId === departmentFilter) &&
-            (statusFilter === "all" || classifyProjectStatus(p) === statusFilter) &&
-            (!phaseFilter || (p as any).currentPhase === phaseFilter)
+            (departmentFilter.size === 0 || (p.departmentId != null && departmentFilter.has(p.departmentId))) &&
+            (statusFilter.size === 0 || statusFilter.has(classifyProjectStatus(p))) &&
+            (phaseFilter.size === 0 || phaseFilter.has((p as any).currentPhase ?? ""))
           );
           return orphans.map((proj) => (
             <Card key={proj.id} noPadding className="overflow-hidden">
