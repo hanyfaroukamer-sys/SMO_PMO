@@ -448,39 +448,106 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     const simProg2 = totMsW > 0 ? (simWSum / totMsW) * 100 : 0;
     const projectProgressDrop = Math.max(0, plannedProg - simProg2);
 
-    // Use the real weight cascade (admin override → budget → effort → equal)
-    // Project weight in initiative
+    // Compute planned and simulated progress at deadline for EVERY level
+    // Project: already computed above (plannedProg, simProg2)
+    //
+    // Initiative: weighted sum of all project planned/simulated at deadline
+    // For the delayed project: use our milestone-level planned/simulated
+    // For other projects: planned = 100% if targetDate <= origTargetDate, else time-based
+    //                     simulated = same as planned (they're not delayed)
     const projWeights = await computeProjectWeights(initiative.id);
-    const projW = projWeights.find((w) => w.projectId === input.projectId);
-    const projectWeightPct = projW ? projW.effectiveWeight / 100 : 0;
+    const initProjects = await db.select().from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, initiative.id));
 
-    // Initiative weight in pillar
+    let initPlannedSum = 0, initSimulatedSum = 0, initTotalWeight = 0;
+    for (const p of initProjects) {
+      const pw = projWeights.find((w) => w.projectId === p.id);
+      const weight = pw ? pw.effectiveWeight : 0;
+      initTotalWeight += weight;
+
+      if (p.id === input.projectId) {
+        // The delayed project: use our milestone analysis
+        initPlannedSum += (plannedProg / 100) * weight;
+        initSimulatedSum += (simProg2 / 100) * weight;
+      } else {
+        // Other projects: at the deadline, what should they be?
+        const pTargetTime = p.targetDate ? new Date(p.targetDate).getTime() : origTargetTime;
+        const pPlanned = pTargetTime <= origTargetTime ? 100 : calcPlannedProgress(p.startDate, p.targetDate, new Date(project.targetDate));
+        const pp = await projectProgress(p.id);
+        // Their simulated = max of current progress and planned (they're on track)
+        const pSimulated = Math.max(pp.progress, pPlanned);
+        initPlannedSum += (pPlanned / 100) * weight;
+        initSimulatedSum += (pSimulated / 100) * weight;
+      }
+    }
+    const initPlanned = initTotalWeight > 0 ? (initPlannedSum / initTotalWeight) * 100 : 100;
+    const initSimulated = initTotalWeight > 0 ? (initSimulatedSum / initTotalWeight) * 100 : 0;
+
+    // Pillar: weighted sum of initiative planned/simulated
     const initWeights = pillar ? await computeInitiativeWeights(pillar.id) : [];
-    const initW = initWeights.find((w) => w.initiativeId === initiative.id);
-    const initWeightPct = initW ? initW.effectiveWeight / 100 : 0;
+    const pillarInitiatives = await db.select().from(spmoInitiativesTable).where(pillar ? eq(spmoInitiativesTable.pillarId, pillar.id) : eq(spmoInitiativesTable.id, -1));
 
-    // Pillar weight in programme
+    let pillarPlannedSum = 0, pillarSimulatedSum = 0, pillarTotalWeight = 0;
+    for (const init of pillarInitiatives) {
+      const iw = initWeights.find((w) => w.initiativeId === init.id);
+      const weight = iw ? iw.effectiveWeight : 0;
+      pillarTotalWeight += weight;
+
+      if (init.id === initiative.id) {
+        pillarPlannedSum += (initPlanned / 100) * weight;
+        pillarSimulatedSum += (initSimulated / 100) * weight;
+      } else {
+        // Other initiatives: assume on track (planned = simulated)
+        const initBefore = beforeInitiativeProgress.find((bi) => bi.initiativeId === init.id);
+        const prog = initBefore?.progress ?? 0;
+        pillarPlannedSum += (prog / 100) * weight;
+        pillarSimulatedSum += (prog / 100) * weight;
+      }
+    }
+    const pillarPlanned = pillarTotalWeight > 0 ? (pillarPlannedSum / pillarTotalWeight) * 100 : 0;
+    const pillarSimulated = pillarTotalWeight > 0 ? (pillarSimulatedSum / pillarTotalWeight) * 100 : 0;
+
+    // Programme: weighted sum of pillar planned/simulated
     const pillarWeights = await computePillarWeights();
-    const pillarW = pillarWeights.find((w) => w.pillarId === pillar?.id);
-    const pillarWeightPct = pillarW ? pillarW.effectiveWeight / 100 : 0;
+    let progPlannedSum = 0, progSimulatedSum = 0, progTotalWeight = 0;
+    for (const bp of beforePillarProgress) {
+      const pw = pillarWeights.find((w) => w.pillarId === bp.pillarId);
+      const weight = pw ? pw.effectiveWeight : 0;
+      progTotalWeight += weight;
 
-    // Cascade the drop: project → initiative → pillar → programme
-    // Don't round intermediate values — only round at the final display level
-    const initProgressDrop = projectProgressDrop * projectWeightPct;
-    const pillarDrop = initProgressDrop * initWeightPct;
-    const programmeDrop = pillarDrop * pillarWeightPct;
+      if (bp.pillarId === pillar?.id) {
+        progPlannedSum += (pillarPlanned / 100) * weight;
+        progSimulatedSum += (pillarSimulated / 100) * weight;
+      } else {
+        progPlannedSum += (bp.progress / 100) * weight;
+        progSimulatedSum += (bp.progress / 100) * weight;
+      }
+    }
+    const progPlanned = progTotalWeight > 0 ? (progPlannedSum / progTotalWeight) * 100 : 0;
+    const progSimulated = progTotalWeight > 0 ? (progSimulatedSum / progTotalWeight) * 100 : 0;
 
+    // Set after values as the SIMULATED at deadline
     afterInitiativeProgress = beforeInitiativeProgress.map((bi) => ({
       initiativeId: bi.initiativeId,
       initiativeName: bi.initiativeName,
-      progress: bi.initiativeId === initiative.id ? round1(Math.max(0, bi.progress - initProgressDrop)) : bi.progress,
+      progress: bi.initiativeId === initiative.id ? round1(initSimulated) : bi.progress,
     }));
 
     afterPillarProgress = beforePillarProgress.map((bp) =>
-      bp.pillarId === pillar?.id ? { ...bp, progress: round1(Math.max(0, bp.progress - pillarDrop)) } : bp
+      bp.pillarId === pillar?.id ? { ...bp, progress: round1(pillarSimulated) } : bp
     );
 
-    afterProgrammeProgress = round1(Math.max(0, programmeProgress - programmeDrop));
+    afterProgrammeProgress = round1(progSimulated);
+
+    // Override "before" to show PLANNED at deadline (not current)
+    // so the UI shows: planned → simulated at each level
+    before.programmeProgress = round1(progPlanned);
+    before.affectedPillarProgress = beforePillarProgress.map((bp) =>
+      bp.pillarId === pillar?.id ? { ...bp, progress: round1(pillarPlanned) } : bp
+    );
+    before.affectedInitiativeProgress = beforeInitiativeProgress.map((bi) => ({
+      ...bi,
+      progress: bi.initiativeId === initiative.id ? round1(initPlanned) : bi.progress,
+    }));
   } else {
     // Cancel / budget_cut: full recalculation
     const afterInitProgress: { initiativeId: number; initiativeName: string; progress: number }[] = [];
