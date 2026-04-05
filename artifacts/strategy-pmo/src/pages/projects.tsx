@@ -301,6 +301,7 @@ type ProjectForm = {
   name: string;
   projectCode: string;
   description: string;
+  objectives: string;
   initiativeId: string;
   departmentId: string;
   ownerId: string;
@@ -315,7 +316,7 @@ type ProjectForm = {
 };
 
 const emptyProject = (): ProjectForm => ({
-  name: "", projectCode: "", description: "", initiativeId: "", departmentId: "", ownerId: "", ownerName: "",
+  name: "", projectCode: "", description: "", objectives: "", initiativeId: "", departmentId: "", ownerId: "", ownerName: "",
   weight: "50", status: "active", budget: "", startDate: "", targetDate: "", plannedStartDate: "", plannedEndDate: "",
 });
 
@@ -425,6 +426,7 @@ export default function Projects() {
       name: project.name,
       projectCode: project.projectCode ?? "",
       description: project.description ?? "",
+      objectives: (project as any).objectives ?? "",
       initiativeId: String(project.initiativeId),
       departmentId: project.departmentId != null ? String(project.departmentId) : "",
       ownerId: project.ownerId ?? "",
@@ -490,6 +492,7 @@ export default function Projects() {
       name: form.name,
       projectCode: form.projectCode || null,
       description: form.description || undefined,
+      objectives: form.objectives || null,
       initiativeId: parseInt(form.initiativeId),
       departmentId: form.departmentId ? parseInt(form.departmentId) : null,
       ownerId: form.ownerId || "user",
@@ -960,6 +963,10 @@ export default function Projects() {
 
           <FormField label="Description">
             <textarea className={inputClass} rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description..." />
+          </FormField>
+
+          <FormField label="Objectives">
+            <textarea className={inputClass} rows={3} value={form.objectives} onChange={(e) => setForm({ ...form, objectives: e.target.value })} placeholder="Key project objectives and deliverables..." />
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">

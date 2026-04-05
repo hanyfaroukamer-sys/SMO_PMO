@@ -133,6 +133,7 @@ export const spmoProjectsTable = pgTable("spmo_projects", {
     .references(() => spmoDepartmentsTable.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   description: text("description"),
+  objectives: text("objectives"),
   ownerId: text("owner_id").notNull(),
   ownerName: text("owner_name"),
   startDate: date("start_date").notNull(),
