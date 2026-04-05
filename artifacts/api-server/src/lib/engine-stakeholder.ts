@@ -364,10 +364,15 @@ export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
 
     const ownerName = owner.length > 0
       ? (owner[0].firstName ? `${owner[0].firstName} ${owner[0].lastName ?? ""}`.trim() : owner[0].email)
-      : projects[0]?.ownerName ?? null;
+      : projects[0]?.ownerName ?? "Unknown PM";
     const ownerEmail = owner.length > 0 ? (owner[0].email ?? null) : null;
 
-    const projectNames = projects.map((p) => p.name).join(", ");
+    // Limit project names to first 5, then "and X more"
+    const maxShow = 5;
+    const shown = projects.slice(0, maxShow).map((p) => p.name);
+    const remaining = projects.length - maxShow;
+    const projectNames = remaining > 0 ? `${shown.join(", ")} and ${remaining} more` : shown.join(", ");
+
     const severity: "critical" | "high" | "medium" =
       daysSinceUpdate > 45 ? "critical" : daysSinceUpdate > 30 ? "high" : "medium";
 
@@ -377,7 +382,7 @@ export async function computeStakeholderAlerts(): Promise<StakeholderAlert[]> {
       personName: ownerName,
       personEmail: ownerEmail,
       personRole: "project-manager",
-      details: `PM "${ownerName}" has not updated any milestone progress in ${daysSinceUpdate} days. Manages: ${projectNames}.`,
+      details: `PM "${ownerName}" has not updated any milestone progress in ${daysSinceUpdate} days. Manages ${projects.length} project${projects.length > 1 ? "s" : ""}: ${projectNames}.`,
       entityType: "project",
       entityId: projects[0].id,
       entityName: projects[0].name,

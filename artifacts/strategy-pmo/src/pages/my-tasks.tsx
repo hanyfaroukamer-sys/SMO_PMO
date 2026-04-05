@@ -60,7 +60,40 @@ const TYPE_LABELS: Record<string, string> = {
   owner_milestone_due_soon: "Project Milestone Due Soon",
   project_delayed: "Project Delayed",
   project_at_risk: "Project At Risk",
+  kpi_evidence_review: "KPI Evidence Review",
+  milestone_at_risk: "Milestone At Risk",
 };
+
+// Map task types to categories for filtering
+type TaskCategory = "milestone" | "action" | "weekly_report" | "kpi" | "risk" | "project_health";
+
+const TYPE_TO_CATEGORY: Record<string, TaskCategory> = {
+  approval: "milestone",
+  overdue: "milestone",
+  due_soon: "milestone",
+  progress_update: "milestone",
+  blocked: "milestone",
+  owner_milestone_overdue: "milestone",
+  owner_milestone_due_soon: "milestone",
+  milestone_at_risk: "milestone",
+  action_assigned: "action",
+  weekly_report: "weekly_report",
+  kpi_evidence_review: "kpi",
+  risk_alert: "risk",
+  project_delayed: "project_health",
+  project_at_risk: "project_health",
+};
+
+const CATEGORY_CONFIG: Record<TaskCategory, { label: string; icon: string }> = {
+  milestone: { label: "Milestones", icon: "📋" },
+  action: { label: "Actions", icon: "⚡" },
+  weekly_report: { label: "Weekly Reports", icon: "📝" },
+  kpi: { label: "KPIs", icon: "📊" },
+  risk: { label: "Risks", icon: "⚠️" },
+  project_health: { label: "Project Health", icon: "🏥" },
+};
+
+const CATEGORY_ORDER: TaskCategory[] = ["milestone", "action", "weekly_report", "risk", "kpi", "project_health"];
 
 const ACTION_LABELS: Record<string, string> = {
   approval: "Review & Approve",
@@ -94,9 +127,12 @@ function TaskCard({ task }: { task: SpmoMyTask }) {
         {cfg.icon}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-1">
+        <div className="flex items-center gap-1.5 flex-wrap mb-1">
           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${cfg.border} ${cfg.bg} ${cfg.text}`}>
             {cfg.label}
+          </span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded border border-primary/20 bg-primary/5 text-primary font-semibold">
+            {CATEGORY_CONFIG[TYPE_TO_CATEGORY[task.type] ?? "milestone"]?.icon} {CATEGORY_CONFIG[TYPE_TO_CATEGORY[task.type] ?? "milestone"]?.label}
           </span>
           <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded border border-border bg-background">
             {TYPE_LABELS[task.type] ?? task.type}
@@ -156,8 +192,21 @@ function CollapsibleSection({ priority, tasks }: { priority: SpmoMyTaskPriority;
 
 export default function MyTasks() {
   const { data, isLoading, error, refetch, isFetching } = useGetSpmoMyTasks();
+  const [categoryFilter, setCategoryFilter] = useState<Set<TaskCategory>>(new Set());
 
-  const tasks = data?.tasks ?? [];
+  const allTasks = data?.tasks ?? [];
+
+  // Count tasks per category (before filtering)
+  const categoryCounts = CATEGORY_ORDER.reduce<Record<TaskCategory, number>>((acc, c) => {
+    acc[c] = allTasks.filter((t) => (TYPE_TO_CATEGORY[t.type] ?? "milestone") === c).length;
+    return acc;
+  }, { milestone: 0, action: 0, weekly_report: 0, kpi: 0, risk: 0, project_health: 0 });
+
+  // Apply category filter
+  const tasks = categoryFilter.size === 0
+    ? allTasks
+    : allTasks.filter((t) => categoryFilter.has(TYPE_TO_CATEGORY[t.type] ?? "milestone"));
+
   const tasksByPriority = PRIORITY_ORDER.reduce<Record<SpmoMyTaskPriority, SpmoMyTask[]>>((acc, p) => {
     acc[p] = tasks.filter((t) => t.priority === p);
     return acc;
@@ -201,22 +250,64 @@ export default function MyTasks() {
 
       {!isLoading && tasks.length > 0 && (
         <>
-          {/* Summary banner */}
-          <div className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card shadow-sm">
-            <FileText className="w-5 h-5 text-primary shrink-0" />
-            <div className="flex-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="text-sm font-semibold">{data?.taskCount ?? 0} task{(data?.taskCount ?? 0) !== 1 ? "s" : ""}</span>
-              {PRIORITY_ORDER.map((p) => {
-                const count = tasksByPriority[p].length;
+          {/* Summary + Category filter */}
+          <div className="space-y-3">
+            {/* Summary banner */}
+            <div className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card shadow-sm">
+              <FileText className="w-5 h-5 text-primary shrink-0" />
+              <div className="flex-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="text-sm font-semibold">{allTasks.length} task{allTasks.length !== 1 ? "s" : ""}</span>
+                {PRIORITY_ORDER.map((p) => {
+                  const count = allTasks.filter((t) => t.priority === p).length;
+                  if (count === 0) return null;
+                  const cfg = PRIORITY_CONFIG[p];
+                  return (
+                    <span key={p} className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cfg.border} ${cfg.bg} ${cfg.text}`}>
+                      {count} {cfg.label.toLowerCase()}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Category filter bar */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Filter by</span>
+              {CATEGORY_ORDER.map((cat) => {
+                const count = categoryCounts[cat];
                 if (count === 0) return null;
-                const cfg = PRIORITY_CONFIG[p];
+                const isActive = categoryFilter.has(cat);
                 return (
-                  <span key={p} className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cfg.border} ${cfg.bg} ${cfg.text}`}>
-                    {count} {cfg.label.toLowerCase()}
-                  </span>
+                  <button
+                    key={cat}
+                    onClick={() => setCategoryFilter((prev) => { const s = new Set(prev); s.has(cat) ? s.delete(cat) : s.add(cat); return s; })}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ${isActive ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-muted-foreground hover:border-primary/40"}`}
+                  >
+                    <span>{CATEGORY_CONFIG[cat].icon}</span>
+                    {CATEGORY_CONFIG[cat].label}
+                    <span className={`text-[10px] px-1.5 py-0 rounded-full ${isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>{count}</span>
+                  </button>
                 );
               })}
+              {categoryFilter.size > 0 && (
+                <button
+                  onClick={() => setCategoryFilter(new Set())}
+                  className="text-xs font-semibold text-destructive hover:text-destructive/80 px-2 py-1 rounded-lg border border-destructive/30 hover:bg-destructive/5 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
             </div>
+
+            {/* Filtered count */}
+            {categoryFilter.size > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Showing {tasks.length} of {allTasks.length} tasks
+                {categoryFilter.size > 0 && (
+                  <> — filtered by {[...categoryFilter].map((c) => CATEGORY_CONFIG[c].label).join(", ")}</>
+                )}
+              </p>
+            )}
           </div>
 
           {/* Collapsible priority groups */}

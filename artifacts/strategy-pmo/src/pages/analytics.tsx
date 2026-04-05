@@ -422,9 +422,9 @@ function StakeholdersPanel() {
               {alerts.map((a, i) => (
                 <div key={i} className="flex items-start gap-3 py-2 border-b border-border/30 last:border-0">
                   <StatusDot color={SEV_COLORS[a.severity] ?? "#94A3B8"} />
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold">{a.personName ?? a.entityName}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{a.details}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold">{a.personName ?? a.entityName ?? "Unknown"}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{a.details}</div>
                     <div className="text-xs text-primary mt-1 font-medium">{a.actionRequired}</div>
                   </div>
                   <div className="text-xs text-muted-foreground shrink-0">{a.daysPending}d</div>
