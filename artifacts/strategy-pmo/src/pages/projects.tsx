@@ -37,7 +37,7 @@ import { PageHeader, Card, ProgressBar, StatusBadge } from "@/components/ui-elem
 import { Modal, FormField, FormActions, inputClass, selectClass } from "@/components/modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge, ShieldAlert, Telescope, Download, Calendar } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronUp, ChevronRight, CheckCircle2, Send, X, XCircle, FileText, FileImage, FileArchive, FileSpreadsheet, Upload, AlertCircle, RotateCcw, LayoutList, GanttChartSquare, Lock, GitMerge, ShieldAlert, Telescope, Download, Calendar, List, Layers } from "lucide-react";
 import { exportToXlsx, exportMultiSheetXlsx } from "@/lib/export";
 import { format } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
@@ -343,7 +343,7 @@ export default function Projects() {
   const [siblingWeightEdits, setSiblingWeightEdits] = useState<Record<number, string>>({});
   const [savingSiblingId, setSavingSiblingId] = useState<number | null>(null);
   const [expandedProject, setExpandedProject] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "gantt">("list");
+  const [viewMode, setViewMode] = useState<"list" | "flat" | "gantt">("list");
   const [pillarFilter, setPillarFilter] = useState<number | "all">("all");
   const [departmentFilter, setDepartmentFilter] = useState<number | "all">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "on_track" | "at_risk" | "delayed" | "completed" | "not_started" | "on_hold">("all");
@@ -578,9 +578,16 @@ export default function Projects() {
             <button
               onClick={() => setViewMode("list")}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              title="List view"
+              title="Grouped by pillar & initiative"
             >
-              <LayoutList className="w-3.5 h-3.5" /> List
+              <LayoutList className="w-3.5 h-3.5" /> Grouped
+            </button>
+            <button
+              onClick={() => setViewMode("flat")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${viewMode === "flat" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              title="Flat projects list"
+            >
+              <List className="w-3.5 h-3.5" /> Projects
             </button>
             <button
               onClick={() => setViewMode("gantt")}
@@ -730,6 +737,115 @@ export default function Projects() {
       {/* Gantt view */}
       {viewMode === "gantt" && (
         <GanttChart pillarFilter={pillarFilter} departmentFilter={departmentFilter} />
+      )}
+
+      {/* Flat view — all projects as a simple list with hierarchy tooltip */}
+      {viewMode === "flat" && (
+        <div className="space-y-2">
+          {projects
+            .filter((p) =>
+              (pillarFilter === "all" || initiatives.find((i) => i.id === p.initiativeId && pillars.find((pl) => pl.id === i.pillarId)?.id === pillarFilter)) &&
+              (departmentFilter === "all" || p.departmentId === departmentFilter) &&
+              (statusFilter === "all" || classifyProjectStatus(p) === statusFilter) &&
+              (!phaseFilter || (p as any).currentPhase === phaseFilter)
+            )
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((proj) => {
+              const init = initiatives.find((i) => i.id === proj.initiativeId);
+              const pillar = init ? pillars.find((pl) => pl.id === init.pillarId) : null;
+              const dept = departments.find((d) => d.id === proj.departmentId);
+              const pillarColor = pillar?.color ?? "#6366f1";
+              const statusCls = classifyProjectStatus(proj);
+              const statusMap: Record<string, { label: string; cls: string }> = {
+                on_track: { label: "On Track", cls: "bg-green-100 text-green-700" },
+                at_risk: { label: "At Risk", cls: "bg-amber-100 text-amber-700" },
+                delayed: { label: "Delayed", cls: "bg-red-100 text-red-700" },
+                completed: { label: "Done", cls: "bg-blue-100 text-blue-700" },
+                not_started: { label: "Not Started", cls: "bg-gray-100 text-gray-600" },
+                on_hold: { label: "On Hold", cls: "bg-orange-100 text-orange-600" },
+              };
+              const st = statusMap[statusCls] ?? statusMap.not_started;
+
+              return (
+                <div key={proj.id} className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-card hover:shadow-sm transition-shadow group">
+                  {/* Hierarchy icon with tooltip */}
+                  <div className="relative shrink-0">
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center cursor-help"
+                      style={{ backgroundColor: pillarColor + "18", border: `1.5px solid ${pillarColor}40` }}
+                      title={`Pillar: ${pillar?.name ?? "—"}\nInitiative: ${init?.name ?? "—"}`}
+                    >
+                      <Layers className="w-3.5 h-3.5" style={{ color: pillarColor }} />
+                    </div>
+                    {/* Hover popover */}
+                    <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block bg-popover border border-border rounded-lg shadow-lg p-2.5 min-w-[220px]">
+                      <div className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider mb-1">Hierarchy</div>
+                      <div className="flex items-center gap-1.5 text-xs mb-1">
+                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: pillarColor }} />
+                        <span className="font-semibold">{pillar?.name ?? "—"}</span>
+                        <span className="text-[9px] text-muted-foreground">({(pillar as any)?.pillarType === "enabler" ? "Enabler" : "Pillar"})</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs pl-3 text-muted-foreground">
+                        <ChevronRight className="w-2.5 h-2.5" />
+                        <span>{init?.name ?? "—"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Project code */}
+                  {proj.projectCode && (
+                    <span className="text-xs font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded shrink-0">{proj.projectCode}</span>
+                  )}
+
+                  {/* Project name */}
+                  <Link to={`/projects/${proj.id}`} className="flex-1 text-sm font-semibold text-foreground hover:text-primary truncate transition-colors">
+                    {proj.name}
+                  </Link>
+
+                  {/* Status badge */}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${st.cls}`}>{st.label}</span>
+
+                  {/* Progress */}
+                  <div className="w-20 shrink-0">
+                    <div className="text-xs font-bold text-right mb-0.5">{Math.round(proj.progress ?? 0)}%</div>
+                    <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${Math.min(proj.progress ?? 0, 100)}%`, backgroundColor: pillarColor }} />
+                    </div>
+                  </div>
+
+                  {/* Owner */}
+                  {proj.ownerName && (
+                    <span className="text-xs text-muted-foreground truncate max-w-[100px] hidden lg:block shrink-0">{proj.ownerName}</span>
+                  )}
+
+                  {/* Weight */}
+                  <span className="text-xs font-mono text-muted-foreground w-10 text-right shrink-0" title={`Weight source: ${(proj as any).weightSource ?? "auto"}`}>
+                    {Math.round((proj as any).effectiveWeight ?? proj.weight ?? 0)}%
+                  </span>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Link to={`/projects/${proj.id}`} className="p-1 rounded text-primary hover:bg-primary/10" title="Deep Dive">
+                      <Telescope className="w-3.5 h-3.5" />
+                    </Link>
+                    {isAdmin && (
+                      <>
+                        <button onClick={() => openEdit(proj)} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted" title="Edit">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDelete(proj.id, proj.name)} className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="Delete">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          {projects.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">No projects found.</div>
+          )}
+        </div>
       )}
 
       {/* List view — Pillar/Enabler → Initiative → Project hierarchy */}

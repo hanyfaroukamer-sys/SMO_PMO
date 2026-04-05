@@ -233,9 +233,8 @@ export function GanttChart({ pillarFilter, departmentFilter }: GanttChartProps) 
   const didScroll = useRef(false);
   const scrollToToday = useCallback(() => {
     if (!scrollRef.current || didScroll.current) return;
-    // Scroll so today appears ~20% from left edge
-    const scrollTarget = Math.max(0, todayX - scrollRef.current.clientWidth * 0.2);
-    scrollRef.current.scrollLeft = scrollTarget;
+    // Start from the left so the project list is visible first
+    scrollRef.current.scrollLeft = 0;
     didScroll.current = true;
   }, [todayX]);
 
