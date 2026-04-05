@@ -48,6 +48,7 @@ export default function Initiatives() {
   const isAdmin = useIsAdmin();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [editProjectCount, setEditProjectCount] = useState(0);
   const [form, setForm] = useState<InitiativeForm>(emptyForm());
   const [siblingWeightEdits, setSiblingWeightEdits] = useState<Record<number, string>>({});
   const [savingSiblingId, setSavingSiblingId] = useState<number | null>(null);
@@ -65,6 +66,7 @@ export default function Initiatives() {
 
   function openCreate() {
     setEditId(null);
+    setEditProjectCount(0);
     setForm(emptyForm());
     setSiblingWeightEdits({});
     setModalOpen(true);
@@ -72,6 +74,7 @@ export default function Initiatives() {
 
   function openEdit(initiative: NonNullable<typeof data>["initiatives"][number]) {
     setEditId(initiative.id);
+    setEditProjectCount((initiative as any).totalProjectCount ?? 0);
     setForm({
       initiativeCode: initiative.initiativeCode ?? "",
       name: initiative.name,
@@ -431,20 +434,34 @@ export default function Initiatives() {
 
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Start Date">
-              <input
-                type="date"
-                className={inputClass}
-                value={form.startDate}
-                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-              />
+              {editId !== null && editProjectCount > 0 ? (
+                <div>
+                  <span className="text-sm text-foreground">{form.startDate || "—"}</span>
+                  <p className="text-[11px] text-muted-foreground mt-1">Auto-computed from child projects</p>
+                </div>
+              ) : (
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={form.startDate}
+                  onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                />
+              )}
             </FormField>
             <FormField label="Target Date">
-              <input
-                type="date"
-                className={inputClass}
-                value={form.targetDate}
-                onChange={(e) => setForm({ ...form, targetDate: e.target.value })}
-              />
+              {editId !== null && editProjectCount > 0 ? (
+                <div>
+                  <span className="text-sm text-foreground">{form.targetDate || "—"}</span>
+                  <p className="text-[11px] text-muted-foreground mt-1">Auto-computed from child projects</p>
+                </div>
+              ) : (
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={form.targetDate}
+                  onChange={(e) => setForm({ ...form, targetDate: e.target.value })}
+                />
+              )}
             </FormField>
           </div>
 

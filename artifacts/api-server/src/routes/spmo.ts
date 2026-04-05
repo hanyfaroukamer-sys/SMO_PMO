@@ -527,7 +527,20 @@ router.get("/spmo/pillars/:id", async (req, res): Promise<void> => {
     initiatives.map(async (i) => {
       const is = await initiativeProgress(i.id);
       const iw = initWeightMap.get(i.id);
-      return { ...i, ...is, effectiveWeight: iw?.effectiveWeight ?? 0, weightSource: iw?.weightSource ?? "equal" };
+      // Auto-compute initiative dates from child projects (exclude cancelled)
+      const initProjects = await db.select({ budget: spmoProjectsTable.budget, startDate: spmoProjectsTable.startDate, targetDate: spmoProjectsTable.targetDate, status: spmoProjectsTable.status })
+        .from(spmoProjectsTable)
+        .where(eq(spmoProjectsTable.initiativeId, i.id));
+      const dateProjects = initProjects.filter(p => p.status !== "cancelled");
+      const computedStartDate = dateProjects.length > 0
+        ? dateProjects.reduce((min, p) => !min || (p.startDate && p.startDate < min) ? p.startDate! : min, "")
+        : i.startDate;
+      const computedTargetDate = dateProjects.length > 0
+        ? dateProjects.reduce((max, p) => !max || (p.targetDate && p.targetDate > max) ? p.targetDate! : max, "")
+        : i.targetDate;
+      const computedBudget = initProjects.reduce((s, p) => s + (p.budget ?? 0), 0);
+      const computedStatus: StatusResult = computeInitiativeStatus(is.progress, computedStartDate, computedTargetDate, computedBudget, is.budgetSpent, is.rawProgress, is.childProjects, is.plannedProgress);
+      return { ...i, startDate: computedStartDate, targetDate: computedTargetDate, ...is, computedStatus, healthStatus: computedStatus.status, totalProjectCount: initProjects.length, effectiveWeight: iw?.effectiveWeight ?? 0, weightSource: iw?.weightSource ?? "equal" };
     })
   );
 
@@ -658,12 +671,22 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
     rows.map(async (i) => {
       const stats = await initiativeProgress(i.id);
       // Initiative budget is computed from child projects, not stored
-      const childProjects = await db.select({ budget: spmoProjectsTable.budget }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id));
+      const childProjects = await db.select({ budget: spmoProjectsTable.budget, startDate: spmoProjectsTable.startDate, targetDate: spmoProjectsTable.targetDate, status: spmoProjectsTable.status }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, i.id));
       const computedBudget = childProjects.reduce((s, p) => s + (p.budget ?? 0), 0);
+
+      // Auto-compute initiative dates from child projects (exclude cancelled)
+      const dateProjects = childProjects.filter(p => p.status !== "cancelled");
+      const computedStartDate = dateProjects.length > 0
+        ? dateProjects.reduce((min, p) => !min || (p.startDate && p.startDate < min) ? p.startDate! : min, "")
+        : i.startDate;
+      const computedTargetDate = dateProjects.length > 0
+        ? dateProjects.reduce((max, p) => !max || (p.targetDate && p.targetDate > max) ? p.targetDate! : max, "")
+        : i.targetDate;
+
       const computedStatus: StatusResult = computeInitiativeStatus(
         stats.progress,
-        i.startDate,
-        i.targetDate,
+        computedStartDate,
+        computedTargetDate,
         computedBudget,
         stats.budgetSpent,
         stats.rawProgress,
@@ -671,7 +694,7 @@ router.get("/spmo/initiatives", async (req, res): Promise<void> => {
         stats.plannedProgress,
       );
       const wInfo = initWeightMaps.get(i.pillarId)?.get(i.id);
-      return { ...i, budget: computedBudget, ...stats, computedStatus, healthStatus: computedStatus.status, effectiveWeight: wInfo?.effectiveWeight ?? 0, weightSource: wInfo?.weightSource ?? "equal" };
+      return { ...i, startDate: computedStartDate, targetDate: computedTargetDate, budget: computedBudget, ...stats, totalProjectCount: childProjects.length, computedStatus, healthStatus: computedStatus.status, effectiveWeight: wInfo?.effectiveWeight ?? 0, weightSource: wInfo?.weightSource ?? "equal" };
     })
   );
 
@@ -757,10 +780,20 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
     .where(eq(spmoProjectsTable.initiativeId, initiative.id));
   // Initiative budget is computed from child projects
   const computedBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
+
+  // Auto-compute initiative dates from child projects (exclude cancelled)
+  const dateProjects = projects.filter(p => p.status !== "cancelled");
+  const computedStartDate = dateProjects.length > 0
+    ? dateProjects.reduce((min, p) => !min || (p.startDate && p.startDate < min) ? p.startDate! : min, "")
+    : initiative.startDate;
+  const computedTargetDate = dateProjects.length > 0
+    ? dateProjects.reduce((max, p) => !max || (p.targetDate && p.targetDate > max) ? p.targetDate! : max, "")
+    : initiative.targetDate;
+
   const computedStatus: StatusResult = computeInitiativeStatus(
     stats.progress,
-    initiative.startDate,
-    initiative.targetDate,
+    computedStartDate,
+    computedTargetDate,
     computedBudget,
     stats.budgetSpent,
     stats.rawProgress,
@@ -785,7 +818,7 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
   const initWeights = await computeInitiativeWeights(initiative.pillarId);
   const myWeight = initWeights.find((w) => w.initiativeId === initiative.id);
 
-  res.json({ ...initiative, budget: computedBudget, ...stats, computedStatus, healthStatus: computedStatus.status, effectiveWeight: myWeight?.effectiveWeight ?? 0, weightSource: myWeight?.weightSource ?? "equal", projects: projectsWithProgress });
+  res.json({ ...initiative, startDate: computedStartDate, targetDate: computedTargetDate, budget: computedBudget, ...stats, totalProjectCount: projects.length, computedStatus, healthStatus: computedStatus.status, effectiveWeight: myWeight?.effectiveWeight ?? 0, weightSource: myWeight?.weightSource ?? "equal", projects: projectsWithProgress });
 });
 
 router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
@@ -812,12 +845,19 @@ router.put("/spmo/initiatives/:id", async (req, res): Promise<void> => {
   }
 
   const { startDate: sd, targetDate: td, budget: _ignoredBudget2, ...restInitiativeUpdate } = parsed.data;
-  const updateInitiative = {
+  const updateInitiative: Record<string, unknown> = {
     ...restInitiativeUpdate,
     // Budget is computed from child projects — strip any manual budget input
     ...(sd !== undefined && { startDate: dateToStr(sd) as string }),
     ...(td !== undefined && { targetDate: dateToStr(td) as string }),
   };
+
+  // Auto-computed dates: ignore manual dates when projects exist
+  const hasProjects = (await db.select({ id: spmoProjectsTable.id }).from(spmoProjectsTable).where(eq(spmoProjectsTable.initiativeId, params.data.id)).limit(1)).length > 0;
+  if (hasProjects) {
+    delete updateInitiative.startDate;
+    delete updateInitiative.targetDate;
+  }
 
   const [oldInit] = await db.select().from(spmoInitiativesTable).where(eq(spmoInitiativesTable.id, params.data.id)).limit(1);
 
@@ -3395,9 +3435,12 @@ router.get("/spmo/pillars/:id/portfolio", async (req, res): Promise<void> => {
         projects.map(async (p) => {
           const ps = await projectProgress(p.id);
           const pw = projWMap.get(p.id);
+          const projStatus: StatusResult = computeStatus(ps.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, ps.rawProgress, ps.plannedProgress);
           return {
             ...p,
             ...ps,
+            computedStatus: projStatus,
+            healthStatus: projStatus.status,
             effectiveWeight: pw?.effectiveWeight ?? 0,
             weightSource: pw?.weightSource ?? "equal",
             departmentName: p.departmentId ? deptMap.get(p.departmentId) : undefined,
@@ -3405,7 +3448,18 @@ router.get("/spmo/pillars/:id/portfolio", async (req, res): Promise<void> => {
         }),
       );
 
-      return { ...i, ...is, effectiveWeight: iw?.effectiveWeight ?? 0, weightSource: iw?.weightSource ?? "equal", projects: projectsEnriched };
+      // Compute initiative dates and status
+      const dateProjects = projects.filter(p => p.status !== "cancelled");
+      const computedStartDate = dateProjects.length > 0
+        ? dateProjects.reduce((min, p) => !min || (p.startDate && p.startDate < min) ? p.startDate! : min, "")
+        : i.startDate;
+      const computedTargetDate = dateProjects.length > 0
+        ? dateProjects.reduce((max, p) => !max || (p.targetDate && p.targetDate > max) ? p.targetDate! : max, "")
+        : i.targetDate;
+      const computedBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
+      const initStatus: StatusResult = computeInitiativeStatus(is.progress, computedStartDate, computedTargetDate, computedBudget, is.budgetSpent, is.rawProgress, is.childProjects, is.plannedProgress);
+
+      return { ...i, startDate: computedStartDate, targetDate: computedTargetDate, ...is, computedStatus: initStatus, healthStatus: initStatus.status, effectiveWeight: iw?.effectiveWeight ?? 0, weightSource: iw?.weightSource ?? "equal", projects: projectsEnriched };
     }),
   );
 

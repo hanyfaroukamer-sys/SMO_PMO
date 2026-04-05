@@ -112,15 +112,9 @@ async function projectProgress(projectId: number): Promise<{
     return { value: msPlanned, weight: w };
   });
 
-  // Check if any milestones lack dates — fall back to linear for those
-  const hasAllDates = milestones.every((m) => m.startDate && m.dueDate);
-  const plannedProgress = hasAllDates
-    ? weightedAvg(plannedItems)
-    : (() => {
-        // Fallback: use project-level linear elapsed % (old behavior)
-        // This is set to -1 to signal computeStatus to use elapsed time
-        return -1;
-      })();
+  // Use milestone-weighted planned progress for dated milestones,
+  // treat undated milestones as planned 0% (unknown schedule)
+  const plannedProgress = weightedAvg(plannedItems);
 
   return {
     progress: weightedAvg(gatedItems),
@@ -636,6 +630,9 @@ export function computeStatus(
   plannedProgress?: number,
 ): StatusResult {
   if (!startDate || !endDate) {
+    if (actualProgress > 0) {
+      return { status: "on_track", reason: "Project dates not configured but work in progress.", spi: 1, burnGap: 0 };
+    }
     return { status: "not_started", reason: "Project dates not configured.", spi: 1, burnGap: 0 };
   }
 

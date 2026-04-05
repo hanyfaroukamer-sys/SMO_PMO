@@ -42,16 +42,6 @@ const STATUS_ICONS: Record<StatusCategory, React.ReactNode> = {
   on_hold: <Pause className="w-3.5 h-3.5" />, not_started: <Clock className="w-3.5 h-3.5" />,
 };
 
-function calcPlannedProgress(startDate: string | null | undefined, endDate: string | null | undefined): number {
-  if (!startDate || !endDate) return 0;
-  const today = new Date();
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const totalDays = Math.max((end.getTime() - start.getTime()) / 86_400_000, 1);
-  const elapsedDays = Math.max((today.getTime() - start.getTime()) / 86_400_000, 0);
-  return Math.min(Math.round((elapsedDays / totalDays) * 100), 100);
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function classifyProject(p: any): StatusCategory {
   if (p.status === "on_hold") return "on_hold";
