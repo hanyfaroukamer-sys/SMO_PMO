@@ -16,7 +16,7 @@ import {
   spmoProjectWeeklyReportsTable,
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { calcProgrammeProgress, computeStatus } from "../lib/spmo-calc";
+import { calcProgrammeProgress, computeStatus, projectProgress } from "../lib/spmo-calc";
 import { getCachedAssessment } from "../lib/assessment-cache";
 import { requireAuth } from "./spmo";
 
@@ -154,9 +154,9 @@ async function gatherReportData() {
 
   const statusCounts = { on_track: 0, at_risk: 0, delayed: 0, completed: 0, not_started: 0 };
   for (const p of allProjects) {
-    const ms = allMilestones.filter((m) => m.projectId === p.id);
-    const prog = ms.length === 0 ? 0 : ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length;
-    const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
+    const pStats = await projectProgress(p.id);
+    const prog = pStats.progress;
+    const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, pStats.rawProgress, pStats.plannedProgress);
     const k = s.status as keyof typeof statusCounts;
     if (k in statusCounts) statusCounts[k]++;
     else statusCounts.not_started++;
@@ -168,20 +168,25 @@ async function gatherReportData() {
 
   const aiAssessment = await getCachedAssessment();
 
-  const initiativeRows = allInitiatives.map((init) => {
+  const initiativeRows = await Promise.all(allInitiatives.map(async (init) => {
     const pillar = allPillars.find((pl) => pl.id === init.pillarId);
     const projects = allProjects.filter((p) => p.initiativeId === init.id);
     const totalBudget = projects.reduce((s, p) => s + (p.budget ?? 0), 0);
     const spent = projects.reduce((s, p) => s + (p.budgetSpent ?? 0), 0);
-    const avg =
-      projects.length === 0
-        ? 0
-        : projects.reduce((s, p) => {
-            const ms = allMilestones.filter((m) => m.projectId === p.id);
-            const pr = ms.length === 0 ? 0 : ms.reduce((a, m) => a + (m.progress ?? 0), 0) / ms.length;
-            return s + pr;
-          }, 0) / projects.length;
-    const s = computeStatus(avg, init.startDate, init.targetDate, totalBudget, spent, avg);
+    let avg = 0;
+    let avgRaw = 0;
+    if (projects.length > 0) {
+      let sumProg = 0;
+      let sumRaw = 0;
+      for (const p of projects) {
+        const pStats = await projectProgress(p.id);
+        sumProg += pStats.progress;
+        sumRaw += pStats.rawProgress;
+      }
+      avg = sumProg / projects.length;
+      avgRaw = sumRaw / projects.length;
+    }
+    const s = computeStatus(avg, init.startDate, init.targetDate, totalBudget, spent, avgRaw);
     return {
       id: init.id,
       name: init.name,
@@ -192,23 +197,23 @@ async function gatherReportData() {
       budget: totalBudget,
       reason: s.reason,
     };
-  });
+  }));
 
   // Department-level stats
-  const departmentStats = allDepartments.map((dept) => {
+  const departmentStats = (await Promise.all(allDepartments.map(async (dept) => {
     const deptProjects = allProjects.filter((p) => p.departmentId === dept.id);
-    const deptOnTrack = deptProjects.filter((p) => {
-      const ms = allMilestones.filter((m) => m.projectId === p.id);
-      const prog = ms.length === 0 ? 0 : ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length;
-      const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
-      return s.status === "on_track" || s.status === "completed";
-    }).length;
-    const avgProg = deptProjects.length === 0 ? 0 : Math.round(deptProjects.reduce((s, p) => {
-      const ms = allMilestones.filter((m) => m.projectId === p.id);
-      return s + (ms.length === 0 ? 0 : ms.reduce((a, m) => a + (m.progress ?? 0), 0) / ms.length);
-    }, 0) / deptProjects.length);
+    let deptOnTrack = 0;
+    let sumProg = 0;
+    for (const p of deptProjects) {
+      const pStats = await projectProgress(p.id);
+      const prog = pStats.progress;
+      const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, pStats.rawProgress, pStats.plannedProgress);
+      if (s.status === "on_track" || s.status === "completed") deptOnTrack++;
+      sumProg += prog;
+    }
+    const avgProg = deptProjects.length === 0 ? 0 : Math.round(sumProg / deptProjects.length);
     return { ...dept, projectCount: deptProjects.length, onTrack: deptOnTrack, avgProgress: avgProg, projects: deptProjects };
-  }).filter((d) => d.projectCount > 0);
+  }))).filter((d) => d.projectCount > 0);
 
   // Latest weekly report per project
   const latestReports = new Map<number, typeof allWeeklyReports[0]>();
@@ -372,14 +377,14 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     const atRiskProjects = data.statusCounts.at_risk;
 
     // Enriched project list with computed status
-    const projectRows = data.projects.map((p) => {
-      const ms = data.milestones.filter((m) => m.projectId === p.id);
-      const prog = ms.length === 0 ? 0 : Math.round(ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length);
-      const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
+    const projectRows = await Promise.all(data.projects.map(async (p) => {
+      const pStats = await projectProgress(p.id);
+      const prog = pStats.progress;
+      const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, pStats.rawProgress, pStats.plannedProgress);
       const cpi = (p.budget ?? 0) > 0 && (p.budgetSpent ?? 0) > 0
         ? ((prog / 100) * (p.budget ?? 0)) / (p.budgetSpent ?? 0) : 1;
       return { ...p, progress: prog, computedStatus: s.status, cpi, spi: s.spi };
-    });
+    }));
     // Sort: delayed first, then at-risk, then on-track
     const statusOrder: Record<string, number> = { delayed: 0, at_risk: 1, not_started: 2, on_track: 3, completed: 4 };
     projectRows.sort((a, b) => (statusOrder[a.computedStatus] ?? 5) - (statusOrder[b.computedStatus] ?? 5));
@@ -1041,8 +1046,8 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       let projY = 100;
       for (const p of dept.projects.slice(0, 8)) {
         const ms = data.milestones.filter((m) => m.projectId === p.id);
-        const prog = ms.length === 0 ? 0 : Math.round(ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length);
-        const s = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
+        const prog = (p as any).progress ?? (ms.length === 0 ? 0 : Math.round(ms.reduce((s2, m) => s2 + (m.progress ?? 0), 0) / ms.length));
+        const s = (p as any).computedStatus ?? computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
         const report = data.weeklyReports.get(p.id);
         const topRisks = data.risks.filter((r) => r.projectId === p.id && r.status === "open").sort((a, b) => b.riskScore - a.riskScore).slice(0, 2);
         const spentPct = (p.budget ?? 0) > 0 ? Math.round(((p.budgetSpent ?? 0) / (p.budget ?? 0)) * 100) : 0;
@@ -1302,12 +1307,12 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
 
     // Precompute
     const budgetPctP = data.budget.totalAllocated > 0 ? Math.round((data.budget.totalSpent / data.budget.totalAllocated) * 100) : 0;
-    const projRows = data.projects.map((p) => {
-      const ms = data.milestones.filter((m) => m.projectId === p.id);
-      const prog = ms.length === 0 ? 0 : Math.round(ms.reduce((s, m) => s + (m.progress ?? 0), 0) / ms.length);
-      const cs = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, prog);
+    const projRows = await Promise.all(data.projects.map(async (p) => {
+      const pStats = await projectProgress(p.id);
+      const prog = pStats.progress;
+      const cs = computeStatus(prog, p.startDate, p.targetDate, p.budget ?? 0, p.budgetSpent ?? 0, pStats.rawProgress, pStats.plannedProgress);
       return { ...p, progress: prog, cs: cs.status };
-    });
+    }));
     const sOrd: Record<string, number> = { delayed: 0, at_risk: 1, not_started: 2, on_track: 3, completed: 4 };
     projRows.sort((a, b) => (sOrd[a.cs] ?? 5) - (sOrd[b.cs] ?? 5));
 

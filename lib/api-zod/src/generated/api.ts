@@ -2359,6 +2359,7 @@ export const UpdateSpmoConfigBody = zod.object({
   mission: zod.string().optional(),
   projectAtRiskThreshold: zod.number().int().min(1).max(50).optional(),
   projectDelayedThreshold: zod.number().int().min(1).max(50).optional(),
+  nearCompletionGraceDays: zod.number().int().min(0).max(60).optional(),
   milestoneAtRiskThreshold: zod.number().int().min(1).max(50).optional(),
   riskAlertThreshold: zod.number().int().min(1).max(20).optional(),
   reminderDaysAhead: zod.number().int().min(1).max(14).optional(),

@@ -50,6 +50,7 @@ function simpleAvg(values: number[]): number {
 async function projectProgress(projectId: number): Promise<{
   progress: number;
   rawProgress: number;
+  plannedProgress: number;
   milestoneCount: number;
   approvedMilestones: number;
   pendingApprovals: number;
@@ -60,7 +61,7 @@ async function projectProgress(projectId: number): Promise<{
     .where(eq(spmoMilestonesTable.projectId, projectId));
 
   if (allMilestones.length === 0) {
-    return { progress: 0, rawProgress: 0, milestoneCount: 0, approvedMilestones: 0, pendingApprovals: 0 };
+    return { progress: 0, rawProgress: 0, plannedProgress: -1, milestoneCount: 0, approvedMilestones: 0, pendingApprovals: 0 };
   }
 
   // Exclude execution placeholder when custom (non-phase-gate) milestones exist
@@ -75,7 +76,7 @@ async function projectProgress(projectId: number): Promise<{
     : allMilestones;
 
   if (milestones.length === 0) {
-    return { progress: 0, rawProgress: 0, milestoneCount: 0, approvedMilestones: 0, pendingApprovals: 0 };
+    return { progress: 0, rawProgress: 0, plannedProgress: -1, milestoneCount: 0, approvedMilestones: 0, pendingApprovals: 0 };
   }
 
   const gatedItems = milestones.map((m) => ({
@@ -90,9 +91,38 @@ async function projectProgress(projectId: number): Promise<{
   const approved = milestones.filter((m) => m.status === "approved").length;
   const pending = milestones.filter((m) => m.status === "submitted").length;
 
+  // Compute planned progress — what the weighted progress SHOULD be today
+  // based on each milestone's start/end dates (not just linear calendar time)
+  const today = new Date();
+  const plannedItems = milestones.map((m) => {
+    const w = m.weight ?? m.effortDays ?? 0;
+    if (!m.startDate || !m.dueDate) {
+      // No dates — assume evenly distributed, use project-level elapsed %
+      return { value: 0, weight: w }; // will be overridden below
+    }
+    const msStart = new Date(m.startDate).getTime();
+    const msEnd = new Date(m.dueDate).getTime();
+    const msDuration = Math.max(msEnd - msStart, 86_400_000); // min 1 day
+    const msElapsed = Math.max(today.getTime() - msStart, 0);
+    // If milestone hasn't started yet → planned 0%. If past due → planned 100%.
+    const msPlanned = Math.min(Math.max((msElapsed / msDuration) * 100, 0), 100);
+    return { value: msPlanned, weight: w };
+  });
+
+  // Check if any milestones lack dates — fall back to linear for those
+  const hasAllDates = milestones.every((m) => m.startDate && m.dueDate);
+  const plannedProgress = hasAllDates
+    ? weightedAvg(plannedItems)
+    : (() => {
+        // Fallback: use project-level linear elapsed % (old behavior)
+        // This is set to -1 to signal computeStatus to use elapsed time
+        return -1;
+      })();
+
   return {
     progress: weightedAvg(gatedItems),
     rawProgress: weightedAvg(rawItems),
+    plannedProgress,
     milestoneCount: milestones.length,
     approvedMilestones: approved,
     pendingApprovals: pending,
@@ -155,7 +185,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
   const projectStats = await Promise.all(
     projects.map(async (p) => {
       const s = await projectProgress(p.id);
-      const projStatus = computeStatus(s.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, s.rawProgress);
+      const projStatus = computeStatus(s.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, s.rawProgress, s.plannedProgress);
 
       let projectWeight: number;
       if (adminWeightsSet) {
@@ -546,6 +576,7 @@ export interface StatusResult {
   reason: string;
   spi: number;
   burnGap: number;
+  nearCompletion?: boolean;    // true when >= 95% and within 2-week grace period
   delayedChildren?: string[];  // initiative-level: names of delayed child projects
 }
 
@@ -557,38 +588,33 @@ export interface ChildProjectSummary {
   weight: number;  // budget-based weight 0-100
 }
 
-interface StatusThresholds {
-  onTrackSpi: number;          // SPI >= this AND burnGap < burnTolerance → on_track
-  atRiskSpi: number;           // SPI >= this (below onTrackSpi) → at_risk; below → delayed
-  nearCompletionPct: number;   // progress >= this → on_track regardless of SPI
-  earlyPct: number;            // elapsed % below this = early stage window
-  earlyStallSpi: number;       // during early stage: SPI below this = stall warning
-  earlyStallProgress: number;  // during early stage: progress below this = stall warning
-  burnTolerance: number;       // burn gap below this is acceptable
-  approvalDeltaTrigger: number;
+// ── Status Engine ──────────────────────────────────────────────
+// SPI = Actual Weighted Progress / Planned Weighted Progress
+// Thresholds are configurable via programme config (projectAtRiskThreshold, projectDelayedThreshold).
+// Config values are percentages: 5 means "5% behind = at risk", 10 means "10% behind = delayed".
+// These translate to SPI: atRiskSpi = 1 - (threshold/100).
+
+// Default thresholds (used when config not loaded yet)
+let _configuredOnTrackSpi = 0.95;  // 5% behind → at risk (default from config projectAtRiskThreshold=5)
+let _configuredAtRiskSpi = 0.90;   // 10% behind → delayed (default from config projectDelayedThreshold=10)
+let _configuredGraceDays = 14;     // Near-completion grace period (default 14 days)
+
+/** Call this at startup or when config changes to set thresholds from DB config. */
+export function setStatusThresholds(projectAtRiskThreshold: number, projectDelayedThreshold: number, nearCompletionGraceDays?: number): void {
+  _configuredOnTrackSpi = 1 - (Math.max(1, Math.min(50, projectAtRiskThreshold)) / 100);
+  _configuredAtRiskSpi = 1 - (Math.max(1, Math.min(50, projectDelayedThreshold)) / 100);
+  if (nearCompletionGraceDays != null) _configuredGraceDays = Math.max(0, Math.min(60, nearCompletionGraceDays));
 }
 
-// Projects and initiatives now share the same thresholds.
-// Bias toward early warning — 10% behind on a 200M SAR project is a 20M problem.
-const THRESHOLDS: StatusThresholds = {
-  onTrackSpi: 0.90,
-  atRiskSpi: 0.70,
-  nearCompletionPct: 95,
-  earlyPct: 15,
-  earlyStallSpi: 0.2,
-  earlyStallProgress: 3,
-  burnTolerance: 15,
-  approvalDeltaTrigger: 3,
-};
-
-function computeStatusCore(
+/** Compute project/initiative status based on planned vs actual weighted progress. */
+export function computeStatus(
   actualProgress: number,
   startDate: string | null | undefined,
   endDate: string | null | undefined,
   budgetAllocated: number,
   budgetSpent: number,
-  rawProgress: number | undefined,
-  t: StatusThresholds,
+  rawProgress?: number,
+  plannedProgress?: number,
 ): StatusResult {
   if (!startDate || !endDate) {
     return { status: "not_started", reason: "Project dates not configured.", spi: 1, burnGap: 0 };
@@ -602,95 +628,73 @@ function computeStatusCore(
   const elapsedDays = Math.max((today.getTime() - start.getTime()) / 86_400_000, 0);
   const elapsedPct = Math.min((elapsedDays / totalDays) * 100, 150);
 
-  const spi = elapsedPct > 0 ? actualProgress / elapsedPct : 1;
-  const burnPct = budgetAllocated > 0 ? (budgetSpent / budgetAllocated) * 100 : 0;
-  const burnGap = budgetAllocated > 0 ? burnPct - actualProgress : 0;
+  // SPI: use milestone-weighted planned progress if available, otherwise linear elapsed %
+  const expectedPct = (plannedProgress != null && plannedProgress >= 0) ? plannedProgress : elapsedPct;
+  const spi = expectedPct > 0 ? actualProgress / expectedPct : 1;
 
+  // Budget metrics (for reporting only — not used in status determination)
+  const burnPct = budgetAllocated > 0 ? (budgetSpent / budgetAllocated) * 100 : 0;
+  const burnGap = budgetAllocated > 0 ? Math.round(burnPct - actualProgress) : 0;
+
+  // Approval bottleneck detection
   const approvalDelta = rawProgress !== undefined ? rawProgress - actualProgress : 0;
-  const isApprovalBottleneck = approvalDelta > t.approvalDeltaTrigger;
+  const isApprovalBottleneck = approvalDelta > 3;
 
   const r2 = (n: number) => Math.round(n * 100) / 100;
+  const gap = Math.round(expectedPct - actualProgress);
 
   // RULE 1: Completed
   if (actualProgress >= 100) {
-    return { status: "completed", reason: "All milestones approved and complete.", spi: r2(spi), burnGap: Math.round(burnGap) };
+    return { status: "completed", reason: "All milestones approved and complete.", spi: r2(spi), burnGap };
   }
 
   // RULE 2: Not yet started
   if (elapsedPct <= 0) {
-    return { status: "not_started", reason: `Not yet started. Begins ${start.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`, spi: 1, burnGap: Math.round(burnGap) };
+    return { status: "not_started", reason: `Not yet started. Begins ${start.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`, spi: 1, burnGap };
   }
 
-  // RULE 3: Near completion (≥95%) — let it finish even if past end date
-  if (actualProgress >= t.nearCompletionPct) {
-    const bottleneckNote = isApprovalBottleneck ? ` Approval bottleneck suppressing ${Math.round(approvalDelta)}pts.` : "";
-    return { status: "on_track", reason: `${Math.round(actualProgress)}% — final stretch.${bottleneckNote}`, spi: r2(spi), burnGap: Math.round(burnGap) };
+  // RULE 3: Near completion (≥95%) — on_track only if within grace period past due date
+  if (actualProgress >= 95) {
+    const overdueDays = Math.max(elapsedDays - totalDays, 0);
+    if (_configuredGraceDays > 0 && overdueDays <= _configuredGraceDays) {
+      const note = isApprovalBottleneck ? ` Approval bottleneck: ${Math.round(approvalDelta)}pts pending.` : "";
+      return { status: "on_track", reason: `Near completion — ${Math.round(actualProgress)}% done.${overdueDays > 0 ? ` ${Math.round(overdueDays)}d past due.` : ""}${note}`, spi: r2(spi), burnGap, nearCompletion: true };
+    }
+    // Past 2 weeks overdue even at 95%+ → falls through to overdue rule
   }
 
   // RULE 4: Overdue — past end date with incomplete work
   if (elapsedPct > 100 && actualProgress < 100) {
     const overdueDays = Math.round(elapsedDays - totalDays);
-    return {
-      status: "delayed",
-      reason: `Overdue by ${overdueDays}d at ${Math.round(actualProgress)}% complete.`,
-      spi: r2(spi),
-      burnGap: Math.round(burnGap),
-    };
+    return { status: "delayed", reason: `Overdue by ${overdueDays}d at ${Math.round(actualProgress)}% complete.`, spi: r2(spi), burnGap };
   }
 
-  // RULE 5: Early stage (<15% elapsed) — limited tolerance for stalls
-  if (elapsedPct < t.earlyPct) {
-    if (spi < t.earlyStallSpi && actualProgress < t.earlyStallProgress) {
-      return {
-        status: "at_risk",
-        reason: `Mobilising — project has minimal progress in early stage (${Math.round(elapsedPct)}% elapsed, ${Math.round(actualProgress)}% complete).`,
-        spi: r2(spi),
-        burnGap: Math.round(burnGap),
-      };
+  // RULE 5: Early stage (<15% elapsed) — give benefit of the doubt unless stalled
+  if (elapsedPct < 15) {
+    if (spi < 0.2 && actualProgress < 3) {
+      return { status: "at_risk", reason: `Mobilising — minimal progress in early stage (${Math.round(elapsedPct)}% elapsed, ${Math.round(actualProgress)}% complete).`, spi: r2(spi), burnGap };
     }
-    return { status: "on_track", reason: "Early stage.", spi: r2(spi), burnGap: Math.round(burnGap) };
+    return { status: "on_track", reason: "Early stage.", spi: r2(spi), burnGap };
   }
 
-  // RULE 6: On Track — SPI ≥ 0.90 AND burn gap < 15
-  if (spi >= t.onTrackSpi && burnGap < t.burnTolerance) {
-    return { status: "on_track", reason: `On schedule — ${Math.round(actualProgress)}% complete, ${Math.round(elapsedPct)}% of time elapsed.`, spi: r2(spi), burnGap: Math.round(burnGap) };
+  // RULE 6: On Track — SPI above the configurable "at risk" threshold
+  if (spi >= _configuredOnTrackSpi) {
+    return { status: "on_track", reason: `On schedule — ${Math.round(actualProgress)}% complete, expected ~${Math.round(expectedPct)}%.`, spi: r2(spi), burnGap };
   }
 
-  // RULE 7: At Risk — SPI 0.70–0.90 or budget issue
-  if (spi >= t.atRiskSpi) {
-    let reason: string;
-    if (burnGap >= t.burnTolerance) {
-      reason = `Budget concern: ${Math.round(burnPct)}% spent vs ${Math.round(actualProgress)}% progress (+${Math.round(burnGap)}pt gap).`;
-    } else if (isApprovalBottleneck) {
-      reason = `Approval bottleneck: ${Math.round(approvalDelta)}pt blocked — progress may be understated.`;
-    } else {
-      reason = `Slightly behind: expected ~${Math.round(elapsedPct)}% complete, actual ${Math.round(actualProgress)}%.`;
-    }
-    return { status: "at_risk", reason, spi: r2(spi), burnGap: Math.round(burnGap) };
+  // RULE 7: At Risk — SPI between the two configurable thresholds
+  if (spi >= _configuredAtRiskSpi) {
+    const reason = isApprovalBottleneck
+      ? `Approval bottleneck: ${Math.round(approvalDelta)}pts pending — progress may be understated.`
+      : `Behind schedule: expected ~${Math.round(expectedPct)}%, actual ${Math.round(actualProgress)}% (${gap}pt gap).`;
+    return { status: "at_risk", reason, spi: r2(spi), burnGap };
   }
 
-  // RULE 8: Delayed — SPI < 0.70
-  let reason: string;
-  if (burnGap >= 25) {
-    reason = `Critical: budget overburn ${Math.round(burnGap)}pt and ${Math.round(elapsedPct - actualProgress)}pt behind schedule. Intervention required.`;
-  } else if (isApprovalBottleneck && spi >= 0.55) {
-    reason = `${Math.round(approvalDelta)}pt blocked by approval bottleneck — delivery at risk.`;
-  } else {
-    reason = `${Math.round(elapsedPct - actualProgress)}pt behind schedule (expected ~${Math.round(elapsedPct)}%, actual ${Math.round(actualProgress)}%). Recovery unlikely without replanning.`;
-  }
-  return { status: "delayed", reason, spi: r2(spi), burnGap: Math.round(burnGap) };
-}
-
-/** Compute project status — SPI-based with burn gap and approval bottleneck detection. */
-export function computeStatus(
-  actualProgress: number,
-  startDate: string | null | undefined,
-  endDate: string | null | undefined,
-  budgetAllocated: number,
-  budgetSpent: number,
-  rawProgress?: number,
-): StatusResult {
-  return computeStatusCore(actualProgress, startDate, endDate, budgetAllocated, budgetSpent, rawProgress, THRESHOLDS);
+  // RULE 8: Delayed — SPI below the "delayed" threshold
+  const reason = isApprovalBottleneck && spi >= 0.55
+    ? `${Math.round(approvalDelta)}pts blocked by approval bottleneck — delivery at risk.`
+    : `${gap}pt behind schedule (expected ~${Math.round(expectedPct)}%, actual ${Math.round(actualProgress)}%). Recovery unlikely without replanning.`;
+  return { status: "delayed", reason, spi: r2(spi), burnGap };
 }
 
 /**
@@ -708,7 +712,7 @@ export function computeInitiativeStatus(
   rawProgress: number | undefined,
   childProjects: ChildProjectSummary[],
 ): StatusResult {
-  const result: StatusResult = { ...computeStatusCore(actualProgress, startDate, endDate, budgetAllocated, budgetSpent, rawProgress, THRESHOLDS) };
+  const result: StatusResult = { ...computeStatus(actualProgress, startDate, endDate, budgetAllocated, budgetSpent, rawProgress) };
 
   const delayed = [...childProjects.filter(p => p.computedStatus.status === "delayed")]
     .sort((a, b) => a.computedStatus.spi - b.computedStatus.spi);

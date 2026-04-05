@@ -278,6 +278,8 @@ export async function generateProgrammeWeeklyDigest(): Promise<ProgrammeWeeklyDi
       project.targetDate,
       project.budget,
       project.budgetSpent,
+      prog.rawProgress,
+      prog.plannedProgress,
     );
 
     // 4. Milestones this week

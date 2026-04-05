@@ -1032,7 +1032,7 @@ export default function ProjectDetail({ params }: Props) {
                     {project.projectCode}
                   </span>
                 )}
-                <StatusBadge status={project.status} />
+                {project.status !== "active" && <StatusBadge status={project.status} />}
                 <HealthBadge status={project.healthStatus} />
               </div>
               <h1 className="text-2xl font-display font-bold leading-tight">{project.name}</h1>

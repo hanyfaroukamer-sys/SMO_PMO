@@ -32,7 +32,7 @@ const PIE_COLOURS: Record<StatusCategory, string> = {
 const PIE_LABELS: Record<StatusCategory, string> = {
   on_track:    "On Track",
   completed:   "Completed",
-  at_risk:     "Risk of Delay",
+  at_risk:     "At Risk",
   delayed:     "Delayed",
   on_hold:     "On Hold",
   not_started: "Not Started",
@@ -72,17 +72,15 @@ function calcPlannedProgress(startDate: string | null | undefined, endDate: stri
   return Math.min(Math.round((elapsedDays / totalDays) * 100), 100);
 }
 
-function classifyProject(p: SpmaDepartmentPortfolioProject): StatusCategory {
-  if (p.status === "completed" || p.progress >= 100) return "completed";
+function classifyProject(p: any): StatusCategory {
   if (p.status === "on_hold") return "on_hold";
-  if (p.progress === 0) return "not_started";
-  if (p.targetDate) {
-    const today = new Date();
-    const target = new Date(p.targetDate);
-    if (target < today) return "delayed";
-    const planned = calcPlannedProgress(p.startDate, p.targetDate);
-    if (planned - p.progress > 15) return "at_risk";
-  }
+  if (p.status === "completed" || p.status === "cancelled") return "completed";
+  const cs = p.computedStatus?.status ?? (p as any).healthStatus;
+  if (cs === "completed") return "completed";
+  if (cs === "delayed") return "delayed";
+  if (cs === "at_risk") return "at_risk";
+  if (cs === "on_track") return "on_track";
+  if ((p.progress ?? 0) === 0) return "not_started";
   return "on_track";
 }
 

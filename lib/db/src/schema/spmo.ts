@@ -528,6 +528,7 @@ export const spmoProgrammeConfigTable = pgTable("spmo_programme_config", {
   fiscalYearStart: integer("fiscal_year_start").notNull().default(1),
   projectAtRiskThreshold: integer("project_at_risk_threshold").notNull().default(5),
   projectDelayedThreshold: integer("project_delayed_threshold").notNull().default(10),
+  nearCompletionGraceDays: integer("near_completion_grace_days").notNull().default(14),
   milestoneAtRiskThreshold: integer("milestone_at_risk_threshold").notNull().default(5),
   riskAlertThreshold: integer("risk_alert_threshold").notNull().default(9),
   reminderDaysAhead: integer("reminder_days_ahead").notNull().default(3),

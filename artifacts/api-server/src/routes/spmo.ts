@@ -112,6 +112,7 @@ import {
   computeProjectWeights,
   computeInitiativeWeights,
   computePillarWeights,
+  setStatusThresholds,
   type StatusResult,
 } from "../lib/spmo-calc";
 import { logSpmoActivity } from "../lib/spmo-activity";
@@ -346,6 +347,14 @@ async function runPhaseGateMigration(): Promise<void> {
 }
 
 runPhaseGateMigration();
+
+// Load configurable SPI thresholds from DB on startup
+(async () => {
+  try {
+    const [cfg] = await db.select({ atRisk: spmoProgrammeConfigTable.projectAtRiskThreshold, delayed: spmoProgrammeConfigTable.projectDelayedThreshold, grace: spmoProgrammeConfigTable.nearCompletionGraceDays }).from(spmoProgrammeConfigTable).limit(1);
+    if (cfg) setStatusThresholds(cfg.atRisk, cfg.delayed, cfg.grace);
+  } catch { /* DB not ready yet — will use defaults */ }
+})();
 
 // ─────────────────────────────────────────────────────────────
 // Programme Overview (cached 60 seconds)
@@ -764,7 +773,7 @@ router.get("/spmo/initiatives/:id", async (req, res): Promise<void> => {
   const projectsWithProgress = await Promise.all(
     projects.map(async (p) => {
       const ps = await projectProgress(p.id);
-      const projStatus: StatusResult = computeStatus(ps.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, ps.rawProgress);
+      const projStatus: StatusResult = computeStatus(ps.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, ps.rawProgress, ps.plannedProgress);
       const pw = projWeightMap.get(p.id);
       return { ...p, ...ps, computedStatus: projStatus, healthStatus: projStatus.status, effectiveWeight: pw?.effectiveWeight ?? 0, weightSource: pw?.weightSource ?? "equal" };
     })
@@ -923,6 +932,7 @@ router.get("/spmo/projects", async (req, res): Promise<void> => {
         p.budget,
         p.budgetSpent,
         stats.rawProgress,
+        stats.plannedProgress,
       );
       const pMilestones = await db.select({ phaseGate: spmoMilestonesTable.phaseGate, status: spmoMilestonesTable.status, progress: spmoMilestonesTable.progress }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
       const currentPhase = detectProjectPhase(pMilestones);
@@ -1091,7 +1101,8 @@ router.get("/spmo/projects/:id", async (req, res): Promise<void> => {
   const projWeights = await computeProjectWeights(project.initiativeId);
   const pwInfo = projWeights.find((w) => w.projectId === project.id);
 
-  res.json({ ...project, ...stats, effectiveWeight: pwInfo?.effectiveWeight ?? 0, weightSource: pwInfo?.weightSource ?? "equal", milestones: milestonesWithEvidence, executionPlaceholderHidden: hasCustomSingle });
+  const computedStatus = computeStatus(stats.progress, project.startDate, project.targetDate, project.budget, project.budgetSpent, stats.rawProgress, stats.plannedProgress);
+  res.json({ ...project, ...stats, computedStatus, healthStatus: computedStatus.status, effectiveWeight: pwInfo?.effectiveWeight ?? 0, weightSource: pwInfo?.weightSource ?? "equal", milestones: milestonesWithEvidence, executionPlaceholderHidden: hasCustomSingle });
 });
 
 router.put("/spmo/projects/:id", async (req, res): Promise<void> => {
@@ -3181,6 +3192,9 @@ router.put("/spmo/programme-config", async (req, res): Promise<void> => {
   } else {
     [row] = await db.update(spmoProgrammeConfigTable).set(parsed.data).where(eq(spmoProgrammeConfigTable.id, 1)).returning();
   }
+  // Reload SPI thresholds if they changed
+  setStatusThresholds(row.projectAtRiskThreshold, row.projectDelayedThreshold, row.nearCompletionGraceDays);
+  invalidateOverviewCache();
   res.json(row);
 });
 
@@ -4135,7 +4149,7 @@ router.get("/spmo/my-tasks/count", async (req, res) => {
     const myProjsFull = await db.select().from(spmoProjectsTable).where(inArray(spmoProjectsTable.id, myProjectIds));
     for (const p of myProjsFull) {
       const ps = await projectProgress(p.id);
-      const h = computeStatus(ps.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, ps.rawProgress);
+      const h = computeStatus(ps.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, ps.rawProgress, ps.plannedProgress);
       if (h.status === "delayed") delayedProjects++;
       else if (h.status === "at_risk") atRiskProjects++;
     }
@@ -4336,7 +4350,7 @@ router.get("/spmo/my-tasks", async (req, res) => {
       const pStats = await projectProgress(p.id);
       const [projRow] = await db.select({ startDate: spmoProjectsTable.startDate, targetDate: spmoProjectsTable.targetDate, budget: spmoProjectsTable.budget, budgetSpent: spmoProjectsTable.budgetSpent }).from(spmoProjectsTable).where(eq(spmoProjectsTable.id, p.id)).limit(1);
       if (!projRow) continue;
-      const health = computeStatus(pStats.progress, projRow.startDate, projRow.targetDate, projRow.budget, projRow.budgetSpent, pStats.rawProgress);
+      const health = computeStatus(pStats.progress, projRow.startDate, projRow.targetDate, projRow.budget, projRow.budgetSpent, pStats.rawProgress, pStats.plannedProgress);
       if (health.status === "delayed") {
         tasks.push({
           id: `project-delayed-${p.id}`,
@@ -4497,7 +4511,7 @@ router.get("/spmo/dashboard/department-status", async (req, res) => {
       if (p.status === "cancelled") { stats.completed++; continue; }
       const milestones = await db.select({ phaseGate: spmoMilestonesTable.phaseGate, status: spmoMilestonesTable.status, progress: spmoMilestonesTable.progress }).from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, p.id));
       const pStats = await projectProgress(p.id);
-      const health = computeStatus(pStats.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, pStats.rawProgress);
+      const health = computeStatus(pStats.progress, p.startDate, p.targetDate, p.budget, p.budgetSpent, pStats.rawProgress, pStats.plannedProgress);
       const hs = health.status;
       if (hs === "on_track") stats.onTrack++;
       else if (hs === "at_risk") stats.atRisk++;

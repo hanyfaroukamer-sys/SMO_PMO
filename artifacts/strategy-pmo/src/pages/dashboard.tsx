@@ -42,7 +42,7 @@ function calcPlannedProgress(startDate: string | null | undefined, endDate: stri
 
 const HEALTH_BADGE_MAP: Record<SpmoHealthStatus, { label: string; cls: string }> = {
   completed:   { label: "Completed",   cls: "bg-success/10 text-success border border-success/30" },
-  on_track:    { label: "On Track",    cls: "bg-primary/10 text-primary border border-primary/30" },
+  on_track:    { label: "On Track",    cls: "bg-success/10 text-success border border-success/30" },
   at_risk:     { label: "At Risk",     cls: "bg-warning/10 text-warning border border-warning/30" },
   delayed:     { label: "Delayed",     cls: "bg-destructive/10 text-destructive border border-destructive/30" },
   not_started: { label: "Not Started", cls: "bg-muted text-muted-foreground border border-border" },
@@ -94,8 +94,8 @@ function classifyProject(project: SpmoProjectWithProgress): ProjectStatusCategor
 }
 
 const STATUS_CHIPS: Record<ProjectStatusCategory, { label: string; bg: string; text: string }> = {
-  on_track:    { label: "On Track",       bg: "bg-primary/10 border border-primary/40",         text: "text-primary" },
-  at_risk:     { label: "Risk of Delay",  bg: "bg-warning/10 border border-warning/40",         text: "text-warning" },
+  on_track:    { label: "On Track",       bg: "bg-success/10 border border-success/40",         text: "text-success" },
+  at_risk:     { label: "At Risk",        bg: "bg-warning/10 border border-warning/40",         text: "text-warning" },
   delayed:     { label: "Delayed",        bg: "bg-destructive/10 border border-destructive/40", text: "text-destructive" },
   completed:   { label: "Completed",      bg: "bg-success/10 border border-success/40",         text: "text-success" },
   not_started: { label: "Not Started",    bg: "bg-secondary border border-border",              text: "text-muted-foreground" },
@@ -116,7 +116,7 @@ const PIE_COLOURS: Record<ProjectStatusCategory, string> = {
 const PIE_LABELS: Record<ProjectStatusCategory, string> = {
   on_track:    "On Track",
   completed:   "Completed",
-  at_risk:     "Risk of Delay",
+  at_risk:     "At Risk",
   delayed:     "Delayed",
   on_hold:     "On Hold",
   not_started: "Not Started",

@@ -1537,7 +1537,7 @@ function WeeklyDigestPanel() {
   if (isLoading) return <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   if (!data) return null;
 
-  const SC: Record<string, string> = { on_track: "#16A34A", at_risk: "#D97706", delayed: "#DC2626", completed: "#2563EB", not_started: "#94A3B8" };
+  const SC: Record<string, string> = { on_track: "#86efac", at_risk: "#D97706", delayed: "#DC2626", completed: "#2563EB", not_started: "#94A3B8" };
 
   return (
     <div className="space-y-4">
@@ -1569,13 +1569,13 @@ function WeeklyDigestPanel() {
       </div>
       <div className="space-y-3">
         {data.projects.map((p) => (
-          <Card key={p.projectId} className="p-4" style={{ borderLeftWidth: 4, borderLeftColor: SC[p.healthStatus] ?? "#94A3B8" }}>
+          <Card key={p.projectId} className="p-4" style={{ borderLeftWidth: 4, borderLeftColor: SC[(p as any).computedStatus?.status ?? p.healthStatus] ?? "#94A3B8" }}>
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   {p.projectCode && <span className="text-[10px] font-mono text-muted-foreground">{p.projectCode}</span>}
                   <span className="text-sm font-bold truncate">{p.projectName}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ backgroundColor: (SC[p.healthStatus] ?? "#94A3B8") + "18", color: SC[p.healthStatus] ?? "#94A3B8" }}>{p.healthStatus?.replace(/_/g, " ").toUpperCase()}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ backgroundColor: (SC[(p as any).computedStatus?.status ?? p.healthStatus] ?? "#94A3B8") + "18", color: SC[(p as any).computedStatus?.status ?? p.healthStatus] ?? "#94A3B8" }}>{((p as any).computedStatus?.status ?? p.healthStatus)?.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</span>
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">{p.ownerName ?? "—"} · {p.departmentName ?? "—"}</div>
               </div>

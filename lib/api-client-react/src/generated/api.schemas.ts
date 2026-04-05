@@ -447,6 +447,7 @@ export interface SpmoStatusResult {
   reason: string;
   spi: number;
   burnGap: number;
+  nearCompletion?: boolean;
   delayedChildren?: string[];
 }
 
@@ -932,6 +933,7 @@ export interface SpmoProgrammeConfig {
   mission?: string | null;
   projectAtRiskThreshold: number;
   projectDelayedThreshold: number;
+  nearCompletionGraceDays?: number;
   milestoneAtRiskThreshold: number;
   riskAlertThreshold?: number;
   reminderDaysAhead?: number;
@@ -966,6 +968,7 @@ export interface UpdateSpmoProgrammeConfigRequest {
   mission?: string;
   projectAtRiskThreshold?: number;
   projectDelayedThreshold?: number;
+  nearCompletionGraceDays?: number;
   milestoneAtRiskThreshold?: number;
   riskAlertThreshold?: number;
   reminderDaysAhead?: number;

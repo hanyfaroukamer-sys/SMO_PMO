@@ -673,7 +673,7 @@ export default function Projects() {
             onClick={async () => {
               const projectRows = projects.map((p) => ({
                 Name: p.name,
-                Status: p.healthStatus,
+                Status: ({ on_track: "On Track", at_risk: "At Risk", delayed: "Delayed", completed: "Completed", not_started: "Not Started", on_hold: "On Hold" } as Record<string, string>)[p.healthStatus] ?? p.healthStatus,
                 Progress: Math.round(p.progress) + "%",
                 [`Budget (${currency})`]: p.budget ?? 0,
                 [`Spent (${currency})`]: p.budgetSpent ?? 0,
@@ -814,7 +814,7 @@ export default function Projects() {
                 on_track: { label: "On Track", cls: "bg-green-100 text-green-700" },
                 at_risk: { label: "At Risk", cls: "bg-amber-100 text-amber-700" },
                 delayed: { label: "Delayed", cls: "bg-red-100 text-red-700" },
-                completed: { label: "Done", cls: "bg-blue-100 text-blue-700" },
+                completed: { label: "Completed", cls: "bg-blue-100 text-blue-700" },
                 not_started: { label: "Not Started", cls: "bg-gray-100 text-gray-600" },
                 on_hold: { label: "On Hold", cls: "bg-orange-100 text-orange-600" },
               };
@@ -2356,7 +2356,7 @@ function WeeklyReportSection({ projectId }: { projectId: number }) {
 
 const HEALTH_BADGE_MAP: Record<SpmoHealthStatus, { label: string; className: string }> = {
   completed:   { label: "Completed",   className: "bg-success/10 text-success border border-success/30" },
-  on_track:    { label: "On Track",    className: "bg-primary/10 text-primary border border-primary/30" },
+  on_track:    { label: "On Track",    className: "bg-success/10 text-success border border-success/30" },
   at_risk:     { label: "At Risk",     className: "bg-warning/10 text-warning border border-warning/30" },
   delayed:     { label: "Delayed",     className: "bg-destructive/10 text-destructive border border-destructive/30" },
   not_started: { label: "Not Started", className: "bg-muted text-muted-foreground border border-border" },
@@ -2373,18 +2373,22 @@ function HealthBadge({ status }: { status: SpmoHealthStatus | undefined }) {
 function ComputedStatusBadge({ cs }: { cs: SpmoStatusResult | undefined }) {
   if (!cs) return null;
   const { label, className } = HEALTH_BADGE_MAP[cs.status];
+  const isNearCompletion = cs.nearCompletion === true;
   return (
     <div className="relative group inline-flex flex-col gap-0.5">
       <div className="inline-flex items-center gap-1.5">
         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${className}`}>{label}</span>
+        {isNearCompletion && (
+          <span className="text-[9px] font-bold text-success bg-success/10 border border-success/20 px-1 py-0 rounded" title="Near completion — 95%+ progress, within 2-week grace period">
+            ≈ Done
+          </span>
+        )}
         <div className="absolute bottom-full left-0 mb-1 z-50 hidden group-hover:block pointer-events-none">
           <div className="bg-popover border border-border rounded-lg shadow-xl px-3 py-2 text-xs text-foreground w-72 whitespace-normal leading-relaxed">
-            <div className="font-semibold mb-1">{label}</div>
+            <div className="font-semibold mb-1">{label}{isNearCompletion ? " (Near Completion)" : ""}</div>
             <div className="text-muted-foreground">{cs.reason}</div>
-            {cs.burnGap !== 0 && (
-              <div className={`mt-1 ${cs.burnGap > 0 ? "text-warning" : "text-success"}`}>
-                Budget burn gap: {cs.burnGap > 0 ? "+" : ""}{cs.burnGap}pts
-              </div>
+            {isNearCompletion && (
+              <div className="mt-1 text-success font-medium">≥ 95% complete — within 2-week grace period past due date.</div>
             )}
           </div>
         </div>

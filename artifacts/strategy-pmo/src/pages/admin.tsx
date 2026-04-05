@@ -745,6 +745,7 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
   const [weeklyDeadlineHour, setWeeklyDeadlineHour] = useState(config?.weeklyReportDeadlineHour ?? 15);
   const [projectAtRiskThreshold, setProjectAtRiskThreshold] = useState(config?.projectAtRiskThreshold ?? 5);
   const [projectDelayedThreshold, setProjectDelayedThreshold] = useState(config?.projectDelayedThreshold ?? 10);
+  const [nearCompletionGraceDays, setNearCompletionGraceDays] = useState(config?.nearCompletionGraceDays ?? 14);
   const [milestoneAtRiskThreshold, setMilestoneAtRiskThreshold] = useState(config?.milestoneAtRiskThreshold ?? 5);
   const [weeklyReportCc, setWeeklyReportCc] = useState(config?.weeklyReportCcEmails ?? "");
   const [taskReminderEnabled, setTaskReminderEnabled] = useState(config?.taskReminderEnabled ?? false);
@@ -773,6 +774,7 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
           weeklyReportCcEmails: weeklyReportCc || null,
           projectAtRiskThreshold,
           projectDelayedThreshold,
+          nearCompletionGraceDays,
           milestoneAtRiskThreshold,
           taskReminderEnabled,
           taskReminderHour,
@@ -838,6 +840,11 @@ function EmailNotificationsPanel({ config, users }: { config: SpmoProgrammeConfi
             <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Project Delayed %</label>
             <input type="number" min={1} max={50} className={inputClass} value={projectDelayedThreshold} onChange={(e) => setProjectDelayedThreshold(Number(e.target.value))} />
             <p className="text-[10px] text-muted-foreground mt-0.5">Progress lag that triggers "delayed"</p>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Near Completion Grace (days)</label>
+            <input type="number" min={0} max={60} className={inputClass} value={nearCompletionGraceDays} onChange={(e) => setNearCompletionGraceDays(Number(e.target.value))} />
+            <p className="text-[10px] text-muted-foreground mt-0.5">Days past due to keep ≥95% projects as "On Track". Set 0 to disable.</p>
           </div>
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Milestone At Risk %</label>
