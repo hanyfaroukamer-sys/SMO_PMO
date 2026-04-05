@@ -36,4 +36,4 @@ channel = "stable-25_05"
 DEMO_MODE = "true"
 
 [userenv.shared]
-FORCE_RESEED = "false"
+FORCE_RESEED = "true"
