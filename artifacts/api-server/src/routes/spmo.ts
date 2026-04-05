@@ -502,14 +502,23 @@ router.get("/spmo/pillars/:id", async (req, res): Promise<void> => {
     .where(eq(spmoInitiativesTable.pillarId, pillar.id))
     .orderBy(asc(spmoInitiativesTable.sortOrder), asc(spmoInitiativesTable.createdAt));
 
+  // Compute initiative effective weights within this pillar
+  const initWeights = await computeInitiativeWeights(pillar.id);
+  const initWeightMap = new Map(initWeights.map((w) => [w.initiativeId, w]));
+
   const initiativesWithProgress = await Promise.all(
     initiatives.map(async (i) => {
       const is = await initiativeProgress(i.id);
-      return { ...i, ...is };
+      const iw = initWeightMap.get(i.id);
+      return { ...i, ...is, effectiveWeight: iw?.effectiveWeight ?? 0, weightSource: iw?.weightSource ?? "equal" };
     })
   );
 
-  res.json({ ...pillar, ...stats, initiatives: initiativesWithProgress });
+  // Compute this pillar's weight in the programme
+  const pillarWeights = await computePillarWeights();
+  const myPillarWeight = pillarWeights.find((w) => w.pillarId === pillar.id);
+
+  res.json({ ...pillar, ...stats, effectiveWeight: myPillarWeight?.effectiveWeight ?? 0, weightSource: myPillarWeight?.weightSource ?? "equal", initiatives: initiativesWithProgress });
 });
 
 router.put("/spmo/pillars/:id", async (req, res): Promise<void> => {
@@ -3320,9 +3329,15 @@ router.get("/spmo/pillars/:id/portfolio", async (req, res): Promise<void> => {
   const departments = await db.select().from(spmoDepartmentsTable);
   const deptMap = new Map(departments.map((d) => [d.id, d.name]));
 
+  const initWeightsPortfolio = await computeInitiativeWeights(pillar.id);
+  const initWMap = new Map(initWeightsPortfolio.map((w) => [w.initiativeId, w]));
+
   const initiativesWithProjects = await Promise.all(
     initiatives.map(async (i) => {
       const is = await initiativeProgress(i.id);
+      const iw = initWMap.get(i.id);
+      const projWeights = await computeProjectWeights(i.id);
+      const projWMap = new Map(projWeights.map((w) => [w.projectId, w]));
 
       const projects = await db
         .select()
@@ -3333,19 +3348,24 @@ router.get("/spmo/pillars/:id/portfolio", async (req, res): Promise<void> => {
       const projectsEnriched = await Promise.all(
         projects.map(async (p) => {
           const ps = await projectProgress(p.id);
+          const pw = projWMap.get(p.id);
           return {
             ...p,
             ...ps,
+            effectiveWeight: pw?.effectiveWeight ?? 0,
+            weightSource: pw?.weightSource ?? "equal",
             departmentName: p.departmentId ? deptMap.get(p.departmentId) : undefined,
           };
         }),
       );
 
-      return { ...i, ...is, projects: projectsEnriched };
+      return { ...i, ...is, effectiveWeight: iw?.effectiveWeight ?? 0, weightSource: iw?.weightSource ?? "equal", projects: projectsEnriched };
     }),
   );
 
-  res.json({ pillar: { ...pillar, ...stats }, initiatives: initiativesWithProjects });
+  const pillarWeightsPort = await computePillarWeights();
+  const myPW = pillarWeightsPort.find((w) => w.pillarId === pillar.id);
+  res.json({ pillar: { ...pillar, ...stats, effectiveWeight: myPW?.effectiveWeight ?? 0, weightSource: myPW?.weightSource ?? "equal" }, initiatives: initiativesWithProjects });
 });
 
 router.get("/spmo/departments/:id/portfolio", async (req, res): Promise<void> => {
@@ -3394,9 +3414,15 @@ router.get("/spmo/departments/:id/portfolio", async (req, res): Promise<void> =>
         pillarName = pillar?.name;
       }
 
+      // Compute effective weight
+      const projWeights = await computeProjectWeights(p.initiativeId);
+      const pwInfo = projWeights.find((w) => w.projectId === p.id);
+
       return {
         ...p,
         ...stats,
+        effectiveWeight: pwInfo?.effectiveWeight ?? 0,
+        weightSource: pwInfo?.weightSource ?? "equal",
         initiativeName: initiative?.name,
         pillarName,
       };
