@@ -375,7 +375,7 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
       const w = getW(ms);
       totW += w;
       const msDueTime = ms.dueDate ? new Date(ms.dueDate).getTime() : origTargetTime;
-      const msNewDueTime = msDueTime + input.delayDays * 86_400_000;
+      const msNewDueTime = msDueTime + (input.delayDays ?? 0) * 86_400_000;
       const isCompleted = ms.status === "approved" || (ms.progress ?? 0) >= 100;
       let simProg: number;
       if (isCompleted) { simProg = 100; }
@@ -406,8 +406,47 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
     // The project was supposed to contribute its full progress to the initiative.
     // With delay, it contributes simulatedDelayProgress instead of currentProgress.
 
-    const currentProjectProgress = (await projectProgress(input.projectId)).progress;
-    const projectProgressDrop = Math.max(0, currentProjectProgress - simulatedDelayProgress);
+    // The drop is the shortfall: what progress SHOULD be at deadline vs what WILL be.
+    // plannedAtOriginalTarget comes from the milestone analysis (computed later, but
+    // we can compute it here from the pre-computed simulatedDelayProgress data).
+    // For now: we know the project was supposed to have all milestones done by deadline.
+    // The simulated progress tells us what will actually be done.
+    // Drop = (what milestones should contribute) - (what they will contribute with delay)
+
+    // Recompute planned and simulated from milestone data (same logic as progressImpact)
+    const projMs = await db.select().from(spmoMilestonesTable).where(eq(spmoMilestonesTable.projectId, input.projectId));
+    const origTargetTime = new Date(project.targetDate).getTime();
+    const totalStoredW = projMs.reduce((s, m) => s + (m.weight ?? 0), 0);
+    const allHaveW = projMs.every((m) => (m.weight ?? 0) > 0) && Math.abs(totalStoredW - 100) <= 5;
+    const totalEff = projMs.reduce((s, m) => s + (m.effortDays ?? 0), 0);
+    const getMsW = (m: typeof projMs[0]) => {
+      if (allHaveW) return (m.weight ?? 0) / totalStoredW * 100;
+      if (totalEff > 0) return ((m.effortDays ?? 0) / totalEff) * 100;
+      return projMs.length > 0 ? 100 / projMs.length : 0;
+    };
+    let plannedWSum = 0, simWSum = 0, totMsW = 0;
+    for (const ms of projMs) {
+      const w = getMsW(ms);
+      totMsW += w;
+      const msDueTime = ms.dueDate ? new Date(ms.dueDate).getTime() : origTargetTime;
+      const msNewDueTime = msDueTime + (input.delayDays ?? 0) * 86_400_000;
+      const shouldBeDone = msDueTime <= origTargetTime;
+      plannedWSum += shouldBeDone ? w : 0;
+      const isCompleted = ms.status === "approved" || (ms.progress ?? 0) >= 100;
+      let simProg: number;
+      if (isCompleted) simProg = 100;
+      else if (msNewDueTime <= origTargetTime) simProg = 100;
+      else {
+        const msStart = ms.startDate ? new Date(ms.startDate).getTime() : msDueTime - 30 * 86_400_000;
+        const msDur = Math.max(msNewDueTime - msStart, 86_400_000);
+        const timeToOrig = Math.max(origTargetTime - msStart, 0);
+        simProg = Math.max(ms.progress ?? 0, Math.min(timeToOrig / msDur, 1) * 100);
+      }
+      simWSum += (simProg / 100) * w;
+    }
+    const plannedProg = totMsW > 0 ? (plannedWSum / totMsW) * 100 : 100;
+    const simProg2 = totMsW > 0 ? (simWSum / totMsW) * 100 : 0;
+    const projectProgressDrop = Math.max(0, plannedProg - simProg2);
 
     // Use the real weight cascade (admin override → budget → effort → equal)
     // Project weight in initiative
@@ -583,7 +622,7 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
       const w = getWeight(ms);
       totalWeight += w;
       const msDueTime = ms.dueDate ? new Date(ms.dueDate).getTime() : origTargetTime;
-      const msNewDueTime = msDueTime + input.delayDays * 86_400_000;
+      const msNewDueTime = msDueTime + (input.delayDays ?? 0) * 86_400_000;
       const isCompleted = ms.status === "approved" || (ms.progress ?? 0) >= 100;
 
       // PLANNED: by original target, this milestone should be complete if dueDate <= originalTarget
