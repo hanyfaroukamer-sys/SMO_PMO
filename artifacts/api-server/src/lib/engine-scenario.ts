@@ -61,9 +61,9 @@ export interface ScenarioResult {
   progressImpact?: {
     projectName: string;
     currentProgress: number;
-    plannedProgressByNow: number;
-    plannedProgressAfterDelay: number;
-    progressGap: number;
+    plannedProgressAtOriginalTarget: number;
+    expectedProgressAtOriginalTarget: number;
+    progressGapAtTarget: number;
     originalTargetDate: string;
     newTargetDate: string;
     daysDelayed: number;
@@ -270,10 +270,18 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
       }
     }
 
+    const startD = project.startDate ? new Date(project.startDate) : new Date();
+    const origEnd = new Date(project.targetDate);
+    const newEnd = new Date(newTargetDate);
+    const totalNewDur = Math.max((newEnd.getTime() - startD.getTime()) / 86_400_000, 1);
+    const daysToOrig = Math.max((origEnd.getTime() - startD.getTime()) / 86_400_000, 0);
+    const expectedAtOrig = round1(Math.min((daysToOrig / totalNewDur) * 100, 100));
+    const gapAtOrig = round1(100 - expectedAtOrig);
+
     summaryParts.push(
       `Delaying "${project.name}" by ${delayDays} days shifts its target date from ${project.targetDate} to ${newTargetDate}.`,
-      `Current progress is ${currentProg}% vs planned ${plannedByNow}% (gap: ${progressGap}%).`,
-      `After delay, planned progress recalibrates to ${plannedAfterDelay}% on the new timeline.`,
+      `By the original deadline, planned progress should be 100% but will only reach ~${expectedAtOrig}% — a ${gapAtOrig}% shortfall.`,
+      `Current progress is ${currentProg}%.`,
     );
     if (cascadeImpact.length > 0) {
       summaryParts.push(
@@ -448,18 +456,36 @@ export async function simulateScenario(input: ScenarioInput): Promise<ScenarioRe
   }
 
   // Build progressImpact for delay scenarios
+  // Key insight: at the ORIGINAL target date, planned progress should be 100%.
+  // But with the delay, actual progress by that date will be much less.
+  // The gap shows how far behind the project will be on the original timeline.
   let progressImpact: ScenarioResult["progressImpact"];
   if (input.type === "delay" && input.delayDays) {
     const pp = await projectProgress(input.projectId);
-    const plannedByNow = calcPlannedProgress(project.startDate, project.targetDate);
     const newTarget = addDays(project.targetDate, input.delayDays);
-    const plannedAfterDelay = calcPlannedProgress(project.startDate, newTarget);
+    const originalTargetDate = new Date(project.targetDate);
+
+    // At the original target date, planned progress = 100% (project was supposed to finish)
+    const plannedAtOriginal = 100;
+
+    // At the original target date with the delay, the project will only be at:
+    // (time from start to original target) / (time from start to NEW target) * 100
+    // This is how far along the new timeline the original date falls
+    const startDate = project.startDate ? new Date(project.startDate) : new Date();
+    const newEndDate = new Date(newTarget);
+    const totalNewDuration = Math.max((newEndDate.getTime() - startDate.getTime()) / 86_400_000, 1);
+    const daysToOriginalTarget = Math.max((originalTargetDate.getTime() - startDate.getTime()) / 86_400_000, 0);
+    const expectedAtOriginalTarget = round1(Math.min((daysToOriginalTarget / totalNewDuration) * 100, 100));
+
+    // The gap: what was planned (100%) minus what will actually be achieved
+    const gap = round1(plannedAtOriginal - expectedAtOriginalTarget);
+
     progressImpact = {
       projectName: project.name,
       currentProgress: pp.progress,
-      plannedProgressByNow: round1(plannedByNow),
-      plannedProgressAfterDelay: round1(plannedAfterDelay),
-      progressGap: round1(plannedByNow - pp.progress),
+      plannedProgressAtOriginalTarget: plannedAtOriginal,
+      expectedProgressAtOriginalTarget: expectedAtOriginalTarget,
+      progressGapAtTarget: gap,
       originalTargetDate: project.targetDate,
       newTargetDate: newTarget,
       daysDelayed: input.delayDays,

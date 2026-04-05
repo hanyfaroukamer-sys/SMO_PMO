@@ -655,9 +655,9 @@ interface ScenarioResultData {
   progressImpact?: {
     projectName: string;
     currentProgress: number;
-    plannedProgressByNow: number;
-    plannedProgressAfterDelay: number;
-    progressGap: number;
+    plannedProgressAtOriginalTarget: number;
+    expectedProgressAtOriginalTarget: number;
+    progressGapAtTarget: number;
     originalTargetDate: string;
     newTargetDate: string;
     daysDelayed: number;
@@ -922,35 +922,39 @@ function ScenarioPanel() {
           {result.progressImpact && (
             <Card className="p-5 border-l-4 border-l-warning">
               <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
-                <TrendingDown className="w-4 h-4 text-warning" />
-                Progress Impact — {result.progressImpact.projectName}
+                <TrendingDown className="w-4 h-4 text-destructive" />
+                Progress Shortfall at Original Deadline — {result.progressImpact.projectName}
               </h4>
+              <p className="text-xs text-muted-foreground mb-3">
+                By the original target date ({result.progressImpact.originalTargetDate}), the project should be 100% complete.
+                With a {result.progressImpact.daysDelayed}-day delay, it will only reach ~{result.progressImpact.expectedProgressAtOriginalTarget}% — a <span className="font-bold text-destructive">{result.progressImpact.progressGapAtTarget}% shortfall</span>.
+              </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                 <div className="bg-secondary/50 rounded-lg px-3 py-2.5 text-center">
                   <div className="text-[10px] font-bold uppercase text-muted-foreground">Current Progress</div>
                   <div className="text-xl font-bold">{result.progressImpact.currentProgress}%</div>
-                  <div className="text-[10px] text-muted-foreground">Work completed</div>
+                  <div className="text-[10px] text-muted-foreground">Work completed today</div>
                 </div>
                 <div className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-2.5 text-center">
-                  <div className="text-[10px] font-bold uppercase text-muted-foreground">Planned by Now</div>
-                  <div className="text-xl font-bold text-primary">{result.progressImpact.plannedProgressByNow}%</div>
-                  <div className="text-[10px] text-muted-foreground">Should be here today</div>
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground">Planned at Target Date</div>
+                  <div className="text-xl font-bold text-primary">100%</div>
+                  <div className="text-[10px] text-muted-foreground">Should complete by {result.progressImpact.originalTargetDate}</div>
                 </div>
                 <div className="bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2.5 text-center">
-                  <div className="text-[10px] font-bold uppercase text-destructive">Progress Gap</div>
-                  <div className="text-xl font-bold text-destructive">{result.progressImpact.progressGap > 0 ? "-" : ""}{Math.abs(result.progressImpact.progressGap)}%</div>
-                  <div className="text-[10px] text-muted-foreground">Behind schedule</div>
+                  <div className="text-[10px] font-bold uppercase text-destructive">Actual at Target Date</div>
+                  <div className="text-xl font-bold text-destructive">~{result.progressImpact.expectedProgressAtOriginalTarget}%</div>
+                  <div className="text-[10px] text-muted-foreground">What will be done by then</div>
                 </div>
-                <div className="bg-warning/5 border border-warning/20 rounded-lg px-3 py-2.5 text-center">
-                  <div className="text-[10px] font-bold uppercase text-muted-foreground">After +{result.progressImpact.daysDelayed}d</div>
-                  <div className="text-xl font-bold text-warning">{result.progressImpact.plannedProgressAfterDelay}%</div>
-                  <div className="text-[10px] text-muted-foreground">New planned target</div>
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2.5 text-center">
+                  <div className="text-[10px] font-bold uppercase text-destructive">Shortfall</div>
+                  <div className="text-xl font-bold text-destructive">-{result.progressImpact.progressGapAtTarget}%</div>
+                  <div className="text-[10px] text-destructive font-semibold">Behind original plan</div>
                 </div>
               </div>
               <div className="text-xs text-muted-foreground flex items-center gap-2">
-                <span className="font-mono">{result.progressImpact.originalTargetDate}</span>
-                <ArrowRight className="w-3 h-3" />
-                <span className="font-mono font-bold text-destructive">{result.progressImpact.newTargetDate}</span>
+                <span>Original: <span className="font-mono">{result.progressImpact.originalTargetDate}</span></span>
+                <ArrowRight className="w-3 h-3 text-destructive" />
+                <span>New: <span className="font-mono font-bold text-destructive">{result.progressImpact.newTargetDate}</span></span>
                 <span className="text-destructive font-bold">(+{result.progressImpact.daysDelayed} days)</span>
               </div>
             </Card>
