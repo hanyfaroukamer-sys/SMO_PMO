@@ -7,7 +7,7 @@ import {
   spmoEvidenceTable,
   type SpmoPillar,
 } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 
 // ─────────────────────────────────────────────────────────────
 // 99% Gate Rule
@@ -151,7 +151,10 @@ async function initiativeProgress(initiativeId: number): Promise<{
     .select()
     .from(spmoProjectsTable)
     .where(
-      and(eq(spmoProjectsTable.initiativeId, initiativeId), eq(spmoProjectsTable.status, "active"))
+      and(
+        eq(spmoProjectsTable.initiativeId, initiativeId),
+        sql`${spmoProjectsTable.status} NOT IN ('cancelled', 'on_hold')`
+      )
     );
 
   if (projects.length === 0) {
