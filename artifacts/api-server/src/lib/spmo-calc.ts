@@ -148,7 +148,7 @@ async function initiativeProgress(initiativeId: number): Promise<{
     .where(
       and(
         eq(spmoProjectsTable.initiativeId, initiativeId),
-        sql`${spmoProjectsTable.status} NOT IN ('cancelled', 'on_hold')`
+        sql`${spmoProjectsTable.status} != 'cancelled'`
       )
     );
 
