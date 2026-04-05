@@ -97,6 +97,10 @@ function formatDate(d: Date): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function formatDateTime(d: Date): string {
+  return `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} at ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+}
+
 function fmtSAR(v: number, cur: string = "SAR"): string {
   if (v >= 1_000_000_000) return `${cur} ${(v / 1_000_000_000).toFixed(1)}B`;
   if (v >= 1_000_000) return `${cur} ${(v / 1_000_000).toFixed(1)}M`;
@@ -273,7 +277,7 @@ function pdfFooter(doc: InstanceType<typeof PDFDocument>, pageNum: number, total
     .fontSize(9)
     .fillColor(C.secondary)
     .text(
-      `CONFIDENTIAL  ·  StrategyPMO  ·  ${formatDate(new Date())}`,
+      `CONFIDENTIAL  ·  StrategyPMO  ·  ${formatDateTime(new Date())}`,
       40,
       y,
       { align: "center", width: doc.page.width - 80 },
@@ -345,7 +349,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="Strategy-Weekly-Report-${new Date().toISOString().slice(0, 10)}.pdf"`,
+      `attachment; filename="Strategy-Weekly-Report-${new Date().toISOString().slice(0, 16).replace(":", "")}.pdf"`,
     );
     doc.pipe(res);
 
@@ -402,7 +406,7 @@ router.post("/pdf", async (req: Request, res: Response): Promise<void> => {
       .font("Helvetica")
       .fontSize(11)
       .fillColor(C.secondary)
-      .text(`${formatDate(new Date())}`, M, H * 0.30 + 96, { align: "center", width: CW });
+      .text(`Generated: ${formatDateTime(new Date())}`, M, H * 0.30 + 96, { align: "center", width: CW });
     doc
       .font("Helvetica-Bold")
       .fontSize(9)
@@ -1285,7 +1289,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     const pptx = new PptxGen();
     pptx.layout = "LAYOUT_WIDE";
     pptx.author = "StrategyPMO";
-    pptx.title = `Strategy Weekly Report — ${new Date().toISOString().slice(0, 10)}`;
+    pptx.title = `Strategy Weekly Report — ${formatDateTime(new Date())}`;
 
     const P = { navy: "1E3A5F", dark: "0F172A", mid: "475569", light: "94A3B8", bg: "F8FAFC", border: "E2E8F0", green: "16A34A", amber: "D97706", red: "DC2626", white: "FFFFFF", blue: "3B82F6", teal: "059669" };
     const stColor = (s: string) => s === "on_track" || s === "completed" ? P.green : s === "at_risk" ? P.amber : s === "delayed" ? P.red : P.light;
@@ -1314,7 +1318,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     s1.addShape(pptx.ShapeType.rect, { x: 0, y: 3.15, w: "100%", h: 0.02, fill: { color: P.navy } });
     s1.addText(data.config?.programmeName ?? "National Transformation Programme", { x: 1, y: 2.0, w: 11, h: 1.0, fontSize: 32, bold: true, color: P.dark, align: "center" });
     s1.addText("Strategy Weekly Report", { x: 1, y: 3.3, w: 11, h: 0.6, fontSize: 18, color: P.mid, align: "center" });
-    s1.addText(fmtD(new Date()), { x: 1, y: 4.1, w: 11, h: 0.4, fontSize: 12, color: P.light, align: "center" });
+    s1.addText(`Generated: ${formatDateTime(new Date())}`, { x: 1, y: 4.1, w: 11, h: 0.4, fontSize: 12, color: P.light, align: "center" });
     s1.addText("CONFIDENTIAL", { x: 1, y: 4.6, w: 11, h: 0.4, fontSize: 10, bold: true, color: P.light, align: "center" });
     foot(s1);
 
@@ -1711,7 +1715,7 @@ router.post("/pptx", async (req: Request, res: Response): Promise<void> => {
     // ── Generate and send ──
     const pptxBuffer = await pptx.write({ outputType: "nodebuffer" }) as Buffer;
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
-    res.setHeader("Content-Disposition", `attachment; filename="Strategy-Weekly-Report-${new Date().toISOString().slice(0, 10)}.pptx"`);
+    res.setHeader("Content-Disposition", `attachment; filename="Strategy-Weekly-Report-${new Date().toISOString().slice(0, 16).replace(":", "")}.pptx"`);
     res.send(pptxBuffer);
   } catch (err) {
     req.log?.error?.({ err }, "PPTX generation error");
